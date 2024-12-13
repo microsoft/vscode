@@ -15,6 +15,9 @@ import { IAuthenticationAccessService } from './authenticationAccessService.js';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -43,6 +46,37 @@ export async function getCurrentAuthenticationSessionInfo(
 	return undefined;
 }
 
+const authenticationDefinitionSchema: IJSONSchema = {
+	type: 'object',
+	additionalProperties: false,
+	properties: {
+		id: {
+			type: 'string',
+			description: localize('authentication.id', 'The id of the authentication provider.')
+		},
+		label: {
+			type: 'string',
+			description: localize('authentication.label', 'The human readable name of the authentication provider.'),
+		}
+	}
+};
+
+const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<AuthenticationProviderInformation[]>({
+	extensionPoint: 'authentication',
+	jsonSchema: {
+		description: localize({ key: 'authenticationExtensionPoint', comment: [`'Contributes' means adds here`] }, 'Contributes authentication'),
+		type: 'array',
+		items: authenticationDefinitionSchema
+	},
+	activationEventsGenerator: (authenticationProviders, result) => {
+		for (const authenticationProvider of authenticationProviders) {
+			if (authenticationProvider.id) {
+				result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
+			}
+		}
+	}
+});
+
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
 
@@ -64,7 +98,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService,
-		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService
+		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
@@ -83,6 +118,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}));
 
 		this._registerEnvContributedAuthenticationProviders();
+		this._registerAuthenticationExtentionPointHandler();
 	}
 
 	private _declaredProviders: AuthenticationProviderInformation[] = [];
@@ -95,8 +131,44 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return;
 		}
 		for (const provider of this._environmentService.options.authenticationProviders) {
+			this.registerDeclaredAuthenticationProvider(provider);
 			this.registerAuthenticationProvider(provider.id, provider);
 		}
+	}
+
+	private _registerAuthenticationExtentionPointHandler(): void {
+		this._register(authenticationExtPoint.setHandler((_extensions, { added, removed }) => {
+			this._logService.debug(`Found authentication providers. added: ${added.length}, removed: ${removed.length}`);
+			added.forEach(point => {
+				for (const provider of point.value) {
+					if (isFalsyOrWhitespace(provider.id)) {
+						point.collector.error(localize('authentication.missingId', 'An authentication contribution must specify an id.'));
+						continue;
+					}
+
+					if (isFalsyOrWhitespace(provider.label)) {
+						point.collector.error(localize('authentication.missingLabel', 'An authentication contribution must specify a label.'));
+						continue;
+					}
+
+					if (!this.declaredProviders.some(p => p.id === provider.id)) {
+						this.registerDeclaredAuthenticationProvider(provider);
+						this._logService.debug(`Declared authentication provider: ${provider.id}`);
+					} else {
+						point.collector.error(localize('authentication.idConflict', "This authentication id '{0}' has already been registered", provider.id));
+					}
+				}
+			});
+
+			const removedExtPoints = removed.flatMap(r => r.value);
+			removedExtPoints.forEach(point => {
+				const provider = this.declaredProviders.find(provider => provider.id === point.id);
+				if (provider) {
+					this.unregisterDeclaredAuthenticationProvider(provider.id);
+					this._logService.debug(`Undeclared authentication provider: ${provider.id}`);
+				}
+			});
+		}));
 	}
 
 	registerDeclaredAuthenticationProvider(provider: AuthenticationProviderInformation): void {

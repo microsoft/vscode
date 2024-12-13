@@ -280,6 +280,14 @@ export class LineTokens implements IViewLineTokens {
 			callback(tokenIndex);
 		}
 	}
+
+	toString(): string {
+		let result = '';
+		this.forEach((i) => {
+			result += `[${this.getTokenText(i)}]{${this.getClassName(i)}}`;
+		});
+		return result;
+	}
 }
 
 class SliceLineTokens implements IViewLineTokens {

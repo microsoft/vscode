@@ -5,10 +5,10 @@
 
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
+import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
-import { importAMDNodeModule } from '../../../../../amdX.js';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
-import { memoize, throttle } from '../../../../../base/common/decorators.js';
+import { throttle } from '../../../../../base/common/decorators.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
@@ -29,6 +29,7 @@ import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from '../../../terminal/co
 import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
 import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollConfiguration.js';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from './terminalStickyScrollColorRegistry.js';
+import { XtermAddonImporter } from '../../../terminal/browser/xterm/xtermAddonImporter.js';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -46,8 +47,11 @@ const enum Constants {
 
 export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
+
+	private readonly _xtermAddonLoader = new XtermAddonImporter();
 	private _serializeAddon?: SerializeAddonType;
 	private _webglAddon?: WebglAddonType;
+	private _ligaturesAddon?: LigaturesAddonType;
 
 	private _element?: HTMLElement;
 	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
@@ -105,6 +109,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				...this._getOptions()
 			}));
 			this._refreshGpuAcceleration();
+
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 					this._syncOptions();
@@ -123,7 +128,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				}
 			}));
 
-			this._getSerializeAddonConstructor().then(SerializeAddon => {
+			this._xtermAddonLoader.importAddon('serialize').then(SerializeAddon => {
 				if (this._store.isDisposed) {
 					return;
 				}
@@ -389,6 +394,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		this._stickyScrollOverlay.open(this._element);
 
+		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
+			if (this._store.isDisposed || !this._stickyScrollOverlay) {
+				return;
+			}
+			this._ligaturesAddon = new LigaturesAddon();
+			this._stickyScrollOverlay.loadAddon(this._ligaturesAddon);
+		});
+
 		// Scroll to the command on click
 		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
 			if (this._xterm && this._currentStickyCommand) {
@@ -454,7 +467,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	@throttle(0)
 	private async _refreshGpuAcceleration() {
 		if (this._shouldLoadWebgl() && !this._webglAddon) {
-			const WebglAddon = await this._getWebglAddonConstructor();
+			const WebglAddon = await this._xtermAddonLoader.importAddon('webgl');
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -480,16 +493,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
-	}
-
-	@memoize
-	private async _getSerializeAddonConstructor(): Promise<typeof SerializeAddonType> {
-		return (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon;
-	}
-
-	@memoize
-	private async _getWebglAddonConstructor(): Promise<typeof WebglAddonType> {
-		return (await importAMDNodeModule<typeof import('@xterm/addon-webgl')>('@xterm/addon-webgl', 'lib/addon-webgl.js')).WebglAddon;
 	}
 }
 

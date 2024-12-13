@@ -21,7 +21,6 @@ export interface IRawChatParticipantContribution {
 	fullName: string;
 	when?: string;
 	description?: string;
-	supportsModelPicker?: boolean;
 	isDefault?: boolean;
 	isSticky?: boolean;
 	sampleRequest?: string;
@@ -29,7 +28,6 @@ export interface IRawChatParticipantContribution {
 	defaultImplicitVariables?: string[];
 	locations?: RawChatParticipantLocation[];
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
-	supportsToolReferences?: boolean;
 }
 
 /**

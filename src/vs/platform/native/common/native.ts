@@ -75,6 +75,7 @@ export interface ICommonNativeHostService {
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
 	getActiveWindowPosition(): Promise<IRectangle | undefined>;
+	getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -143,6 +144,13 @@ export interface ICommonNativeHostService {
 
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
+	// Screenshots
+
+	/**
+	 * Gets a screenshot of the currently active Electron window.
+	 */
+	getScreenshot(): Promise<ArrayBufferLike | undefined>;
+
 	// Process
 	getProcessId(): Promise<number | undefined>;
 	killProcess(pid: number, code: string): Promise<void>;
@@ -181,6 +189,7 @@ export interface ICommonNativeHostService {
 	// Development
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
+	openGPUInfoWindow(): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;

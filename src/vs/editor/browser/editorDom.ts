@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../base/browser/domStylesheets.js';
 import { GlobalPointerMoveMonitor } from '../../base/browser/globalPointerMoveMonitor.js';
 import { StandardMouseEvent } from '../../base/browser/mouseEvent.js';
 import { RunOnceScheduler } from '../../base/common/async.js';
@@ -368,7 +369,7 @@ class RefCountedCssRule {
 		public readonly properties: CssProperties,
 	) {
 		this._styleElementDisposables = new DisposableStore();
-		this._styleElement = dom.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
+		this._styleElement = domStylesheetsJs.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
 		this._styleElement.textContent = this.getCssText(this.className, this.properties);
 	}
 

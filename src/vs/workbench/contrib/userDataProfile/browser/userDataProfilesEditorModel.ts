@@ -786,7 +786,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	}
 
 	private async getChildrenFromProfileTemplate(profileTemplate: IUserDataProfileTemplate, resourceType: ProfileResourceType): Promise<IProfileResourceTypeChildElement[]> {
-		const profile = toUserDataProfile(generateUuid(), this.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME }), URI.file('/cache').with({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME }));
+		const location = URI.from({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, path: `/root/profiles/${profileTemplate.name}` });
+		const cacheLocation = URI.from({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, path: `/root/cache/${profileTemplate.name}` });
+		const profile = toUserDataProfile(generateUuid(), this.name, location, cacheLocation);
 		switch (resourceType) {
 			case ProfileResourceType.Settings:
 				if (profileTemplate.settings) {

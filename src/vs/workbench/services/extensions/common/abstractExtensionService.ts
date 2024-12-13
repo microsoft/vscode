@@ -61,6 +61,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	public _serviceBrand: undefined;
 
+	private readonly _hasLocalProcess: boolean;
+	private readonly _allowRemoteExtensionsInLocalWebWorker: boolean;
+
 	private readonly _onDidRegisterExtensions = this._register(new Emitter<void>());
 	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;
 
@@ -95,6 +98,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _resolveAuthorityAttempt: number = 0;
 
 	constructor(
+		options: { hasLocalProcess: boolean; allowRemoteExtensionsInLocalWebWorker: boolean },
 		private readonly _extensionsProposedApi: ExtensionsProposedApi,
 		private readonly _extensionHostFactory: IExtensionHostFactory,
 		private readonly _extensionHostKindPicker: IExtensionHostKindPicker,
@@ -117,6 +121,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
+
+		this._hasLocalProcess = options.hasLocalProcess;
+		this._allowRemoteExtensionsInLocalWebWorker = options.allowRemoteExtensionsInLocalWebWorker;
 
 		// help the file service to activate providers by activating extensions by file system event
 		this._register(this._fileService.onWillActivateFileSystemProvider(e => {
@@ -318,7 +325,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._extensionsProposedApi.updateEnabledApiProposals(toAdd);
 
 		// Update extension points
-		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
+		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove), false);
 
 		// Update the extension host
 		await this._updateExtensionsOnExtHosts(result.versionId, toAdd, toRemove.map(e => e.identifier));
@@ -453,10 +460,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const lock = await this._registry.acquireLock('_initialize');
 		try {
-			const resolvedExtensions = await this._resolveExtensions();
-
-			this._processExtensions(lock, resolvedExtensions);
-
+			await this._resolveAndProcessExtensions(lock);
 			// Start extension hosts which are not automatically started
 			const snapshot = this._registry.getSnapshot();
 			for (const extHostManager of this._extensionHostManagers) {
@@ -474,10 +478,24 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		await this._handleExtensionTests();
 	}
 
-	private _processExtensions(lock: ExtensionDescriptionRegistryLock, resolvedExtensions: ResolvedExtensions): void {
-		const { allowRemoteExtensionsInLocalWebWorker, hasLocalProcess } = resolvedExtensions;
-		const localExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, resolvedExtensions.local, false);
-		let remoteExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, resolvedExtensions.remote, false);
+	private async _resolveAndProcessExtensions(lock: ExtensionDescriptionRegistryLock,): Promise<void> {
+		let resolverExtensions: IExtensionDescription[] = [];
+		let localExtensions: IExtensionDescription[] = [];
+		let remoteExtensions: IExtensionDescription[] = [];
+
+		for await (const extensions of this._resolveExtensions()) {
+			if (extensions instanceof ResolverExtensions) {
+				resolverExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, extensions.extensions, false);
+				this._registry.deltaExtensions(lock, resolverExtensions, []);
+				this._doHandleExtensionPoints(resolverExtensions, true);
+			}
+			if (extensions instanceof LocalExtensions) {
+				localExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, extensions.extensions, false);
+			}
+			if (extensions instanceof RemoteExtensions) {
+				remoteExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, extensions.extensions, false);
+			}
+		}
 
 		// `initializeRunningLocation` will look at the complete picture (e.g. an extension installed on both sides),
 		// takes care of duplicates and picks a running location for each extension
@@ -486,8 +504,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._startExtensionHostsIfNecessary(true, []);
 
 		// Some remote extensions could run locally in the web worker, so store them
-		const remoteExtensionsThatNeedToRunLocally = (allowRemoteExtensionsInLocalWebWorker ? this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.LocalWebWorker) : []);
-		const localProcessExtensions = (hasLocalProcess ? this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalProcess) : []);
+		const remoteExtensionsThatNeedToRunLocally = (this._allowRemoteExtensionsInLocalWebWorker ? this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.LocalWebWorker) : []);
+		const localProcessExtensions = (this._hasLocalProcess ? this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalProcess) : []);
 		const localWebWorkerExtensions = this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalWebWorker);
 		remoteExtensions = this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.Remote);
 
@@ -499,8 +517,22 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		const allExtensions = remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions);
+		let toAdd = allExtensions;
 
-		const result = this._registry.deltaExtensions(lock, allExtensions, []);
+		if (resolverExtensions.length) {
+			// Add extensions that are not registered as resolvers but are in the final resolved set
+			toAdd = allExtensions.filter(extension => !resolverExtensions.some(e => ExtensionIdentifier.equals(e.identifier, extension.identifier) && e.extensionLocation.toString() === extension.extensionLocation.toString()));
+			// Remove extensions that are registered as resolvers but are not in the final resolved set
+			if (allExtensions.length < toAdd.length + resolverExtensions.length) {
+				const toRemove = resolverExtensions.filter(registered => !allExtensions.some(e => ExtensionIdentifier.equals(e.identifier, registered.identifier) && e.extensionLocation.toString() === registered.extensionLocation.toString()));
+				if (toRemove.length) {
+					this._registry.deltaExtensions(lock, [], toRemove.map(e => e.identifier));
+					this._doHandleExtensionPoints(toRemove, true);
+				}
+			}
+		}
+
+		const result = this._registry.deltaExtensions(lock, toAdd, []);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
 				severity: Severity.Error,
@@ -508,7 +540,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			});
 		}
 
-		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
+		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions(), false);
 	}
 
 	private async _handleExtensionTests(): Promise<void> {
@@ -1031,7 +1063,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
+	private _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[], onlyResolverExtensionPoints: boolean): void {
 		const affectedExtensionPoints: { [extPointName: string]: boolean } = Object.create(null);
 		for (const extensionDescription of affectedExtensions) {
 			if (extensionDescription.contributes) {
@@ -1046,15 +1078,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 		const availableExtensions = this._registry.getAllExtensionDescriptions();
 		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
-		perf.mark('code/willHandleExtensionPoints');
+		perf.mark(onlyResolverExtensionPoints ? 'code/willHandleResolverExtensionPoints' : 'code/willHandleExtensionPoints');
 		for (const extensionPoint of extensionPoints) {
-			if (affectedExtensionPoints[extensionPoint.name]) {
+			if (affectedExtensionPoints[extensionPoint.name] && (!onlyResolverExtensionPoints || extensionPoint.canHandleResolver)) {
 				perf.mark(`code/willHandleExtensionPoint/${extensionPoint.name}`);
 				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
 				perf.mark(`code/didHandleExtensionPoint/${extensionPoint.name}`);
 			}
 		}
-		perf.mark('code/didHandleExtensionPoints');
+		perf.mark(onlyResolverExtensionPoints ? 'code/didHandleResolverExtensionPoints' : 'code/didHandleExtensionPoints');
 	}
 
 	private _getOrCreateExtensionStatus(extensionId: ExtensionIdentifier): ExtensionStatus {
@@ -1192,7 +1224,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#endregion
 
-	protected abstract _resolveExtensions(): Promise<ResolvedExtensions>;
+	protected abstract _resolveExtensions(): AsyncIterable<ResolvedExtensions>;
 	protected abstract _onExtensionHostExit(code: number): Promise<void>;
 	protected abstract _resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
 }
@@ -1280,14 +1312,25 @@ class ExtensionHostManagerData {
 	}
 }
 
-export class ResolvedExtensions {
+export class ResolverExtensions {
 	constructor(
-		public readonly local: IExtensionDescription[],
-		public readonly remote: IExtensionDescription[],
-		public readonly hasLocalProcess: boolean,
-		public readonly allowRemoteExtensionsInLocalWebWorker: boolean
+		public readonly extensions: IExtensionDescription[],
 	) { }
 }
+
+export class LocalExtensions {
+	constructor(
+		public readonly extensions: IExtensionDescription[],
+	) { }
+}
+
+export class RemoteExtensions {
+	constructor(
+		public readonly extensions: IExtensionDescription[],
+	) { }
+}
+
+export type ResolvedExtensions = ResolverExtensions | LocalExtensions | RemoteExtensions;
 
 export interface IExtensionHostFactory {
 	createExtensionHost(runningLocations: ExtensionRunningLocationTracker, runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null;
@@ -1298,6 +1341,10 @@ class DeltaExtensionsQueueItem {
 		public readonly toAdd: IExtension[],
 		public readonly toRemove: string[] | IExtension[]
 	) { }
+}
+
+export function isResolverExtension(extension: IExtensionDescription): boolean {
+	return !!extension.activationEvents?.some(activationEvent => activationEvent.startsWith('onResolveRemoteAuthority:'));
 }
 
 /**

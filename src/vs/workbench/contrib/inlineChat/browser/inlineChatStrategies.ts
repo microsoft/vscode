@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getTotalWidth, WindowIntervalTimer } from '../../../../base/browser/dom.js';
+import { WindowIntervalTimer } from '../../../../base/browser/dom.js';
 import { coalesceInPlace } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from '../../../../editor/browser/editorBrowser.js';
 import { StableEditorScrollState } from '../../../../editor/browser/stableEditorScroll.js';
 import { LineSource, RenderOptions, renderLines } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
@@ -39,9 +39,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { DefaultChatTextEditor } from '../../chat/browser/codeBlockPart.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
-import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { ConflictActionsFactory, IContentWidgetAction } from '../../mergeEditor/browser/view/conflictActions.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -507,20 +504,14 @@ export class LiveStrategy extends EditModeStrategy {
 									const [hunkRange] = hunkData.getRangesN();
 									viewZoneData.afterLineNumber = hunkRange.startLineNumber - 1;
 									data.diffViewZoneId = viewZoneAccessor.addZone(viewZoneData);
-									overlay?.updateExtraTop(result.heightInLines);
 								} else {
 									viewZoneAccessor.removeZone(data.diffViewZoneId!);
-									overlay?.updateExtraTop(0);
 									data.diffViewZoneId = undefined;
 								}
 							});
 							this._ctxCurrentChangeShowsDiff.set(typeof data?.diffViewZoneId === 'string');
 							scrollState.restore(this._editor);
 						};
-
-						const overlay = this._showOverlayToolbar && false
-							? this._instaService.createInstance(InlineChangeOverlay, this._editor, hunkData)
-							: undefined;
 
 
 						let lensActions: DisposableStore | undefined;
@@ -585,7 +576,6 @@ export class LiveStrategy extends EditModeStrategy {
 							});
 
 							lensActions?.dispose();
-							overlay?.dispose();
 						};
 
 						const move = (next: boolean) => {
@@ -696,79 +686,4 @@ function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor:
 			callback(decorationsAccessor, viewZoneAccessor);
 		});
 	});
-}
-
-
-class InlineChangeOverlay implements IOverlayWidget {
-
-	readonly allowEditorOverflow: boolean = false;
-
-	private readonly _id: string = `inline-chat-diff-overlay-` + generateUuid();
-	private readonly _domNode: HTMLElement = document.createElement('div');
-	private readonly _store: DisposableStore = new DisposableStore();
-
-	private _extraTopLines: number = 0;
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _hunkInfo: HunkInformation,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-	) {
-
-		this._domNode.classList.add('inline-chat-diff-overlay');
-
-		if (_hunkInfo.getState() === HunkState.Pending) {
-
-			const menuBar = this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
-				menuOptions: { arg: _hunkInfo },
-				telemetrySource: 'inlineChat-changesZone',
-				buttonConfigProvider: (_action, idx) => {
-					return {
-						isSecondary: idx > 0,
-						showIcon: true,
-						showLabel: false
-					};
-				},
-			}));
-
-			this._store.add(menuBar.onDidChange(() => this._editor.layoutOverlayWidget(this)));
-		}
-
-		this._editor.addOverlayWidget(this);
-		this._store.add(Event.any(this._editor.onDidLayoutChange, this._editor.onDidScrollChange)(() => this._editor.layoutOverlayWidget(this)));
-		queueMicrotask(() => this._editor.layoutOverlayWidget(this)); // FUNKY but needed to get the initial layout right
-	}
-
-	dispose(): void {
-		this._editor.removeOverlayWidget(this);
-		this._store.dispose();
-	}
-
-	getId(): string {
-		return this._id;
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	getPosition(): IOverlayWidgetPosition | null {
-
-		const line = this._hunkInfo.getRangesN()[0].startLineNumber;
-		const info = this._editor.getLayoutInfo();
-		const top = this._editor.getTopForLineNumber(line) - this._editor.getScrollTop();
-		const left = info.contentLeft + info.contentWidth - info.verticalScrollbarWidth;
-
-		const extraTop = this._editor.getOption(EditorOption.lineHeight) * this._extraTopLines;
-		const width = getTotalWidth(this._domNode);
-
-		return { preference: { top: top - extraTop, left: left - width } };
-	}
-
-	updateExtraTop(value: number) {
-		if (this._extraTopLines !== value) {
-			this._extraTopLines = value;
-			this._editor.layoutOverlayWidget(this);
-		}
-	}
 }

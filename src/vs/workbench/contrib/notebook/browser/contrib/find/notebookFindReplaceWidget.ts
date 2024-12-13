@@ -28,7 +28,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { FindReplaceState, FindReplaceStateChangedEvent } from '../../../../../../editor/contrib/find/browser/findState.js';
 import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, findSelectionIcon, SimpleButton } from '../../../../../../editor/contrib/find/browser/findWidget.js';
 import { parseReplaceString, ReplacePattern } from '../../../../../../editor/contrib/find/browser/replacePattern.js';
-import { createAndFillInActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenu } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -279,13 +279,7 @@ export class NotebookFindInput extends FindInput {
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-		return result;
+		return getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
 	}
 }
 
@@ -651,13 +645,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-		return result;
+		return getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
 	}
 
 	protected abstract onInputChanged(): boolean;
@@ -688,6 +676,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	public get focusTracker(): dom.IFocusTracker {
 		return this._focusTracker;
+	}
+
+	public get isVisible(): boolean {
+		return this._isVisible;
 	}
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {

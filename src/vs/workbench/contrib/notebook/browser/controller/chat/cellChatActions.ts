@@ -26,7 +26,7 @@ import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENE
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT } from '../../../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
 import { AbstractInlineChatAction } from '../../../../inlineChat/browser/inlineChatActions.js';
 import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
 import { HunkInformation } from '../../../../inlineChat/browser/inlineChatSession.js';
@@ -693,7 +693,7 @@ export class AcceptChangesAndRun extends AbstractInlineChatAction {
 				order: 2,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
 				)

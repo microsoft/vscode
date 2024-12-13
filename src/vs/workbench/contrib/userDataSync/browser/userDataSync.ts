@@ -865,7 +865,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerManageSyncAction(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Unavailable), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
 		this._register(registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({

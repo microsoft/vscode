@@ -33,6 +33,7 @@ import { FoldingModel, toggleCollapseState } from '../../folding/browser/folding
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
 	get stickyScrollWidgetState(): StickyScrollWidgetState;
+	isFocused(): boolean;
 	focus(): void;
 	focusNext(): void;
 	focusPrevious(): void;
@@ -86,8 +87,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(this._stickyLineCandidateProvider);
 
 		this._widgetState = StickyScrollWidgetState.Empty;
-		this._onDidResize();
-		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			this._readConfigurationChange(e);
@@ -119,6 +118,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.MOUSE_DOWN, (e) => {
 			this._onMouseDown = true;
 		}));
+		this._onDidResize();
+		this._readConfiguration();
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
@@ -139,6 +140,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._focused = false;
 		this._positionRevealed = false;
 		this._onMouseDown = false;
+	}
+
+	public isFocused(): boolean {
+		return this._focused;
 	}
 
 	public focus(): void {
@@ -394,7 +399,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (!foldingIcon) {
 			return;
 		}
-		toggleCollapseState(this._foldingModel, Number.MAX_VALUE, [line]);
+		toggleCollapseState(this._foldingModel, 1, [line]);
 		foldingIcon.isCollapsed = !foldingIcon.isCollapsed;
 		const scrollTop = (foldingIcon.isCollapsed ?
 			this._editor.getTopForLineNumber(foldingIcon.foldingEndLine)
@@ -478,6 +483,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		// Make sure sticky scroll doesn't take up more than 25% of the editor
 		const theoreticalLines = layoutInfo.height / this._editor.getOption(EditorOption.lineHeight);
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
+		this._renderStickyScroll(0);
 	}
 
 	private async _renderStickyScroll(rebuildFromLine?: number): Promise<void> {

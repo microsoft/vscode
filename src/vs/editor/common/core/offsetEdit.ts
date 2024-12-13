@@ -125,7 +125,9 @@ export class OffsetEdit {
 	 * For that, we compute `tm' := t1 o base o this.rebase(base)`
 	 * such that `tm' === tm`.
 	 */
-	tryRebase(base: OffsetEdit): OffsetEdit {
+	tryRebase(base: OffsetEdit): OffsetEdit;
+	tryRebase(base: OffsetEdit, noOverlap: true): OffsetEdit | undefined;
+	tryRebase(base: OffsetEdit, noOverlap?: true): OffsetEdit | undefined {
 		const newEdits: SingleOffsetEdit[] = [];
 
 		let baseIdx = 0;
@@ -147,8 +149,11 @@ export class OffsetEdit {
 					ourEdit.newText,
 				));
 				ourIdx++;
-			} else if (ourEdit.replaceRange.intersects(baseEdit.replaceRange)) {
+			} else if (ourEdit.replaceRange.intersectsOrTouches(baseEdit.replaceRange)) {
 				ourIdx++; // Don't take our edit, as it is conflicting -> skip
+				if (noOverlap) {
+					return undefined;
+				}
 			} else if (ourEdit.replaceRange.start < baseEdit.replaceRange.start) {
 				// Our edit starts first
 				newEdits.push(new SingleOffsetEdit(

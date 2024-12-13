@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, SourceControlHistoryItemRef } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
+import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -1525,16 +1525,20 @@ export class CommandCenter {
 	}
 
 	@command('git.diff.stageHunk')
-	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
 		this.diffStageHunkOrSelection(changes);
 	}
 
 	@command('git.diff.stageSelection')
-	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
 		this.diffStageHunkOrSelection(changes);
 	}
 
-	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
+		if (!changes) {
+			return;
+		}
+
 		let modifiedUri = changes.modifiedUri;
 		if (!modifiedUri) {
 			const textEditor = window.activeTextEditor;
@@ -1562,7 +1566,7 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 		const selectedChanges = changes
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(d => !!d) as LineChange[];
 
 		if (!selectedChanges.length) {
@@ -1811,7 +1815,7 @@ export class CommandCenter {
 	}
 
 	@command('git.unstageSelectedRanges', { diff: true })
-	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
+	async unstageSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -1834,9 +1838,9 @@ export class CommandCenter {
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = diffs
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
-			.filter(d => !!d) as LineChange[];
+		const selectedDiffs = changes
+			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
+			.filter(c => !!c) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
@@ -2501,8 +2505,18 @@ export class CommandCenter {
 		return this._checkout(repository, { detached: true, treeish });
 	}
 
+	@command('git.checkoutRef', { repository: true })
+	async checkoutRef(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<boolean> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return false;
+		}
+
+		return this._checkout(repository, { treeish: historyItemRefId });
+	}
+
 	@command('git.checkoutRefDetached', { repository: true })
-	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItemRef): Promise<boolean> {
+	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
 		if (!historyItem) {
 			return false;
 		}
@@ -3977,8 +3991,8 @@ export class CommandCenter {
 		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : `${commit.hash}^`;
 		const changes = await repository.diffBetween(commitParentId, commit.hash);
 
-		const title = `${item.shortRef} - ${commit.message}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), commit.hash, { scheme: 'git-commit' });
+		const title = `${item.shortRef} - ${truncate(commit.message)}`;
+		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${commitParentId}..${commit.hash}` });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of changes) {
@@ -4239,14 +4253,14 @@ export class CommandCenter {
 		// TODO@lszomoru - handle the case when historyItem2 is the first commit in the repository
 		if (!historyItem2) {
 			const commit = await repository.getCommit(historyItem1.id);
-			title = `${historyItem1.id.substring(0, 8)} - ${commit.message}`;
+			title = `${historyItem1.id.substring(0, 8)} - ${truncate(commit.message)}`;
 			historyItemParentId = historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItem1.id}^`;
 		} else {
 			title = l10n.t('All Changes ({0} ↔ {1})', historyItem2.id.substring(0, 8), historyItem1.id.substring(0, 8));
 			historyItemParentId = historyItem2.parentIds.length > 0 ? historyItem2.parentIds[0] : `${historyItem2.id}^`;
 		}
 
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItem1.id}`, { scheme: 'git-commit', });
+		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItem1.id}` });
 
 		await this._viewChanges(repository, historyItem1.id, historyItemParentId, multiDiffSourceUri, title);
 	}
@@ -4289,6 +4303,33 @@ export class CommandCenter {
 		}
 
 		env.clipboard.writeText(historyItem.message);
+	}
+
+	@command('git.blameStatusBarItem.viewCommit', { repository: true })
+	async viewStatusBarCommit(repository: Repository, historyItemId: string): Promise<void> {
+		if (!repository || !historyItemId) {
+			return;
+		}
+
+		const commit = await repository.getCommit(historyItemId);
+		const title = `${historyItemId.substring(0, 8)} - ${truncate(commit.message)}`;
+		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
+
+		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
+
+		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
+
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	}
+
+	@command('git.blameStatusBarItem.copyContent')
+	async blameStatusBarCopyContent(content: string): Promise<void> {
+		if (typeof content !== 'string') {
+			return;
+		}
+
+		env.clipboard.writeText(content);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

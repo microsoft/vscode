@@ -105,6 +105,10 @@ async function initMicrosoftSovereignCloudAuthProvider(context: vscode.Extension
 }
 
 export async function activate(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter) {
+	// If we ever activate the old flow, then mark that we will need to migrate when the user upgrades to v2.
+	// TODO: MSAL Migration. Remove this when we remove the old flow.
+	context.globalState.update('msalMigration', false);
+
 	const uriHandler = new UriEventHandler();
 	context.subscriptions.push(uriHandler);
 	const betterSecretStorage = new BetterTokenStorage<IStoredSession>('microsoft.login.keylist', context);

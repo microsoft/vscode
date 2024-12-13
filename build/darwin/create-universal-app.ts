@@ -28,6 +28,8 @@ async function main(buildDir?: string) {
 	const filesToSkip = [
 		'**/CodeResources',
 		'**/Credits.rtf',
+		// TODO: Should we consider expanding this to other files in this area?
+		'**/node_modules/@parcel/node-addon-api/nothing.target.mk'
 	];
 
 	await makeUniversalApp({

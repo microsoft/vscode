@@ -38,7 +38,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { OpenRecentAction } from '../../actions/windowActions.js';
 import { isICommandActionToggleInfo } from '../../../../platform/action/common/action.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActivityBarPosition } from '../../../services/layout/browser/layoutService.js';
@@ -561,9 +561,7 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private toActionsArray(menu: IMenu): IAction[] {
-		const result: IAction[] = [];
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result);
-		return result;
+		return getFlatContextMenuActions(menu.getActions({ shouldForwardArgs: true }));
 	}
 
 	private readonly reinstallDisposables = this._register(new DisposableStore());

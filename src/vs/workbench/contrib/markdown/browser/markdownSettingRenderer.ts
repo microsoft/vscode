@@ -121,7 +121,7 @@ export class SimpleSettingRenderer {
 	private render(settingId: string, newValue: string): string | undefined {
 		const setting = this.getSetting(settingId);
 		if (!setting) {
-			return '';
+			return `<code>${settingId}</code>`;
 		}
 
 		return this.renderSetting(setting, newValue);

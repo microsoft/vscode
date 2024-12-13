@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
@@ -86,12 +87,13 @@ class ChatToolInvocationSubPart extends Disposable {
 				toolInvocation.confirmed.complete(button.data);
 			}));
 			toolInvocation.confirmed.p.then(() => this._onNeedsRerender.fire());
-			toolInvocation.isCompleteDeferred.p.then(() => this._onNeedsRerender.fire());
 		} else {
-			const message = toolInvocation.invocationMessage + '…';
+			const content = typeof toolInvocation.invocationMessage === 'string' ?
+				new MarkdownString().appendText(toolInvocation.invocationMessage + '…') :
+				new MarkdownString(toolInvocation.invocationMessage.value + '…');
 			const progressMessage: IChatProgressMessage = {
 				kind: 'progressMessage',
-				content: { value: message }
+				content
 			};
 			const iconOverride = toolInvocation.isConfirmed === false ?
 				Codicon.error :
@@ -99,6 +101,10 @@ class ChatToolInvocationSubPart extends Disposable {
 					Codicon.check : undefined;
 			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, progressMessage, renderer, context, undefined, true, iconOverride));
 			this.domNode = progressPart.domNode;
+		}
+
+		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
+			toolInvocation.isCompleteDeferred.p.then(() => this._onNeedsRerender.fire());
 		}
 	}
 }

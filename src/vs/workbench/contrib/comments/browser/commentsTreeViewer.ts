@@ -34,7 +34,7 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { CommentsModel } from './commentsModel.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { createActionViewItem, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
@@ -169,12 +169,7 @@ export class CommentsMenus implements IDisposable {
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 
 		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary, menu };
-		createAndFillInContextMenuActions(menu, result, 'inline');
-
-		return result;
+		return getContextMenuActions(menu, 'inline');
 	}
 
 	dispose() {

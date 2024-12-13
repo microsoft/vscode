@@ -38,6 +38,30 @@
 	background: var(--vscode-inlineChat-background);
 }
 
+@property --inline-chat-frame-progress {
+	syntax: '<percentage>';
+	initial-value: 0%;
+	inherits: false;
+}
+
+@keyframes shift {
+	0% {
+		--inline-chat-frame-progress: 0%;
+	}
+	50% {
+		--inline-chat-frame-progress: 100%;
+	}
+	100% {
+		--inline-chat-frame-progress: 0%;
+	}
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget > .zone-widget-container.busy {
+	--inline-chat-frame-progress: 0%;
+	border-image: linear-gradient(90deg, var(--vscode-editorGutter-addedBackground) var(--inline-chat-frame-progress), var(--vscode-button-background)) 1;
+	animation: 3s shift linear infinite;
+}
+
 .monaco-workbench .zone-widget.inline-chat-widget > .zone-widget-container > .inline-chat {
 	color: inherit;
 	border-radius: unset;
@@ -49,7 +73,7 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
-	padding: 4px 8px 0 8px;
+	padding: 4px 0 0 0;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
@@ -63,7 +87,7 @@
 
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
-	margin: 2px 0 0 4px;
+	margin: 3px 0 0 4px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .monaco-scrollable-element {
@@ -104,15 +128,21 @@
 	display: none;
 }
 
+.monaco-workbench .inline-chat .chat-widget .interactive-session .chat-input-toolbars {
+	max-width: 66%;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .chat-input-toolbars > .chat-execute-toolbar .chat-modelPicker-item {
+	min-width: 40px;
+	max-width: 132px;
+}
 
 /* status */
 
 .monaco-workbench .inline-chat > .status {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
-	padding-left: 8px;
-	padding-right: 8px;
+	padding-right: 16px;
 }
 
 .monaco-workbench .inline-chat > .status {
@@ -164,6 +194,24 @@
 	line-height: 18px;
 }
 
+.monaco-workbench .inline-chat .status .rerun {
+	display: inline-flex;
+}
+
+.monaco-workbench .inline-chat .status .rerun:not(:empty) {
+	padding-top: 8px;
+	padding-left: 4px;
+}
+
+.monaco-workbench .inline-chat .status .rerun .agentOrSlashCommandDetected A {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .inline-chat .interactive-item-container.interactive-response .detail-container .detail .agentOrSlashCommandDetected,
+.monaco-workbench .inline-chat .interactive-item-container.interactive-response .detail-container .chat-animated-ellipsis {
+	display: none;
+}
 
 .monaco-workbench .inline-chat .status .actions,
 .monaco-workbench .inline-chat-diff-overlay {
@@ -207,6 +255,7 @@
 }
 
 .monaco-workbench .inline-chat .status .actions.secondary {
+	margin-left: auto;
 	display: none;
 }
 
@@ -304,4 +353,17 @@
 .monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
 .monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
+}
+
+
+/* HINT */
+
+.monaco-workbench .monaco-editor .inline-chat-hint {
+	cursor: pointer;
+	color: var(--vscode-editorGhostText-foreground);
+}
+
+.monaco-workbench .monaco-editor .inline-chat-hint.embedded {
+	border: 1px solid var(--vscode-editorSuggestWidget-border);
+	border-radius: 3px;
 }

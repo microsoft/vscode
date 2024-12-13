@@ -38,6 +38,7 @@ import { ICommandActionTitle } from '../../../../platform/action/common/action.j
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { resolveCommandsContext } from './editorCommandsContext.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
+import { InputMode } from '../../../../editor/common/inputMode.js';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -1425,7 +1426,7 @@ export class NavigateForwardAction extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 2 },
-				{ id: MenuId.CommandCenter, order: 2 }
+				{ id: MenuId.CommandCenter, order: 2, when: ContextKeyExpr.has('config.workbench.navigationControl.enabled') }
 			]
 		});
 	}
@@ -1460,7 +1461,7 @@ export class NavigateBackwardsAction extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 1 },
-				{ id: MenuId.CommandCenter, order: 1 }
+				{ id: MenuId.CommandCenter, order: 1, when: ContextKeyExpr.has('config.workbench.navigationControl.enabled') }
 			]
 		});
 	}
@@ -2694,5 +2695,34 @@ export class NewEmptyEditorWindowAction extends Action2 {
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 		auxiliaryEditorPart.activeGroup.focus();
+	}
+}
+
+export class ToggleOvertypeInsertMode extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.action.toggleOvertypeInsertMode',
+			title: {
+				...localize2('toggleOvertypeInsertMode', "Toggle Overtype/Insert Mode"),
+				mnemonicTitle: localize({ key: 'mitoggleOvertypeInsertMode', comment: ['&& denotes a mnemonic'] }, "&&Toggle Overtype/Insert Mode"),
+			},
+			metadata: {
+				description: localize2('toggleOvertypeMode.description', "Toggle between overtype and insert mode"),
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Insert,
+				mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.KeyO },
+			},
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const oldInputMode = InputMode.getInputMode();
+		const newInputMode = oldInputMode === 'insert' ? 'overtype' : 'insert';
+		InputMode.setInputMode(newInputMode);
 	}
 }

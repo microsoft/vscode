@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from '../../../base/common/charCode.js';
+import { safeIntl } from '../../../base/common/date.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { CharacterClassifier } from './characterClassifier.js';
 
@@ -24,7 +25,7 @@ export class WordCharacterClassifier extends CharacterClassifier<WordCharacterCl
 		super(WordCharacterClass.Regular);
 		this.intlSegmenterLocales = intlSegmenterLocales;
 		if (this.intlSegmenterLocales.length > 0) {
-			this._segmenter = new Intl.Segmenter(this.intlSegmenterLocales, { granularity: 'word' });
+			this._segmenter = safeIntl.Segmenter(this.intlSegmenterLocales, { granularity: 'word' });
 		} else {
 			this._segmenter = null;
 		}

@@ -188,7 +188,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	public reveal(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
 		this.makeVisible(commentUniqueId, focus);
-		const comment = this._commentThread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueId);
+		const comment = this._commentThread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueId) ?? this._commentThread.comments?.[0];
 		this.commentService.setActiveCommentAndThread(this.uniqueOwner, { thread: this._commentThread, comment });
 	}
 
@@ -502,6 +502,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
+	}
+
+	collapseAndFocusRange() {
+		this._commentThreadWidget.collapse();
 	}
 
 	override hide() {

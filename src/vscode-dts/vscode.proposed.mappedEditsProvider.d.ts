@@ -31,7 +31,7 @@ declare module 'vscode' {
 		 * The conversation that led to the current code block(s).
 		 * The last conversation part contains the code block(s) for which the code mapper should provide edits.
 		 */
-		readonly conversation?: (ConversationRequest | ConversationResponse)[];
+		readonly conversation?: Array<ConversationRequest | ConversationResponse>;
 	}
 
 	/**
@@ -57,7 +57,7 @@ declare module 'vscode' {
 
 	export interface MappedEditsRequest {
 		readonly codeBlocks: { code: string; resource: Uri; markdownBeforeBlock?: string }[];
-		readonly conversation: (ConversationRequest | ConversationResponse)[]; // for every prior response that contains codeblocks, make sure we pass the code as well as the resources based on the reported codemapper URIs
+		readonly conversation: Array<ConversationRequest | ConversationResponse>; // for every prior response that contains codeblocks, make sure we pass the code as well as the resources based on the reported codemapper URIs
 	}
 
 	export interface MappedEditsResponseStream {

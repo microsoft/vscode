@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from '../../../../platform/terminal/common/terminal.js';
+import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue, type IDecorationAddon } from '../../../../platform/terminal/common/terminal.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -1062,6 +1062,8 @@ export interface IXtermTerminal extends IDisposable {
 	 * Reports the status of shell integration and fires events relating to it.
 	 */
 	readonly shellIntegration: IShellIntegration;
+
+	readonly decorationAddon: IDecorationAddon;
 
 	readonly onDidChangeSelection: Event<void>;
 	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number }>;

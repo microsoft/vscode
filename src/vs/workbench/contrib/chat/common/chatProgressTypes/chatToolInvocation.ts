@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
 import { IToolConfirmationMessages } from '../languageModelToolsService.js';
 
@@ -36,7 +37,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	constructor(
-		public readonly invocationMessage: string,
+		public readonly invocationMessage: string | IMarkdownString,
 		private _confirmationMessages: IToolConfirmationMessages | undefined) {
 		if (!_confirmationMessages) {
 			// No confirmation needed

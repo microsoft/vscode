@@ -7,7 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IProcessEnvironment, OperatingSystem } from '../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from './capabilities/capabilities.js';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, type ITerminalCommand } from './capabilities/capabilities.js';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from './terminalProcess.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { ISerializableEnvironmentVariableCollections } from './environmentVariable.js';
@@ -16,6 +16,8 @@ import { IWorkspaceFolder } from '../../workspace/common/workspace.js';
 import { Registry } from '../../registry/common/platform.js';
 import type * as performance from '../../../base/common/performance.js';
 import { ILogService } from '../../log/common/log.js';
+import type { IAction } from '../../../base/common/actions.js';
+import type { IDisposable } from '../../../base/common/lifecycle.js';
 
 export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
@@ -114,6 +116,7 @@ export const enum TerminalSettingId {
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
+	FontLigatures = 'terminal.integrated.fontLigatures',
 
 	// Debug settings that are hidden from user
 
@@ -927,6 +930,10 @@ export interface IShellIntegration {
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface IDecorationAddon {
+	registerMenuItems(command: ITerminalCommand, items: IAction[]): IDisposable;
 }
 
 export interface ITerminalContributions {

@@ -183,7 +183,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				text,
 				showProgress: options.type || true,
 				ariaLabel: text,
-				tooltip: title,
+				tooltip: stripIcons(title).trim(),
 				command: progressCommand
 			};
 

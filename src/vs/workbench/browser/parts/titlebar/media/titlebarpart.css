@@ -207,10 +207,6 @@
 	border-color: var(--vscode-commandCenter-inactiveBorder) !important;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .codicon-copilot {
-	font-size: 14px;
-}
-
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:HOVER {
 	color: var(--vscode-commandCenter-activeForeground);
 	background-color: var(--vscode-commandCenter-activeBackground);
@@ -230,8 +226,9 @@
 	margin-left: 4px;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container {
-	zoom: var(--zoom-factor);
+.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container,
+.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .monaco-toolbar .dropdown-action-container {
+	zoom: var(--zoom-factor); /* helps to position the menu properly when counter zooming */
 }
 
 /* Resizer */
@@ -391,7 +388,7 @@
 /* Action Tool Bar Controls */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	display: none;
-	padding-right: 2px;
+	padding-right: 4px;
 	flex-grow: 0;
 	flex-shrink: 0;
 	text-align: center;

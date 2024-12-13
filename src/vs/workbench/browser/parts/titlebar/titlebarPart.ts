@@ -25,7 +25,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
-import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, fillInActionBarActions as fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -56,6 +56,7 @@ import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/ho
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { safeIntl } from '../../../../base/common/date.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -484,7 +485,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// Check if the locale is RTL, macOS will move traffic lights in RTL locales
 				// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
 
-				const localeInfo = new Intl.Locale(platformLocale) as any;
+				const localeInfo = safeIntl.Locale(platformLocale) as any;
 				if (localeInfo?.textInfo?.direction === 'rtl') {
 					primaryWindowControlsLocation = 'right';
 				}
@@ -643,22 +644,21 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 
-			// --- Layout Actions
-			if (this.layoutToolbarMenu) {
-				createAndFillInActionBarActions(
-					this.layoutToolbarMenu,
-					{},
-					actions,
-					() => !this.editorActionsEnabled // Layout Actions in overflow menu when editor actions enabled in title bar
-				);
-			}
-
 			// --- Activity Actions
 			if (this.activityActionsEnabled) {
 				if (isAccountsActionVisible(this.storageService)) {
 					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
 				}
 				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
+			}
+
+			// --- Layout Actions
+			if (this.layoutToolbarMenu) {
+				fillInActionBarActions(
+					this.layoutToolbarMenu.getActions(),
+					actions,
+					() => !this.editorActionsEnabled // Layout Actions in overflow menu when editor actions enabled in title bar
+				);
 			}
 
 			this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));
