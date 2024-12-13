@@ -176,7 +176,6 @@ async function isExecutable(filePath: string): Promise<boolean> {
 	try {
 		// On macOS/Linux, check if the executable bit is set
 		const stats = await fs.stat(filePath);
-		// Check if the file has owner executable permission
 		return (stats.mode & 0o100) !== 0;
 	} catch (error) {
 		// If the file does not exist or cannot be accessed, it's not executable
