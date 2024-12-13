@@ -9,6 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { SetMap } from '../../../../../base/common/map.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
@@ -32,8 +33,10 @@ export async function provideInlineCompletions(
 	baseToken: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
+	const requestUuid = generateUuid();
 	const tokenSource = new CancellationTokenSource(baseToken);
 	const token = tokenSource.token;
+	const contextWithUuid = { ...context, requestUuid: requestUuid };
 
 	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
 	const providers = registry.all(model);
@@ -116,9 +119,9 @@ export async function provideInlineCompletions(
 		let result: InlineCompletions | null | undefined;
 		try {
 			if (positionOrRange instanceof Position) {
-				result = await provider.provideInlineCompletions(model, positionOrRange, context, token);
+				result = await provider.provideInlineCompletions(model, positionOrRange, contextWithUuid, token);
 			} else {
-				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, context, token);
+				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, contextWithUuid, token);
 			}
 		} catch (e) {
 			onUnexpectedExternalError(e);
@@ -140,7 +143,7 @@ export async function provideInlineCompletions(
 		return new InlineCompletionProviderResult([], new Set(), []);
 	}
 
-	const result = await addRefAndCreateResult(context, inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
+	const result = await addRefAndCreateResult(contextWithUuid, inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
 	tokenSource.dispose(true); // This disposes results that are not referenced.
 	return result;
 }

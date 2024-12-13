@@ -23,7 +23,7 @@ import { classNames } from './utils.js';
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
 	modifiedText: AbstractText;
-	mode: 'mixedLines' | 'interleavedLines' | 'sideBySide';
+	mode: 'mixedLines' | 'ghostText' | 'interleavedLines' | 'sideBySide';
 
 	modifiedCodeEditor: ICodeEditor;
 }
@@ -111,7 +111,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 		if (!diff) { return undefined; }
 
 		const modified = diff.modifiedText;
-		const showInline = diff.mode === 'mixedLines';
+		const showInline = diff.mode === 'mixedLines' || diff.mode === 'ghostText';
 
 		const showEmptyDecorations = true;
 
@@ -214,7 +214,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 								description: 'inserted-text',
 								before: {
 									content: insertedText,
-									inlineClassName: 'inlineCompletions-char-insert',
+									inlineClassName: diff.mode === 'ghostText' ? 'ghost-text-decoration' : 'inlineCompletions-char-insert',
 								},
 								zIndex: 2,
 								showIfCollapsed: true,
