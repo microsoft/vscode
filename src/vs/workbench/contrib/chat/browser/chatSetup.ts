@@ -132,6 +132,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	private registerActions(): void {
 		const that = this;
 
+		const chatSetupTriggerContext = ContextKeyExpr.and(
+			ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+			ContextKeyExpr.or(
+				ChatContextKeys.Setup.installed.negate(),
+				ChatContextKeys.Setup.canSignUp
+			)
+		);
 		class ChatSetupTriggerAction extends Action2 {
 
 			constructor() {
@@ -140,15 +147,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: TRIGGER_SETUP_COMMAND_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
-					precondition: ContextKeyExpr.and(
-						ChatContextKeys.Setup.installed.negate(),
-						ContextKeyExpr.has('config.chat.experimental.offerSetup')
-					),
+					precondition: chatSetupTriggerContext,
 					menu: {
 						id: MenuId.ChatCommandCenter,
 						group: 'a_last',
 						order: 1,
-						when: ChatContextKeys.Setup.installed.negate()
+						when: chatSetupTriggerContext
 					}
 				});
 			}
@@ -227,17 +231,17 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: localize2('managePlan', "Upgrade to Copilot Pro"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
-					precondition: ChatContextKeys.enabled,
+					precondition: ContextKeyExpr.or(
+						ChatContextKeys.Setup.canSignUp,
+						ChatContextKeys.Setup.limited,
+					),
 					menu: {
 						id: MenuId.ChatCommandCenter,
 						group: 'a_first',
 						order: 1,
-						when: ContextKeyExpr.and(
-							ChatContextKeys.Setup.installed,
-							ContextKeyExpr.or(
-								ChatContextKeys.chatQuotaExceeded,
-								ChatContextKeys.completionsQuotaExceeded
-							)
+						when: ContextKeyExpr.or(
+							ChatContextKeys.chatQuotaExceeded,
+							ChatContextKeys.completionsQuotaExceeded
 						)
 					}
 				});
