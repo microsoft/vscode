@@ -362,10 +362,14 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('fileDialogDefaultPath', "Default path for file dialogs, overriding user's home path. Only used in the absence of a context-specific path, such as most recently opened file or folder."),
 			'scope': ConfigurationScope.MACHINE
 		},
-		'files.dialog.currentDirectory': {
-			'type': 'boolean',
-			'description': nls.localize('files.dialog.currentDirectory', "Opens the file dialog in the current directory rather than the parent directory. Overrides the default behavior where the parent directory would typically be opened."),
-			'default': false
+		'files.dialog.openFolderStartLocation': {
+			'type': 'string',
+			'enum': [
+				'parent',
+				'current'
+			],
+			'description': nls.localize('files.dialog.openFolderStartLocation', "Determines whether the file dialog should open in the parent or current folder of the active file."),
+			'default': 'parent'
 		},
 		'files.simpleDialog.enable': {
 			'type': 'boolean',
