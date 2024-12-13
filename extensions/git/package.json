@@ -943,7 +943,7 @@
         "command": "git.stageSelectedRanges",
         "key": "ctrl+k ctrl+alt+s",
         "mac": "cmd+k cmd+alt+s",
-        "when": "resourceScheme =~ /^git$|^file$/"
+        "when": "editorTextFocus && resourceScheme =~ /^git$|^file$/"
       },
       {
         "command": "git.unstageSelectedRanges",
@@ -955,7 +955,7 @@
         "command": "git.revertSelectedRanges",
         "key": "ctrl+k ctrl+r",
         "mac": "cmd+k cmd+r",
-        "when": "resourceScheme =~ /^git$|^file$/"
+        "when": "editorTextFocus && resourceScheme =~ /^git$|^file$/"
       }
     ],
     "menus": {

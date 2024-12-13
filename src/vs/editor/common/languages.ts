@@ -703,6 +703,11 @@ export interface InlineCompletionContext {
 	 * @internal
 	*/
 	readonly userPrompt?: string | undefined;
+	/**
+	 * @experimental
+	 * @internal
+	*/
+	readonly requestUuid?: string | undefined;
 
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;

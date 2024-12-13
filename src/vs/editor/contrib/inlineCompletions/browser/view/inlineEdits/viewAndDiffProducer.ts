@@ -53,6 +53,8 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 	});
 
 	private readonly _inlineEditPromise = derived<IObservable<InlineEditWithChanges | undefined> | undefined>(this, (reader) => {
+		const model = this._model.read(reader);
+		if (!model) { return undefined; }
 		const inlineEdit = this._edit.read(reader);
 		if (!inlineEdit) { return undefined; }
 
@@ -86,7 +88,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 			));
 			const diffEdits = new TextEdit(edits);
 
-			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, inlineEdit.renderExplicitly, inlineEdit.commands, inlineEdit.inlineCompletion); //inlineEdit.showInlineIfPossible);
+			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, model.primaryPosition.get(), inlineEdit.renderExplicitly, inlineEdit.commands, inlineEdit.inlineCompletion); //inlineEdit.showInlineIfPossible);
 		});
 	});
 
@@ -116,6 +118,7 @@ export class InlineEditWithChanges {
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
 		public readonly isCollapsed: boolean,
+		public readonly cursorPosition: Position,
 		public readonly userJumpedToIt: boolean,
 		public readonly commands: readonly Command[],
 		public readonly inlineCompletion: InlineCompletionItem,
@@ -126,6 +129,7 @@ export class InlineEditWithChanges {
 		return this.originalText.getValue() === other.originalText.getValue() &&
 			this.edit.equals(other.edit) &&
 			this.isCollapsed === other.isCollapsed &&
+			this.cursorPosition.equals(other.cursorPosition) &&
 			this.userJumpedToIt === other.userJumpedToIt &&
 			this.commands === other.commands &&
 			this.inlineCompletion === other.inlineCompletion;
