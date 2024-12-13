@@ -34,6 +34,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
 	get stickyScrollWidgetState(): StickyScrollWidgetState;
+	readonly stickyScrollWidgetHeight: number;
 	isFocused(): boolean;
 	focus(): void;
 	focusNext(): void;

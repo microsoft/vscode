@@ -7,7 +7,7 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, constObservable, derived, derivedOpts, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -25,6 +25,7 @@ import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { Command } from '../../../../../common/languages.js';
 import { ITextModel } from '../../../../../common/model.js';
+import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { PathBuilder, StatusBarViewItem, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
@@ -396,13 +397,17 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		};
 	});
 
+	private _stickyScrollController = StickyScrollController.get(this._editorObs.editor);
+	private readonly _stickyScrollHeight = this._stickyScrollController ? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight) : constObservable(0);
+
 	private readonly _shouldOverflow = derived(reader => {
 		const range = this._edit.read(reader)?.originalLineRange;
 		if (!range) {
 			return false;
 		}
+		const stickyScrollHeight = this._stickyScrollHeight.read(reader);
 		const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
-		return top > 0;
+		return top > stickyScrollHeight;
 	});
 
 
