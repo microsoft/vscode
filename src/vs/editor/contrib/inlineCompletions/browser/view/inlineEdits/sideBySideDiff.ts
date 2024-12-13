@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { getWindow } from '../../../../../../base/browser/dom.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Color } from '../../../../../../base/common/color.js';
@@ -340,14 +341,23 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const editorContentMaxWidthInRange = maxContentWidthInRange(this._editorObs, state.originalDisplayRange, reader);
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const previewWidth = this._previewEditorWidth.read(reader);
-		const editorContentAreaWidth = editorLayout.width - editorLayout.contentLeft - editorLayout.minimap.minimapWidth - editorLayout.verticalScrollbarWidth;
+		const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
+		const clientContentAreaRight = editorLayout.contentLeft + editorLayout.contentWidth + this._editor.getContainerDomNode().getBoundingClientRect().left;
+		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).outerWidth - clientContentAreaRight;
+		const desiredMinimumWidth = Math.min(editorLayout.contentWidth * 0.3, previewWidth, 100);
+		const IN_EDITOR_DISPLACEMENT = 0;
+		const maximumAvailableWidth = IN_EDITOR_DISPLACEMENT + remainingWidthRightOfContent;
 
 		const cursorPos = this._cursorPosIfTouchesEdit.read(reader);
 
 		const maxPreviewEditorLeft = Math.max(
-			editorContentAreaWidth * 0.65 + horizontalScrollOffset - 10,
-			editorContentAreaWidth - previewWidth - 70 + horizontalScrollOffset - 10,
-			cursorPos ? getOffsetForPos(this._editorObs, cursorPos, reader) + 50 : 0
+			// We're starting from the content area right and moving it left by IN_EDITOR_DISPLACEMENT and also by an ammount to ensure some mimum desired width
+			editorContentAreaWidth + horizontalScrollOffset - IN_EDITOR_DISPLACEMENT - Math.max(0, desiredMinimumWidth - maximumAvailableWidth),
+			// But we don't want that the moving left ends up covering the cursor, so this will push it to the right again
+			Math.min(
+				cursorPos ? getOffsetForPos(this._editorObs, cursorPos, reader) + 50 : 0,
+				editorContentAreaWidth + horizontalScrollOffset
+			)
 		);
 		const previewEditorLeftInTextArea = Math.min(editorContentMaxWidthInRange + 20, maxPreviewEditorLeft);
 
@@ -433,14 +443,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
 	}, [
 		n.svgElem('path', {
-			class: 'extendedModifiedBackgroundCoverUp',
-			d: this._extendedModifiedPath,
-			style: {
-				fill: 'var(--vscode-editor-background, transparent)',
-				strokeWidth: '1px',
-			}
-		}),
-		n.svgElem('path', {
 			class: 'rightOfModifiedBackgroundCoverUp',
 			d: this._previewEditorLayoutInfo.map(layoutInfo => layoutInfo && new PathBuilder()
 				.moveTo(layoutInfo.code1)
@@ -451,6 +453,20 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			),
 			style: {
 				fill: 'var(--vscode-editor-background, transparent)',
+			}
+		}),
+	]).keepUpdated(this._store);
+
+	private readonly _foregroundBackgroundSvg = n.svg({
+		transform: 'translate(-0.5 -0.5)',
+		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
+	}, [
+		n.svgElem('path', {
+			class: 'extendedModifiedBackgroundCoverUp',
+			d: this._extendedModifiedPath,
+			style: {
+				fill: 'var(--vscode-editor-background, transparent)',
+				strokeWidth: '1px',
 			}
 		}),
 	]).keepUpdated(this._store);
@@ -544,7 +560,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		},
 	}, [
 		this._backgroundSvg,
-		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._editorContainer, this._foregroundSvg]),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg]),
 	]).keepUpdated(this._store);
 
 	private readonly _overflowView = n.div({
@@ -558,6 +574,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			display: this._display,
 		},
 	}, [
-		derived(this, reader => this._shouldOverflow.read(reader) ? [this._editorContainer, this._foregroundSvg] : []),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg] : []),
 	]).keepUpdated(this._store);
 }

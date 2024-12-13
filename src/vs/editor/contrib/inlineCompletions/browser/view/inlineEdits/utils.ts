@@ -325,10 +325,10 @@ export abstract class ObserverNode<T extends Element = Element> extends Disposab
 			} else {
 				if (isObservable(value)) {
 					this._deriveds.push(derived(this, reader => {
-						this._element.setAttribute(camelCaseToHyphenCase(key), value.read(reader) as any);
+						setOrRemoveAttribute(this._element, key, value.read(reader));
 					}));
 				} else {
-					this._element.setAttribute(camelCaseToHyphenCase(key), value.toString());
+					setOrRemoveAttribute(this._element, key, value);
 				}
 			}
 		}
@@ -390,6 +390,14 @@ export abstract class ObserverNode<T extends Element = Element> extends Disposab
 export class ObserverNodeWithElement<T extends Element = Element> extends ObserverNode<T> {
 	public get element() {
 		return this._element;
+	}
+}
+
+function setOrRemoveAttribute(element: Element, key: string, value: unknown) {
+	if (value === null || value === undefined) {
+		element.removeAttribute(camelCaseToHyphenCase(key));
+	} else {
+		element.setAttribute(camelCaseToHyphenCase(key), String(value));
 	}
 }
 

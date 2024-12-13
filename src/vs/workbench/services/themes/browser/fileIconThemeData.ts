@@ -13,7 +13,7 @@ import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { fontCharacterRegex, fontColorRegex, fontSizeRegex } from '../common/productIconThemeSchema.js';
+import { fontCharacterRegex, fontColorRegex, fontSizeRegex } from '../../../../platform/theme/common/iconRegistry.js';
 import * as css from '../../../../base/browser/cssValue.js';
 import { fileIconSelectorEscape } from '../../../../editor/common/services/getIconClasses.js';
 
