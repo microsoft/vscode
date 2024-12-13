@@ -50,18 +50,22 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress {
-	width: 100%;
-	max-height: 100%;
+	width: 50%;
+	max-height: 50%;
 	aspect-ratio: 1/1;
-	background-image: url('./letterpress-light.svg');
+	/* MEMRBANE: customize letterpress watermark */
+	background-image: url('./membrane-letterpress-light.svg');
 	background-size: contain;
 	background-position-x: center;
 	background-repeat: no-repeat;
 }
-
 .monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-	background-image: url('./letterpress-dark.svg');
+	/* MEMRBANE: customize letterpress watermark */
+	background-image: url('./membrane-letterpress-dark.svg');
 }
+	
+/* 
+ * MEMBRANE: rm hc letterpress watermark
 
 .monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
 	background-image: url('./letterpress-hcLight.svg');
@@ -70,6 +74,8 @@
 .monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
 	background-image: url('./letterpress-hcDark.svg');
 }
+
+*/
 
 .monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark > .shortcuts,
 .monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark > .shortcuts,

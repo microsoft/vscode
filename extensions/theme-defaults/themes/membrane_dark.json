@@ -1,0 +1,53 @@
+{
+	"$schema": "vscode://schemas/color-theme",
+	"name": "Membrane Dark",
+	"include": "./dark_modern.json",
+	"colors": {
+		"editorCodeLens.foreground": "#d3e"
+	},
+	"tokenColors": [
+		{
+			"scope": "comment",
+			"settings": {
+				"foreground": "#727272"
+			}
+		},
+		{
+			"scope": "string",
+			"settings": {
+				"foreground": "#999999"
+			}
+		},
+		{
+			"scope": "entity.name.function",
+			"settings": {
+				"foreground": "#ffefa9"
+			}
+		},
+		{
+			"scope": "keyword.control",
+			"settings": {
+				"foreground": "#bbbbbb"
+			}
+		},
+		{
+			"scope": "variable",
+			"settings": {
+				"foreground": "#bbbbbb"
+			}
+		},
+		{
+			"scope": "entity.name.type",
+			"settings": {
+				"foreground": "#7bc7b0"
+			}
+		},
+		{
+			"scope": "constant.numeric",
+			"settings": {
+				"foreground": "#b8a0ff"
+			}
+		}
+	],
+	"semanticHighlighting": true
+}

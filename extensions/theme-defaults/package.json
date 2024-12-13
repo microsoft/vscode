@@ -38,6 +38,18 @@
         "path": "./themes/light_modern.json"
       },
       {
+        "id": "Membrane Light",
+        "label": "%membraneLightThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/membrane_light.json"
+      },
+      {
+        "id": "Membrane Dark",
+        "label": "%membraneDarkThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/membrane_dark.json"
+      },
+      {
         "id": "Visual Studio Dark",
         "label": "%darkColorThemeLabel%",
         "uiTheme": "vs-dark",

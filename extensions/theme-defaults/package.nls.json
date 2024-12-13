@@ -5,6 +5,8 @@
 	"darkModernThemeLabel": "Dark Modern",
 	"lightPlusColorThemeLabel": "Light+",
 	"lightModernThemeLabel": "Light Modern",
+	"membraneLightThemeLabel": "Membrane Light",
+	"membraneDarkThemeLabel": "Membrane Dark",
 	"darkColorThemeLabel": "Dark (Visual Studio)",
 	"lightColorThemeLabel": "Light (Visual Studio)",
 	"hcColorThemeLabel": "Dark High Contrast",

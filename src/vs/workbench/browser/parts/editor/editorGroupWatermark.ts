@@ -12,7 +12,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { append, clearNode, $, h } from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+// import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 
@@ -25,37 +26,38 @@ interface WatermarkEntry {
 	readonly when?: ContextKeyExpression;
 }
 
-const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
-const quickAccess: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
-const openFileNonMacOnly: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile', mac: false };
-const openFolderNonMacOnly: WatermarkEntry = { text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder', mac: false };
-const openFileOrFolderMacOnly: WatermarkEntry = { text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder', mac: true };
-const openRecent: WatermarkEntry = { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
-const newUntitledFileMacOnly: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile', mac: true };
-const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' };
-const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
-const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
+// MEMBRANE: rm watermark hotkeys
+// const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
+// const quickAccess: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
+// const openFileNonMacOnly: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile', mac: false };
+// const openFolderNonMacOnly: WatermarkEntry = { text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder', mac: false };
+// const openFileOrFolderMacOnly: WatermarkEntry = { text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder', mac: true };
+// const openRecent: WatermarkEntry = { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
+// const newUntitledFileMacOnly: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile', mac: true };
+// const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' };
+// const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
+// const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
 // const toggleFullscreen: WatermarkEntry = { text: localize({ key: 'watermark.toggleFullscreen', comment: ['toggle is a verb here'] }, "Toggle Full Screen"), id: 'workbench.action.toggleFullScreen', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
-const showSettings: WatermarkEntry = { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
+// const showSettings: WatermarkEntry = { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
 
-const noFolderEntries = [
-	showCommands,
-	openFileNonMacOnly,
-	openFolderNonMacOnly,
-	openFileOrFolderMacOnly,
-	openRecent,
-	newUntitledFileMacOnly
+const noFolderEntries: WatermarkEntry[] = [
+	// showCommands,
+	// openFileNonMacOnly,
+	// openFolderNonMacOnly,
+	// openFileOrFolderMacOnly,
+	// openRecent,
+	// newUntitledFileMacOnly
 ];
 
-const folderEntries = [
-	showCommands,
-	quickAccess,
-	findInFiles,
-	startDebugging,
-	toggleTerminal,
+const folderEntries: WatermarkEntry[] = [
+	// showCommands,
+	// quickAccess,
+	// findInFiles,
+	// startDebugging,
+	// toggleTerminal,
 	// MEMBRANE: Unnecessary hotkey
 	// toggleFullscreen,
-	showSettings
+	// showSettings
 ];
 
 export class EditorGroupWatermark extends Disposable {
@@ -74,8 +76,7 @@ export class EditorGroupWatermark extends Disposable {
 		super();
 
 		const elements = h('.editor-group-watermark', [
-			// MEMBRANE: Remove large "letterpress" watermark
-			// h('.letterpress'),
+			h('.letterpress'),
 			h('.shortcuts@shortcuts'),
 		]);
 
