@@ -977,11 +977,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
+		const title = localize('chat.attachment.clearButton', "Remove from context");
 		const clearButton = new Button(widget, {
 			supportIcons: true,
 			hoverDelegate,
-			title: localize('chat.attachment.clearButton', "Remove from context"),
-			ariaLabel: localize('chat.attachment.clearButtonAria', "Remove from context"),
+			title,
+			ariaLabel: title
 		});
 
 		// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
