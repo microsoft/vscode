@@ -433,14 +433,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
 	}, [
 		n.svgElem('path', {
-			class: 'extendedModifiedBackgroundCoverUp',
-			d: this._extendedModifiedPath,
-			style: {
-				fill: 'var(--vscode-editor-background, transparent)',
-				strokeWidth: '1px',
-			}
-		}),
-		n.svgElem('path', {
 			class: 'rightOfModifiedBackgroundCoverUp',
 			d: this._previewEditorLayoutInfo.map(layoutInfo => layoutInfo && new PathBuilder()
 				.moveTo(layoutInfo.code1)
@@ -451,6 +443,20 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			),
 			style: {
 				fill: 'var(--vscode-editor-background, transparent)',
+			}
+		}),
+	]).keepUpdated(this._store);
+
+	private readonly _foregroundBackgroundSvg = n.svg({
+		transform: 'translate(-0.5 -0.5)',
+		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
+	}, [
+		n.svgElem('path', {
+			class: 'extendedModifiedBackgroundCoverUp',
+			d: this._extendedModifiedPath,
+			style: {
+				fill: 'var(--vscode-editor-background, transparent)',
+				strokeWidth: '1px',
 			}
 		}),
 	]).keepUpdated(this._store);
@@ -544,7 +550,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		},
 	}, [
 		this._backgroundSvg,
-		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._editorContainer, this._foregroundSvg]),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg]),
 	]).keepUpdated(this._store);
 
 	private readonly _overflowView = n.div({
@@ -558,6 +564,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			display: this._display,
 		},
 	}, [
-		derived(this, reader => this._shouldOverflow.read(reader) ? [this._editorContainer, this._foregroundSvg] : []),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg] : []),
 	]).keepUpdated(this._store);
 }
