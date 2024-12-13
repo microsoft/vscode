@@ -169,35 +169,18 @@ function createCompletionItem(commandLine: string, cursorPosition: number, prefi
 }
 
 async function isExecutable(filePath: string): Promise<boolean> {
-	const windowsExtensions = new Set([
-		'ps1',
-		'exe',
-		'bat',
-		'cmd',
-		'sh',
-		'bash',
-		'zsh',
-		'fish',
-		'csh',
-		'ksh',
-		'py',
-		'pl'
-	]);
-
-	if (osIsWindows()) {
-		// Check if the file extension matches any Windows-specific executable
-		const ext = path.extname(filePath).toLowerCase().replace('.', '');
-		return windowsExtensions.has(ext);
-	} else {
+	if (!osIsWindows()) {
 		try {
 			// On macOS/Linux, check if the executable bit is set
 			const stats = await fs.stat(filePath);
-			// Check if the file is a regular file and has executable permission
-			return (stats.mode & 0o111) !== 0;
+			// Check if the file is a regular file and has owner executable permission
+			return (stats.mode & 0o100) !== 0;
 		} catch (error) {
 			// If the file does not exist or cannot be accessed, it's not executable
 			return false;
 		}
+	} else {
+		return true;
 	}
 }
 
