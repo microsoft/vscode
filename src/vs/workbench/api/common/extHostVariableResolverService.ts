@@ -18,6 +18,7 @@ import { IConfigurationResolverService } from '../../services/configurationResol
 import { AbstractVariableResolverService } from '../../services/configurationResolver/common/variableResolver.js';
 import * as vscode from 'vscode';
 import { ExtHostConfigProvider, IExtHostConfiguration } from './extHostConfiguration.js';
+import { Schemas } from '../../../base/common/network.js';
 
 export interface IExtHostVariableResolverProvider {
 	readonly _serviceBrand: undefined;
@@ -83,7 +84,11 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 			getFilePath: (): string | undefined => {
 				const activeUri = getActiveUri();
 				if (activeUri) {
-					return path.normalize(activeUri.fsPath);
+					if (activeUri.scheme === Schemas.file) {
+						return path.normalize(activeUri.fsPath);
+					} else {
+						return activeUri.toString();
+					}
 				}
 				return undefined;
 			},
@@ -93,7 +98,11 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 					if (activeUri) {
 						const ws = workspaceService.getWorkspaceFolder(activeUri);
 						if (ws) {
-							return path.normalize(ws.uri.fsPath);
+							if (activeUri.scheme === Schemas.file) {
+								return path.normalize(ws.uri.fsPath);
+							} else {
+								return ws.uri.toString();
+							}
 						}
 					}
 				}

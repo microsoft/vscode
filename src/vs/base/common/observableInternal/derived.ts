@@ -365,6 +365,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		}
 	}
 
+	private _removedObserverToCallEndUpdateOn: Set<IObserver> | null = null;
+
 	public endUpdate<T>(_observable: IObservable<T>): void {
 		this.updateCount--;
 		if (this.updateCount === 0) {
@@ -372,6 +374,13 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			const observers = [...this.observers];
 			for (const r of observers) {
 				r.endUpdate(this);
+			}
+			if (this._removedObserverToCallEndUpdateOn) {
+				const observers = [...this._removedObserverToCallEndUpdateOn];
+				this._removedObserverToCallEndUpdateOn = null;
+				for (const r of observers) {
+					r.endUpdate(this);
+				}
 			}
 		}
 		assertFn(() => this.updateCount >= 0);
@@ -433,18 +442,22 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		super.addObserver(observer);
 
 		if (shouldCallBeginUpdate) {
-			observer.beginUpdate(this);
+			if (this._removedObserverToCallEndUpdateOn && this._removedObserverToCallEndUpdateOn.has(observer)) {
+				this._removedObserverToCallEndUpdateOn.delete(observer);
+			} else {
+				observer.beginUpdate(this);
+			}
 		}
 	}
 
 	public override removeObserver(observer: IObserver): void {
-		const shouldCallEndUpdate = this.observers.has(observer) && this.updateCount > 0;
-		super.removeObserver(observer);
-
-		if (shouldCallEndUpdate) {
-			// Calling end update after removing the observer makes sure endUpdate cannot be called twice here.
-			observer.endUpdate(this);
+		if (this.observers.has(observer) && this.updateCount > 0) {
+			if (!this._removedObserverToCallEndUpdateOn) {
+				this._removedObserverToCallEndUpdateOn = new Set();
+			}
+			this._removedObserverToCallEndUpdateOn.add(observer);
 		}
+		super.removeObserver(observer);
 	}
 }
 

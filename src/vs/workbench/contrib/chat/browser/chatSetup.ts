@@ -59,6 +59,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import Severity from '../../../../base/common/severity.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -131,6 +132,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	private registerActions(): void {
 		const that = this;
 
+		const chatSetupTriggerContext = ContextKeyExpr.and(
+			ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+			ContextKeyExpr.or(
+				ChatContextKeys.Setup.installed.negate(),
+				ChatContextKeys.Setup.canSignUp
+			)
+		);
 		class ChatSetupTriggerAction extends Action2 {
 
 			constructor() {
@@ -139,15 +147,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: TRIGGER_SETUP_COMMAND_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
-					precondition: ContextKeyExpr.and(
-						ChatContextKeys.Setup.installed.negate(),
-						ContextKeyExpr.has('config.chat.experimental.offerSetup')
-					),
+					precondition: chatSetupTriggerContext,
 					menu: {
 						id: MenuId.ChatCommandCenter,
 						group: 'a_last',
 						order: 1,
-						when: ChatContextKeys.Setup.installed.negate()
+						when: chatSetupTriggerContext
 					}
 				});
 			}
@@ -226,17 +231,17 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: localize2('managePlan', "Upgrade to Copilot Pro"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
-					precondition: ChatContextKeys.enabled,
+					precondition: ContextKeyExpr.or(
+						ChatContextKeys.Setup.canSignUp,
+						ChatContextKeys.Setup.limited,
+					),
 					menu: {
 						id: MenuId.ChatCommandCenter,
 						group: 'a_first',
 						order: 1,
-						when: ContextKeyExpr.and(
-							ChatContextKeys.Setup.installed,
-							ContextKeyExpr.or(
-								ChatContextKeys.chatQuotaExceeded,
-								ChatContextKeys.completionsQuotaExceeded
-							)
+						when: ContextKeyExpr.or(
+							ChatContextKeys.chatQuotaExceeded,
+							ChatContextKeys.completionsQuotaExceeded
 						)
 					}
 				});
@@ -266,7 +271,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 					const entitlement = await that.requests.forceResolveEntitlement(undefined);
 					if (entitlement === ChatEntitlement.Pro) {
-						commandService.executeCommand('github.copilot.refreshToken'); // ugly, but we need to signal to the extension that entitlements changed
+						refreshTokens(commandService);
 					}
 				}
 			}
@@ -346,6 +351,8 @@ class ChatSetupRequests extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
@@ -467,7 +474,12 @@ class ChatSetupRequests extends Disposable {
 			return { entitlement: ChatEntitlement.Unresolved };
 		}
 
-		const responseText = await asText(response);
+		let responseText: string | null = null;
+		try {
+			responseText = await asText(response);
+		} catch (error) {
+			// ignore - handled below
+		}
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -570,18 +582,38 @@ class ChatSetupRequests extends Disposable {
 
 		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None);
 		if (!response) {
-			this.logService.error('[chat setup] sign-up: no response');
+			this.onUnknownSignUpError('[chat setup] sign-up: no response');
 			return false;
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
-			this.logService.error(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
+			if (response.res.statusCode === 422) {
+				try {
+					const responseText = await asText(response);
+					if (responseText) {
+						const responseError: { message: string } = JSON.parse(responseText);
+						if (typeof responseError.message === 'string' && responseError.message) {
+							this.onUnprocessableSignUpError(`[chat setup] sign-up: unprocessable entity (${responseError.message})`, responseError.message);
+							return false;
+						}
+					}
+				} catch (error) {
+					// ignore - handled below
+				}
+			}
+			this.onUnknownSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
 			return false;
 		}
 
-		const responseText = await asText(response);
+		let responseText: string | null = null;
+		try {
+			responseText = await asText(response);
+		} catch (error) {
+			// ignore - handled below
+		}
+
 		if (!responseText) {
-			this.logService.error('[chat setup] sign-up: response has no content');
+			this.onUnknownSignUpError('[chat setup] sign-up: response has no content');
 			return false;
 		}
 
@@ -590,7 +622,7 @@ class ChatSetupRequests extends Disposable {
 			parsedResult = JSON.parse(responseText);
 			this.logService.trace(`[chat setup] sign-up: response is ${responseText}`);
 		} catch (err) {
-			this.logService.error(`[chat setup] sign-up: error parsing response (${err})`);
+			this.onUnknownSignUpError(`[chat setup] sign-up: error parsing response (${err})`);
 		}
 
 		const subscribed = Boolean(parsedResult?.subscribed);
@@ -605,6 +637,30 @@ class ChatSetupRequests extends Disposable {
 		}
 
 		return subscribed;
+	}
+
+	private onUnknownSignUpError(logMessage: string): void {
+		this.dialogService.error(localize('unknownSignUpError', "An error occurred while signing up for Copilot Free."), localize('unknownSignUpErrorDetail', "Please try again."));
+		this.logService.error(logMessage);
+	}
+
+	private onUnprocessableSignUpError(logMessage: string, logDetails: string): void {
+		this.dialogService.prompt({
+			type: Severity.Error,
+			message: localize('unprocessableSignUpError', "An error occurred while signing up for Copilot Free."),
+			detail: logDetails,
+			buttons: [
+				{
+					label: localize('ok', "OK"),
+					run: () => { /* noop */ }
+				},
+				{
+					label: localize('learnMore', "Learn More"),
+					run: () => this.openerService.open(URI.parse(defaultChat.upgradePlanUrl))
+				}
+			]
+		});
+		this.logService.error(logMessage);
 	}
 
 	override dispose(): void {
@@ -625,7 +681,7 @@ type InstallChatClassification = {
 	signedIn: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user did sign in prior to installing the extension.' };
 };
 type InstallChatEvent = {
-	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn';
+	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp';
 	signedIn: boolean;
 };
 
@@ -682,7 +738,6 @@ class ChatSetupController extends Disposable {
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(isCopilotEditsViewActive(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
 			badge: new ProgressBadge(() => title),
-			priority: 100
 		});
 
 		try {
@@ -771,12 +826,17 @@ class ChatSetupController extends Disposable {
 
 			if (entitlement !== ChatEntitlement.Limited && entitlement !== ChatEntitlement.Pro && entitlement !== ChatEntitlement.Unavailable) {
 				didSignUp = await this.requests.signUpLimited(session);
+
+				if (!didSignUp) {
+					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', signedIn });
+				}
 			}
 
 			await this.extensionsWorkbenchService.install(defaultChat.extensionId, {
 				enable: true,
-				isMachineScoped: false,
-				installEverywhere: true,
+				isApplicationScoped: true, 	// install into all profiles
+				isMachineScoped: false,		// do not ask to sync
+				installEverywhere: true,	// install in local and remote
 				installPreReleaseVersion: this.productService.quality !== 'stable'
 			}, isCopilotEditsViewActive(this.viewsService) ? EditsViewId : ChatViewId);
 
@@ -787,7 +847,7 @@ class ChatSetupController extends Disposable {
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
 		} finally {
 			if (wasInstalled && didSignUp) {
-				this.commandService.executeCommand('github.copilot.refreshToken'); // ugly, but we need to signal to the extension that sign-up happened
+				refreshTokens(this.commandService);
 			}
 
 			if (installResult === 'installed') {
@@ -1087,4 +1147,10 @@ function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchL
 	} else {
 		return showChatView(viewsService);
 	}
+}
+
+function refreshTokens(commandService: ICommandService): void {
+	// ugly, but we need to signal to the extension that entitlements changed
+	commandService.executeCommand('github.copilot.signIn');
+	commandService.executeCommand('github.copilot.refreshToken');
 }

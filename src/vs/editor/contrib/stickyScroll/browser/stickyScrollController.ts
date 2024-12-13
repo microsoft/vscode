@@ -34,6 +34,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
 	get stickyScrollWidgetState(): StickyScrollWidgetState;
+	isFocused(): boolean;
 	focus(): void;
 	focusNext(): void;
 	focusPrevious(): void;
@@ -151,6 +152,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._focused = false;
 		this._positionRevealed = false;
 		this._onMouseDown = false;
+	}
+
+	public isFocused(): boolean {
+		return this._focused;
 	}
 
 	public focus(): void {
