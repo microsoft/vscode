@@ -312,9 +312,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 	if (!specificSuggestionsProvided && (filesRequested === foldersRequested)) {
 		// Include builitin/available commands in the results
 		for (const command of availableCommands) {
-			if ((!terminalContext.commandLine.trim() || firstCommand && command.startsWith(firstCommand)) && !items.find(item => item.label === command)) {
-				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, command));
-			}
+			items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, command));
 		}
 	}
 
