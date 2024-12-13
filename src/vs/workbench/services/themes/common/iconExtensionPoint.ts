@@ -5,13 +5,12 @@
 
 import * as nls from '../../../../nls.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
-import { IIconRegistry, Extensions as IconRegistryExtensions } from '../../../../platform/theme/common/iconRegistry.js';
+import { IIconRegistry, Extensions as IconRegistryExtensions, fontCharacterErrorMessage, fontCharacterRegex } from '../../../../platform/theme/common/iconRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as resources from '../../../../base/common/resources.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { extname, posix } from '../../../../base/common/path.js';
-import { fontCharacterRegex } from './productIconThemeSchema.js';
 
 interface IIconExtensionPoint {
 	[id: string]: {
@@ -55,8 +54,8 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 								fontCharacter: {
 									description: nls.localize('contributes.icon.default.fontCharacter', 'The character for the icon in the icon font.'),
 									type: 'string',
-									pattern: fontCharacterRegex,
-									patternErrorMessage: nls.localize('schema.fontCharacter.formatError', 'The fontCharacter must be a single letter or a backslash followed by unicode code points in hexadecimal.')
+									pattern: fontCharacterRegex.source,
+									patternErrorMessage: fontCharacterErrorMessage
 								}
 							},
 							required: ['fontPath', 'fontCharacter'],
@@ -107,7 +106,8 @@ export class IconExtensionPoint {
 							return;
 						}
 						if (!defaultIcon.fontCharacter.match(fontCharacterRegex)) {
-							collector.warn(nls.localize('invalid.icons.default.fontCharacter', 'Expected `contributes.icons.default.fontCharacter` to consist of a single character or a \\ followed by a Unicode code points in hexadecimal.')); return;
+							collector.warn(nls.localize('invalid.icons.default.fontCharacter', 'Invalid `contributes.icons.default.fontCharacter`: {0}', fontCharacterErrorMessage));
+							return;
 						}
 						const extensionLocation = extension.description.extensionLocation;
 						const iconFontLocation = resources.joinPath(extensionLocation, defaultIcon.fontPath);
