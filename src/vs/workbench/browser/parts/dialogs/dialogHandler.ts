@@ -9,7 +9,7 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { ILogService } from '../../../../platform/log/common/log.js';
 import Severity from '../../../../base/common/severity.js';
 import { Dialog, IDialogResult } from '../../../../base/browser/ui/dialog/dialog.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { EventHelper } from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -21,6 +21,11 @@ import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRend
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from '../../../common/theme.js';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 export class BrowserDialogHandler extends AbstractDialogHandler {
 
@@ -41,7 +46,10 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IHostService private readonly hostService: IHostService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 	}
@@ -151,6 +159,27 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		);
 
 		dialogDisposables.add(dialog);
+
+		// Change WCO to match dimmed background
+		const setWCOColors = (windowIsActive: boolean, dimmed: boolean) => {
+			const theme = this.themeService.getColorTheme();
+			const titleBarForegroundColor = theme.getColor(windowIsActive ? TITLE_BAR_ACTIVE_FOREGROUND : TITLE_BAR_INACTIVE_FOREGROUND);
+			const titleBarBackgroundColor = theme.getColor(windowIsActive ? TITLE_BAR_ACTIVE_BACKGROUND : TITLE_BAR_INACTIVE_BACKGROUND);
+
+			if (!titleBarForegroundColor || !titleBarBackgroundColor) {
+				return;
+			}
+
+			const backgroundColor = dimmed ? new Color(new RGBA(0, 0, 0, 0.3)).makeOpaque(titleBarBackgroundColor) : titleBarBackgroundColor;
+			const foregroundColor = dimmed ? new Color(new RGBA(0, 0, 0, 0.3)).makeOpaque(titleBarForegroundColor) : titleBarForegroundColor;
+			this.nativeHostService.updateWindowControls({
+				backgroundColor: backgroundColor.toString(), foregroundColor: foregroundColor.toString()
+			});
+		};
+
+		setWCOColors(this.hostService.hasFocus, true);
+		dialogDisposables.add(this.hostService.onDidChangeFocus(focused => setWCOColors(focused, true)));
+		dialogDisposables.add(toDisposable(() => { setWCOColors(true, false); }));
 
 		const result = await dialog.show();
 		dialogDisposables.dispose();

@@ -16,6 +16,9 @@ import { DialogService } from '../../../services/dialogs/common/dialogService.js
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Lazy } from '../../../../base/common/lazy.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -33,11 +36,14 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@IHostService hostService: IHostService,
+		@IThemeService themeService: IThemeService
 	) {
 		super();
 
-		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService));
+		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService, nativeHostService, hostService, themeService));
 
 		this.model = (this.dialogService as DialogService).model;
 
