@@ -15,7 +15,7 @@ use super::errors::CodeError;
 
 lazy_static! {
 	static ref LDCONFIG_STDC_RE: Regex = Regex::new(r"libstdc\+\+.* => (.+)").unwrap();
-	static ref LDD_VERSION_RE: BinRegex = BinRegex::new(r"^ldd.*(.+)\.(.+)\s").unwrap();
+	static ref LDD_VERSION_RE: BinRegex = BinRegex::new(r"^ldd.*\s(\d+)\.(\d+)(?:\.(\d+))?\s").unwrap();
 	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
 	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
 		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
@@ -271,10 +271,10 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<bool, Stri
 #[allow(dead_code)]
 fn extract_ldd_version(output: &[u8]) -> Option<SimpleSemver> {
 	LDD_VERSION_RE.captures(output).map(|m| SimpleSemver {
-		major: m.get(1).map_or(0, |s| u32_from_bytes(s.as_bytes())),
-		minor: m.get(2).map_or(0, |s| u32_from_bytes(s.as_bytes())),
-		patch: 0,
-	})
+            major: m.get(1).map_or(0, |s| u32_from_bytes(s.as_bytes())),
+            minor: m.get(2).map_or(0, |s| u32_from_bytes(s.as_bytes())),
+            patch: 0,
+    })
 }
 
 #[allow(dead_code)]
@@ -401,5 +401,18 @@ mod tests {
 			extract_ldd_version(&actual),
 			Some(SimpleSemver::new(2, 31, 0)),
 		);
+
+		let actual2 = "ldd (GNU libc) 2.40.9000
+					Copyright (C) 2024 Free Software Foundation, Inc.
+					This is free software; see the source for copying conditions.  There is NO
+					warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+					Written by Roland McGrath and Ulrich Drepper."
+			.to_owned()
+			.into_bytes();
+		assert_eq!(
+			extract_ldd_version(&actual2),
+			Some(SimpleSemver::new(2, 40, 0)),
+		);
 	}
+
 }
