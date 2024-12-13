@@ -124,6 +124,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.offerSetup': {
 			type: 'boolean',
 			default: false,
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: nls.localize('chat.experimental.offerSetup', "Controls whether setup is offered for Chat if not done already."),
 			tags: ['experimental', 'onExP']
 		},

@@ -7,10 +7,11 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ChatEditingSessionChangeType, IChatEditingService, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatWidgetService } from '../chat.js';
 
 export class ChatRelatedFilesContribution extends Disposable implements IWorkbenchContribution {
@@ -25,10 +26,12 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 	) {
 		super();
 
-		this._handleNewEditingSession();
-		this._register(this.chatEditingService.onDidCreateEditingSession(() => {
+		this._register(autorun(r => {
 			this.chatEditingSessionDisposables.clear();
-			this._handleNewEditingSession();
+			const session = this.chatEditingService.currentEditingSessionObs.read(r);
+			if (session) {
+				this._handleNewEditingSession(session);
+			}
 		}));
 	}
 
@@ -95,11 +98,8 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 
 	}
 
-	private _handleNewEditingSession() {
-		const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-		if (!currentEditingSession) {
-			return;
-		}
+	private _handleNewEditingSession(currentEditingSession: IChatEditingSession) {
+
 		const widget = this.chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
 		if (!widget || widget.viewModel?.sessionId !== currentEditingSession.chatSessionId) {
 			return;

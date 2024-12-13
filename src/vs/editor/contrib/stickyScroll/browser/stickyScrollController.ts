@@ -33,6 +33,7 @@ import { FoldingModel, toggleCollapseState } from '../../folding/browser/folding
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
 	get stickyScrollWidgetState(): StickyScrollWidgetState;
+	isFocused(): boolean;
 	focus(): void;
 	focusNext(): void;
 	focusPrevious(): void;
@@ -139,6 +140,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._focused = false;
 		this._positionRevealed = false;
 		this._onMouseDown = false;
+	}
+
+	public isFocused(): boolean {
+		return this._focused;
 	}
 
 	public focus(): void {
@@ -394,7 +399,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (!foldingIcon) {
 			return;
 		}
-		toggleCollapseState(this._foldingModel, Number.MAX_VALUE, [line]);
+		toggleCollapseState(this._foldingModel, 1, [line]);
 		foldingIcon.isCollapsed = !foldingIcon.isCollapsed;
 		const scrollTop = (foldingIcon.isCollapsed ?
 			this._editor.getTopForLineNumber(foldingIcon.foldingEndLine)

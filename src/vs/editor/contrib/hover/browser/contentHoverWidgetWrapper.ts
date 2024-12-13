@@ -11,7 +11,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import { TokenizationRegistry } from '../../../common/languages.js';
 import { HoverOperation, HoverResult, HoverStartMode, HoverStartSource } from './hoverOperation.js';
-import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from './hoverTypes.js';
+import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IContentsChangeOptions, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from './hoverTypes.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { HoverVerbosityAction } from '../../../common/standalone/standaloneEnums.js';
@@ -224,14 +224,15 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		const hide = () => {
 			this.hide();
 		};
-		const onContentsChanged = () => {
+		const onContentsChanged = (opts: IContentsChangeOptions) => {
 			this._onContentsChanged.fire();
-			this._contentHoverWidget.onContentsChanged();
+			this._contentHoverWidget.onContentsChanged(opts);
 		};
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
 		};
-		return { hide, onContentsChanged, setMinimumDimensions };
+		const focus = () => this.focus();
+		return { hide, onContentsChanged, setMinimumDimensions, focus };
 	}
 
 
@@ -329,6 +330,11 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public focus(): void {
+		const hoverPartsCount = this._renderedContentHover?.hoverPartsCount;
+		if (hoverPartsCount === 1) {
+			this.focusHoverPartWithIndex(0);
+			return;
+		}
 		this._contentHoverWidget.focus();
 	}
 

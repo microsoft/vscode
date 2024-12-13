@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from '../../../../../../base/browser/dom.js';
+import { h, isSVGElement } from '../../../../../../base/browser/dom.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
-import { IReader } from '../../../../../../base/common/observable.js';
+import { derived, IObservable, IReader } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { splitLines, getIndentationLength } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -19,6 +19,8 @@ import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js
 import { RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { Range } from '../../../../../common/core/range.js';
 import { Position } from '../../../../../common/core/position.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader): number {
 	editor.layoutInfo.read(reader);
@@ -169,4 +171,268 @@ export class PathBuilder {
 	public build(): string {
 		return this._data;
 	}
+}
+
+type Value<T> = T | IObservable<T>;
+type ValueOrList<T> = Value<T> | Value<T>[];
+type ValueOrList2<T> = ValueOrList<T> | ValueOrList<ValueOrList<T>>;
+
+type Element = HTMLElement | SVGElement;
+
+type SVGElementTagNameMap2 = {
+	svg: SVGElement & {
+		width: number;
+		height: number;
+		transform: string;
+	};
+	path: SVGElement & {
+		d: string;
+	};
+	linearGradient: SVGElement & {
+		id: string;
+		x1: string | number;
+		x2: string | number;
+	};
+	stop: SVGElement & {
+		offset: string;
+	};
+	rect: SVGElement & {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		fill: string;
+	};
+	defs: SVGElement;
+};
+
+type DomTagCreateFn<TMap extends Record<string, any>> =
+	<TTag extends keyof TMap>(
+		tag: TTag,
+		attributes: ElementAttributeKeys<TMap[TTag]> & { class?: Value<string | string[]>; ref?: IRef<TMap[TTag]> },
+		children?: ValueOrList2<Element | string | ObserverNode | undefined>,
+	) => ObserverNode<TMap[TTag]>;
+
+type DomCreateFn<TAttributes, TResult extends Element> =
+	(
+		attributes: ElementAttributeKeys<TAttributes> & { class?: Value<string | string[]>; ref?: IRef<TResult> },
+		children?: ValueOrList2<Element | string | ObserverNode | undefined>,
+	) => ObserverNode<TResult>;
+
+export namespace n {
+	function nodeNs<TMap extends Record<string, any>>(elementNs: string | undefined = undefined): DomTagCreateFn<TMap> {
+		return (tag, attributes, children) => {
+			const className = attributes.class;
+			delete attributes.class;
+			const ref = attributes.ref;
+			delete attributes.ref;
+
+			return new ObserverNodeWithElement(tag as any, ref, elementNs, className, attributes, children);
+		};
+	}
+
+	function node<TMap extends Record<string, any>, TKey extends keyof TMap>(tag: TKey, elementNs: string | undefined = undefined): DomCreateFn<TMap[TKey], TMap[TKey]> {
+		const f = nodeNs(elementNs) as any;
+		return (attributes, children) => {
+			return f(tag, attributes, children);
+		};
+	}
+
+	export const div: DomCreateFn<HTMLDivElement, HTMLDivElement> = node<HTMLElementTagNameMap, 'div'>('div');
+	export const svg: DomCreateFn<SVGElementTagNameMap2['svg'], SVGElement> = node<SVGElementTagNameMap2, 'svg'>('svg', 'http://www.w3.org/2000/svg');
+
+	export const svgElem = nodeNs<SVGElementTagNameMap2>('http://www.w3.org/2000/svg');
+
+	export function ref<T = Element>(): Ref<T> {
+		return new Ref<T>();
+	}
+}
+
+export interface IRef<T> {
+	setValue(value: T): void;
+}
+
+export class Ref<T> implements IRef<T> {
+	private _value: T | undefined = undefined;
+
+	public setValue(value: T): void {
+		this._value = value;
+	}
+
+	public get element(): T {
+		if (!this._value) {
+			throw new BugIndicatingError('Make sure the ref is set before accessing the element. Maybe wrong initialization order?');
+		}
+		return this._value;
+	}
+}
+
+export abstract class ObserverNode<T extends Element = Element> extends Disposable {
+	private readonly _deriveds: (IObservable<any>)[] = [];
+
+	protected readonly _element: T;
+
+	constructor(
+		tag: string,
+		ref: IRef<T> | undefined,
+		ns: string | undefined,
+		className: Value<string | string[]> | undefined,
+		attributes: ElementAttributeKeys<T>,
+		children: ValueOrList2<Element | string | ObserverNode | undefined> | undefined,
+	) {
+		super();
+
+		this._element = (ns ? document.createElementNS(ns, tag) : document.createElement(tag)) as unknown as T;
+		if (ref) {
+			ref.setValue(this._element);
+		}
+
+		function setClassName(domNode: Element, className: string | string[]) {
+			if (isSVGElement(domNode)) {
+				if (Array.isArray(className)) {
+					domNode.setAttribute('class', className.join(' '));
+				} else {
+					domNode.setAttribute('class', className);
+				}
+			} else {
+				if (Array.isArray(className)) {
+					domNode.className = className.join(' ');
+				} else {
+					domNode.className = className;
+				}
+			}
+		}
+
+		if (className) {
+			if (isObservable(className)) {
+				this._deriveds.push(derived(this, reader => {
+					setClassName(this._element, className.read(reader));
+				}));
+			} else {
+				setClassName(this._element, className);
+			}
+		}
+
+		function convertCssValue(value: any): string {
+			if (typeof value === 'number') {
+				return value + 'px';
+			}
+			return value;
+		}
+
+		for (const [key, value] of Object.entries(attributes)) {
+			if (key === 'style') {
+				for (const [cssKey, cssValue] of Object.entries(value)) {
+					const key = camelCaseToHyphenCase(cssKey);
+					if (isObservable(cssValue)) {
+						this._deriveds.push(derived(this, reader => {
+							this._element.style.setProperty(key, convertCssValue(cssValue.read(reader)));
+						}));
+					} else {
+						this._element.style.setProperty(key, convertCssValue(cssValue));
+					}
+				}
+			} else if (key === 'tabIndex') {
+				if (isObservable(value)) {
+					this._deriveds.push(derived(this, reader => {
+						this._element.tabIndex = value.read(reader) as any;
+					}));
+				} else {
+					this._element.tabIndex = value;
+				}
+			} else {
+				if (isObservable(value)) {
+					this._deriveds.push(derived(this, reader => {
+						this._element.setAttribute(camelCaseToHyphenCase(key), value.read(reader) as any);
+					}));
+				} else {
+					this._element.setAttribute(camelCaseToHyphenCase(key), value.toString());
+				}
+			}
+		}
+
+		function getChildren(reader: IReader | undefined, children: ValueOrList2<Element | string | ObserverNode | undefined>): (Element | string)[] {
+			if (isObservable(children)) {
+				return getChildren(reader, children.read(reader));
+			}
+			if (Array.isArray(children)) {
+				return children.flatMap(c => getChildren(reader, c));
+			}
+			if (children instanceof ObserverNode) {
+				if (reader) {
+					children.readEffect(reader);
+				}
+				return [children._element];
+			}
+			if (children) {
+				return [children];
+			}
+			return [];
+		}
+
+		function childrenIsObservable(children: ValueOrList2<Element | string | ObserverNode | undefined>): boolean {
+			if (isObservable(children)) {
+				return true;
+			}
+			if (Array.isArray(children)) {
+				return children.some(c => childrenIsObservable(c));
+			}
+			return false;
+		}
+
+		if (children) {
+			const d = derived(this, reader => {
+				this._element.replaceChildren(...getChildren(reader, children));
+			});
+			this._deriveds.push(d);
+			if (!childrenIsObservable(children)) {
+				d.get();
+			}
+		}
+	}
+
+	readEffect(reader: IReader | undefined): void {
+		for (const d of this._deriveds) {
+			d.read(reader);
+		}
+	}
+
+	keepUpdated(store: DisposableStore): ObserverNodeWithElement<T> {
+		derived(reader => {
+			this.readEffect(reader);
+		}).recomputeInitiallyAndOnChange(store);
+		return this as unknown as ObserverNodeWithElement<T>;
+	}
+}
+
+export class ObserverNodeWithElement<T extends Element = Element> extends ObserverNode<T> {
+	public get element() {
+		return this._element;
+	}
+}
+
+function camelCaseToHyphenCase(str: string) {
+	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+}
+
+function isObservable<T>(obj: any): obj is IObservable<T> {
+	return obj && typeof obj === 'object' && obj['read'] !== undefined && obj['reportChanges'] !== undefined;
+}
+
+type ElementAttributeKeys<T> = Partial<{
+	[K in keyof T]: T[K] extends Function
+	? never
+	: T[K] extends object
+	? ElementAttributeKeys<T[K]>
+	: Value<T[K] | undefined | null>
+}>;
+
+export function mapOutFalsy<T>(obs: IObservable<T | undefined | null | false>): IObservable<IObservable<T> | undefined | null | false> {
+	return derived(reader => {
+		const val = obs.read(reader);
+		if (!val) {
+			return undefined;
+		}
+		return obs as IObservable<T>;
+	});
 }
