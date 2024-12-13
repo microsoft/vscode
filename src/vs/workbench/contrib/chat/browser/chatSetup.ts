@@ -578,7 +578,7 @@ class ChatSetupRequests extends Disposable {
 
 		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None);
 		if (!response) {
-			this.onSignUpError('[chat setup] sign-up: no response');
+			this.onUnknownSignUpError('[chat setup] sign-up: no response');
 			return false;
 		}
 
@@ -588,14 +588,16 @@ class ChatSetupRequests extends Disposable {
 					const responseText = await asText(response);
 					if (responseText) {
 						const responseError: { message: string } = JSON.parse(responseText);
-						this.onSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`, typeof responseError.message === 'string' && responseError.message ? responseError.message : undefined);
-						return false;
+						if (typeof responseError.message === 'string' && responseError.message) {
+							this.onUnprocessableSignUpError(`[chat setup] sign-up: unprocessable entity (${responseError.message})`, responseError.message);
+							return false;
+						}
 					}
 				}
 			} catch (error) {
 				// ignore - handled below
 			}
-			this.onSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
+			this.onUnknownSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
 			return false;
 		}
 
@@ -607,7 +609,7 @@ class ChatSetupRequests extends Disposable {
 		}
 
 		if (!responseText) {
-			this.onSignUpError('[chat setup] sign-up: response has no content');
+			this.onUnknownSignUpError('[chat setup] sign-up: response has no content');
 			return false;
 		}
 
@@ -616,7 +618,7 @@ class ChatSetupRequests extends Disposable {
 			parsedResult = JSON.parse(responseText);
 			this.logService.trace(`[chat setup] sign-up: response is ${responseText}`);
 		} catch (err) {
-			this.onSignUpError(`[chat setup] sign-up: error parsing response (${err})`);
+			this.onUnknownSignUpError(`[chat setup] sign-up: error parsing response (${err})`);
 		}
 
 		const subscribed = Boolean(parsedResult?.subscribed);
@@ -633,10 +635,15 @@ class ChatSetupRequests extends Disposable {
 		return subscribed;
 	}
 
-	private onSignUpError(logMessage: string, logDetails = localize('chatSetupSignupDetail', "Please try again later.")): void {
+	private onUnknownSignUpError(logMessage: string): void {
+		this.dialogService.error(localize('unknownSignUpError', "An error occurred while signing up for Copilot Free."), localize('unknownSignUpErrorDetail', "Please try again."));
+		this.logService.error(logMessage);
+	}
+
+	private onUnprocessableSignUpError(logMessage: string, logDetails: string): void {
 		this.dialogService.prompt({
 			type: Severity.Error,
-			message: localize('chatSetupSignupError', "An error occurred while signing up for Copilot Free."),
+			message: localize('unprocessableSignUpError', "An error occurred while signing up for Copilot Free."),
 			detail: logDetails,
 			buttons: [
 				{
