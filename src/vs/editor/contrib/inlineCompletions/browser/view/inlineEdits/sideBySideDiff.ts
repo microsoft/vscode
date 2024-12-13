@@ -156,6 +156,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		this._editorContainerTopLeft.set(this._previewEditorLayoutInfo.map(i => i?.edit1), undefined);
 	}
 
+	private readonly _display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
+
 	private readonly previewRef = n.ref<HTMLDivElement>();
 	private readonly toolbarRef = n.ref<HTMLDivElement>();
 
@@ -257,6 +259,18 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 	private readonly _updatePreviewEditor = derived(reader => {
 		this._editorContainer.readEffect(reader);
+
+		// Setting this here explicitly to make sure that the preview editor is
+		// visible when needed, we're also checking that these fields are defined
+		// because of the auto run initial
+		// Before removing these, verify with a non-monospace font family
+		this._display.read(reader);
+		if (this._overflowView) {
+			this._overflowView.element.style.display = this._display.read(reader);
+		}
+		if (this._nonOverflowView) {
+			this._nonOverflowView.element.style.display = this._display.read(reader);
+		}
 
 		const uiState = this._uiState.read(reader);
 		if (!uiState) {
@@ -512,8 +526,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			)
 		];
 	})).keepUpdated(this._store);
-
-	private readonly _display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
 
 	private readonly _nonOverflowView = n.div({
 		class: 'inline-edits-view',
