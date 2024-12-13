@@ -110,16 +110,19 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _setContentsDomNodeDimensions(width: number | string, height: number | string): void {
 		const contentsDomNode = this._hover.contentsDomNode;
+		console.log('contentsDomNode : ', contentsDomNode);
 		return ContentHoverWidget._applyDimensions(contentsDomNode, width, height);
 	}
 
 	private _setContainerDomNodeDimensions(width: number | string, height: number | string): void {
 		const containerDomNode = this._hover.containerDomNode;
+		console.log('containerDomNode : ', containerDomNode);
 		return ContentHoverWidget._applyDimensions(containerDomNode, width, height);
 	}
 
 	private _setScrollableElementDimensions(width: number | string, height: number | string): void {
 		const scrollbarDomElement = this._hover.scrollbar.getDomNode();
+		console.log('scrollbarDomElement : ', scrollbarDomElement);
 		return ContentHoverWidget._applyDimensions(scrollbarDomElement, width, height);
 	}
 
@@ -139,16 +142,14 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _setHoverWidgetMaxDimensions(width: number | string, height: number | string): void {
 		ContentHoverWidget._applyMaxDimensions(this._hover.contentsDomNode, width, height);
+		ContentHoverWidget._applyMaxDimensions(this._hover.scrollbar.getDomNode(), width, height);
 		ContentHoverWidget._applyMaxDimensions(this._hover.containerDomNode, width, height);
-		this._hover.containerDomNode.style.setProperty('--vscode-hover-maxWidth', typeof width === 'number' ? `${width}px` : width);
 		this._layoutContentWidget();
 	}
 
 	private _setAdjustedHoverWidgetDimensions(size: dom.Dimension): void {
 		this._setHoverWidgetMaxDimensions('none', 'none');
-		const width = size.width;
-		const height = size.height;
-		this._setHoverWidgetDimensions(width, height);
+		this._setHoverWidgetDimensions(size.width, size.height);
 	}
 
 	private _updateResizableNodeMaxDimensions(): void {
@@ -285,9 +286,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _updateContent(node: DocumentFragment): void {
 		const contentsDomNode = this._hover.contentsDomNode;
-		contentsDomNode.style.paddingBottom = '';
-		contentsDomNode.textContent = '';
-		contentsDomNode.appendChild(node);
+		contentsDomNode.replaceChildren(node);
 	}
 
 	private _layoutContentWidget(): void {
@@ -305,7 +304,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._setRenderedHover(renderedHover);
 		this._updateFont();
 		this._updateContent(renderedHover.domNode);
-		this._updateMaxDimensions();
 		this.onContentsChanged();
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
@@ -368,10 +366,19 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _removeConstraintsRenderNormally(): void {
+		console.log('_removeConstraintsRenderNormally');
 		// Added because otherwise the initial size of the hover content is smaller than should be
 		const layoutInfo = this._editor.getLayoutInfo();
 		this._resizableNode.layout(layoutInfo.height, layoutInfo.width);
 		this._setHoverWidgetDimensions('auto', 'auto');
+
+		console.log('ContentHoverWidget._lastDimensions : ', ContentHoverWidget._lastDimensions);
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
+		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 750, ContentHoverWidget._lastDimensions.width);
+		console.log('max width : ', width);
+		console.log('max height : ', height);
+		this._resizableNode.maxSize = new dom.Dimension(width, height);
+		this._setHoverWidgetMaxDimensions(width, height);
 	}
 
 	public setMinimumDimensions(dimensions: dom.Dimension): void {
@@ -394,20 +401,36 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	public onContentsChanged(opts: IContentsChangeOptions = { allowPositionPreferenceRecomputation: true }): void {
-		this._removeConstraintsRenderNormally();
+		console.log('onContentsChanged');
+
 		const contentsDomNode = this._hover.contentsDomNode;
 
 		let height = dom.getTotalHeight(contentsDomNode);
-		let width = dom.getTotalWidth(contentsDomNode) + 2;
+		let width = dom.getTotalWidth(contentsDomNode);
+		console.log('height : ', height);
+		console.log('width : ', width);
+
+		this._removeConstraintsRenderNormally();
+
+		height = dom.getTotalHeight(contentsDomNode);
+		width = dom.getTotalWidth(contentsDomNode);
+		console.log('height : ', height);
+		console.log('width : ', width);
+
 		this._resizableNode.layout(height, width);
 
 		this._setHoverWidgetDimensions(width, height);
 
 		height = dom.getTotalHeight(contentsDomNode);
 		width = dom.getTotalWidth(contentsDomNode);
+		console.log('height : ', height);
+		console.log('width : ', width);
+
 		this._contentWidth = width;
-		this._updateMinimumWidth();
 		this._resizableNode.layout(height, width);
+		this._setHoverWidgetDimensions(width, height);
+
+		this._updateMinimumWidth();
 		this._updateResizableNodeMaxDimensions();
 
 		if (opts.allowPositionPreferenceRecomputation && this._renderedHover?.showAtPosition) {
