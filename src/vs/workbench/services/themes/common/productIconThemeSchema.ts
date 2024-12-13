@@ -14,7 +14,7 @@ export const fontStyleRegex = '^(normal|italic|(oblique[ \\w\\s-]+))$';
 export const fontWeightRegex = '^(normal|bold|lighter|bolder|(\\d{0-1000}))$';
 export const fontSizeRegex = '^([\\w_.%+-]+)$';
 export const fontFormatRegex = '^woff|woff2|truetype|opentype|embedded-opentype|svg$';
-export const fontCharacterRegex = '^([^\\\\]|\\\\[a-fA-F0-9]+)$';
+export const fontCharacterRegex = '^([^\\\\]|\\\\[a-fA-F0-9]+)|\p{Extended_Pictographic}$';
 export const fontColorRegex = '^#[0-9a-fA-F]{0,6}$';
 
 const schemaId = 'vscode://schemas/product-icon-theme';
