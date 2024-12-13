@@ -66,6 +66,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	private readonly _webClientServer: WebClientServer | null;
 	private readonly _webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
 
+	private readonly _serverBasePath: string | undefined;
 	private readonly _serverRootPath: string;
 
 	private shutdownTimer: NodeJS.Timeout | undefined;
@@ -83,7 +84,12 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	) {
 		super();
 
-		this._serverRootPath = getServerRootPath(_productService, serverBasePath);
+		if (serverBasePath !== undefined && serverBasePath.charCodeAt(serverBasePath.length - 1) === CharCode.Slash) {
+			// Remove trailing slash from base path
+			serverBasePath = serverBasePath.substring(0, serverBasePath.length - 1);
+		}
+		this._serverBasePath = serverBasePath;
+		this._serverRootPath = getServerRootPath(_productService, undefined); // handle base path explicitly
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
@@ -114,6 +120,12 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
+		// Serve from both '/' and serverBasePath
+		if (this._serverBasePath !== undefined && pathname.startsWith(this._serverBasePath)) {
+			pathname = pathname.substring(this._serverBasePath.length) || '/';
+			// from now on treat parsedUrl as if it was without serverBasePath
+			parsedUrl.pathname = pathname;
+		}
 		// for now accept all paths, with or without server root path
 		if (pathname.startsWith(this._serverRootPath) && pathname.charCodeAt(this._serverRootPath.length) === CharCode.Slash) {
 			pathname = pathname.substring(this._serverRootPath.length);
