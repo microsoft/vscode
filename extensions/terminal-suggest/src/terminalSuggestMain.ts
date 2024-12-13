@@ -187,7 +187,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 
 			for (const [file, fileType] of files) {
-				if (fileType === vscode.FileType.File || fileType === vscode.FileType.SymbolicLink) {
+				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory) {
 					executables.add(file);
 				}
 			}

@@ -1014,19 +1014,19 @@ export class ExtensionEditor extends EditorPane {
 		const installInfo = append(installInfoContainer, $('.more-info'));
 		append(installInfo,
 			$('.more-info-entry', undefined,
-				$('div', undefined, localize('id', "Identifier")),
+				$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 				$('code', undefined, extension.identifier.id)
 			));
 		append(installInfo,
 			$('.more-info-entry', undefined,
-				$('div', undefined, localize('Version', "Version")),
+				$('div.more-info-entry-name', undefined, localize('Version', "Version")),
 				$('code', undefined, extension.manifest.version)
 			)
 		);
 		if (extension.installedTimestamp) {
 			append(installInfo,
 				$('.more-info-entry', undefined,
-					$('div', undefined, localize('last updated', "Last Updated")),
+					$('div.more-info-entry-name', undefined, localize('last updated', "Last Updated")),
 					$('div', undefined, toDateString(new Date(extension.installedTimestamp)))
 				)
 			);
@@ -1035,7 +1035,7 @@ export class ExtensionEditor extends EditorPane {
 			const element = $('div', undefined, extension.source === 'vsix' ? localize('vsix', "VSIX") : localize('other', "Local"));
 			append(installInfo,
 				$('.more-info-entry', undefined,
-					$('div', undefined, localize('source', "Source")),
+					$('div.more-info-entry-name', undefined, localize('source', "Source")),
 					element
 				)
 			);
@@ -1049,7 +1049,7 @@ export class ExtensionEditor extends EditorPane {
 			const element = $('div', undefined, toMemoryString(extension.size));
 			append(installInfo,
 				$('.more-info-entry', undefined,
-					$('div', { title: localize('size when installed', "Size when installed") }, localize('size', "Size")),
+					$('div.more-info-entry-name', { title: localize('size when installed', "Size when installed") }, localize('size', "Size")),
 					element
 				)
 			);
@@ -1070,7 +1070,7 @@ export class ExtensionEditor extends EditorPane {
 				const element = $('div', undefined, toMemoryString(cacheSize));
 				append(installInfo,
 					$('.more-info-entry', undefined,
-						$('div', { title: localize('disk space used', "Cache size") }, localize('cache size', "Cache")),
+						$('div.more-info-entry-name', { title: localize('disk space used', "Cache size") }, localize('cache size', "Cache")),
 						element)
 				);
 				if (isNative && extension.location.scheme === Schemas.file) {
@@ -1103,23 +1103,23 @@ export class ExtensionEditor extends EditorPane {
 			if (!extension.local) {
 				append(moreInfo,
 					$('.more-info-entry', undefined,
-						$('div', undefined, localize('id', "Identifier")),
+						$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 						$('code', undefined, extension.identifier.id)
 					));
 				append(moreInfo,
 					$('.more-info-entry', undefined,
-						$('div', undefined, localize('Version', "Version")),
+						$('div.more-info-entry-name', undefined, localize('Version', "Version")),
 						$('code', undefined, gallery.version)
 					)
 				);
 			}
 			append(moreInfo,
 				$('.more-info-entry', undefined,
-					$('div', undefined, localize('published', "Published")),
+					$('div.more-info-entry-name', undefined, localize('published', "Published")),
 					$('div', undefined, toDateString(new Date(gallery.releaseDate)))
 				),
 				$('.more-info-entry', undefined,
-					$('div', undefined, localize('last released', "Last Released")),
+					$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
 					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
 				)
 			);
