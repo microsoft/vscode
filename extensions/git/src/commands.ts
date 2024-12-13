@@ -2619,7 +2619,7 @@ export class CommandCenter {
 					await this.cleanAll(repository);
 					await item.run(repository, opts);
 				} else if (choice === stash || choice === migrate) {
-					if (await this._stash(repository)) {
+					if (await this._stash(repository, true)) {
 						await item.run(repository, opts);
 
 						if (choice === migrate) {
