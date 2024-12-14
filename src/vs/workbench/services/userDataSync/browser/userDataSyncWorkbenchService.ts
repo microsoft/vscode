@@ -6,7 +6,7 @@
 import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService, IUserDataSyncResource, IResourcePreview, USER_DATA_SYNC_SCHEME, USER_DATA_SYNC_LOG_ID, } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS, IUserDataSyncConflictsView } from '../common/userDataSync.js';
+import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS, IUserDataSyncConflictsView, getSyncAreaLabel } from '../common/userDataSync.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { getCurrentAuthenticationSessionInfo } from '../../authentication/browser/authenticationService.js';
@@ -403,9 +403,21 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async handleConflictsWhileTurningOn(token: CancellationToken): Promise<void> {
+		const conflicts = this.userDataSyncService.conflicts;
+		const andSeparator = localize('and', ' and ');
+		let conflictsText = '';
+		for (let i = 0; i < conflicts.length; i++) {
+			if (i === conflicts.length - 1 && i !== 0) {
+				conflictsText += andSeparator;
+			} else if (i !== 0) {
+				conflictsText += ', ';
+			}
+			conflictsText += getSyncAreaLabel(conflicts[i].syncResource);
+		}
+		const singleConflictResource = conflicts.length === 1 ? getSyncAreaLabel(conflicts[0].syncResource) : undefined;
 		await this.dialogService.prompt({
 			type: Severity.Warning,
-			message: localize('conflicts detected', "Conflicts Detected"),
+			message: localize('conflicts detected', "Conflicts Detected in {0}", conflictsText),
 			detail: localize('resolve', "Please resolve conflicts to turn on..."),
 			buttons: [
 				{
@@ -417,11 +429,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					}
 				},
 				{
-					label: localize({ key: 'replace local', comment: ['&& denotes a mnemonic'] }, "Replace &&Local"),
+					label: singleConflictResource ? localize({ key: 'replace local single', comment: ['&& denotes a mnemonic'] }, "Accept &&Remote {0}", singleConflictResource) : localize({ key: 'replace local', comment: ['&& denotes a mnemonic'] }, "Accept &&Remote"),
 					run: async () => this.replace(true)
 				},
 				{
-					label: localize({ key: 'replace remote', comment: ['&& denotes a mnemonic'] }, "Replace &&Remote"),
+					label: singleConflictResource ? localize({ key: 'replace remote single', comment: ['&& denotes a mnemonic'] }, "Accept &&Local {0}", singleConflictResource) : localize({ key: 'replace remote', comment: ['&& denotes a mnemonic'] }, "Accept &&Local"),
 					run: () => this.replace(false)
 				},
 			],
