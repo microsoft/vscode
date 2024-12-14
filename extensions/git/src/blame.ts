@@ -10,6 +10,7 @@ import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
 import { fromGitUri, isGitUri } from './uri';
+import { emojify, ensureEmojis } from './emoji';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -171,7 +172,7 @@ export class GitBlameController {
 		const templateTokens = {
 			hash: blameInformation.hash,
 			hashShort: blameInformation.hash.substring(0, 8),
-			subject: blameInformation.subject ?? '',
+			subject: emojify(blameInformation.subject ?? ''),
 			authorName: blameInformation.authorName ?? '',
 			authorEmail: blameInformation.authorEmail ?? '',
 			authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
@@ -203,7 +204,7 @@ export class GitBlameController {
 			markdownString.appendMarkdown('\n\n');
 		}
 
-		markdownString.appendMarkdown(`${blameInformation.subject}\n\n`);
+		markdownString.appendMarkdown(`${emojify(blameInformation.subject ?? '')}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
 		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.hash]))} "${l10n.t('View Commit')}")`);
@@ -258,6 +259,10 @@ export class GitBlameController {
 		if (resourceBlameInformation) {
 			return resourceBlameInformation;
 		}
+
+		// Ensure that the emojis are loaded. We will
+		// use them when formatting the blame information.
+		await ensureEmojis();
 
 		// Get blame information for the resource and cache it
 		const blameInformation = await repository.blame2(resource.fsPath, commit) ?? [];

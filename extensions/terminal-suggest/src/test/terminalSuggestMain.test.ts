@@ -105,12 +105,11 @@ const testSpecs2: ISuiteSpec[] = [
 			{ input: 'cd ~|', expectedCompletions: ['~'], expectedResourceRequests: { type: 'folders', cwd: testCwd } },
 
 			// Relative paths
-			{ input: 'cd s|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd src|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd src/|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd c|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd child|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
 			{ input: 'cd .|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
 			{ input: 'cd ./|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd ./src|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd ./child|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
 			{ input: 'cd ..|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
 
 			// Relative directories (changes cwd due to /)

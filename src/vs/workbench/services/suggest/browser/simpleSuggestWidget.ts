@@ -19,6 +19,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/suggestWidgetStatus.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 const $ = dom.$;
 
@@ -86,7 +87,8 @@ export class SimpleSuggestWidget extends Disposable {
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
 		options: IWorkbenchSuggestWidgetOptions,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -140,6 +142,9 @@ export class SimpleSuggestWidget extends Disposable {
 			// this._preferenceLocked = false;
 			state = undefined;
 		}));
+
+		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !configurationService.getValue('editor.suggest.showIcons'));
+		applyIconStyle();
 
 		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo);
 		this._register(renderer);
@@ -196,6 +201,11 @@ export class SimpleSuggestWidget extends Disposable {
 		this._register(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
 		this._register(this._list.onTap(e => this._onListMouseDownOrTap(e)));
 		this._register(this._list.onDidChangeSelection(e => this._onListSelection(e)));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.suggest.showIcons')) {
+				applyIconStyle();
+			}
+		}));
 	}
 
 	private _cursorPosition?: { top: number; left: number; height: number };
