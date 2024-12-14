@@ -1124,7 +1124,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					shellLaunchConfig.args = await this._resolveVariables(variableResolver, shellOptions.args.slice());
 				}
 			}
-			const taskShellArgsSpecified = shellOptions?.args !== undefined;
+			const taskShellArgsSpecified = (defaultProfile.isAutomationShell ? shellLaunchConfig.args : shellOptions?.args) !== undefined;
 			if (shellLaunchConfig.args === undefined) {
 				shellLaunchConfig.args = [];
 			}
@@ -1156,6 +1156,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				} else if (basename === 'wsl.exe') {
 					if (!taskShellArgsSpecified) {
 						toAdd.push('-e');
+					}
+				} else {
+					if (!taskShellArgsSpecified) {
+						// Push `-c` for unknown shells if the user didn't specify the args
+						toAdd.push('-c');
 					}
 				}
 			} else {
