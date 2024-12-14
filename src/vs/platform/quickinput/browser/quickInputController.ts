@@ -33,7 +33,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../storage/comm
 const $ = dom.$;
 
 const POSITION_STORAGE_KEY = 'workbench.commandPalette.position';
-type QuickInputPosition = { readonly top: number; readonly left: number };
+type QuickInputViewState = {
+	readonly top: number;
+	readonly left: number;
+};
 
 export class QuickInputController extends Disposable {
 	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
@@ -329,27 +332,21 @@ export class QuickInputController extends Disposable {
 		this.dndController = this._register(this.instantiationService.createInstance(
 			QuickInputDragAndDropController, this._container, container, headerContainer));
 
-		// DnD load position
-		this.loadPosition();
-
 		// DnD update layout
 		this._register(autorun(reader => {
-			const top = this.dndController?.dragTopRatio.read(reader);
-			const left = this.dndController?.dragLeftRatio.read(reader);
-			if (!top || !left) {
-				return;
-			}
-
-			this.dndTopRatio = top;
-			this.dndLeftRatio = left;
+			this.dndTopRatio = this.dndController?.dragTopRatio.read(reader);
+			this.dndLeftRatio = this.dndController?.dragLeftRatio.read(reader);
 
 			this.updateLayout();
 		}));
 
+		// DnD load position
+		[this.dndTopRatio, this.dndLeftRatio] = this.loadDnDPosition();
+
 		// DnD save position
 		this._register(autorun(reader => {
 			this.dndController?.onDidDropSignal.read(reader);
-			this.savePosition();
+			this.saveDnDPosition(this.dndTopRatio, this.dndLeftRatio);
 		}));
 
 		this.ui = {
@@ -840,26 +837,27 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	private loadPosition(): void {
+	private loadDnDPosition(): [number | undefined, number | undefined] {
 		try {
 			const data = JSON.parse(this.storageService.get(POSITION_STORAGE_KEY, StorageScope.APPLICATION, ''));
 			if (data.top !== undefined && data.left !== undefined) {
-				this.dndTopRatio = data.top;
-				this.dndLeftRatio = data.left;
+				return [data.top, data.left];
 			}
 		} catch { }
+
+		return [undefined, undefined];
 	}
 
-	private savePosition(): void {
+	private saveDnDPosition(topRatio: number | undefined, leftRatio: number | undefined): void {
 		const isMainWindow = this.layoutService.activeContainer === this.layoutService.mainContainer;
 		if (!isMainWindow) {
 			return;
 		}
 
-		if (this.dndTopRatio !== undefined && this.dndLeftRatio !== undefined) {
-			const data = { top: this.dndTopRatio, left: this.dndLeftRatio } satisfies QuickInputPosition;
+		if (topRatio !== undefined && leftRatio !== undefined) {
+			const data = { top: topRatio, left: leftRatio } satisfies QuickInputViewState;
 			this.storageService.store(POSITION_STORAGE_KEY, JSON.stringify(data), StorageScope.APPLICATION, StorageTarget.MACHINE);
-		} else if (this.dndTopRatio === undefined && this.dndLeftRatio === undefined) {
+		} else if (topRatio === undefined && leftRatio === undefined) {
 			this.storageService.remove(POSITION_STORAGE_KEY, StorageScope.APPLICATION);
 		}
 	}
