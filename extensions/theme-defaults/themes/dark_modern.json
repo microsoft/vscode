@@ -21,6 +21,7 @@
 		"button.secondaryHoverBackground": "#3C3C3C",
 		"chat.slashCommandBackground": "#34414B",
 		"chat.slashCommandForeground": "#40A6FF",
+		"chat.editedFileForeground": "#E2C08D",
 		"checkbox.background": "#313131",
 		"checkbox.border": "#3C3C3C",
 		"debugToolBar.background": "#181818",

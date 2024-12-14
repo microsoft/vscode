@@ -186,7 +186,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				iframe.contentWindow!.postMessage({
 					type: event.data.type,
 					data: {
-						workerUrl: FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorker.esm.js').toString(true),
+						workerUrl: FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js').toString(true),
 						fileRoot: globalThis._VSCODE_FILE_ROOT,
 						nls: {
 							messages: getNLSMessages(),

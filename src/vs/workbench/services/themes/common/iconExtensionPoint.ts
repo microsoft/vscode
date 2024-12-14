@@ -5,7 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
-import { IIconRegistry, Extensions as IconRegistryExtensions } from '../../../../platform/theme/common/iconRegistry.js';
+import { IIconRegistry, Extensions as IconRegistryExtensions, fontCharacterErrorMessage, fontCharacterRegex } from '../../../../platform/theme/common/iconRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as resources from '../../../../base/common/resources.js';
@@ -53,7 +53,9 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 								},
 								fontCharacter: {
 									description: nls.localize('contributes.icon.default.fontCharacter', 'The character for the icon in the icon font.'),
-									type: 'string'
+									type: 'string',
+									pattern: fontCharacterRegex.source,
+									patternErrorMessage: fontCharacterErrorMessage
 								}
 							},
 							required: ['fontPath', 'fontCharacter'],
@@ -103,14 +105,18 @@ export class IconExtensionPoint {
 							collector.warn(nls.localize('invalid.icons.default.fontPath.extension', "Expected `contributes.icons.default.fontPath` to have file extension 'woff', woff2' or 'ttf', is '{0}'.", fileExt));
 							return;
 						}
+						if (!defaultIcon.fontCharacter.match(fontCharacterRegex)) {
+							collector.warn(nls.localize('invalid.icons.default.fontCharacter', 'Invalid `contributes.icons.default.fontCharacter`: {0}', fontCharacterErrorMessage));
+							return;
+						}
 						const extensionLocation = extension.description.extensionLocation;
 						const iconFontLocation = resources.joinPath(extensionLocation, defaultIcon.fontPath);
+						const fontId = getFontId(extension.description, defaultIcon.fontPath);
+						const definition = iconRegistry.registerIconFont(fontId, { src: [{ location: iconFontLocation, format }] });
 						if (!resources.isEqualOrParent(iconFontLocation, extensionLocation)) {
 							collector.warn(nls.localize('invalid.icons.default.fontPath.path', "Expected `contributes.icons.default.fontPath` ({0}) to be included inside extension's folder ({0}).", iconFontLocation.path, extensionLocation.path));
 							return;
 						}
-						const fontId = getFontId(extension.description, defaultIcon.fontPath);
-						const definition = iconRegistry.registerIconFont(fontId, { src: [{ location: iconFontLocation, format }] });
 						iconRegistry.registerIcon(id, {
 							fontCharacter: defaultIcon.fontCharacter,
 							font: {

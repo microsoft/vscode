@@ -29,9 +29,9 @@ export interface IModelService {
 
 	getModel(resource: URI): ITextModel | null;
 
-	onModelAdded: Event<ITextModel>;
+	readonly onModelAdded: Event<ITextModel>;
 
-	onModelRemoved: Event<ITextModel>;
+	readonly onModelRemoved: Event<ITextModel>;
 
-	onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string }>;
+	readonly onModelLanguageChanged: Event<{ readonly model: ITextModel; readonly oldLanguageId: string }>;
 }

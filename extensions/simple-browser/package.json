@@ -70,7 +70,7 @@
   },
   "devDependencies": {
     "@types/vscode-webview": "^1.57.0",
-    "vscode-codicons": "^0.0.14"
+    "@vscode/codicons": "^0.0.36"
   },
   "repository": {
     "type": "git",

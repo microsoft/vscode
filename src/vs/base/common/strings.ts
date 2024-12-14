@@ -249,6 +249,10 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	return !!(match && regexp.lastIndex === 0);
 }
 
+export function joinStrings(items: (string | undefined | null | false)[], separator: string): string {
+	return items.filter(item => item !== undefined && item !== null && item !== false).join(separator);
+}
+
 export function splitLines(str: string): string[] {
 	return str.split(/\r\n|\r|\n/);
 }

@@ -93,7 +93,7 @@ export type GlobPattern = string | RelativePattern;
 /**
  * The parameters of a query for text search.
  */
-export interface TextSearchQueryNew {
+export interface TextSearchQuery2 {
 	/**
 	 * The text pattern to search for.
 	 */
@@ -152,11 +152,11 @@ export interface TextSearchProviderFolderOptions {
 		 */
 		local: boolean;
 		/**
-		 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 * Use ignore files at the parent directory. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
 		 */
 		parent: boolean;
 		/**
-		 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 * Use global ignore files. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
 		 */
 		global: boolean;
 	};
@@ -214,7 +214,7 @@ export interface TextSearchProviderOptions {
 /**
  * Information collected when text search is complete.
  */
-export interface TextSearchCompleteNew {
+export interface TextSearchComplete2 {
 	/**
 	 * Whether the search hit the limit on the maximum number of search results.
 	 * `maxResults` on [`TextSearchOptions`](#TextSearchOptions) specifies the max number of results.
@@ -285,9 +285,9 @@ export interface FileSearchProviderOptions {
 }
 
 /**
- * The main match information for a {@link TextSearchResultNew}.
+ * The main match information for a {@link TextSearchResult2}.
  */
-export class TextSearchMatchNew {
+export class TextSearchMatch2 {
 	/**
 	 * @param uri The uri for the matching document.
 	 * @param ranges The ranges associated with this match.
@@ -301,9 +301,9 @@ export class TextSearchMatchNew {
 }
 
 /**
- * The potential context information for a {@link TextSearchResultNew}.
+ * The potential context information for a {@link TextSearchResult2}.
  */
-export class TextSearchContextNew {
+export class TextSearchContext2 {
 	/**
 	 * @param uri The uri for the matching document.
 	 * @param text The line of context text.
@@ -318,7 +318,7 @@ export class TextSearchContextNew {
 /**
  * A result payload for a text search, pertaining to matches within a single file.
  */
-export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
+export type TextSearchResult2 = TextSearchMatch2 | TextSearchContext2;
 
 
 /**
@@ -330,7 +330,7 @@ export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
  * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
  * and in that case, every file in the folder should be returned.
  */
-export interface FileSearchProviderNew {
+export interface FileSearchProvider2 {
 	/**
 	 * Provide the set of files that match a certain file path pattern.
 	 * @param query The parameters for this query.
@@ -344,7 +344,7 @@ export interface FileSearchProviderNew {
 /**
  * A TextSearchProvider provides search results for text results inside files in the workspace.
  */
-export interface TextSearchProviderNew {
+export interface TextSearchProvider2 {
 	/**
 	 * Provide results that match the given text pattern.
 	 * @param query The parameters for this query.
@@ -352,13 +352,13 @@ export interface TextSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 }
 
 /**
  * Information collected when text search is complete.
  */
-export interface TextSearchCompleteNew {
+export interface TextSearchComplete2 {
 	/**
 	 * Whether the search hit the limit on the maximum number of search results.
 	 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
@@ -377,13 +377,13 @@ export interface TextSearchCompleteNew {
 	 *
 	 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
 	 */
-	message?: TextSearchCompleteMessageNew[];
+	message?: TextSearchCompleteMessage2[];
 }
 
 /**
  * A message regarding a completed search.
  */
-export interface TextSearchCompleteMessageNew {
+export interface TextSearchCompleteMessage2 {
 	/**
 	 * Markdown text of the message.
 	 */
@@ -409,7 +409,7 @@ export interface TextSearchCompleteMessageNew {
  * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
  * and in that case, every file in the folder should be returned.
  */
-export interface FileSearchProviderNew {
+export interface FileSearchProvider2 {
 	/**
 	 * Provide the set of files that match a certain file path pattern.
 	 * @param query The parameters for this query.
@@ -423,7 +423,7 @@ export interface FileSearchProviderNew {
 /**
  * A TextSearchProvider provides search results for text results inside files in the workspace.
  */
-export interface TextSearchProviderNew {
+export interface TextSearchProvider2 {
 	/**
 	 * Provide results that match the given text pattern.
 	 * @param query The parameters for this query.
@@ -431,16 +431,16 @@ export interface TextSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 }
 
 /**
  * Information collected when text search is complete.
  */
-export interface TextSearchCompleteNew {
+export interface TextSearchComplete2 {
 	/**
 	 * Whether the search hit the limit on the maximum number of search results.
-	 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
+	 * `maxResults` on {@link TextSearchOptions} specifies the max number of results.
 	 * - If exactly that number of matches exist, this should be false.
 	 * - If `maxResults` matches are returned and more exist, this should be true.
 	 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -456,13 +456,13 @@ export interface TextSearchCompleteNew {
 	 *
 	 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
 	 */
-	message?: TextSearchCompleteMessageNew[];
+	message?: TextSearchCompleteMessage2[];
 }
 
 /**
  * A message regarding a completed search.
  */
-export interface TextSearchCompleteMessageNew {
+export interface TextSearchCompleteMessage2 {
 	/**
 	 * Markdown text of the message.
 	 */
@@ -527,7 +527,7 @@ export interface TextSearchCompleteMessage {
 /**
  * An AITextSearchProvider provides additional AI text search results in the workspace.
  */
-export interface AITextSearchProviderNew {
+export interface AITextSearchProvider {
 
 	/**
 	 * The name of the AI searcher. Will be displayed as `{name} Results` in the Search View.
@@ -543,5 +543,5 @@ export interface AITextSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 }

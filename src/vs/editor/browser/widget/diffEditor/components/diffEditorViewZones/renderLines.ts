@@ -83,9 +83,9 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 export class LineSource {
 	constructor(
 		public readonly lineTokens: LineTokens[],
-		public readonly lineBreakData: (ModelLineProjectionData | null)[],
-		public readonly mightContainNonBasicASCII: boolean,
-		public readonly mightContainRTL: boolean,
+		public readonly lineBreakData: (ModelLineProjectionData | null)[] = lineTokens.map(t => null),
+		public readonly mightContainNonBasicASCII: boolean = true,
+		public readonly mightContainRTL: boolean = true,
 	) { }
 }
 

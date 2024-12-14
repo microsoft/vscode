@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IMatch } from '../../../../../base/common/filters.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { basenameOrAuthority, dirname } from '../../../../../base/common/resources.js';
@@ -21,7 +20,6 @@ import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickIn
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
 import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from '../searchIcons.js';
-import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, SearchResult, searchComparer } from '../searchModel.js';
 import { SearchView, getEditorSelectionFromMatch } from '../searchView.js';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from '../../common/search.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -33,6 +31,10 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { Sequencer } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
+import { SearchModelLocation, RenderableMatch, ISearchTreeFileMatch, ISearchTreeMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
+import { searchComparer } from '../searchCompare.js';
+import { IMatch } from '../../../../../base/common/filters.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -49,13 +51,13 @@ const MAX_RESULTS_PER_FILE = 10;
 const DEBOUNCE_DELAY = 75;
 
 interface ITextSearchQuickAccessItem extends IPickerQuickAccessItem {
-	match?: Match;
+	match?: ISearchTreeMatch;
 }
 export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearchQuickAccessItem> {
 
 	private editorSequencer: Sequencer;
 	private queryBuilder: QueryBuilder;
-	private searchModel: SearchModel;
+	private searchModel: SearchModelImpl;
 	private currentAsyncSearch: Promise<ISearchComplete> = Promise.resolve({
 		results: [],
 		messages: []
@@ -89,7 +91,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true, shouldSkipTrimPickFilter: true });
 
 		this.queryBuilder = this._instantiationService.createInstance(QueryBuilder);
-		this.searchModel = this._register(this._instantiationService.createInstance(SearchModel));
+		this.searchModel = this._register(this._instantiationService.createInstance(SearchModelImpl));
 		this.editorViewState = this._register(this._instantiationService.createInstance(PickerEditorState));
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 		this.editorSequencer = new Sequencer();
@@ -108,7 +110,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		picker.buttons = [{
 			location: QuickInputButtonLocation.Inline,
 			iconClass: ThemeIcon.asClassName(Codicon.goToSearch),
-			tooltip: localize('goToSearch', "See in Search Panel")
+			tooltip: localize('goToSearch', "Open in Search View")
 		}];
 		this.editorViewState.reset();
 		disposables.add(picker.onDidTriggerButton(async () => {
@@ -178,8 +180,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 	}
 
 	private doSearch(contentPattern: string, token: CancellationToken): {
-		syncResults: FileMatch[];
-		asyncResults: Promise<FileMatch[]>;
+		syncResults: ISearchTreeFileMatch[];
+		asyncResults: Promise<ISearchTreeFileMatch[]>;
 	} | undefined {
 		if (contentPattern === '') {
 			return undefined;
@@ -215,10 +217,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		const viewlet: SearchView | undefined = this._viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
 		await viewlet.replaceSearchModel(this.searchModel, this.currentAsyncSearch);
 
-		this.searchModel = this._instantiationService.createInstance(SearchModel);
+		this.searchModel = this._instantiationService.createInstance(SearchModelImpl);
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 
-		const viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> | undefined = viewlet?.getControl();
+		const viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> | undefined = viewlet?.getControl();
 		if (currentElem) {
 			viewer.setFocus([currentElem], getSelectionKeyboardEvent());
 			viewer.setSelection([currentElem], getSelectionKeyboardEvent());
@@ -229,7 +231,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 	}
 
 
-	private _getPicksFromMatches(matches: FileMatch[], limit: number, firstFile?: URI): (IPickerQuickAccessSeparator | ITextSearchQuickAccessItem)[] {
+	private _getPicksFromMatches(matches: ISearchTreeFileMatch[], limit: number, firstFile?: URI): (IPickerQuickAccessSeparator | ITextSearchQuickAccessItem)[] {
 		matches = matches.sort((a, b) => {
 			if (firstFile) {
 				if (firstFile === a.resource) {
@@ -261,10 +263,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				break;
 			}
 
-			const fileMatch = files[fileIndex];
+			const iFileInstanceMatch = files[fileIndex];
 
-			const label = basenameOrAuthority(fileMatch.resource);
-			const description = this._labelService.getUriLabel(dirname(fileMatch.resource), { relative: true });
+			const label = basenameOrAuthority(iFileInstanceMatch.resource);
+			const description = this._labelService.getUriLabel(dirname(iFileInstanceMatch.resource), { relative: true });
 
 
 			picks.push({
@@ -276,12 +278,12 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					tooltip: localize('QuickSearchOpenInFile', "Open File")
 				}],
 				trigger: async (): Promise<TriggerAction> => {
-					await this.handleAccept(fileMatch, {});
+					await this.handleAccept(iFileInstanceMatch, {});
 					return TriggerAction.CLOSE_PICKER;
 				},
 			});
 
-			const results: Match[] = fileMatch.matches() ?? [];
+			const results: ISearchTreeMatch[] = iFileInstanceMatch.matches() ?? [];
 			for (let matchIndex = 0; matchIndex < results.length; matchIndex++) {
 				const element = results[matchIndex];
 
@@ -309,11 +311,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					},
 					buttons: [{
 						iconClass: ThemeIcon.asClassName(searchActivityBarIcon),
-						tooltip: localize('showMore', "See in Search Panel"),
+						tooltip: localize('showMore', "Open in Search View"),
 					}],
 					ariaLabel: `Match at location ${element.range().startLineNumber}:${element.range().startColumn} - ${previewText}`,
 					accept: async (keyMods, event) => {
-						await this.handleAccept(fileMatch, {
+						await this.handleAccept(iFileInstanceMatch, {
 							keyMods,
 							selection: getEditorSelectionFromMatch(element, this.searchModel),
 							preserveFocus: event.inBackground,
@@ -331,7 +333,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		return picks;
 	}
 
-	private async handleAccept(fileMatch: FileMatch, options: { keyMods?: IKeyMods; selection?: ITextEditorSelection; preserveFocus?: boolean; range?: IRange; forcePinned?: boolean; forceOpenSideBySide?: boolean }): Promise<void> {
+	private async handleAccept(iFileInstanceMatch: ISearchTreeFileMatch, options: { keyMods?: IKeyMods; selection?: ITextEditorSelection; preserveFocus?: boolean; range?: IRange; forcePinned?: boolean; forceOpenSideBySide?: boolean }): Promise<void> {
 		const editorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
@@ -342,7 +344,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		const targetGroup = options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
 		await this._editorService.openEditor({
-			resource: fileMatch.resource,
+			resource: iFileInstanceMatch.resource,
 			options: editorOptions
 		}, targetGroup);
 	}

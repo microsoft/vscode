@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 // *********************************************************************
 // *                                                                   *
 // *  We need this to redirect to node_modules from the remote-folder. *

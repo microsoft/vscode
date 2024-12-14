@@ -106,6 +106,7 @@ class NotebookEditorModelManager extends Disposable {
 		this._proxy.$acceptNewModel(
 			model.uri.toString(),
 			model.metadata,
+			model.transientOptions.transientDocumentMetadata,
 			model.cells.map(cell => ({
 				handle: cell.handle,
 				url: cell.uri.toString(),

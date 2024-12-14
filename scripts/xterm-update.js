@@ -10,6 +10,7 @@ const moduleNames = [
 	'@xterm/xterm',
 	'@xterm/addon-clipboard',
 	'@xterm/addon-image',
+	'@xterm/addon-ligatures',
 	'@xterm/addon-search',
 	'@xterm/addon-serialize',
 	'@xterm/addon-unicode11',

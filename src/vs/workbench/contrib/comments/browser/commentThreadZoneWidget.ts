@@ -128,8 +128,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		editor: ICodeEditor,
 		private _uniqueOwner: string,
 		private _commentThread: languages.CommentThread,
-		private _pendingComment: string | undefined,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingComment: languages.PendingComment | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
@@ -188,7 +188,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	public reveal(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
 		this.makeVisible(commentUniqueId, focus);
-		const comment = this._commentThread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueId);
+		const comment = this._commentThread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueId) ?? this._commentThread.comments?.[0];
 		this.commentService.setActiveCommentAndThread(this.uniqueOwner, { thread: this._commentThread, comment });
 	}
 
@@ -242,17 +242,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	public getPendingComments(): { newComment: string | undefined; edits: { [key: number]: string } } {
+	public getPendingComments(): { newComment: languages.PendingComment | undefined; edits: { [key: number]: languages.PendingComment } } {
 		return {
 			newComment: this._commentThreadWidget.getPendingComment(),
 			edits: this._commentThreadWidget.getPendingEdits()
 		};
 	}
 
-	public setPendingComment(comment: string) {
-		this._pendingComment = comment;
+	public setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
 		this.expand();
-		this._commentThreadWidget.setPendingComment(comment);
+		this._commentThreadWidget.setPendingComment(pending);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -502,6 +502,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
+	}
+
+	collapseAndFocusRange() {
+		this._commentThreadWidget.collapse();
 	}
 
 	override hide() {

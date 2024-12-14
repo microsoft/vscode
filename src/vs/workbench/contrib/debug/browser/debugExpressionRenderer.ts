@@ -33,7 +33,12 @@ export interface IRenderValueOptions {
 	hover?: false | IValueHoverOptions;
 	colorize?: boolean;
 
-	/** @deprecated */
+	/**
+	 * Indicates areas where VS Code implicitly always supported ANSI escape
+	 * sequences. These should be rendered as ANSI when the DA does not specify
+	 * any value of `supportsANSIStyling`.
+	 * @deprecated
+	 */
 	wasANSI?: boolean;
 	session?: IDebugSession;
 	locationReference?: number;
@@ -48,6 +53,26 @@ export interface IRenderVariableOptions {
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 const booleanRegex = /^(true|false)$/i;
 const stringRegex = /^(['"]).*\1$/;
+
+const enum Cls {
+	Value = 'value',
+	Unavailable = 'unavailable',
+	Error = 'error',
+	Changed = 'changed',
+	Boolean = 'boolean',
+	String = 'string',
+	Number = 'number',
+}
+
+const allClasses: readonly Cls[] = Object.keys({
+	[Cls.Value]: 0,
+	[Cls.Unavailable]: 0,
+	[Cls.Error]: 0,
+	[Cls.Changed]: 0,
+	[Cls.Boolean]: 0,
+	[Cls.String]: 0,
+	[Cls.Number]: 0,
+} satisfies { [key in Cls]: unknown }) as Cls[];
 
 export class DebugExpressionRenderer {
 	private displayType: IObservable<boolean>;
@@ -105,22 +130,25 @@ export class DebugExpressionRenderer {
 	renderValue(container: HTMLElement, expressionOrValue: IExpressionValue | string, options: IRenderValueOptions = {}): IDisposable {
 		const store = new DisposableStore();
 		// Use remembered capabilities so REPL elements can render even once a session ends
-		const supportsANSI = !!options.session?.rememberedCapabilities?.supportsANSIStyling;
+		const supportsANSI: boolean = options.session?.rememberedCapabilities?.supportsANSIStyling ?? options.wasANSI ?? false;
 
 		let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 		// remove stale classes
-		container.className = 'value';
+		for (const cls of allClasses) {
+			container.classList.remove(cls);
+		}
+		container.classList.add(Cls.Value);
 		// when resolving expressions we represent errors from the server as a variable with name === null.
 		if (value === null || ((expressionOrValue instanceof Expression || expressionOrValue instanceof Variable || expressionOrValue instanceof ReplEvaluationResult) && !expressionOrValue.available)) {
-			container.classList.add('unavailable');
+			container.classList.add(Cls.Unavailable);
 			if (value !== Expression.DEFAULT_VALUE) {
-				container.classList.add('error');
+				container.classList.add(Cls.Error);
 			}
 		} else {
 			if (typeof expressionOrValue !== 'string' && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
 				// value changed color has priority over other colors.
-				container.className = 'value changed';
+				container.classList.add(Cls.Changed);
 				expressionOrValue.valueChanged = false;
 			}
 
@@ -128,11 +156,11 @@ export class DebugExpressionRenderer {
 				if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
 					container.classList.add(expressionOrValue.type);
 				} else if (!isNaN(+value)) {
-					container.classList.add('number');
+					container.classList.add(Cls.Number);
 				} else if (booleanRegex.test(value)) {
-					container.classList.add('boolean');
+					container.classList.add(Cls.Boolean);
 				} else if (stringRegex.test(value)) {
-					container.classList.add('string');
+					container.classList.add(Cls.String);
 				}
 			}
 		}

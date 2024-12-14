@@ -18,11 +18,6 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
 	});
 
-	test('minimist', async () => {
-		const { default: minimist } = await import('minimist');
-		assert.ok(typeof minimist === 'function', testErrorMessage('minimist'));
-	});
-
 	test('yauzl', async () => {
 		const { default: yauzl } = await import('yauzl');
 		assert.ok(typeof yauzl.ZipFile === 'function', testErrorMessage('yauzl'));

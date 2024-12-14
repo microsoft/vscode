@@ -1263,8 +1263,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.gridWidgetDisposables.clear();
 		this.gridWidgetDisposables.add(gridWidget.onDidChangeViewMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
-		this._onDidChangeGroupMaximized.fire(this.hasMaximizedGroup());
-
 		this.onDidSetGridWidget.fire(undefined);
 	}
 

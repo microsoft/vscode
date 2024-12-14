@@ -179,7 +179,7 @@ function easeOutExpo(t: number, b: number, c: number, d: number): number {
 }
 
 export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
-	const result = {} as T;
+	const result = {} as any as T;
 	for (const key in source1) {
 		result[key] = source1[key];
 	}

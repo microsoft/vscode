@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -40,7 +38,7 @@ if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
 globalThis._VSCODE_PRODUCT_JSON = { ...product };
 if (process.env['VSCODE_DEV']) {
 	try {
-		const overrides = require('../product.overrides.json');
+		const overrides: unknown = require('../product.overrides.json');
 		globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, overrides);
 	} catch (error) { /* ignore */ }
 }
@@ -118,21 +116,8 @@ async function doSetupNLS(): Promise<INLSConfiguration | undefined> {
 
 //#endregion
 
-//#region ESM Loading
+export async function bootstrapESM(): Promise<void> {
 
-export function load(esModule: string | undefined, onLoad?: (value: any) => void, onError?: (err: Error) => void): void {
-	if (!esModule) {
-		return;
-	}
-
-	onLoad = onLoad || function () { };
-	onError = onError || function (err) { console.error(err); };
-
-	setupNLS().then(() => {
-		performance.mark(`code/fork/willLoadCode`);
-		import([`./${esModule}.js`].join('/') /* workaround to prevent esbuild from inlining this */).then(onLoad, onError);
-	});
+	// NLS
+	await setupNLS();
 }
-
-//#endregion
-

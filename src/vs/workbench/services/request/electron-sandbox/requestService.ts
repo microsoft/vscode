@@ -9,7 +9,7 @@ import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { request } from '../../../../base/parts/request/browser/request.js';
+import { request } from '../../../../base/parts/request/common/requestImpl.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class NativeRequestService extends AbstractRequestService implements IRequestService {
@@ -28,7 +28,7 @@ export class NativeRequestService extends AbstractRequestService implements IReq
 		if (!options.proxyAuthorization) {
 			options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
 		}
-		return this.logAndRequest(options, () => request(options, token));
+		return this.logAndRequest(options, () => request(options, token, () => navigator.onLine));
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {

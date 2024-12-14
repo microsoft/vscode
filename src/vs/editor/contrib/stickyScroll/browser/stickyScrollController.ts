@@ -29,10 +29,13 @@ import { StickyRange } from './stickyScrollElement.js';
 import { IMouseEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { FoldingController } from '../../folding/browser/folding.js';
 import { FoldingModel, toggleCollapseState } from '../../folding/browser/foldingModel.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
 	get stickyScrollWidgetState(): StickyScrollWidgetState;
+	readonly stickyScrollWidgetHeight: number;
+	isFocused(): boolean;
 	focus(): void;
 	focusNext(): void;
 	focusPrevious(): void;
@@ -40,6 +43,7 @@ export interface IStickyScrollController {
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 	selectEditor(): void;
+	onDidChangeStickyScrollHeight: Event<{ height: number }>;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -70,6 +74,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _showEndForLine: number | undefined;
 	private _minRebuildFromLine: number | undefined;
 
+	private readonly _onDidChangeStickyScrollHeight = this._register(new Emitter<{ height: number }>());
+	public readonly onDidChangeStickyScrollHeight = this._onDidChangeStickyScrollHeight.event;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -86,8 +93,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(this._stickyLineCandidateProvider);
 
 		this._widgetState = StickyScrollWidgetState.Empty;
-		this._onDidResize();
-		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			this._readConfigurationChange(e);
@@ -119,6 +124,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.MOUSE_DOWN, (e) => {
 			this._onMouseDown = true;
 		}));
+		this._register(this._stickyScrollWidget.onDidChangeStickyScrollHeight((e) => {
+			this._onDidChangeStickyScrollHeight.fire(e);
+		}));
+		this._onDidResize();
+		this._readConfiguration();
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
@@ -127,6 +137,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	get stickyScrollWidgetState(): StickyScrollWidgetState {
 		return this._widgetState;
+	}
+
+	get stickyScrollWidgetHeight(): number {
+		return this._stickyScrollWidget.height;
 	}
 
 	public static get(editor: ICodeEditor): IStickyScrollController | null {
@@ -139,6 +153,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._focused = false;
 		this._positionRevealed = false;
 		this._onMouseDown = false;
+	}
+
+	public isFocused(): boolean {
+		return this._focused;
 	}
 
 	public focus(): void {
@@ -394,7 +412,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (!foldingIcon) {
 			return;
 		}
-		toggleCollapseState(this._foldingModel, Number.MAX_VALUE, [line]);
+		toggleCollapseState(this._foldingModel, 1, [line]);
 		foldingIcon.isCollapsed = !foldingIcon.isCollapsed;
 		const scrollTop = (foldingIcon.isCollapsed ?
 			this._editor.getTopForLineNumber(foldingIcon.foldingEndLine)
@@ -408,6 +426,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
+			this._resetState();
 			this._sessionStore.clear();
 			this._enabled = false;
 			return;
@@ -449,7 +468,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._readConfiguration();
 		}
 
-		if (event.hasChanged(EditorOption.lineNumbers)) {
+		if (event.hasChanged(EditorOption.lineNumbers) || event.hasChanged(EditorOption.folding) || event.hasChanged(EditorOption.showFoldingControls)) {
 			this._renderStickyScroll(0);
 		}
 	}
@@ -478,6 +497,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		// Make sure sticky scroll doesn't take up more than 25% of the editor
 		const theoreticalLines = layoutInfo.height / this._editor.getOption(EditorOption.lineHeight);
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
+		this._renderStickyScroll(0);
 	}
 
 	private async _renderStickyScroll(rebuildFromLine?: number): Promise<void> {

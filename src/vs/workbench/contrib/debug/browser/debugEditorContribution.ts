@@ -475,11 +475,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		}
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+		if (
+			(target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID)
+			|| this.hoverWidget.isInSafeTriangle(mouseEvent.event.posx, mouseEvent.event.posy)
+		) {
 			// mouse moved on top of debug hover widget
 
 			const sticky = this.editorHoverOptions?.sticky ?? true;
-			if (sticky || this.hoverWidget.isShowingComplexValue) {
+			if (sticky || this.hoverWidget.isShowingComplexValue || mouseEvent.event[stopKey]) {
 				return;
 			}
 		}

@@ -1,0 +1,12 @@
+{
+	"codebaseName": "devdiv_microsoft_vscode",
+	"serviceTreeID": "79c048b2-322f-4ed5-a1ea-252a1250e4b3",
+	"instanceUrl": "https://devdiv.visualstudio.com/defaultcollection",
+	"projectName": "DevDiv",
+	"areaPath": "DevDiv\\VS Code (compliance tracking only)\\Visual Studio Code Client",
+	"notificationAliases": [
+		"monacotools@microsoft.com"
+	],
+	"validateToolOutput": "None",
+	"allTools": true
+}

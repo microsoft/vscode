@@ -25,19 +25,15 @@ export class CheckboxStateHandler extends Disposable {
 }
 
 export class TreeItemCheckbox extends Disposable {
-	public toggle: Toggle | undefined;
-	private checkboxContainer: HTMLDivElement;
-	public isDisposed = false;
+	private toggle: Toggle | undefined;
+	private readonly checkboxContainer: HTMLDivElement;
 	private hover: IManagedHover | undefined;
 
 	public static readonly checkboxClass = 'custom-view-tree-node-item-checkbox';
 
-	private readonly _onDidChangeState = new Emitter<boolean>();
-	readonly onDidChangeState: Event<boolean> = this._onDidChangeState.event;
-
 	constructor(
 		container: HTMLElement,
-		private checkboxStateHandler: CheckboxStateHandler,
+		private readonly checkboxStateHandler: CheckboxStateHandler,
 		private readonly hoverDelegate: IHoverDelegate,
 		private readonly hoverService: IHoverService
 	) {

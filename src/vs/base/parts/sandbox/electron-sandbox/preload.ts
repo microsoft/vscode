@@ -5,11 +5,11 @@
 
 /* eslint-disable no-restricted-globals */
 
-type SandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration;
-
 (function () {
 
 	const { ipcRenderer, webFrame, contextBridge, webUtils } = require('electron');
+
+	type ISandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes.js').ISandboxConfiguration;
 
 	//#region Utilities
 
@@ -35,9 +35,9 @@ type SandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes').
 
 	//#region Resolve Configuration
 
-	let configuration: SandboxConfiguration | undefined = undefined;
+	let configuration: ISandboxConfiguration | undefined = undefined;
 
-	const resolveConfiguration: Promise<SandboxConfiguration> = (async () => {
+	const resolveConfiguration: Promise<ISandboxConfiguration> = (async () => {
 		const windowConfigIpcChannel = parseArgv('vscode-window-config');
 		if (!windowConfigIpcChannel) {
 			throw new Error('Preload: did not find expected vscode-window-config in renderer process arguments list.');
@@ -47,7 +47,7 @@ type SandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes').
 			validateIPC(windowConfigIpcChannel);
 
 			// Resolve configuration from electron-main
-			const resolvedConfiguration: SandboxConfiguration = configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+			const resolvedConfiguration: ISandboxConfiguration = configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
 
 			// Apply `userEnv` directly
 			Object.assign(process.env, resolvedConfiguration.userEnv);
@@ -215,8 +215,7 @@ type SandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes').
 				return process.getProcessMemoryInfo();
 			},
 
-			on(type: string, callback: Function): void {
-				// @ts-ignore
+			on(type: string, callback: (...args: any[]) => void): void {
 				process.on(type, callback);
 			}
 		},
@@ -234,14 +233,14 @@ type SandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes').
 			 * actual value will be set after `resolveConfiguration`
 			 * has finished.
 			 */
-			configuration(): SandboxConfiguration | undefined {
+			configuration(): ISandboxConfiguration | undefined {
 				return configuration;
 			},
 
 			/**
 			 * Allows to await the resolution of the configuration object.
 			 */
-			async resolveConfiguration(): Promise<SandboxConfiguration> {
+			async resolveConfiguration(): Promise<ISandboxConfiguration> {
 				return resolveConfiguration;
 			}
 		}
@@ -257,7 +256,6 @@ type SandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes').
 			console.error(error);
 		}
 	} else {
-		// @ts-ignore
-		window.vscode = globals;
+		(window as any).vscode = globals;
 	}
 }());

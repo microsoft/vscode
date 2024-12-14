@@ -353,6 +353,9 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				content = '\nCorresponding code: \n' + content;
 			}
 		}
+		if (!content) {
+			content = '';
+		}
 		if (element.range) {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',

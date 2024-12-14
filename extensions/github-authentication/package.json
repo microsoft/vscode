@@ -46,15 +46,6 @@
           "description": "GitHub Enterprise Server URI"
         }
       }
-    },
-    {
-      "title": "GitHub Authentication",
-      "properties": {
-        "github.experimental.multipleAccounts": {
-          "type": "boolean",
-          "description": "Experimental support for multiple GitHub accounts"
-        }
-      }
     }
   ]
   },

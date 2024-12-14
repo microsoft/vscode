@@ -165,19 +165,6 @@ suite('UserDataProfileService (Common)', () => {
 		assert.deepStrictEqual(testObject.profiles[1].id, profile.id);
 	});
 
-	test('short name', async () => {
-		const profile = await testObject.createNamedProfile('name', { shortName: 'short' });
-		assert.strictEqual(profile.shortName, 'short');
-
-		await testObject.updateProfile(profile, { shortName: 'short changed' });
-
-		assert.deepStrictEqual(testObject.profiles.length, 2);
-		assert.deepStrictEqual(testObject.profiles[1].name, 'name');
-		assert.deepStrictEqual(testObject.profiles[1].shortName, 'short changed');
-		assert.deepStrictEqual(!!testObject.profiles[1].isTransient, false);
-		assert.deepStrictEqual(testObject.profiles[1].id, profile.id);
-	});
-
 	test('profile using default profile for settings', async () => {
 		const profile = await testObject.createNamedProfile('name', { useDefaultFlags: { settings: true } });
 

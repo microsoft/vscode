@@ -5,9 +5,15 @@
 
 //@ts-check
 
-const path = require('path');
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'url';
+import * as path from 'path';
+import * as os from 'os';
+
+const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const { defineConfig } = require('@vscode/test-cli');
-const os = require('os');
 
 /**
  * A list of extension folders who have opted into tests, or configuration objects.
@@ -37,6 +43,16 @@ const extensions = [
 		mocha: { timeout: 60_000 }
 	},
 	{
+		label: 'terminal-suggest',
+		workspaceFolder: path.join(os.tmpdir(), `terminal-suggest-${Math.floor(Math.random() * 100000)}`),
+		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'vscode-colorize-perf-tests',
+		workspaceFolder: `extensions/vscode-colorize-perf-tests/test`,
+		mocha: { timeout: 6000_000 }
+	},
+	{
 		label: 'configuration-editing',
 		workspaceFolder: path.join(os.tmpdir(), `confeditout-${Math.floor(Math.random() * 100000)}`),
 		mocha: { timeout: 60_000 }
@@ -57,7 +73,7 @@ const defaultLaunchArgs = process.env.API_TESTS_EXTRA_ARGS?.split(' ') || [
 	'--disable-telemetry', '--skip-welcome', '--skip-release-notes', `--crash-reporter-directory=${__dirname}/.build/crashes`, `--logsPath=${__dirname}/.build/logs/integration-tests`, '--no-cached-data', '--disable-updates', '--use-inmemory-secretstorage', '--disable-extensions', '--disable-workspace-trust'
 ];
 
-module.exports = defineConfig(extensions.map(extension => {
+const config = defineConfig(extensions.map(extension => {
 	/** @type {import('@vscode/test-cli').TestConfiguration} */
 	const config = typeof extension === 'object'
 		? { files: `extensions/${extension.label}/out/**/*.test.js`, ...extension }
@@ -99,3 +115,5 @@ module.exports = defineConfig(extensions.map(extension => {
 
 	return config;
 }));
+
+export default config;

@@ -84,12 +84,13 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// foo#339
 		// foo#339:12                              [#190288]
 		// foo#339.12
+		// foo, 339                                [#217927]
 		// "foo",339
 		// "foo",339:12
 		// "foo",339.12
 		// "foo",339.12-789
 		// "foo",339.12-341.789
-		`(?::|#| |['"],)${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
+		`(?::|#| |['"],|, )${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
 		// The quotes below are optional           [#171652]
 		// "foo", line 339                         [#40468]
 		// "foo", line 339, col 12
@@ -109,14 +110,19 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// "foo", lines 339-341                    [#171880]
 		// "foo", lines 339-341, characters 12-789 [#178287]
 		`['"]?(?:,? |: ?| on )lines? ${r()}(?:-${re()})?(?:,? (?:col(?:umn)?|characters?) ${c()}(?:-${ce()})?)?` + eolSuffix,
+		// () and [] are interchangeable
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
 		// foo (339)
-		//   ...
+		// foo (339,12)
+		// foo (339, 12)
 		// foo: (339)
-		//   ...
-		`:? ?[\\[\\(]${r()}(?:, ?${c()})?[\\]\\)]` + eolSuffix,
+		// foo: (339,12)
+		// foo: (339, 12)
+		// foo(339:12)                             [#229842]
+		// foo (339:12)                            [#229842]
+		`:? ?[\\[\\(]${r()}(?:(?:, ?|:)${c()})?[\\]\\)]` + eolSuffix,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses

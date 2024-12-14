@@ -25,6 +25,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { IExtensionsScannerService } from '../../../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -33,6 +34,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
 		@IDownloadService downloadService: IDownloadService,
@@ -50,6 +52,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 			extensionManagementServerService,
 			extensionGalleryService,
 			userDataProfileService,
+			userDataProfilesService,
 			configurationService,
 			productService,
 			downloadService,

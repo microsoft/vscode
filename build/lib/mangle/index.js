@@ -263,7 +263,6 @@ const skippedExportMangledFiles = [
     'pfs',
     // entry points
     ...[
-        buildfile.entrypoint('vs/server/node/server.main'),
         buildfile.workerEditor,
         buildfile.workerExtensionHost,
         buildfile.workerNotebook,

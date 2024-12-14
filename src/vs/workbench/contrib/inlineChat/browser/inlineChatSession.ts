@@ -81,12 +81,11 @@ export class SessionWholeRange {
 	}
 
 	fixup(changes: readonly DetailedLineRangeMapping[]): void {
-
 		const newDeco: IModelDeltaDecoration[] = [];
 		for (const { modified } of changes) {
-			const modifiedRange = modified.isEmpty
-				? new Range(modified.startLineNumber, 1, modified.startLineNumber, this._textModel.getLineLength(modified.startLineNumber))
-				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, this._textModel.getLineLength(modified.endLineNumberExclusive - 1));
+			const modifiedRange = this._textModel.validateRange(modified.isEmpty
+				? new Range(modified.startLineNumber, 1, modified.startLineNumber, Number.MAX_SAFE_INTEGER)
+				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER));
 
 			newDeco.push({ range: modifiedRange, options: SessionWholeRange._options });
 		}

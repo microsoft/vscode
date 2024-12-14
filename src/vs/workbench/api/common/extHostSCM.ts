@@ -27,6 +27,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/ex
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { Schemas } from '../../../base/common/network.js';
 import { isLinux } from '../../../base/common/platform.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -654,13 +655,21 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
 		return this._actionButton;
 	}
+
 	set actionButton(actionButton: vscode.SourceControlActionButton | undefined) {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
-		this._actionButtonDisposables.value = new DisposableStore();
+
+		// We have to do this check before converting the command to it's internal
+		// representation since that would always create a command with a unique
+		// identifier
+		if (structuralEquals(this._actionButton, actionButton)) {
+			return;
+		}
 
 		this._actionButton = actionButton;
+		this._actionButtonDisposables.value = new DisposableStore();
 
-		const internal = actionButton !== undefined ?
+		const actionButtonDto = actionButton !== undefined ?
 			{
 				command: {
 					...this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
@@ -671,7 +680,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				}),
 				enabled: actionButton.enabled
 			} satisfies SCMActionButtonDto : undefined;
-		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
+
+		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto ?? null });
 	}
 
 
@@ -997,26 +1007,54 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	}
 
 	async $resolveHistoryItemRefsCommonAncestor(sourceControlHandle: number, historyItemRefs: string[], token: CancellationToken): Promise<string | undefined> {
-		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		return await historyProvider?.resolveHistoryItemRefsCommonAncestor(historyItemRefs, token) ?? undefined;
+		try {
+			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+			const ancestor = await historyProvider?.resolveHistoryItemRefsCommonAncestor(historyItemRefs, token);
+
+			return ancestor ?? undefined;
+		}
+		catch (err) {
+			this.logService.error('ExtHostSCM#$resolveHistoryItemRefsCommonAncestor', err);
+			return undefined;
+		}
 	}
 
 	async $provideHistoryItemRefs(sourceControlHandle: number, historyItemRefs: string[] | undefined, token: CancellationToken): Promise<SCMHistoryItemRefDto[] | undefined> {
-		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		const refs = await historyProvider?.provideHistoryItemRefs(historyItemRefs, token);
+		try {
+			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+			const refs = await historyProvider?.provideHistoryItemRefs(historyItemRefs, token);
 
-		return refs?.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) })) ?? undefined;
+			return refs?.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) })) ?? undefined;
+		}
+		catch (err) {
+			this.logService.error('ExtHostSCM#$provideHistoryItemRefs', err);
+			return undefined;
+		}
 	}
 
 	async $provideHistoryItems(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
-		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		const historyItems = await historyProvider?.provideHistoryItems(options, token);
+		try {
+			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+			const historyItems = await historyProvider?.provideHistoryItems(options, token);
 
-		return historyItems?.map(item => toSCMHistoryItemDto(item)) ?? undefined;
+			return historyItems?.map(item => toSCMHistoryItemDto(item)) ?? undefined;
+		}
+		catch (err) {
+			this.logService.error('ExtHostSCM#$provideHistoryItems', err);
+			return undefined;
+		}
 	}
 
 	async $provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined> {
-		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		return await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId, token) ?? undefined;
+		try {
+			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+			const changes = await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId, token);
+
+			return changes ?? undefined;
+		}
+		catch (err) {
+			this.logService.error('ExtHostSCM#$provideHistoryItemChanges', err);
+			return undefined;
+		}
 	}
 }

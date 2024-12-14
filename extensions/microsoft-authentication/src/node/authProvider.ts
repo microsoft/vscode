@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccountInfo, AuthenticationResult, ServerError } from '@azure/msal-node';
-import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Memento, SecretStorage, Uri, window } from 'vscode';
+import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriHandlerLoopbackClient } from '../common/loopbackClientAndOpener';
@@ -13,6 +13,8 @@ import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '
 import { loopbackTemplate } from './loopbackTemplate';
 import { ScopeData } from '../common/scopeData';
 import { EventBufferer } from '../common/event';
+import { BetterTokenStorage } from '../betterSecretStorage';
+import { IStoredSession } from '../AADHelper';
 
 const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
@@ -43,16 +45,16 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	onDidChangeSessions = this._onDidChangeSessionsEmitter.event;
 
 	constructor(
-		context: ExtensionContext,
+		private readonly _context: ExtensionContext,
 		private readonly _telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
 		private readonly _logger: LogOutputChannel,
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _env: Environment = Environment.AzureCloud
 	) {
-		this._disposables = context.subscriptions;
+		this._disposables = _context.subscriptions;
 		this._publicClientManager = new CachedPublicClientApplicationManager(
-			context.globalState,
-			context.secrets,
+			_context.globalState,
+			_context.secrets,
 			this._logger,
 			this._env.name
 		);
@@ -85,8 +87,40 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		);
 	}
 
+	/**
+	 * Migrate sessions from the old secret storage to MSAL.
+	 * TODO: MSAL Migration. Remove this when we remove the old flow.
+	 */
+	private async _migrateSessions() {
+		const betterSecretStorage = new BetterTokenStorage<IStoredSession>('microsoft.login.keylist', this._context);
+		const sessions = await betterSecretStorage.getAll(item => {
+			item.endpoint ||= Environment.AzureCloud.activeDirectoryEndpointUrl;
+			return item.endpoint === this._env.activeDirectoryEndpointUrl;
+		});
+		this._context.globalState.update('msalMigration', true);
+
+		const clientTenantMap = new Map<string, { clientId: string; tenant: string; refreshTokens: string[] }>();
+
+		for (const session of sessions) {
+			const scopeData = new ScopeData(session.scope.split(' '));
+			const key = `${scopeData.clientId}:${scopeData.tenant}`;
+			if (!clientTenantMap.has(key)) {
+				clientTenantMap.set(key, { clientId: scopeData.clientId, tenant: scopeData.tenant, refreshTokens: [] });
+			}
+			clientTenantMap.get(key)!.refreshTokens.push(session.refreshToken);
+		}
+
+		for (const { clientId, tenant, refreshTokens } of clientTenantMap.values()) {
+			await this.getOrCreatePublicClientApplication(clientId, tenant, refreshTokens);
+		}
+	}
+
 	async initialize(): Promise<void> {
 		await this._eventBufferer.bufferEventsAsync(() => this._publicClientManager.initialize());
+
+		if (!this._context.globalState.get('msalMigration', false)) {
+			await this._migrateSessions();
+		}
 
 		// Send telemetry for existing accounts
 		for (const cachedPca of this._publicClientManager.getAll()) {
@@ -155,62 +189,57 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		const cachedPca = await this.getOrCreatePublicClientApplication(scopeData.clientId, scopeData.tenant);
 		let result: AuthenticationResult | undefined;
 
-		// Currently, the http://localhost redirect URI is only in the AzureCloud environment... even though I did make the change in the SovereignCloud environments...
-		// TODO: Remove this check when the change is in all environments.
-		let useLoopBack = this._env !== Environment.AzureCloud && scopeData.clientId === 'aebc6443-996d-45c2-90f0-388ff96faa56';
-		if (!useLoopBack) {
-			try {
-				result = await cachedPca.acquireTokenInteractive({
-					openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
-					scopes: scopeData.scopesToSend,
-					// The logic for rendering one or the other of these templates is in the
-					// template itself, so we pass the same one for both.
-					successTemplate: loopbackTemplate,
-					errorTemplate: loopbackTemplate,
-					// Pass the label of the account to the login hint so that we prefer signing in to that account
-					loginHint: options.account?.label,
-					// If we aren't logging in to a specific account, then we can use the prompt to make sure they get
-					// the option to choose a different account.
-					prompt: options.account?.label ? undefined : 'select_account'
-				});
-			} catch (e) {
-				if (e instanceof CancellationError) {
-					const yes = l10n.t('Yes');
-					const result = await window.showErrorMessage(
-						l10n.t('Having trouble logging in?'),
-						{
-							modal: true,
-							detail: l10n.t('Would you like to try a different way to sign in to your Microsoft account? ({0})', 'protocol handler')
-						},
-						yes
-					);
-					if (!result) {
-						this._telemetryReporter.sendLoginFailedEvent();
-						throw e;
-					}
-				}
-				// This error comes from the backend and is likely not due to the user's machine
-				// failing to open a port or something local that would require us to try the
-				// URL handler loopback client.
-				if (e instanceof ServerError) {
+		try {
+			const windowHandle = window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined;
+			result = await cachedPca.acquireTokenInteractive({
+				openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
+				scopes: scopeData.scopesToSend,
+				// The logic for rendering one or the other of these templates is in the
+				// template itself, so we pass the same one for both.
+				successTemplate: loopbackTemplate,
+				errorTemplate: loopbackTemplate,
+				// Pass the label of the account to the login hint so that we prefer signing in to that account
+				loginHint: options.account?.label,
+				// If we aren't logging in to a specific account, then we can use the prompt to make sure they get
+				// the option to choose a different account.
+				prompt: options.account?.label ? undefined : 'select_account',
+				windowHandle
+			});
+		} catch (e) {
+			if (e instanceof CancellationError) {
+				const yes = l10n.t('Yes');
+				const result = await window.showErrorMessage(
+					l10n.t('Having trouble logging in?'),
+					{
+						modal: true,
+						detail: l10n.t('Would you like to try a different way to sign in to your Microsoft account? ({0})', 'protocol handler')
+					},
+					yes
+				);
+				if (!result) {
 					this._telemetryReporter.sendLoginFailedEvent();
 					throw e;
 				}
-
-				// The user wants to try the loopback client or we got an error likely due to spinning up the server
-				useLoopBack = true;
 			}
-		}
+			// This error comes from the backend and is likely not due to the user's machine
+			// failing to open a port or something local that would require us to try the
+			// URL handler loopback client.
+			if (e instanceof ServerError) {
+				this._telemetryReporter.sendLoginFailedEvent();
+				throw e;
+			}
 
-		if (useLoopBack) {
+			// The user wants to try the loopback client or we got an error likely due to spinning up the server
 			const loopbackClient = new UriHandlerLoopbackClient(this._uriHandler, redirectUri, this._logger);
 			try {
+				const windowHandle = window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined;
 				result = await cachedPca.acquireTokenInteractive({
 					openBrowser: (url: string) => loopbackClient.openBrowser(url),
 					scopes: scopeData.scopesToSend,
 					loopbackClient,
 					loginHint: options.account?.label,
-					prompt: options.account?.label ? undefined : 'select_account'
+					prompt: options.account?.label ? undefined : 'select_account',
+					windowHandle
 				});
 			} catch (e) {
 				this._telemetryReporter.sendLoginFailedEvent();
@@ -264,9 +293,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	//#endregion
 
-	private async getOrCreatePublicClientApplication(clientId: string, tenant: string): Promise<ICachedPublicClientApplication> {
+	private async getOrCreatePublicClientApplication(clientId: string, tenant: string, refreshTokensToMigrate?: string[]): Promise<ICachedPublicClientApplication> {
 		const authority = new URL(tenant, this._env.activeDirectoryEndpointUrl).toString();
-		return await this._publicClientManager.getOrCreate(clientId, authority);
+		return await this._publicClientManager.getOrCreate(clientId, authority, refreshTokensToMigrate);
 	}
 
 	private async getAllSessionsForPca(

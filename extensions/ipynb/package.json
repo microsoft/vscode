@@ -44,7 +44,10 @@
             "type": "boolean",
             "scope": "resource",
             "markdownDescription": "%ipynb.experimental.serialization%",
-            "default": false
+            "default": false,
+            "tags": [
+              "experimental"
+            ]
           }
         }
       }

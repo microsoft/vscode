@@ -56,7 +56,7 @@ class AccessibleViewNextCodeBlockAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.NextCodeBlock,
-			precondition: ContextKeyExpr.and(accessibleViewContainsCodeBlocks, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Chat)),
+			precondition: ContextKeyExpr.and(accessibleViewContainsCodeBlocks, ContextKeyExpr.or(ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.PanelChat), ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.InlineChat), ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.QuickChat))),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
@@ -82,7 +82,7 @@ class AccessibleViewPreviousCodeBlockAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.PreviousCodeBlock,
-			precondition: ContextKeyExpr.and(accessibleViewContainsCodeBlocks, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Chat)),
+			precondition: ContextKeyExpr.and(accessibleViewContainsCodeBlocks, ContextKeyExpr.or(ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.PanelChat), ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.InlineChat), ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.QuickChat))),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
@@ -139,7 +139,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period],
 				weight: KeybindingWeight.WorkbenchContrib + 10
 			},
-			icon: Codicon.symbolField,
+			icon: Codicon.symbolMisc,
 			menu: [
 				commandPalette,
 				{
@@ -330,7 +330,7 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 			return;
 		}
 		const model = InlineCompletionsController.get(editor)?.model.get();
-		const state = model?.state.get();
+		const state = model?.inlineCompletionState.get();
 		if (!model || !state) {
 			return;
 		}

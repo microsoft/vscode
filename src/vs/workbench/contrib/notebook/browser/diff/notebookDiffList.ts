@@ -6,6 +6,7 @@
 import './notebookDiff.css';
 import { IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../../base/browser/domStylesheets.js';
 import { IListOptions, IListStyles, isMonacoEditor, IStyleController, MouseController } from '../../../../../base/browser/ui/list/listWidget.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -33,6 +34,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { localize } from '../../../../../nls.js';
 import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
 import { IDiffEditorConstructionOptions } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<IDiffElementViewModelBase> {
 	private readonly lineHeight: number;
@@ -480,7 +482,7 @@ export class NotebookTextDiffList extends WorkbenchList<IDiffElementViewModelBas
 	override style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {
-			this.styleElement = DOM.createStyleSheet(this.view.domNode);
+			this.styleElement = domStylesheets.createStyleSheet(this.view.domNode);
 		}
 		const suffix = selectorSuffix && `.${selectorSuffix}`;
 		const content: string[] = [];
@@ -607,7 +609,9 @@ function buildDiffEditorWidget(instantiationService: IInstantiationService, note
 
 function buildSourceEditor(instantiationService: IInstantiationService, notebookEditor: INotebookTextDiffEditor, sourceContainer: HTMLElement, options: IEditorConstructionOptions = {}) {
 	const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
-
+	const skipContributions = [
+		'editor.contrib.emptyTextEditorHint'
+	];
 	const editor = instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 		...fixedEditorOptions,
 		glyphMargin: false,
@@ -618,7 +622,9 @@ function buildSourceEditor(instantiationService: IInstantiationService, notebook
 		automaticLayout: false,
 		overflowWidgetsDomNode: notebookEditor.getOverflowContainerDomNode(),
 		readOnly: true,
-	}, {});
+	}, {
+		contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1)
+	});
 
 	return { editor, editorContainer };
 }
