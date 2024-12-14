@@ -21,8 +21,10 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Severity } from '../../../../platform/notification/common/notification.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { localize2 } from '../../../../nls.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
+export const EXTENSIONS_CATEGORY = localize2('extensions', "Extensions");
 
 export interface IExtensionsViewPaneContainer extends IViewPaneContainer {
 	readonly searchValue: string | undefined;
@@ -196,6 +198,14 @@ export interface IExtensionContainer extends IDisposable {
 	update(): void;
 }
 
+export interface IExtensionsViewState {
+	onFocus: Event<IExtension>;
+	onBlur: Event<IExtension>;
+	filters: {
+		featureId?: string;
+	};
+}
+
 export class ExtensionContainers extends Disposable {
 
 	constructor(
@@ -240,6 +250,7 @@ export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.exten
 // Context Keys
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
 export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
+export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';

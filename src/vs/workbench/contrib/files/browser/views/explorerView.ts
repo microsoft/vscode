@@ -435,7 +435,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(explorerLabels);
 
-		this.findProvider = this.instantiationService.createInstance(ExplorerFindProvider, () => this.tree);
+		this.findProvider = this.instantiationService.createInstance(ExplorerFindProvider, this.filter, () => this.tree);
 
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
 		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, this.findProvider.highlightTree, updateWidth);

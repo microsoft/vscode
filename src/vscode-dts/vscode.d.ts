@@ -13986,10 +13986,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The configuration scope which can be a
-	 * a 'resource' or a languageId or both or
-	 * a '{@link TextDocument}' or
-	 * a '{@link WorkspaceFolder}'
+	 * The configuration scope which can be:
+	 * - a {@link Uri} representing a resource
+	 * - a {@link TextDocument} representing an open text document
+	 * - a {@link WorkspaceFolder} representing a workspace folder
+	 * - an object containing:
+	 *   - `uri`: an optional {@link Uri} of a text document
+	 *   - `languageId`: the language identifier of a text document
 	 */
 	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | {
 		/**
@@ -16807,9 +16810,10 @@ declare module 'vscode' {
 
 		/**
 		 * The range the comment thread is located within the document. The thread icon will be shown
-		 * at the last line of the range.
+		 * at the last line of the range. When set to undefined, the comment will be associated with the
+		 * file, and not a specific range.
 		 */
-		range: Range;
+		range: Range | undefined;
 
 		/**
 		 * The ordered comments of the thread.
@@ -16979,13 +16983,28 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The ranges a CommentingRangeProvider enables commenting on.
+	 */
+	export interface CommentingRanges {
+		/**
+		 * Enables comments to be added to a file without a specific range.
+		 */
+		enableFileComments: boolean;
+
+		/**
+		 * The ranges which allow new comment threads creation.
+		 */
+		ranges?: Range[];
+	}
+
+	/**
 	 * Commenting range provider for a {@link CommentController comment controller}.
 	 */
 	export interface CommentingRangeProvider {
 		/**
 		 * Provide a list of ranges which allow new comment threads creation or null for a given document
 		 */
-		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[] | CommentingRanges>;
 	}
 
 	/**
@@ -17624,8 +17643,8 @@ declare module 'vscode' {
 		 * Often {@link TestRunProfile.loadDetailedCoverage} will be called first
 		 * when a user opens a file, and then this method will be called if they
 		 * drill down into specific per-test coverage information. This method
-		 * should then return coverage data only for constructs the given test item
-		 * executed during the test run.
+		 * should then return coverage data only for statements and declarations
+		 * executed by the specific test during the run.
 		 *
 		 * The {@link FileCoverage} object passed to this function is the same
 		 * instance emitted on {@link TestRun.addCoverage} calls associated with this profile.

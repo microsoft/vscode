@@ -11,10 +11,9 @@ import * as Json from '../../../../base/common/json.js';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme, ThemeSettingDefaults } from '../common/workbenchThemeService.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex, fontCharacterRegex } from '../common/productIconThemeSchema.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource } from '../../../../platform/theme/common/iconRegistry.js';
+import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource, fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex, fontCharacterRegex, fontCharacterErrorMessage } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 
@@ -256,7 +255,7 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 					warnings.push(nls.localize('error.icon.font', 'Skipping icon definition \'{0}\'. Unknown font.', iconId));
 				}
 			} else {
-				warnings.push(nls.localize('error.icon.fontCharacter', 'Skipping icon definition \'{0}\'. Unknown fontCharacter. Must use a sing; character or a \\ followed by a Unicode code points in hexadecimal.', iconId));
+				warnings.push(nls.localize('error.icon.fontCharacter', 'Skipping icon definition \'{0}\': {1}', iconId, fontCharacterErrorMessage));
 			}
 		}
 		return { iconDefinitions };

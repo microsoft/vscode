@@ -14,6 +14,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../../common/core/cursorColumns.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { LineRange } from '../../../../common/core/lineRange.js';
@@ -46,12 +47,18 @@ export class InlineCompletionsModel extends Disposable {
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
-	private readonly _primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
+	public readonly primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
 
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
+
+	private readonly _onlyShowWhenCloseToCursor = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.experimental.onlyShowWhenCloseToCursor);
+	private readonly _suggestPreviewEnabled = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
+	private readonly _suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
+	private readonly _inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
+	private readonly _inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.experimental?.enabled);
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -59,11 +66,7 @@ export class InlineCompletionsModel extends Disposable {
 		public readonly _textModelVersionId: IObservable<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _positions: IObservable<readonly Position[]>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
-		private readonly _suggestPreviewEnabled: IObservable<boolean>,
-		private readonly _suggestPreviewMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
-		private readonly _inlineSuggestMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _enabled: IObservable<boolean>,
-		private readonly _inlineEditsEnabled: IObservable<boolean>,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -87,6 +90,13 @@ export class InlineCompletionsModel extends Disposable {
 				}
 			}
 		}));
+
+		this._register(autorun(reader => {
+			this._editorObs.versionId.read(reader);
+			this._inAcceptFlow.set(false, undefined);
+		}));
+
+
 	}
 
 	public debugGetSelectedSuggestItem(): IObservable<SuggestItemInfo | undefined> {
@@ -184,7 +194,7 @@ export class InlineCompletionsModel extends Disposable {
 			});
 		}
 
-		const cursorPosition = this._primaryPosition.get();
+		const cursorPosition = this.primaryPosition.get();
 		if (changeSummary.dontRefetch) {
 			return Promise.resolve(true);
 		}
@@ -201,8 +211,13 @@ export class InlineCompletionsModel extends Disposable {
 		return this._source.fetch(cursorPosition, context, itemToPreserve);
 	});
 
-	public async trigger(tx?: ITransaction): Promise<void> {
-		this._isActive.set(true, tx);
+	public async trigger(tx?: ITransaction, onlyFetchInlineEdits: boolean = false): Promise<void> {
+		subtransaction(tx, tx => {
+			if (onlyFetchInlineEdits) {
+				this._onlyRequestInlineEditsSignal.trigger(tx);
+			}
+			this._isActive.set(true, tx);
+		});
 		await this._fetchInlineCompletionsPromise.get();
 	}
 
@@ -242,7 +257,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _inlineCompletionItems = derivedOpts({ owner: this }, reader => {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return undefined; }
-		const cursorPosition = this._primaryPosition.read(reader);
+		const cursorPosition = this.primaryPosition.read(reader);
 		let inlineEdit: InlineCompletionWithUpdatedRange | undefined = undefined;
 		const visibleCompletions: InlineCompletionWithUpdatedRange[] = [];
 		for (const completion of c.inlineCompletions) {
@@ -340,10 +355,14 @@ export class InlineCompletionsModel extends Disposable {
 			let edit = item.inlineEdit.toSingleTextEdit(reader);
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
-			const cursorPos = this._primaryPosition.read(reader);
+			const cursorPos = this.primaryPosition.read(reader);
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
 
-			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
+			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this.primaryPosition.read(reader).lineNumber);
+
+			if (this._onlyShowWhenCloseToCursor.read(reader) && cursorDist > 3 && !item.inlineEdit.request.isExplicitRequest && !this._inAcceptFlow.read(reader)) {
+				return undefined;
+			}
 			const disableCollapsing = true;
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEdit.semanticId);
 
@@ -579,6 +598,8 @@ export class InlineCompletionsModel extends Disposable {
 				.then(undefined, onUnexpectedExternalError);
 			completion.source.removeRef();
 		}
+
+		this._inAcceptFlow.set(true, undefined);
 	}
 
 	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
@@ -711,6 +732,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	private _jumpedTo = observableValue(this, false);
+	private _inAcceptFlow = observableValue(this, false);
 
 	public jump(): void {
 		const s = this.inlineEditState.get();
@@ -720,7 +742,7 @@ export class InlineCompletionsModel extends Disposable {
 			this._jumpedTo.set(true, tx);
 			this.dontRefetchSignal.trigger(tx);
 			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
-			this._editor.revealLine(s.inlineEdit.range.startLineNumber);
+			this._editor.revealPosition(s.inlineEdit.range.getStartPosition());
 			this._editor.focus();
 		});
 	}

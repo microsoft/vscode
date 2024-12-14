@@ -40,7 +40,7 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -1321,8 +1321,8 @@ export class SCMHistoryViewPane extends ViewPane {
 				const historyItemRefId = derived(reader => {
 					return historyProvider.historyItemRef.read(reader)?.id;
 				});
-				store.add(runOnChange(historyItemRefId, historyItemRefIdValue => {
-					this.refresh();
+				store.add(runOnChange(historyItemRefId, async historyItemRefIdValue => {
+					await this.refresh();
 
 					// Update context key (needs to be done after the refresh call)
 					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefIdValue));
@@ -1348,8 +1348,8 @@ export class SCMHistoryViewPane extends ViewPane {
 				}));
 
 				// HistoryItemRefs filter changed
-				store.add(runOnChange(this._treeViewModel.onDidChangeHistoryItemsFilter, () => {
-					this.refresh();
+				store.add(runOnChange(this._treeViewModel.onDidChangeHistoryItemsFilter, async () => {
+					await this.refresh();
 
 					// Update context key (needs to be done after the refresh call)
 					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
@@ -1372,7 +1372,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}
 				isFirstRun = false;
 			}));
-		});
+		}, this, this._store);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -1460,7 +1460,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
-		if (this._isCurrentHistoryItemInFilter(historyItemRef.id)) {
+		if (!this._isCurrentHistoryItemInFilter(historyItemRef.id)) {
 			return;
 		}
 
@@ -1572,34 +1572,40 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
-		const actions: IAction[] = [];
-
-		const historyItemMenu = this._menuService.createMenu(MenuId.SCMChangesContext, this.contextKeyService);
-		const historyItemMenuActions = historyItemMenu.getActions({
+		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMChangesContext, this.scopedContextKeyService, {
 			arg: element.repository.provider,
 			shouldForwardArgs: true
 		});
 
-		actions.push(...getFlatContextMenuActions(historyItemMenuActions));
+		const actions = getFlatContextMenuActions(historyItemMenuActions);
 		if (element.historyItemViewModel.historyItem.references?.length) {
 			actions.push(new Separator());
 		}
 
+		const that = this;
 		for (const ref of element.historyItemViewModel.historyItem.references ?? []) {
-			const contextKeyService = this.contextKeyService.createOverlay([
+			const contextKeyService = this.scopedContextKeyService.createOverlay([
 				['scmHistoryItemRef', ref.id]
 			]);
 
-			const historyItemRefMenu = this._menuService.createMenu(MenuId.SCMHistoryItemRefContext, contextKeyService);
-			const historyItemRefMenuActions = historyItemRefMenu.getActions({
-				arg: element.repository.provider,
-				shouldForwardArgs: true
-			});
+			const historyItemRefMenuActions = this._menuService.getMenuActions(MenuId.SCMHistoryItemRefContext, contextKeyService);
+			const historyItemRefSubMenuActions = getFlatContextMenuActions(historyItemRefMenuActions)
+				.map(action => new class extends MenuItemAction {
+					constructor() {
+						super(
+							{ id: action.id, title: action.label }, undefined,
+							{ arg: element!.repository.provider, shouldForwardArgs: true },
+							undefined, undefined, contextKeyService, that._commandService);
+					}
 
-			const subMenuActions = getFlatContextMenuActions(historyItemRefMenuActions)
-				.map(action => ({ ...action, run: (...args: unknown[]) => action.run(...args, ref.id) }));
+					override run(): Promise<void> {
+						return super.run(element.historyItemViewModel.historyItem, ref.id);
+					}
+				});
 
-			actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, subMenuActions));
+			if (historyItemRefSubMenuActions.length > 0) {
+				actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, historyItemRefSubMenuActions));
+			}
 		}
 
 		this.contextMenuService.showContextMenu({

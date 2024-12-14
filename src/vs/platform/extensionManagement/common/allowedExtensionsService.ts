@@ -102,7 +102,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 			if (isBoolean(extensionValue)) {
 				return extensionValue ? true : extensionReason;
 			}
-			if (extensionValue === 'release' && prerelease) {
+			if (extensionValue === 'stable' && prerelease) {
 				return new MarkdownString(nls.localize('extension prerelease not allowed', "the pre-release versions of this extension are not in the [allowed list]({0})", settingsCommandLink));
 			}
 			if (version !== '*' && Array.isArray(extensionValue) && !extensionValue.some(v => {
@@ -130,7 +130,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 			if (isBoolean(publisherValue)) {
 				return publisherValue ? true : new MarkdownString(nls.localize('publisher not allowed', "the extensions from this publisher are not in the [allowed list]({1})", publisherKey, settingsCommandLink));
 			}
-			if (publisherValue === 'release' && prerelease) {
+			if (publisherValue === 'stable' && prerelease) {
 				return new MarkdownString(nls.localize('prerelease versions from this publisher not allowed', "the pre-release versions from this publisher are not in the [allowed list]({1})", publisherKey, settingsCommandLink));
 			}
 			return true;

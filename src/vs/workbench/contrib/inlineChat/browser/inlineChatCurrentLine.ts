@@ -16,7 +16,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { AbstractInlineChatAction } from './inlineChatActions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { InjectedTextCursorStops, IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
@@ -28,14 +28,16 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Event } from '../../../../base/common/event.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
+import { stringValue } from '../../../../base/browser/cssValue.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -149,12 +151,6 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 	}
 }
 
-class HintData {
-	constructor(
-		readonly setting: string
-	) { }
-}
-
 export class InlineChatHintsController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.inlineChatHints';
@@ -166,7 +162,6 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 	private readonly _editor: ICodeEditor;
 	private readonly _ctxShowingHint: IContextKey<boolean>;
 	private readonly _visibilityObs = observableValue<boolean>(this, false);
-	private readonly _ctxMenuVisibleObs = observableValue<boolean>(this, false);
 
 	constructor(
 		editor: ICodeEditor,
@@ -184,12 +179,17 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 
 		const ghostCtrl = InlineCompletionsController.get(editor);
 
+		this._store.add(commandService.onWillExecuteCommand(e => {
+			if (e.commandId === _inlineChatActionId || e.commandId === ACTION_START) {
+				this.hide();
+			}
+		}));
+
 		this._store.add(this._editor.onMouseDown(e => {
 			if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
 				return;
 			}
-			const attachedData = e.target.detail.injectedText?.options.attachedData;
-			if (!(attachedData instanceof HintData)) {
+			if (!e.target.element?.classList.contains('inline-chat-hint-text')) {
 				return;
 			}
 			if (e.event.leftButton) {
@@ -197,7 +197,10 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				this.hide();
 			} else if (e.event.rightButton) {
 				e.event.preventDefault();
-				this._showContextMenu(e.event, attachedData.setting);
+				this._showContextMenu(e.event, e.target.element?.classList.contains('whitespace')
+					? InlineChatConfigKeys.LineEmptyHint
+					: InlineChatConfigKeys.LineNLHint
+				);
 			}
 		}));
 
@@ -205,10 +208,9 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		const decos = this._editor.createDecorationsCollection();
 
 		const editorObs = observableCodeEditor(editor);
-
 		const keyObs = observableFromEvent(keybindingService.onDidUpdateKeybindings, _ => keybindingService.lookupKeybinding(ACTION_START)?.getLabel());
-
-		const configSignal = observableFromEvent(Event.filter(_configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(InlineChatConfigKeys.LineEmptyHint) || e.affectsConfiguration(InlineChatConfigKeys.LineSuffixHint)), () => undefined);
+		const configHintEmpty = observableConfigValue(InlineChatConfigKeys.LineEmptyHint, false, this._configurationService);
+		const configHintNL = observableConfigValue(InlineChatConfigKeys.LineNLHint, false, this._configurationService);
 
 		const showDataObs = derived(r => {
 			const ghostState = ghostCtrl?.model.read(r)?.state.read(r);
@@ -219,25 +221,33 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 
 			const kb = keyObs.read(r);
 
-			configSignal.read(r);
-
 			if (ghostState !== undefined || !kb || !position || !model || !textFocus) {
 				return undefined;
 			}
 
-			const visible = this._visibilityObs.read(r);// || this._ctxMenuVisibleObs.read(r);
-			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;
-			const isWhitespace = model.getLineLastNonWhitespaceColumn(position.lineNumber) === 0 && model.getValueLength() > 0;
-
-			const shouldShow = (isWhitespace && _configurationService.getValue(InlineChatConfigKeys.LineEmptyHint))
-				|| (visible && isEol && _configurationService.getValue(InlineChatConfigKeys.LineSuffixHint));
-
-			if (!shouldShow) {
+			if (model.getLanguageId() === PLAINTEXT_LANGUAGE_ID || model.getLanguageId() === 'markdown') {
 				return undefined;
 			}
 
-			return { isEol, isWhitespace, kb, position, model };
+			const visible = this._visibilityObs.read(r);
+			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;
+			const isWhitespace = model.getLineLastNonWhitespaceColumn(position.lineNumber) === 0 && model.getValueLength() > 0 && position.column > 1;
+
+			if (isWhitespace) {
+				return configHintEmpty.read(r)
+					? { isEol, isWhitespace, kb, position, model }
+					: undefined;
+			}
+
+			if (visible && isEol && configHintNL.read(r)) {
+				return { isEol, isWhitespace, kb, position, model };
+			}
+
+			return undefined;
 		});
+
+		const style = createStyleSheet2();
+		this._store.add(style);
 
 		this._store.add(autorun(r => {
 
@@ -249,22 +259,23 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return;
 			}
 
-			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.fullName ?? localize('defaultTitle', "Chat");
+			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.name ?? localize('defaultTitle', "Chat");
 			const { position, isEol, isWhitespace, kb, model } = showData;
 
-			const inlineClassName: string[] = ['inline-chat-hint'];
+			const inlineClassName: string[] = ['a' /*HACK but sorts as we want*/, 'inline-chat-hint', 'inline-chat-hint-text'];
 			let content: string;
 			if (isWhitespace) {
-				content = '\u00a0' + localize('title2', "{0} to edit with {1}...", kb, agentName);
+				content = '\u00a0' + localize('title2', "{0} to edit with {1}", kb, agentName);
 			} else if (isEol) {
-				content = '\u00a0' + localize('title1', "{0} to continue with {1}...", kb, agentName);
+				content = '\u00a0' + localize('title1', "{0} to continue with {1}", kb, agentName);
 			} else {
 				content = '\u200a' + kb + '\u200a';
 				inlineClassName.push('embedded');
 			}
 
-			if (decos.length === 0) {
-				inlineClassName.push('first');
+			style.setStyle(`.inline-chat-hint-text::after { content: ${stringValue(content)} }`);
+			if (isWhitespace) {
+				inlineClassName.push('whitespace');
 			}
 
 			this._ctxShowingHint.set(true);
@@ -275,14 +286,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 					description: 'inline-chat-hint-line',
 					showIfCollapsed: true,
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					hoverMessage: new MarkdownString(localize('toolttip', "Continue this with {0}...", agentName)),
-					after: {
-						content,
-						inlineClassName: inlineClassName.join(' '),
-						inlineClassNameAffectsLetterSpacing: true,
-						cursorStops: InjectedTextCursorStops.None,
-						attachedData: new HintData(isWhitespace ? InlineChatConfigKeys.LineEmptyHint : InlineChatConfigKeys.LineSuffixHint)
-					}
+					afterContentClassName: inlineClassName.join(' '),
 				}
 			}]);
 
@@ -291,10 +295,8 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 	}
 
 	private _showContextMenu(event: IMouseEvent, setting: string): void {
-		this._ctxMenuVisibleObs.set(true, undefined);
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: event.posx, y: event.posy }),
-			onHide: () => this._ctxMenuVisibleObs.set(false, undefined),
 			getActions: () => [
 				toAction({
 					id: 'inlineChat.disableHint',
