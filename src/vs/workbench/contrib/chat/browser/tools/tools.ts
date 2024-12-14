@@ -40,20 +40,7 @@ interface EditToolParams {
 	code: string;
 }
 
-class EditTool implements IToolData, IToolImpl {
-	readonly id = 'vscode_editFile';
-	readonly tags = ['editing'];
-	readonly displayName = localize('chat.tools.editFile', "Edit File");
-	readonly modelDescription = 'Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file.';
-	readonly inputSchema: IJSONSchema;
-
-	constructor(
-		@IChatService private readonly chatService: IChatService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@ICodeMapperService private readonly codeMapperService: ICodeMapperService
-	) {
-		const codeInstructions = `
-The code change to apply to the file.
+const codeInstructions = `
 The user is very smart and can understand how to apply your edits to their files, you just need to provide minimal hints.
 Avoid repeating existing code, instead use comments to represent regions of unchanged code. The user prefers that you are as concise as possible. For example:
 // ...existing code...
@@ -61,7 +48,30 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 // ...existing code...
 { changed code }
 // ...existing code...
+
+Here is an example of how you should format an edit to an existing Person class:
+class Person {
+	// ...existing code...
+	age: number;
+	// ...existing code...
+	getAge() {
+		return this.age;
+	}
+}
 `;
+
+class EditTool implements IToolData, IToolImpl {
+	readonly id = 'vscode_editFile';
+	readonly tags = ['editing'];
+	readonly displayName = localize('chat.tools.editFile', "Edit File");
+	readonly modelDescription = `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. ${codeInstructions}`;
+	readonly inputSchema: IJSONSchema;
+
+	constructor(
+		@IChatService private readonly chatService: IChatService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+		@ICodeMapperService private readonly codeMapperService: ICodeMapperService
+	) {
 		this.inputSchema = {
 			type: 'object',
 			properties: {
@@ -75,7 +85,7 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 				},
 				code: {
 					type: 'string',
-					description: codeInstructions
+					description: 'The code change to apply to the file. ' + codeInstructions
 				}
 			},
 			required: ['filePath', 'explanation', 'code']
