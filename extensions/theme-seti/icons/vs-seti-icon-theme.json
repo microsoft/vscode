@@ -534,6 +534,14 @@
 			"fontCharacter": "\\E03B",
 			"fontColor": "#a074c4"
 		},
+		"_godot_4_light": {
+			"fontCharacter": "\\E03B",
+			"fontColor": "#cc6d2e"
+		},
+		"_godot_4": {
+			"fontCharacter": "\\E03B",
+			"fontColor": "#e37933"
+		},
 		"_gradle_light": {
 			"fontCharacter": "\\E03C",
 			"fontColor": "#498ba7"
@@ -1614,6 +1622,7 @@
 		"godot": "_godot_1",
 		"tres": "_godot_2",
 		"tscn": "_godot_3",
+		"gdshader": "_godot_4",
 		"gradle": "_gradle",
 		"gsp": "_grails",
 		"gql": "_graphql",

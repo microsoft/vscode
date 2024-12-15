@@ -21,7 +21,7 @@ const nonBuiltInLanguages = { // { fileNames, extensions  }
 	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
 	"github-issues": { extensions: ['github-issues'] },
 	"gradle": { extensions: ['gradle'] },
-	"godot": { extensions: ['gd', 'godot', 'tres', 'tscn'] },
+	"godot": { extensions: ['gd', 'godot', 'tres', 'tscn', 'gdshader'] },
 	"haml": { extensions: ['haml'] },
 	"haskell": { extensions: ['hs'] },
 	"haxe": { extensions: ['hx'] },
