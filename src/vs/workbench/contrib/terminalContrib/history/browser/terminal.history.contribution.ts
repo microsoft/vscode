@@ -21,6 +21,7 @@ import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey
 import { clearShellFileHistory, getCommandHistory, getDirectoryHistory } from '../common/history.js';
 import { TerminalHistoryCommandId } from '../common/terminal.history.js';
 import { showRunRecentQuickPick } from './terminalRunRecentQuickPick.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 // #region Terminal Contributions
 
@@ -66,13 +67,16 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
 	 * rerun it in the active terminal.
 	 */
-	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
+	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void | boolean> {
+		const isFromRunRecentCommand = (type === 'command');
+
 		return this._instantiationService.invokeFunction(showRunRecentQuickPick,
 			this._ctx.instance,
 			this._terminalInRunCommandPicker,
 			type,
 			filterMode,
 			value,
+			isFromRunRecentCommand
 		);
 	}
 }
@@ -121,7 +125,8 @@ registerActiveInstanceAction({
 	}
 });
 
-registerActiveInstanceAction({
+
+registerTerminalAction({
 	id: TerminalHistoryCommandId.RunRecentCommand,
 	title: localize2('workbench.action.terminal.runRecentCommand', 'Run Recent Command...'),
 	precondition,
@@ -138,12 +143,24 @@ registerActiveInstanceAction({
 			weight: KeybindingWeight.WorkbenchContrib
 		}
 	],
-	run: async (activeInstance, c) => {
+	run: async (c, accessor) => {
+		let activeInstance = c.service.activeInstance;
+		if (!activeInstance) {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.terminal.new');
+			activeInstance = c.service.activeInstance!;
+		}
 		const history = TerminalHistoryContribution.get(activeInstance);
 		if (!history) {
 			return;
 		}
-		await history.runRecent('command');
+
+		let runRecentReturnValue: void | boolean = await history.runRecent('command');
+		for (let i = 0; i < 50 && runRecentReturnValue; i++) {
+			await new Promise(resolve => setTimeout(resolve, 100));
+			runRecentReturnValue = await history.runRecent('command');
+		}
+
 		if (activeInstance?.target === TerminalLocation.Editor) {
 			await c.editorService.revealActiveEditor();
 		} else {
