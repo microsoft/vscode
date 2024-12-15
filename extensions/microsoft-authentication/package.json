@@ -102,7 +102,7 @@
         "properties": {
           "microsoft-authentication.implementation": {
             "type": "string",
-            "default": "msal",
+            "default": "classic",
             "enum": [
               "msal",
               "classic"

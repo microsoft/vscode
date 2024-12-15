@@ -123,7 +123,7 @@ export class VariablesView extends ViewPane {
 		container.classList.add('debug-variables');
 		const treeContainer = renderViewTree(container);
 		const expressionRenderer = this.instantiationService.createInstance(DebugExpressionRenderer);
-		this.tree = <WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[
 				this.instantiationService.createInstance(VariablesRenderer, expressionRenderer),
 				this.instantiationService.createInstance(VisualizedVariableRenderer, expressionRenderer),

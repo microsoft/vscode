@@ -15,7 +15,7 @@ import { ScopedAccountAccess } from '../common/accountAccess';
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	private _pca: PublicClientApplication;
 	private _sequencer = new Sequencer();
-	private readonly _refreshDelayer = new DelayerByKey<AuthenticationResult>();
+	// private readonly _refreshDelayer = new DelayerByKey<AuthenticationResult>();
 
 	private _accounts: AccountInfo[] = [];
 	private readonly _disposable: Disposable;
@@ -81,7 +81,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		if (this._isBrokerAvailable) {
 			await this._accountAccess.initialize();
 		}
-		await this._update();
+		await this._sequencer.queue(() => this._update());
 	}
 
 	dispose(): void {
@@ -90,11 +90,26 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
-		const result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
+		let result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
+		// Check expiration of id token and if it's 5min before expiration, force a refresh.
+		// this is what MSAL does for access tokens already so we're just adding it for id tokens since we care about those.
+		const idTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
+		if (idTokenExpirationInSecs) {
+			const fiveMinutesBefore = new Date(
+				(idTokenExpirationInSecs - 5 * 60) // subtract 5 minutes
+				* 1000 // convert to milliseconds
+			);
+			if (fiveMinutesBefore < new Date()) {
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
+				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent({ ...request, forceRefresh: true }));
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got refreshed result`);
+			}
+		}
+
+		// this._setupRefresh(result);
 		if (result.account && !result.fromCache && this._verifyIfUsingBroker(result)) {
 			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
-			this._setupRefresh(result);
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
 		}
 		return result;
@@ -109,12 +124,12 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				title: l10n.t('Signing in to Microsoft...')
 			},
 			(_process, token) => raceCancellationAndTimeoutError(
-				this._pca.acquireTokenInteractive(request),
+				this._sequencer.queue(() => this._pca.acquireTokenInteractive(request)),
 				token,
 				1000 * 60 * 5
 			)
 		);
-		this._setupRefresh(result);
+		// this._setupRefresh(result);
 		if (this._isBrokerAvailable) {
 			await this._accountAccess.setAllowedAccess(result.account!, true);
 		}
@@ -129,9 +144,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	 */
 	async acquireTokenByRefreshToken(request: RefreshTokenRequest) {
 		this._logger.debug(`[acquireTokenByRefreshToken] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}]`);
-		const result = await this._pca.acquireTokenByRefreshToken(request);
+		const result = await this._sequencer.queue(() => this._pca.acquireTokenByRefreshToken(request));
 		if (result) {
-			this._setupRefresh(result);
+			// this._setupRefresh(result);
 			if (this._isBrokerAvailable && result.account) {
 				await this._accountAccess.setAllowedAccess(result.account, true);
 			}
@@ -143,14 +158,14 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		if (this._isBrokerAvailable) {
 			return this._accountAccess.setAllowedAccess(account, false);
 		}
-		return this._pca.getTokenCache().removeAccount(account);
+		return this._sequencer.queue(() => this._pca.getTokenCache().removeAccount(account));
 	}
 
 	private _registerOnSecretStorageChanged() {
 		if (this._isBrokerAvailable) {
-			return this._accountAccess.onDidAccountAccessChange(() => this._update());
+			return this._accountAccess.onDidAccountAccessChange(() => this._sequencer.queue(() => this._update()));
 		}
-		return this._secretStorageCachePlugin.onDidChange(() => this._update());
+		return this._secretStorageCachePlugin.onDidChange(() => this._sequencer.queue(() => this._update()));
 	}
 
 	private _lastSeen = new Map<string, number>();
@@ -202,23 +217,23 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update complete`);
 	}
 
-	private _setupRefresh(result: AuthenticationResult) {
-		const on = result.refreshOn || result.expiresOn;
-		if (!result.account || !on) {
-			return;
-		}
+	// private _setupRefresh(result: AuthenticationResult) {
+	// 	const on = result.refreshOn || result.expiresOn;
+	// 	if (!result.account || !on) {
+	// 		return;
+	// 	}
 
-		const account = result.account;
-		const scopes = result.scopes;
-		const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
-		const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
-		this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
-		this._refreshDelayer.trigger(
-			key,
-			() => this.acquireTokenSilent({ account, scopes, redirectUri: 'https://vscode.dev/redirect', forceRefresh: true }),
-			timeToRefresh > 0 ? timeToRefresh : 0
-		);
-	}
+	// 	const account = result.account;
+	// 	const scopes = result.scopes;
+	// 	const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
+	// 	const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
+	// 	this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
+	// 	this._refreshDelayer.trigger(
+	// 		key,
+	// 		() => this.acquireTokenSilent({ account, scopes, redirectUri: 'https://vscode.dev/redirect', forceRefresh: true }),
+	// 		timeToRefresh > 0 ? timeToRefresh : 0
+	// 	);
+	// }
 }
 
 export class Sequencer {
@@ -230,16 +245,16 @@ export class Sequencer {
 	}
 }
 
-class DelayerByKey<T> {
-	private _delayers = new Map<string, Delayer<T>>();
+// class DelayerByKey<T> {
+// 	private _delayers = new Map<string, Delayer<T>>();
 
-	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
-		let delayer = this._delayers.get(key);
-		if (!delayer) {
-			delayer = new Delayer<T>(delay);
-			this._delayers.set(key, delayer);
-		}
+// 	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
+// 		let delayer = this._delayers.get(key);
+// 		if (!delayer) {
+// 			delayer = new Delayer<T>(delay);
+// 			this._delayers.set(key, delayer);
+// 		}
 
-		return delayer.trigger(fn, delay);
-	}
-}
+// 		return delayer.trigger(fn, delay);
+// 	}
+// }

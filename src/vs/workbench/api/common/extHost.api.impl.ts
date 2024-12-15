@@ -1732,7 +1732,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DataTransferItem: extHostTypes.DataTransferItem,
 			TestCoverageCount: extHostTypes.TestCoverageCount,
 			FileCoverage: extHostTypes.FileCoverage,
-			FileCoverage2: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,
 			BranchCoverage: extHostTypes.BranchCoverage,
 			DeclarationCoverage: extHostTypes.DeclarationCoverage,

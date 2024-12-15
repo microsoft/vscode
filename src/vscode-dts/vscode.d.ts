@@ -13986,10 +13986,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The configuration scope which can be a
-	 * a 'resource' or a languageId or both or
-	 * a '{@link TextDocument}' or
-	 * a '{@link WorkspaceFolder}'
+	 * The configuration scope which can be:
+	 * - a {@link Uri} representing a resource
+	 * - a {@link TextDocument} representing an open text document
+	 * - a {@link WorkspaceFolder} representing a workspace folder
+	 * - an object containing:
+	 *   - `uri`: an optional {@link Uri} of a text document
+	 *   - `languageId`: the language identifier of a text document
 	 */
 	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | {
 		/**
@@ -16807,9 +16810,10 @@ declare module 'vscode' {
 
 		/**
 		 * The range the comment thread is located within the document. The thread icon will be shown
-		 * at the last line of the range.
+		 * at the last line of the range. When set to undefined, the comment will be associated with the
+		 * file, and not a specific range.
 		 */
-		range: Range;
+		range: Range | undefined;
 
 		/**
 		 * The ordered comments of the thread.
@@ -16979,13 +16983,28 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The ranges a CommentingRangeProvider enables commenting on.
+	 */
+	export interface CommentingRanges {
+		/**
+		 * Enables comments to be added to a file without a specific range.
+		 */
+		enableFileComments: boolean;
+
+		/**
+		 * The ranges which allow new comment threads creation.
+		 */
+		ranges?: Range[];
+	}
+
+	/**
 	 * Commenting range provider for a {@link CommentController comment controller}.
 	 */
 	export interface CommentingRangeProvider {
 		/**
 		 * Provide a list of ranges which allow new comment threads creation or null for a given document
 		 */
-		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[] | CommentingRanges>;
 	}
 
 	/**
@@ -17615,6 +17634,29 @@ declare module 'vscode' {
 		loadDetailedCoverage?: (testRun: TestRun, fileCoverage: FileCoverage, token: CancellationToken) => Thenable<FileCoverageDetail[]>;
 
 		/**
+		 * An extension-provided function that provides detailed statement and
+		 * function-level coverage for a single test in a file. This is the per-test
+		 * sibling of {@link TestRunProfile.loadDetailedCoverage}, called only if
+		 * a test item is provided in {@link FileCoverage.includesTests} and only
+		 * for files where such data is reported.
+		 *
+		 * Often {@link TestRunProfile.loadDetailedCoverage} will be called first
+		 * when a user opens a file, and then this method will be called if they
+		 * drill down into specific per-test coverage information. This method
+		 * should then return coverage data only for statements and declarations
+		 * executed by the specific test during the run.
+		 *
+		 * The {@link FileCoverage} object passed to this function is the same
+		 * instance emitted on {@link TestRun.addCoverage} calls associated with this profile.
+		 *
+		 * @param testRun The test run that generated the coverage data.
+		 * @param fileCoverage The file coverage object to load detailed coverage for.
+		 * @param fromTestItem The test item to request coverage information for.
+		 * @param token A cancellation token that indicates the operation should be cancelled.
+		 */
+		loadDetailedCoverageForTest?: (testRun: TestRun, fileCoverage: FileCoverage, fromTestItem: TestItem, token: CancellationToken) => Thenable<FileCoverageDetail[]>;
+
+		/**
 		 * Deletes the run profile.
 		 */
 		dispose(): void;
@@ -18208,6 +18250,13 @@ declare module 'vscode' {
 		declarationCoverage?: TestCoverageCount;
 
 		/**
+		 * A list of {@link TestItem test cases} that generated coverage in this
+		 * file. If set, then {@link TestRunProfile.loadDetailedCoverageForTest}
+		 * should also be defined in order to retrieve detailed coverage information.
+		 */
+		includesTests?: TestItem[];
+
+		/**
 		 * Creates a {@link FileCoverage} instance with counts filled in from
 		 * the coverage details.
 		 * @param uri Covered file URI
@@ -18222,12 +18271,14 @@ declare module 'vscode' {
 		 * used to represent line coverage.
 		 * @param branchCoverage Branch coverage information
 		 * @param declarationCoverage Declaration coverage information
+		 * @param includesTests Test cases included in this coverage report, see {@link includesTests}
 		 */
 		constructor(
 			uri: Uri,
 			statementCoverage: TestCoverageCount,
 			branchCoverage?: TestCoverageCount,
 			declarationCoverage?: TestCoverageCount,
+			includesTests?: TestItem[],
 		);
 	}
 

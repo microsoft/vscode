@@ -22,6 +22,7 @@ import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { DecorationCssRuleExtractor } from './decorationCssRuleExtractor.js';
 import { Event } from '../../../base/common/event.js';
 import type { IEditorOptions } from '../../common/config/editorOptions.js';
+import { InlineDecorationType } from '../../common/viewModel.js';
 
 const enum GpuRenderLimits {
 	maxGpuLines = 3000,
@@ -158,6 +159,10 @@ export class ViewGpuContext extends Disposable {
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;
 			for (const decoration of data.inlineDecorations) {
+				if (decoration.type !== InlineDecorationType.Regular) {
+					supported = false;
+					break;
+				}
 				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(this.canvas.domNode, decoration.inlineClassName);
 				supported &&= styleRules.every(rule => {
 					// Pseudo classes aren't supported currently
@@ -198,9 +203,15 @@ export class ViewGpuContext extends Disposable {
 		}
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;
+			const problemTypes: InlineDecorationType[] = [];
 			const problemSelectors: string[] = [];
 			const problemRules: string[] = [];
 			for (const decoration of data.inlineDecorations) {
+				if (decoration.type !== InlineDecorationType.Regular) {
+					problemTypes.push(decoration.type);
+					supported = false;
+					continue;
+				}
 				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(this.canvas.domNode, decoration.inlineClassName);
 				supported &&= styleRules.every(rule => {
 					// Pseudo classes aren't supported currently
@@ -217,14 +228,17 @@ export class ViewGpuContext extends Disposable {
 					return true;
 				});
 				if (!supported) {
-					break;
+					continue;
 				}
 			}
+			if (problemTypes.length > 0) {
+				reasons.push(`inlineDecorations with unsupported types (${problemTypes.map(e => `\`${e}\``).join(', ')})`);
+			}
 			if (problemRules.length > 0) {
-				reasons.push(`inlineDecorations with unsupported CSS rules (\`${problemRules.join(', ')}\`)`);
+				reasons.push(`inlineDecorations with unsupported CSS rules (${problemRules.map(e => `\`${e}\``).join(', ')})`);
 			}
 			if (problemSelectors.length > 0) {
-				reasons.push(`inlineDecorations with unsupported CSS selectors (\`${problemSelectors.join(', ')}\`)`);
+				reasons.push(`inlineDecorations with unsupported CSS selectors (${problemSelectors.map(e => `\`${e}\``).join(', ')})`);
 			}
 		}
 		if (lineNumber >= GpuRenderLimits.maxGpuLines) {

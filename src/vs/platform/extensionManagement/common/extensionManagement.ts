@@ -12,7 +12,7 @@ import { Platform } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize2 } from '../../../nls.js';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService, IFileStat } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
@@ -477,6 +477,7 @@ export const enum ExtensionManagementErrorCode {
 }
 
 export enum ExtensionSignatureVerificationCode {
+	'NotSigned' = 'NotSigned',
 	'Success' = 'Success',
 	'RequiredArgumentMissing' = 'RequiredArgumentMissing', // A required argument is missing.
 	'InvalidArgument' = 'InvalidArgument', // An argument is invalid.
@@ -633,11 +634,21 @@ export interface IAllowedExtensionsService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeAllowedExtensions: Event<void>;
-	isAllowed(extension: IGalleryExtension | IExtension | { id: string; version?: string; prerelease?: boolean }): true | IMarkdownString;
+
+	isAllowed(extension: IGalleryExtension | IExtension): true | IMarkdownString;
+	isAllowed(extension: { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString;
 }
 
 export async function computeSize(location: URI, fileService: IFileService): Promise<number> {
-	const stat = await fileService.resolve(location);
+	let stat: IFileStat;
+	try {
+		stat = await fileService.resolve(location);
+	} catch (e) {
+		if ((<FileOperationError>e).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+			return 0;
+		}
+		throw e;
+	}
 	if (stat.children) {
 		const sizes = await Promise.all(stat.children.map(c => computeSize(c.resource, fileService)));
 		return sizes.reduce((r, s) => r + s, 0);

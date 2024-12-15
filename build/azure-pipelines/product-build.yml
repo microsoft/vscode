@@ -793,7 +793,7 @@ extends:
               - job: ApproveRelease
                 displayName: "Approve Release"
                 variables:
-                  - group: VSCode
+                  - group: VSCodePeerApproval
                   - name: skipComponentGovernanceDetection
                     value: true
 

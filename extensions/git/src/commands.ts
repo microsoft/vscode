@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, SourceControlHistoryItemRef } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
+import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -2177,6 +2177,8 @@ export class CommandCenter {
 			// amend allows changing only the commit message
 			&& !opts.amend
 			&& !opts.empty
+			// merge not in progress
+			&& !repository.mergeInProgress
 			// rebase not in progress
 			&& repository.rebaseCommit === undefined
 		) {
@@ -2505,8 +2507,18 @@ export class CommandCenter {
 		return this._checkout(repository, { detached: true, treeish });
 	}
 
+	@command('git.checkoutRef', { repository: true })
+	async checkoutRef(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<boolean> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return false;
+		}
+
+		return this._checkout(repository, { treeish: historyItemRefId });
+	}
+
 	@command('git.checkoutRefDetached', { repository: true })
-	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItemRef): Promise<boolean> {
+	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
 		if (!historyItem) {
 			return false;
 		}
@@ -2607,7 +2619,7 @@ export class CommandCenter {
 					await this.cleanAll(repository);
 					await item.run(repository, opts);
 				} else if (choice === stash || choice === migrate) {
-					if (await this._stash(repository)) {
+					if (await this._stash(repository, true)) {
 						await item.run(repository, opts);
 
 						if (choice === migrate) {
@@ -3981,8 +3993,8 @@ export class CommandCenter {
 		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : `${commit.hash}^`;
 		const changes = await repository.diffBetween(commitParentId, commit.hash);
 
-		const title = `${item.shortRef} - ${commit.message}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), commit.hash, { scheme: 'git-commit' });
+		const title = `${item.shortRef} - ${truncate(commit.message)}`;
+		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${commitParentId}..${commit.hash}` });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of changes) {
@@ -4243,14 +4255,14 @@ export class CommandCenter {
 		// TODO@lszomoru - handle the case when historyItem2 is the first commit in the repository
 		if (!historyItem2) {
 			const commit = await repository.getCommit(historyItem1.id);
-			title = `${historyItem1.id.substring(0, 8)} - ${commit.message}`;
+			title = `${historyItem1.id.substring(0, 8)} - ${truncate(commit.message)}`;
 			historyItemParentId = historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItem1.id}^`;
 		} else {
 			title = l10n.t('All Changes ({0} ↔ {1})', historyItem2.id.substring(0, 8), historyItem1.id.substring(0, 8));
 			historyItemParentId = historyItem2.parentIds.length > 0 ? historyItem2.parentIds[0] : `${historyItem2.id}^`;
 		}
 
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItem1.id}`, { scheme: 'git-commit', });
+		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItem1.id}` });
 
 		await this._viewChanges(repository, historyItem1.id, historyItemParentId, multiDiffSourceUri, title);
 	}
@@ -4302,10 +4314,10 @@ export class CommandCenter {
 		}
 
 		const commit = await repository.getCommit(historyItemId);
-		const title = `${historyItemId.substring(0, 8)} - ${commit.message}`;
+		const title = `${historyItemId.substring(0, 8)} - ${truncate(commit.message)}`;
 		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
 
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItemId}`, { scheme: 'git-commit', });
+		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
 
 		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
@@ -4408,15 +4420,17 @@ export class CommandCenter {
 						message = l10n.t('Can\'t force push refs to remote. The tip of the remote-tracking branch has been updated since the last checkout. Try running "Pull" first to pull the latest changes from the remote branch first.');
 						break;
 					case GitErrorCodes.Conflict:
-						message = l10n.t('There are merge conflicts. Resolve them before committing.');
+						message = l10n.t('There are merge conflicts. Please resolve them before committing your changes.');
 						type = 'warning';
+						choices.clear();
 						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.StashConflict:
-						message = l10n.t('There were merge conflicts while applying the stash.');
-						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
+						message = l10n.t('There are merge conflicts while applying the stash. Please resolve them before committing your changes.');
 						type = 'warning';
+						choices.clear();
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.AuthenticationFailed: {

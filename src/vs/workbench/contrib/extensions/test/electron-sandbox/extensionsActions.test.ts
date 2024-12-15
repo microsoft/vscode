@@ -1030,6 +1030,7 @@ suite('ExtensionRuntimeStateAction', () => {
 			canAddExtension: (extension) => true,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		const testObject: ExtensionsActions.ExtensionRuntimeStateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionRuntimeStateAction));
 		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
@@ -1118,6 +1119,7 @@ suite('ExtensionRuntimeStateAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		const testObject: ExtensionsActions.ExtensionRuntimeStateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionRuntimeStateAction));
 		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');

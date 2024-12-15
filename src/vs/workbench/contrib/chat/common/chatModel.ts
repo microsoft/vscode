@@ -16,7 +16,7 @@ import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/co
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { Location, TextEdit } from '../../../../editor/common/languages.js';
+import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent, reviveSerializedAgent } from './chatAgents.js';
@@ -56,10 +56,27 @@ export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequest
 	enabled: boolean;
 }
 
+export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'paste';
+	code: string;
+	language: string;
+	pastedLines: string;
+
+	// This is only used for old serialized data and should be removed once we no longer support it
+	fileName: string;
+
+	// This is only undefined on old serialized data
+	copiedFrom: {
+		readonly uri: URI;
+		readonly range: IRange;
+	} | undefined;
+}
+
 export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'symbol';
 	readonly isDynamic: true;
 	readonly value: Location;
+	readonly symbolKind: SymbolKind;
 }
 
 export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
@@ -67,10 +84,14 @@ export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariab
 	readonly isDynamic: true;
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
+}
+
+export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
+	return obj.kind === 'paste';
 }
 
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
@@ -574,7 +595,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
-		this._agentOrSlashCommandDetected = !agent.isDefault;
+		this._agentOrSlashCommandDetected = !agent.isDefault || !!slashCommand;
 		this._onDidChange.fire();
 	}
 
@@ -1131,7 +1152,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], workingSet?: URI[], isCompleteAddedRequest?: boolean): ChatRequestModel {
 		const request = new ChatRequestModel(this, message, variableData, Date.now(), attempt, confirmation, locationData, attachments, workingSet, isCompleteAddedRequest);
-		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id, undefined, undefined, undefined, undefined, undefined, undefined, undefined, isCompleteAddedRequest);
+		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id, undefined, undefined, undefined, undefined, undefined, undefined, isCompleteAddedRequest);
 
 		this._requests.push(request);
 		this._lastMessageDate = Date.now();

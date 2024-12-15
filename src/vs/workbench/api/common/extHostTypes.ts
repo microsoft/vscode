@@ -22,6 +22,7 @@ import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../.
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
+import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 
 /**
  * @deprecated
@@ -1943,11 +1944,15 @@ export enum DecorationRangeBehavior {
 }
 
 export namespace TextEditorSelectionChangeKind {
-	export function fromValue(s: string | undefined) {
+	export function fromValue(s: TextEditorSelectionSource | string | undefined) {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api': return TextEditorSelectionChangeKind.Command;
+			case 'api':
+			case TextEditorSelectionSource.PROGRAMMATIC:
+			case TextEditorSelectionSource.JUMP:
+			case TextEditorSelectionSource.NAVIGATION:
+				return TextEditorSelectionChangeKind.Command;
 		}
 		return undefined;
 	}
@@ -4150,6 +4155,14 @@ export enum TestRunProfileKind {
 	Coverage = 3,
 }
 
+export class TestRunProfileBase {
+	constructor(
+		public readonly controllerId: string,
+		public readonly profileId: number,
+		public readonly kind: vscode.TestRunProfileKind,
+	) { }
+}
+
 @es5ClassCompat
 export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
@@ -4262,7 +4275,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
-		public fromTests: vscode.TestItem[] = [],
+		public includesTests: vscode.TestItem[] = [],
 	) {
 	}
 }
