@@ -271,9 +271,9 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<bool, Stri
 #[allow(dead_code)]
 fn extract_ldd_version(output: &[u8]) -> Option<SimpleSemver> {
 	LDD_VERSION_RE.captures(output).map(|m| SimpleSemver {
-            major: m.get(1).map_or(0, |s| u32_from_bytes(s.as_bytes())),
-            minor: m.get(2).map_or(0, |s| u32_from_bytes(s.as_bytes())),
-            patch: 0,
+		major: m.get(1).map_or(0, |s| u32_from_bytes(s.as_bytes())),
+		minor: m.get(2).map_or(0, |s| u32_from_bytes(s.as_bytes())),
+		patch: 0,
     })
 }
 
