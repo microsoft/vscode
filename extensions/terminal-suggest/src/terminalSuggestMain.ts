@@ -158,12 +158,14 @@ function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] 
 	return spec.name;
 }
 
-function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
+function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
+	const endsWithSpace = prefix.endsWith(' ');
+	const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
 	return {
 		label,
 		detail: description ?? '',
-		replacementIndex: commandLine.length - prefix.length >= 0 ? commandLine.length - prefix.length : commandLine[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
-		replacementLength: prefix.length,
+		replacementIndex: cursorPosition - lastWord.length,
+		replacementLength: lastWord.length > 0 ? lastWord.length : cursorPosition,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
 	};
 }
@@ -268,7 +270,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 				|| !!firstCommand && specLabel.startsWith(firstCommand)
 			) {
 				// push it to the completion items
-				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, specLabel));
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, specLabel));
 			}
 			if (!terminalContext.commandLine.startsWith(specLabel)) {
 				// the spec label is not the first word in the command line, so do not provide options or args
@@ -283,7 +285,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 					}
 					for (const optionLabel of optionLabels) {
 						if (!items.find(i => i.label === optionLabel) && optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
-							items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, optionLabel, option.description, vscode.TerminalCompletionItemKind.Flag));
+							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, vscode.TerminalCompletionItemKind.Flag));
 						}
 						const expectedText = `${specLabel} ${optionLabel} `;
 						if (!precedingText.includes(expectedText)) {
@@ -331,7 +333,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 		// Include builitin/available commands in the results
 		for (const command of availableCommands) {
 			if ((!terminalContext.commandLine.trim() || firstCommand && command.startsWith(firstCommand)) && !items.find(item => item.label === command)) {
-				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, command));
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
 			}
 		}
 	}
@@ -397,7 +399,7 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 					}
 					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const description = typeof suggestion !== 'string' ? suggestion.description : '';
-						items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, wordBefore ?? '', suggestionLabel, description, vscode.TerminalCompletionItemKind.Argument));
+						items.push(createCompletionItem(terminalContext.cursorPosition, wordBefore ?? '', suggestionLabel, description, vscode.TerminalCompletionItemKind.Argument));
 					}
 				}
 			}
