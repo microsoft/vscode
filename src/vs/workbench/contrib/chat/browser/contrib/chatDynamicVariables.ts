@@ -116,7 +116,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			s = [];
 		}
 
+		this.disposeVariables();
 		this._variables = [];
+
 		for (const variable of s) {
 			if (!isDynamicVariable(variable)) {
 				continue;
@@ -141,7 +143,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		// start resolving nested file references immediatelly and subscribe to updates
 		if (variable instanceof ChatFileReference && variable.isPromptSnippetFile) {
 			// subscribe to variable changes
-			variable.onUpdate(this.updateDecorations);
+			variable.onUpdate(() => {
+				this.updateDecorations();
+			});
 			// start resolving the file references
 			variable.resolve();
 		}

@@ -170,7 +170,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					id: variable.id,
 					name: basename(childUri.path),
 					value: childUri,
-					kind: 'implicit',
 					isSelection: false,
 					enabled: true,
 					isFile: true,
