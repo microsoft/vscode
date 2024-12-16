@@ -140,9 +140,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 				return;
 			}
 
-			const editHeight = layoutInfo.editHeight;
-			const width = this._previewEditorWidth.read(reader);
-			this.previewEditor.layout({ height: editHeight, width });
+			this.previewEditor.layout({ height: layoutInfo.editHeight, width: layoutInfo.previewEditorWidth });
 
 			const topEdit = layoutInfo.edit1;
 			this._editorContainer.element.style.top = `${topEdit.y}px`;
@@ -154,6 +152,15 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		this._register(autorun(reader => {
 			this._elements.root.classList.toggle('toolbarDropdownVisible', toolbarDropdownVisible.read(reader));
 		}));*/
+
+		this._register(autorun(reader => {
+			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
+			if (!layoutInfo) {
+				return;
+			}
+
+			this._previewEditorObs.editor.setScrollLeft(layoutInfo.desiredPreviewEditorScrollLeft);
+		}));
 
 		this._editorContainerTopLeft.set(this._previewEditorLayoutInfo.map(i => i?.edit1), undefined);
 	}
@@ -325,7 +332,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	/**
 	 * ![test](./layout.dio.svg)
 	*/
-	private readonly _previewEditorLayoutInfo = derived(this, (reader) => {//
+	private readonly _previewEditorLayoutInfo = derived(this, (reader) => {
 		const inlineEdit = this._edit.read(reader);
 		if (!inlineEdit) {
 			return null;
@@ -341,11 +348,13 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 		const editorContentMaxWidthInRange = maxContentWidthInRange(this._editorObs, state.originalDisplayRange, reader);
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
-		const previewWidth = this._previewEditorWidth.read(reader);
+		const previewContentWidth = this._previewEditorWidth.read(reader);
 		const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
-		const clientContentAreaRight = editorLayout.contentLeft + editorLayout.contentWidth + this._editor.getContainerDomNode().getBoundingClientRect().left;
+		const editorBoundingClientRect = this._editor.getContainerDomNode().getBoundingClientRect();
+		const clientContentAreaRight = editorLayout.contentLeft + editorLayout.contentWidth + editorBoundingClientRect.left;
 		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).outerWidth - clientContentAreaRight;
-		const desiredMinimumWidth = Math.min(editorLayout.contentWidth * 0.3, previewWidth, 100);
+		const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).outerWidth - editorBoundingClientRect.right;
+		const desiredMinimumWidth = Math.min(editorLayout.contentWidth * 0.3, previewContentWidth, 100);
 		const IN_EDITOR_DISPLACEMENT = 0;
 		const maximumAvailableWidth = IN_EDITOR_DISPLACEMENT + remainingWidthRightOfContent;
 
@@ -362,12 +371,20 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		);
 		const previewEditorLeftInTextArea = Math.min(editorContentMaxWidthInRange + 20, maxPreviewEditorLeft);
 
-		const previewEditorLeft = editorLayout.contentLeft + previewEditorLeftInTextArea;
-		const maxContentWidth = editorContentMaxWidthInRange + 20 + previewWidth + 70;
+		const maxContentWidth = editorContentMaxWidthInRange + 20 + previewContentWidth + 70;
 
 		const dist = maxPreviewEditorLeft - previewEditorLeftInTextArea;
 
-		const left = Math.max(editorLayout.contentLeft, previewEditorLeft - horizontalScrollOffset);
+		let desiredPreviewEditorScrollLeft;
+		let left;
+		if (previewEditorLeftInTextArea > horizontalScrollOffset) {
+			desiredPreviewEditorScrollLeft = 0;
+			left = editorLayout.contentLeft + previewEditorLeftInTextArea - horizontalScrollOffset;
+		} else {
+			desiredPreviewEditorScrollLeft = horizontalScrollOffset - previewEditorLeftInTextArea;
+			left = editorLayout.contentLeft;
+
+		}
 
 		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
 		const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
@@ -389,6 +406,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const codeEditDist = codeEditDistRange.clip(dist);
 		const editHeight = this._editor.getOption(EditorOption.lineHeight) * inlineEdit.modifiedLineRange.length;
 
+		const previewEditorWidth = remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist;
+
 		const edit1 = new Point(left + codeEditDist, selectionTop);
 		const edit2 = new Point(left + codeEditDist, selectionTop + editHeight);
 
@@ -402,9 +421,10 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			edit1,
 			edit2,
 			editHeight,
-			previewEditorLeft,
 			maxContentWidth,
 			shouldShowShadow: clipped,
+			desiredPreviewEditorScrollLeft,
+			previewEditorWidth
 		};
 	});
 
@@ -425,7 +445,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _extendedModifiedPath = derived(reader => {
 		const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 		if (!layoutInfo) { return undefined; }
-		const width = this._previewEditorWidth.read(reader);
+		const width = layoutInfo.previewEditorWidth;
 		const extendedModifiedPathBuilder = new PathBuilder()
 			.moveTo(layoutInfo.code1)
 			.lineTo(layoutInfo.edit1)
