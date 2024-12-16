@@ -29,6 +29,8 @@
 
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
+		// TODO: Load webworkers from this URL, but not extensions
+		const baseUrl2 = new URL('http://localhost:3000/src/');
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
 
 		// Dev only: CSS import map tricks
@@ -36,7 +38,10 @@
 
 		// ESM Import
 		try {
-			const result = await import(new URL(`${esModule}.js`, baseUrl).href);
+			if (!esModule.endsWith('.ts')) {
+				esModule = esModule + '.ts';
+			}
+			const result = await import(new URL(esModule, baseUrl2).href);
 
 			if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
 				developerDeveloperKeybindingsDisposable();
@@ -189,7 +194,7 @@
 		// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
 		// DEV ---------------------------------------------------------------------------------------
 
-		if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
+		/*if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
 			performance.mark('code/willAddCssLoader');
 
 			const style = document.createElement('style');
@@ -220,7 +225,7 @@
 			document.head.appendChild(importMapScript);
 
 			performance.mark('code/didAddCssLoader');
-		}
+		}*/
 	}
 
 	(globalThis as any).MonacoBootstrapWindow = { load };
