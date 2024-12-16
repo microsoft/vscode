@@ -8,7 +8,6 @@ import { Promises, Queue } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
-import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
@@ -213,27 +212,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		this.manifestCache.invalidate(profileLocation);
 		this._onDidUpdateExtensionMetadata.fire({ local, profileLocation });
 		return local;
-	}
-
-	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
-		this.logService.trace('ExtensionManagementService#reinstallFromGallery', extension.identifier.id);
-		if (!this.galleryService.isEnabled()) {
-			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
-		}
-
-		const targetPlatform = await this.getTargetPlatform();
-		const [galleryExtension] = await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: extension.preRelease }], { targetPlatform, compatible: true }, CancellationToken.None);
-		if (!galleryExtension) {
-			throw new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled"));
-		}
-
-		await this.extensionsScanner.setUninstalled(extension);
-		try {
-			await this.extensionsScanner.removeUninstalledExtension(extension);
-		} catch (e) {
-			throw new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e)));
-		}
-		return this.installFromGallery(galleryExtension);
 	}
 
 	protected copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {

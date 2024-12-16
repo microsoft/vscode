@@ -256,15 +256,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	}
 
-	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
-		const server = this.getServer(extension);
-		if (server) {
-			await this.checkForWorkspaceTrust(extension.manifest, false);
-			return server.extensionManagementService.reinstallFromGallery(extension);
-		}
-		return Promise.reject(`Invalid location ${extension.location.toString()}`);
-	}
-
 	updateMetadata(extension: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
