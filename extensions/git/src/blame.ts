@@ -421,6 +421,8 @@ class GitBlameEditorDecoration {
 		this._disposables.push(this._decorationType);
 
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
+		window.onDidChangeActiveTextEditor(this._onDidChangeActiveTextEditor, this, this._disposables);
+
 		this._controller.onDidChangeBlameInformation(e => this._updateDecorations(e), this, this._disposables);
 	}
 
@@ -439,6 +441,18 @@ class GitBlameEditorDecoration {
 		}
 	}
 
+	private _onDidChangeActiveTextEditor(): void {
+		if (!this._getConfiguration().enabled) {
+			return;
+		}
+
+		for (const editor of window.visibleTextEditors) {
+			if (editor !== window.activeTextEditor) {
+				editor.setDecorations(this._decorationType, []);
+			}
+		}
+	}
+
 	private _getConfiguration(): { enabled: boolean; template: string } {
 		const config = workspace.getConfiguration('git');
 		const enabled = config.get<boolean>('blame.editorDecoration.enabled', false);
@@ -451,15 +465,6 @@ class GitBlameEditorDecoration {
 		const { enabled, template } = this._getConfiguration();
 		if (!enabled) {
 			return;
-		}
-
-		// Clear decorations for the other editors
-		for (const editor of window.visibleTextEditors) {
-			if (editor === textEditor) {
-				continue;
-			}
-
-			editor.setDecorations(this._decorationType, []);
 		}
 
 		// Only support resources with `file` and `git` schemes
@@ -543,9 +548,7 @@ class GitBlameStatusBarItem {
 			return;
 		}
 
-		if (window.activeTextEditor) {
-			this._updateStatusBarItem(window.activeTextEditor);
-		} else {
+		if (!window.activeTextEditor) {
 			this._statusBarItem?.hide();
 		}
 	}
