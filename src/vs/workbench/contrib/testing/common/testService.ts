@@ -210,7 +210,6 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 			}
 		}
 	}
-	console.log('iterated', n, 'times');
 };
 
 /**
