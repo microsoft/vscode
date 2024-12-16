@@ -1720,12 +1720,13 @@ async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: Ser
 	}
 
 	if (instance) {
-		const originalTitle = instance.title;
 		const title = await accessor.get(IQuickInputService).input({
 			value: instance.title,
 			prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		});
-		instance.rename(title ?? originalTitle);
+		if (title) {
+			instance.rename(title);
+		}
 	}
 }
 
