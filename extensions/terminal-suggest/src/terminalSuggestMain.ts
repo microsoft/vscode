@@ -168,6 +168,24 @@ function createCompletionItem(commandLine: string, cursorPosition: number, prefi
 	};
 }
 
+async function isExecutable(filePath: string): Promise<boolean> {
+	// Windows doesn't have the concept of an executable bit and running any
+	// file is possible. We considered using $PATHEXT here but since it's mostly
+	// there for legacy reasons and it would be easier and more intuitive to add
+	// a setting if needed instead.
+	if (osIsWindows()) {
+		return true;
+	}
+	try {
+		const stats = await fs.stat(filePath);
+		// On macOS/Linux, check if the executable bit is set
+		return (stats.mode & 0o100) !== 0;
+	} catch (error) {
+		// If the file does not exist or cannot be accessed, it's not executable
+		return false;
+	}
+}
+
 async function getCommandsInPath(): Promise<Set<string> | undefined> {
 	if (cachedAvailableCommands) {
 		return cachedAvailableCommands;
@@ -176,7 +194,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 	if (!paths) {
 		return;
 	}
-
+	const pathSeparator = osIsWindows() ? '\\' : '/';
 	const executables = new Set<string>();
 	for (const path of paths) {
 		try {
@@ -187,7 +205,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 
 			for (const [file, fileType] of files) {
-				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory) {
+				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file)) {
 					executables.add(file);
 				}
 			}

@@ -8,7 +8,7 @@ import { localize } from '../../nls.js';
 import { URI } from '../../base/common/uri.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { equals } from '../../base/common/objects.js';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
 import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../base/common/actions.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from '../common/editor.js';
@@ -41,13 +41,12 @@ import { WorkbenchState, IWorkspaceContextService } from '../../platform/workspa
 import { coalesce } from '../../base/common/arrays.js';
 import { ConfigurationTarget, IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
-import { assertIsDefined } from '../../base/common/types.js';
 import { IOpenerService, IResolvedExternalUri, OpenOptions } from '../../platform/opener/common/opener.js';
 import { Schemas } from '../../base/common/network.js';
 import { INativeHostService } from '../../platform/native/common/native.js';
 import { posix } from '../../base/common/path.js';
 import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping, extractQueryLocalHostUriMetaDataForPortMapping } from '../../platform/tunnel/common/tunnel.js';
-import { IWorkbenchLayoutService, Parts, positionFromString, Position } from '../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, positionFromString, Position } from '../services/layout/browser/layoutService.js';
 import { IWorkingCopyService } from '../services/workingCopy/common/workingCopyService.js';
 import { WorkingCopyCapabilities } from '../services/workingCopy/common/workingCopy.js';
 import { IFilesConfigurationService } from '../services/filesConfiguration/common/filesConfigurationService.js';
@@ -395,21 +394,6 @@ export class NativeWindow extends BaseWindow {
 			}
 
 			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.handleRepresentedFilename(part)));
-		}
-
-		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && !hasNativeTitlebar(this.configurationService)) {
-			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
-				const targetWindow = getWindow(container);
-				const targetWindowId = targetWindow.vscodeWindowId;
-				const titlePart = assertIsDefined(this.layoutService.getContainer(targetWindow, Parts.TITLEBAR_PART));
-
-				disposables.add(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
-					EventHelper.stop(e);
-
-					this.nativeHostService.handleTitleDoubleClick({ targetWindowId });
-				}));
-			}, { container: this.layoutService.mainContainer, disposables: this._store }));
 		}
 
 		// Document edited: indicate for dirty working copies

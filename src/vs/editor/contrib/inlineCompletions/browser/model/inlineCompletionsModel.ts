@@ -419,7 +419,7 @@ export class InlineCompletionsModel extends Disposable {
 		return 'noSuggestion';
 	});
 
-	public readonly inlineCompletionState = derived(reader => {
+	public readonly inlineCompletionState = derived(this, reader => {
 		const s = this.state.read(reader);
 		if (!s || s.kind !== 'ghostText') {
 			return undefined;
@@ -430,7 +430,7 @@ export class InlineCompletionsModel extends Disposable {
 		return s;
 	});
 
-	public readonly inlineEditState = derived(reader => {
+	public readonly inlineEditState = derived(this, reader => {
 		const s = this.state.read(reader);
 		if (!s || s.kind !== 'inlineEdit') {
 			return undefined;
@@ -438,7 +438,7 @@ export class InlineCompletionsModel extends Disposable {
 		return s;
 	});
 
-	public readonly inlineEditAvailable = derived(reader => {
+	public readonly inlineEditAvailable = derived(this, reader => {
 		const s = this.inlineEditState.read(reader);
 		return !!s;
 	});
