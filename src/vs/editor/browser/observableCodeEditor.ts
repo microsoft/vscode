@@ -12,7 +12,7 @@ import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
 import { Point } from './point.js';
 
 /**
@@ -265,6 +265,25 @@ export class ObservableCodeEditor extends Disposable {
 		});
 	}
 
+	public createContentWidget(widget: IObservableContentWidget): IDisposable {
+		const overlayWidgetId = 'observableContentWidget' + (this._widgetCounter++);
+		const w: IContentWidget = {
+			getDomNode: () => widget.domNode,
+			getPosition: () => widget.position.get(),
+			getId: () => overlayWidgetId,
+			allowEditorOverflow: widget.allowEditorOverflow,
+		};
+		this.editor.addContentWidget(w);
+		const d = autorun(reader => {
+			widget.position.read(reader);
+			this.editor.layoutContentWidget(w);
+		});
+		return toDisposable(() => {
+			d.dispose();
+			this.editor.removeContentWidget(w);
+		});
+	}
+
 	public observePosition(position: IObservable<Position | null>, store: DisposableStore): IObservable<Point | null> {
 		const result = observableValueOpts<Point | null>({ owner: this, equalsFn: equalsIfDefined(Point.equals) }, new Point(0, 0));
 		const contentWidgetId = `observablePositionWidget` + (this._widgetCounter++);
@@ -297,5 +316,11 @@ interface IObservableOverlayWidget {
 	get domNode(): HTMLElement;
 	readonly position: IObservable<IOverlayWidgetPosition | null>;
 	readonly minContentWidthInPx: IObservable<number>;
+	get allowEditorOverflow(): boolean;
+}
+
+interface IObservableContentWidget {
+	get domNode(): HTMLElement;
+	readonly position: IObservable<IContentWidgetPosition | null>;
 	get allowEditorOverflow(): boolean;
 }

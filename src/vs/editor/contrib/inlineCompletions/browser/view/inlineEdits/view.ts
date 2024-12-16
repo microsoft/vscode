@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, IReader, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
-import { StringText } from '../../../../../common/core/textEdit.js';
+import { SingleTextEdit, StringText } from '../../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
+import { FloatingReplacement } from './floatingReplacement.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './indicatorView.js';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
 import { InlineEditsSideBySideDiff } from './sideBySideDiff.js';
@@ -115,6 +116,15 @@ export class InlineEditsView extends Disposable {
 			modifiedCodeEditor: this._sideBySide.previewEditor,
 		};
 	});
+
+	protected readonly _floatingReplacements = mapObservableArrayCached(
+		this,
+		this._uiState.map(state => state?.diff.flatMap(d => d.innerChanges!) ?? []),
+		(diff, store) => {
+			const edit = constObservable(new SingleTextEdit(diff.originalRange, this._previewTextModel.getValueInRange(diff.modifiedRange)));
+			store.add(new FloatingReplacement(this._editorObs, edit));
+		}
+	).recomputeInitiallyAndOnChange(this._store);
 
 	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
 

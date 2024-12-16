@@ -164,4 +164,8 @@
 	.inlineCompletions-char-insert.diff-range-empty {
 		border-left: solid var(--vscode-inlineEdit-modifiedChangedTextBackground) 3px;
 	}
+
+	.floatingReplacement {
+		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+	}
 }
