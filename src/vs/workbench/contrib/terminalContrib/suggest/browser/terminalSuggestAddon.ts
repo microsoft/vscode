@@ -32,7 +32,6 @@ import { TerminalShellType } from '../../../../../platform/terminal/common/termi
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
