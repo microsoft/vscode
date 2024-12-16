@@ -81,7 +81,7 @@ export interface IUtilityProcessWorkerService {
 	 * end of the message port connection will be sent back to the calling window
 	 * as identified by the `reply` configuration.
 	 *
-	 * Requires the forked process to be AMD module that uses our IPC channel framework
+	 * Requires the forked process to be ES module that uses our IPC channel framework
 	 * to respond to the provided `channelName` as a server.
 	 *
 	 * The process will be automatically terminated when the receiver window closes,

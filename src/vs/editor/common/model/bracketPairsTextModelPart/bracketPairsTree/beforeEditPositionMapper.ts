@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, lengthOfString, lengthToObj, positionToLength, toLength } from './length';
-import { TextLength } from 'vs/editor/common/core/textLength';
-import { IModelContentChange } from 'vs/editor/common/textModelEvents';
+import { Range } from '../../../core/range.js';
+import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, lengthOfString, lengthToObj, positionToLength, toLength } from './length.js';
+import { TextLength } from '../../../core/textLength.js';
+import { IModelContentChange } from '../../../textModelEvents.js';
 
 export class TextEditInfo {
 	public static fromModelContentChanges(changes: IModelContentChange[]): TextEditInfo[] {

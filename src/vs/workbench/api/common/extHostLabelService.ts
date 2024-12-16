@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { MainThreadLabelServiceShape, ExtHostLabelServiceShape, MainContext, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ResourceLabelFormatter } from '../../../platform/label/common/label.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { MainThreadLabelServiceShape, ExtHostLabelServiceShape, MainContext, IMainContext } from './extHost.protocol.js';
 
 export class ExtHostLabelService implements ExtHostLabelServiceShape {
 

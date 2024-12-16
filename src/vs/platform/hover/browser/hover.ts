@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { addStandardDisposableListener } from 'vs/base/browser/dom';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import type { IHoverDelegate2, IHoverOptions, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { IHoverDelegate, IHoverDelegateOptions } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { addStandardDisposableListener, isHTMLElement } from '../../../base/browser/dom.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import type { IHoverDelegate2, IHoverOptions, IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -54,7 +54,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 
 		// close hover on escape
 		this.hoverDisposables.clear();
-		const targets = options.target instanceof HTMLElement ? [options.target] : options.target.targetElements;
+		const targets = isHTMLElement(options.target) ? [options.target] : options.target.targetElements;
 		for (const target of targets) {
 			this.hoverDisposables.add(addStandardDisposableListener(target, 'keydown', (e) => {
 				if (e.equals(KeyCode.Escape)) {
@@ -63,7 +63,11 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			}));
 		}
 
-		const id = options.content instanceof HTMLElement ? undefined : options.content.toString();
+		const id = isHTMLElement(options.content)
+			? undefined
+			: typeof options.content === 'string'
+				? options.content.toString()
+				: options.content.value;
 
 		return this.hoverService.showHover({
 			...options,

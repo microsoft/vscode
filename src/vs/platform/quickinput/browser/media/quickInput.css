@@ -16,13 +16,18 @@
 .quick-input-titlebar {
 	display: flex;
 	align-items: center;
-	border-radius: inherit;
+	border-top-right-radius: 5px;
+	border-top-left-radius: 5px;
 }
 
 .quick-input-left-action-bar {
 	display: flex;
 	margin-left: 4px;
 	flex: 1;
+}
+
+.quick-input-inline-action-bar {
+	margin: 2px 0 0 5px;
 }
 
 .quick-input-title {
@@ -172,7 +177,6 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	display: flex;
-	height: 100%;
 	padding: 0 6px;
 }
 
@@ -295,7 +299,7 @@
 
 .quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
 	margin-right: 4px;
-	padding: 0px 2px 2px 2px;
+	padding: 2px;
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {

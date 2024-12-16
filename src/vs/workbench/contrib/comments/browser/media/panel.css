@@ -90,7 +90,6 @@
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .text * {
 	margin: 0;
 	text-overflow: ellipsis;
-	max-width: 500px;
 	overflow: hidden;
 	padding-right: 5px;
 }

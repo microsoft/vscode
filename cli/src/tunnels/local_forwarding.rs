@@ -27,7 +27,7 @@ use super::{
 	protocol::{
 		self,
 		forward_singleton::{PortList, SetPortsResponse},
-		PortPrivacy,
+		PortPrivacy, PortProtocol,
 	},
 	shutdown_signal::ShutdownSignal,
 };
@@ -71,8 +71,13 @@ impl PortCount {
 		}
 	}
 }
+#[derive(Clone)]
+struct PortMapRec {
+	count: PortCount,
+	protocol: PortProtocol,
+}
 
-type PortMap = HashMap<u16, PortCount>;
+type PortMap = HashMap<u16, PortMapRec>;
 
 /// The PortForwardingHandle is given out to multiple consumers to allow
 /// them to set_ports that they want to be forwarded.
@@ -99,8 +104,8 @@ impl PortForwardingSender {
 			for p in current.iter() {
 				if !ports.contains(p) {
 					let n = v.get_mut(&p.number).expect("expected port in map");
-					n[p.privacy] -= 1;
-					if n.is_empty() {
+					n.count[p.privacy] -= 1;
+					if n.count.is_empty() {
 						v.remove(&p.number);
 					}
 				}
@@ -110,12 +115,19 @@ impl PortForwardingSender {
 				if !current.contains(p) {
 					match v.get_mut(&p.number) {
 						Some(n) => {
-							n[p.privacy] += 1;
+							n.count[p.privacy] += 1;
+							n.protocol = p.protocol;
 						}
 						None => {
-							let mut pc = PortCount::default();
-							pc[p.privacy] += 1;
-							v.insert(p.number, pc);
+							let mut count = PortCount::default();
+							count[p.privacy] += 1;
+							v.insert(
+								p.number,
+								PortMapRec {
+									count,
+									protocol: p.protocol,
+								},
+							);
 						}
 					};
 				}
@@ -164,22 +176,34 @@ impl PortForwardingReceiver {
 		while self.receiver.changed().await.is_ok() {
 			let next = self.receiver.borrow().clone();
 
-			for (port, count) in current.iter() {
-				let privacy = count.primary_privacy();
-				if !matches!(next.get(port), Some(n) if n.primary_privacy() == privacy) {
+			for (port, rec) in current.iter() {
+				let privacy = rec.count.primary_privacy();
+				if !matches!(next.get(port), Some(n) if n.count.primary_privacy() == privacy) {
 					match tunnel.remove_port(*port).await {
-						Ok(_) => info!(log, "stopped forwarding port {} at {:?}", *port, privacy),
-						Err(e) => error!(log, "failed to stop forwarding port {}: {}", port, e),
+						Ok(_) => info!(
+							log,
+							"stopped forwarding {} port {} at {:?}", rec.protocol, *port, privacy
+						),
+						Err(e) => error!(
+							log,
+							"failed to stop forwarding {} port {}: {}", rec.protocol, port, e
+						),
 					}
 				}
 			}
 
-			for (port, count) in next.iter() {
-				let privacy = count.primary_privacy();
-				if !matches!(current.get(port), Some(n) if n.primary_privacy() == privacy) {
-					match tunnel.add_port_tcp(*port, privacy).await {
-						Ok(_) => info!(log, "forwarding port {} at {:?}", port, privacy),
-						Err(e) => error!(log, "failed to forward port {}: {}", port, e),
+			for (port, rec) in next.iter() {
+				let privacy = rec.count.primary_privacy();
+				if !matches!(current.get(port), Some(n) if n.count.primary_privacy() == privacy) {
+					match tunnel.add_port_tcp(*port, privacy, rec.protocol).await {
+						Ok(_) => info!(
+							log,
+							"forwarding {} port {} at {:?}", rec.protocol, port, privacy
+						),
+						Err(e) => error!(
+							log,
+							"failed to forward {} port {}: {}", rec.protocol, port, e
+						),
 					}
 				}
 			}

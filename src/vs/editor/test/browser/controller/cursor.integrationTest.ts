@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import assert from 'assert';
+import { Selection } from '../../../common/core/selection.js';
+import { withTestCodeEditor } from '../testCodeEditor.js';
 
 suite('Editor Controller', () => {
 

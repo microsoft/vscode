@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { TestUserDataSyncUtilService } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { merge } from '../../common/keybindingsMerge.js';
+import { TestUserDataSyncUtilService } from './userDataSyncClient.js';
 
 suite('KeybindingsMerge - No Conflicts', () => {
 

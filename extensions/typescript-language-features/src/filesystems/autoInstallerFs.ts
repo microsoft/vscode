@@ -3,50 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PackageManager } from '@vscode/ts-package-manager';
+import { basename, join } from 'path';
 import * as vscode from 'vscode';
-import { MemFs } from './memFs';
 import { URI } from 'vscode-uri';
-import { PackageManager, FileSystem, packagePath } from '@vscode/ts-package-manager';
-import { join, basename, dirname } from 'path';
+import { Disposable } from '../utils/dispose';
+import { MemFs } from './memFs';
+import { Logger } from '../logging/logger';
 
 const TEXT_DECODER = new TextDecoder('utf-8');
 const TEXT_ENCODER = new TextEncoder();
 
-export class AutoInstallerFs implements vscode.FileSystemProvider {
+export class AutoInstallerFs extends Disposable implements vscode.FileSystemProvider {
 
-	private readonly memfs = new MemFs();
-	private readonly fs: FileSystem;
-	private readonly projectCache = new Map<string, Set<string>>();
-	private readonly watcher: vscode.FileSystemWatcher;
-	private readonly _emitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+	private readonly memfs: MemFs;
+	private readonly packageManager: PackageManager;
+	private readonly _projectCache = new Map</* root */ string, Promise<void> | undefined>();
 
-	readonly onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]> = this._emitter.event;
+	private readonly _emitter = this._register(new vscode.EventEmitter<vscode.FileChangeEvent[]>());
+	readonly onDidChangeFile = this._emitter.event;
 
-	constructor() {
-		this.watcher = vscode.workspace.createFileSystemWatcher('**/{package.json,package-lock.json,package-lock.kdl}');
-		const handler = (uri: URI) => {
-			const root = dirname(uri.path);
-			if (this.projectCache.delete(root)) {
-				(async () => {
-					const pm = new PackageManager(this.fs);
-					const opts = await this.getInstallOpts(uri, root);
-					const proj = await pm.resolveProject(root, opts);
-					proj.pruneExtraneous();
-					// TODO: should this fire on vscode-node-modules instead?
-					// NB(kmarchan): This should tell TSServer that there's
-					// been changes inside node_modules and it needs to
-					// re-evaluate things.
-					this._emitter.fire([{
-						type: vscode.FileChangeType.Changed,
-						uri: uri.with({ path: join(root, 'node_modules') })
-					}]);
-				})();
-			}
-		};
-		this.watcher.onDidChange(handler);
-		this.watcher.onDidCreate(handler);
-		this.watcher.onDidDelete(handler);
-		const memfs = this.memfs;
+	constructor(
+		private readonly logger: Logger
+	) {
+		super();
+
+		const memfs = new MemFs('auto-installer', logger);
+		this.memfs = memfs;
 		memfs.onDidChangeFile((e) => {
 			this._emitter.fire(e.map(ev => ({
 				type: ev.type,
@@ -54,7 +37,8 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 				uri: ev.uri.with({ scheme: 'memfs' })
 			})));
 		});
-		this.fs = {
+
+		this.packageManager = new PackageManager({
 			readDirectory(path: string, _extensions?: readonly string[], _exclude?: readonly string[], _include?: readonly string[], _depth?: number): string[] {
 				return memfs.readDirectory(URI.file(path)).map(([name, _]) => name);
 			},
@@ -87,17 +71,17 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 					return undefined;
 				}
 			}
-		};
+		});
 	}
 
 	watch(resource: vscode.Uri): vscode.Disposable {
-		const mapped = URI.file(new MappedUri(resource).path);
-		console.log('watching', mapped);
-		return this.memfs.watch(mapped);
+		this.logger.trace(`AutoInstallerFs.watch. Resource: ${resource.toString()}}`);
+		return this.memfs.watch(resource);
 	}
 
 	async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
-		// console.log('stat', uri.toString());
+		this.logger.trace(`AutoInstallerFs.stat: ${uri}`);
+
 		const mapped = new MappedUri(uri);
 
 		// TODO: case sensitivity configuration
@@ -119,7 +103,8 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 	}
 
 	async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
-		// console.log('readDirectory', uri.toString());
+		this.logger.trace(`AutoInstallerFs.readDirectory: ${uri}`);
+
 		const mapped = new MappedUri(uri);
 		await this.ensurePackageContents(mapped);
 
@@ -127,7 +112,8 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 	}
 
 	async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-		// console.log('readFile', uri.toString());
+		this.logger.trace(`AutoInstallerFs.readFile: ${uri}`);
+
 		const mapped = new MappedUri(uri);
 		await this.ensurePackageContents(mapped);
 
@@ -151,8 +137,6 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 	}
 
 	private async ensurePackageContents(incomingUri: MappedUri): Promise<void> {
-		// console.log('ensurePackageContents', incomingUri.path);
-
 		// If we're not looking for something inside node_modules, bail early.
 		if (!incomingUri.path.includes('node_modules')) {
 			throw vscode.FileSystemError.FileNotFound();
@@ -163,34 +147,37 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 			throw vscode.FileSystemError.FileNotFound();
 		}
 
-		const root = this.getProjectRoot(incomingUri.path);
-
-		const pkgPath = packagePath(incomingUri.path);
-		if (!root || this.projectCache.get(root)?.has(pkgPath)) {
+		const root = await this.getProjectRoot(incomingUri.original);
+		if (!root) {
 			return;
 		}
 
-		const proj = await (new PackageManager(this.fs)).resolveProject(root, await this.getInstallOpts(incomingUri.original, root));
+		this.logger.trace(`AutoInstallerFs.ensurePackageContents. Path: ${incomingUri.path}, Root: ${root}`);
 
-		const restore = proj.restorePackageAt(incomingUri.path);
-		try {
-			await restore;
-		} catch (e) {
-			console.error(`failed to restore package at ${incomingUri.path}: `, e);
-			throw e;
+		const existingInstall = this._projectCache.get(root);
+		if (existingInstall) {
+			this.logger.trace(`AutoInstallerFs.ensurePackageContents. Found ongoing install for: ${root}/node_modules`);
+			return existingInstall;
 		}
-		if (!this.projectCache.has(root)) {
-			this.projectCache.set(root, new Set());
-		}
-		this.projectCache.get(root)!.add(pkgPath);
+
+		const installing = (async () => {
+			const proj = await this.packageManager.resolveProject(root, await this.getInstallOpts(incomingUri.original, root));
+			try {
+				await proj.restore();
+			} catch (e) {
+				console.error(`failed to restore package at ${incomingUri.path}: `, e);
+				throw e;
+			}
+		})();
+		this._projectCache.set(root, installing);
+		await installing;
 	}
 
 	private async getInstallOpts(originalUri: URI, root: string) {
 		const vsfs = vscode.workspace.fs;
-		let pkgJson;
-		try {
-			pkgJson = TEXT_DECODER.decode(await vsfs.readFile(originalUri.with({ path: join(root, 'package.json') })));
-		} catch (e) { }
+
+		// We definitely need a package.json to be there.
+		const pkgJson = TEXT_DECODER.decode(await vsfs.readFile(originalUri.with({ path: join(root, 'package.json') })));
 
 		let kdlLock;
 		try {
@@ -209,13 +196,20 @@ export class AutoInstallerFs implements vscode.FileSystemProvider {
 		};
 	}
 
-	private getProjectRoot(path: string): string | undefined {
-		const pkgPath = path.match(/(^.*)\/node_modules/);
-		return pkgPath?.[1];
+	private async getProjectRoot(incomingUri: URI): Promise<string | undefined> {
+		const vsfs = vscode.workspace.fs;
+		const pkgPath = incomingUri.path.match(/^(.*?)\/node_modules/);
+		const ret = pkgPath?.[1];
+		if (!ret) {
+			return;
+		}
+		try {
+			await vsfs.stat(incomingUri.with({ path: join(ret, 'package.json') }));
+			return ret;
+		} catch (e) {
+			return;
+		}
 	}
-
-	// --- manage file events
-
 }
 
 class MappedUri {
@@ -227,7 +221,7 @@ class MappedUri {
 
 		const parts = uri.path.match(/^\/([^\/]+)\/([^\/]*)(?:\/(.+))?$/);
 		if (!parts) {
-			throw new Error(`Invalid path: ${uri.path}`);
+			throw new Error(`Invalid uri: ${uri.toString()}, ${uri.path}`);
 		}
 
 		const scheme = parts[1];

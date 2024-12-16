@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybinding, Keybinding } from '../../../base/common/keybindings.js';
+import { IKeyboardEvent } from '../../keybinding/common/keybinding.js';
 
 export interface IKeyboardMapper {
 	dumpDebugInfo(): string;

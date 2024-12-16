@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IDecorationOptions, ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel, ITextModelUpdateOptions } from 'vs/editor/common/model';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IModelService } from 'vs/editor/common/services/model';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { equals } from 'vs/base/common/arrays';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { ISnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetSession';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
+import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString, EditorOption } from '../../../editor/common/config/editorOptions.js';
+import { IRange, Range } from '../../../editor/common/core/range.js';
+import { ISelection, Selection } from '../../../editor/common/core/selection.js';
+import { IDecorationOptions, ScrollType } from '../../../editor/common/editorCommon.js';
+import { ITextModel, ITextModelUpdateOptions } from '../../../editor/common/model.js';
+import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { SnippetController2 } from '../../../editor/contrib/snippet/browser/snippetController2.js';
+import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from '../common/extHost.protocol.js';
+import { IEditorPane } from '../../common/editor.js';
+import { equals } from '../../../base/common/arrays.js';
+import { CodeEditorStateFlag, EditorState } from '../../../editor/contrib/editorState/browser/editorState.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { SnippetParser } from '../../../editor/contrib/snippet/browser/snippetParser.js';
+import { MainThreadDocuments } from './mainThreadDocuments.js';
+import { ISnippetEdit } from '../../../editor/contrib/snippet/browser/snippetSession.js';
 
 export interface IFocusTracker {
 	onGainedFocus(): void;

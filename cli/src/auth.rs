@@ -93,10 +93,9 @@ impl AuthProvider {
 
 	pub fn get_default_scopes(&self) -> String {
 		match self {
-			AuthProvider::Microsoft => format!(
-				"{}/.default+offline_access+profile+openid",
-				PROD_FIRST_PARTY_APP_ID
-			),
+			AuthProvider::Microsoft => {
+				format!("{PROD_FIRST_PARTY_APP_ID}/.default+offline_access+profile+openid")
+			}
 			AuthProvider::Github => "read:user+read:org".to_string(),
 		}
 	}
@@ -122,7 +121,7 @@ async fn get_github_user(
 ) -> Result<reqwest::Response, reqwest::Error> {
 	client
 		.get(GH_USER_ENDPOINT)
-		.header("Authorization", format!("token {}", access_token))
+		.header("Authorization", format!("token {access_token}"))
 		.header("User-Agent", get_default_user_agent())
 		.send()
 		.await
@@ -287,7 +286,7 @@ impl StorageImplementation for ThreadKeyringStorage {
 
 #[derive(Default)]
 struct KeyringStorage {
-	// keywring storage can be split into multiple entries due to entry length limits
+	// keyring storage can be split into multiple entries due to entry length limits
 	// on Windows https://github.com/microsoft/vscode-cli/issues/358
 	entries: Vec<keyring::Entry>,
 }
@@ -480,6 +479,7 @@ impl Auth {
 		&self,
 		provider: Option<AuthProvider>,
 		access_token: Option<String>,
+		refresh_token: Option<String>,
 	) -> Result<StoredCredential, AnyError> {
 		let provider = match provider {
 			Some(p) => p,
@@ -490,8 +490,12 @@ impl Auth {
 			Some(t) => StoredCredential {
 				provider,
 				access_token: t,
-				refresh_token: None,
-				expires_at: None,
+				// if a refresh token is given, assume it's valid now but refresh it
+				// soon in order to get the real expiry time.
+				expires_at: refresh_token
+					.as_ref()
+					.map(|_| Utc::now() + chrono::Duration::minutes(5)),
+				refresh_token,
 			},
 			None => self.do_device_code_flow_with_provider(provider).await?,
 		};
@@ -685,7 +689,7 @@ impl Auth {
 		}
 
 		let provider = prompt_options(
-			format!("How would you like to log in to {}?", PRODUCT_NAME_LONG),
+			format!("How would you like to log in to {PRODUCT_NAME_LONG}?"),
 			&[AuthProvider::Microsoft, AuthProvider::Github],
 		)?;
 
@@ -718,7 +722,7 @@ impl Auth {
 
 			match &init_code_json.message {
 				Some(m) => self.log.result(m),
-				None => self.log.result(&format!(
+				None => self.log.result(format!(
 					"To grant access to the server, please log into {} and use code {}",
 					init_code_json.verification_uri, init_code_json.user_code
 				)),

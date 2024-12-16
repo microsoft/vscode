@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import assert from 'assert';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
 import * as fs from 'fs';
 // import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 // import { parse } from 'vs/editor/common/modes/tokenization/typescript';
-import { toStandardTokenType } from 'vs/editor/common/languages/supports/tokenization';
+import { toStandardTokenType } from '../../../common/languages/supports/tokenization.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 interface IParseFunc {
 	(text: string): number[];
@@ -135,6 +136,9 @@ function executeTest(fileName: string, parseFunc: IParseFunc): void {
 }
 
 suite('Classification', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('TypeScript', () => {
 		// executeTest(getPathFromAmdModule(require, 'vs/editor/test/node/classification/typescript-test.ts').replace(/\bout\b/, 'src'), parse);
 	});

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { INodeProcess } from 'vs/base/common/platform';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { resolveCommonProperties } from '../../../../platform/telemetry/common/commonProperties.js';
+import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey } from '../../../../platform/telemetry/common/telemetry.js';
+import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { INodeProcess } from '../../../../base/common/platform.js';
 
 export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
@@ -17,11 +17,12 @@ export function resolveWorkbenchCommonProperties(
 	version: string | undefined,
 	machineId: string,
 	sqmId: string,
+	devDeviceId: string,
 	isInternalTelemetry: boolean,
 	process: INodeProcess,
 	remoteAuthority?: string
 ): ICommonProperties {
-	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, sqmId, isInternalTelemetry);
+	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, sqmId, devDeviceId, isInternalTelemetry);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 

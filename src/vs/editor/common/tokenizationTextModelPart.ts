@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
+import { OffsetEdit } from './core/offsetEdit.js';
+import { OffsetRange } from './core/offsetRange.js';
+import { Range } from './core/range.js';
+import { StandardTokenType } from './encodedTokenAttributes.js';
+import { LineTokens } from './tokens/lineTokens.js';
+import { SparseMultilineTokens } from './tokens/sparseMultilineTokens.js';
 
 /**
  * Provides tokenization related functionality of the text model.
@@ -86,7 +87,7 @@ export interface ITokenizationTextModelPart {
 	/**
 	 * @internal
 	*/
-	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
+	tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult;
 
 	getLanguageId(): string;
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;
@@ -94,6 +95,32 @@ export interface ITokenizationTextModelPart {
 	setLanguageId(languageId: string, source?: string): void;
 
 	readonly backgroundTokenizationState: BackgroundTokenizationState;
+}
+
+export class LineEditWithAdditionalLines {
+	public static replace(range: OffsetRange, text: string): LineEditWithAdditionalLines {
+		return new LineEditWithAdditionalLines(
+			OffsetEdit.replace(range, text),
+			null,
+		);
+	}
+
+	constructor(
+		/**
+		 * The edit for the main line.
+		*/
+		readonly lineEdit: OffsetEdit,
+
+		/**
+		 * Full lines appended after the main line.
+		*/
+		readonly additionalLines: string[] | null,
+	) { }
+}
+
+export interface ITokenizeLineWithEditResult {
+	readonly mainLineTokens: LineTokens | null;
+	readonly additionalLines: LineTokens[] | null;
 }
 
 export const enum BackgroundTokenizationState {

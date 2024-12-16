@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, PositionAffinity } from 'vs/editor/common/model';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { ViewEvent } from 'vs/editor/common/viewEvents';
-import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { EndOfLineSequence, PositionAffinity } from '../../../common/model.js';
+import { ViewEventHandler } from '../../../common/viewEventHandler.js';
+import { ViewEvent } from '../../../common/viewEvents.js';
+import { testViewModel } from './testViewModel.js';
 
 suite('ViewModel', () => {
 

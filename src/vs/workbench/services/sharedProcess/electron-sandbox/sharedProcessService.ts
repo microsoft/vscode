@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
-import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { SharedProcessChannelConnection, SharedProcessRawConnection } from 'vs/platform/sharedProcess/common/sharedProcess';
-import { mark } from 'vs/base/common/performance';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { Client as MessagePortClient } from '../../../../base/parts/ipc/common/ipc.mp.js';
+import { IChannel, IServerChannel, getDelayedChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ISharedProcessService } from '../../../../platform/ipc/electron-sandbox/services.js';
+import { SharedProcessChannelConnection, SharedProcessRawConnection } from '../../../../platform/sharedProcess/common/sharedProcess.js';
+import { mark } from '../../../../base/common/performance.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
+import { acquirePort } from '../../../../base/parts/ipc/electron-sandbox/ipc.mp.js';
 
 export class SharedProcessService extends Disposable implements ISharedProcessService {
 

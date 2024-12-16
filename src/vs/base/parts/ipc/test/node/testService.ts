@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { timeout } from '../../../../common/async.js';
+import { Emitter, Event } from '../../../../common/event.js';
+import { IChannel, IServerChannel } from '../../common/ipc.js';
 
 export interface IMarcoPoloEvent {
 	answer: string;

@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions, IQuickAccessProvider, QuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickPick, IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { TestServiceAccessor, workbenchInstantiationService, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { DisposableStore, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { timeout } from 'vs/base/common/async';
-import { PickerQuickAccessProvider, FastAndSlowPicks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { URI } from 'vs/base/common/uri';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
-import { EditorsOrder } from 'vs/workbench/common/editor';
-import { Range } from 'vs/editor/common/core/range';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import assert from 'assert';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { IQuickAccessRegistry, Extensions, IQuickAccessProvider, QuickAccessRegistry } from '../../../platform/quickinput/common/quickAccess.js';
+import { IQuickPick, IQuickPickItem, IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { TestServiceAccessor, workbenchInstantiationService, createEditorPart } from './workbenchTestServices.js';
+import { DisposableStore, toDisposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { timeout } from '../../../base/common/async.js';
+import { PickerQuickAccessProvider, FastAndSlowPicks } from '../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { URI } from '../../../base/common/uri.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { EditorService } from '../../services/editor/browser/editorService.js';
+import { PickerEditorState } from '../../browser/quickaccess.js';
+import { EditorsOrder } from '../../common/editor.js';
+import { Range } from '../../../editor/common/core/range.js';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 suite('QuickAccess', () => {
 
@@ -47,7 +47,7 @@ suite('QuickAccess', () => {
 
 		constructor(@IQuickInputService private readonly quickInputService: IQuickInputService, disposables: DisposableStore) { }
 
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			providerDefaultCalled = true;
 			token.onCancellationRequested(() => providerDefaultCanceled = true);
@@ -60,7 +60,7 @@ suite('QuickAccess', () => {
 	}
 
 	class TestProvider1 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider1Called = true;
 			token.onCancellationRequested(() => provider1Canceled = true);
@@ -70,7 +70,7 @@ suite('QuickAccess', () => {
 	}
 
 	class TestProvider2 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider2Called = true;
 			token.onCancellationRequested(() => provider2Canceled = true);
@@ -80,7 +80,7 @@ suite('QuickAccess', () => {
 	}
 
 	class TestProvider3 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider3Called = true;
 			token.onCancellationRequested(() => provider3Canceled = true);

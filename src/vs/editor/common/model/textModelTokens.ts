@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IdleDeadline, runWhenGlobalIdle } from 'vs/base/common/async';
-import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { setTimeout0 } from 'vs/base/common/platform';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Position } from 'vs/editor/common/core/position';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport } from 'vs/editor/common/languages';
-import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
-import { ITextModel } from 'vs/editor/common/model';
-import { FixedArray } from 'vs/editor/common/model/fixedArray';
-import { IModelContentChange } from 'vs/editor/common/textModelEvents';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { IdleDeadline, runWhenGlobalIdle } from '../../../base/common/async.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../base/common/errors.js';
+import { setTimeout0 } from '../../../base/common/platform.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { countEOL } from '../core/eolCounter.js';
+import { LineRange } from '../core/lineRange.js';
+import { OffsetRange } from '../core/offsetRange.js';
+import { Position } from '../core/position.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport } from '../languages.js';
+import { nullTokenizeEncoded } from '../languages/nullTokenize.js';
+import { ITextModel } from '../model.js';
+import { FixedArray } from './fixedArray.js';
+import { IModelContentChange } from '../textModelEvents.js';
+import { ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
+import { ContiguousMultilineTokensBuilder } from '../tokens/contiguousMultilineTokensBuilder.js';
+import { LineTokens } from '../tokens/lineTokens.js';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
@@ -101,18 +102,14 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 	}
 
 	/** assumes state is up to date */
-	public tokenizeLineWithEdit(position: Position, length: number, newText: string): LineTokens | null {
-		const lineNumber = position.lineNumber;
-		const column = position.column;
-
+	public tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult {
 		const lineStartState = this.getStartState(lineNumber);
 		if (!lineStartState) {
-			return null;
+			return { mainLineTokens: null, additionalLines: null };
 		}
 
 		const curLineContent = this._textModel.getLineContent(lineNumber);
-		const newLineContent = curLineContent.substring(0, column - 1)
-			+ newText + curLineContent.substring(column - 1 + length);
+		const newLineContent = edit.lineEdit.apply(curLineContent);
 
 		const languageId = this._textModel.getLanguageIdAtPosition(lineNumber, 0);
 		const result = safeTokenize(
@@ -124,8 +121,19 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 			lineStartState
 		);
 
-		const lineTokens = new LineTokens(result.tokens, newLineContent, this._languageIdCodec);
-		return lineTokens;
+		let additionalLines: LineTokens[] | null = null;
+		if (edit.additionalLines) {
+			additionalLines = [];
+			let state = result.endState;
+			for (const line of edit.additionalLines) {
+				const r = safeTokenize(this._languageIdCodec, languageId, this.tokenizationSupport, line, true, state);
+				additionalLines.push(new LineTokens(r.tokens, line, this._languageIdCodec));
+				state = r.endState;
+			}
+		}
+
+		const mainLineTokens = new LineTokens(result.tokens, newLineContent, this._languageIdCodec);
+		return { mainLineTokens, additionalLines };
 	}
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {

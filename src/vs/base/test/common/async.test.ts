@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as async from 'vs/base/common/async';
-import * as MicrotaskDelay from "vs/base/common/symbols";
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import * as async from '../../common/async.js';
+import * as MicrotaskDelay from "../../common/symbols.js";
+import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
+import { isCancellationError } from '../../common/errors.js';
+import { Event } from '../../common/event.js';
+import { URI } from '../../common/uri.js';
+import { runWithFakedTimers } from './timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { DisposableStore } from '../../common/lifecycle.js';
 
 suite('Async', () => {
 
@@ -1519,6 +1519,44 @@ suite('Async', () => {
 			assert.strictEqual(worker.pending, 0);
 			assert.strictEqual(worked, false);
 		});
+
+		//  https://github.com/microsoft/vscode/issues/230366
+		// 	test('waitThrottleDelayBetweenWorkUnits option', async () => {
+		// 		const handled: number[] = [];
+		// 		let handledCallback: Function;
+		// 		let handledPromise = new Promise(resolve => handledCallback = resolve);
+		// 		let currentTime = 0;
+
+		// 		const handler = (units: readonly number[]) => {
+		// 			handled.push(...units);
+		// 			handledCallback();
+		// 			handledPromise = new Promise(resolve => handledCallback = resolve);
+		// 		};
+
+		// 		const worker = store.add(new async.ThrottledWorker<number>({
+		// 			maxWorkChunkSize: 5,
+		// 			maxBufferedWork: undefined,
+		// 			throttleDelay: 5,
+		// 			waitThrottleDelayBetweenWorkUnits: true
+		// 		}, handler));
+
+		// 		// Schedule work, it should execute immediately
+		// 		currentTime = Date.now();
+		// 		let worked = worker.work([1, 2, 3]);
+		// 		assert.strictEqual(worked, true);
+		// 		assertArrayEquals(handled, [1, 2, 3]);
+		// 		assert.strictEqual(Date.now() - currentTime < 5, true);
+
+		// 		// Schedule work again, it should wait at least throttle delay before executing
+		// 		currentTime = Date.now();
+		// 		worked = worker.work([4, 5]);
+		// 		assert.strictEqual(worked, true);
+		// 		// Throttle delay hasn't reset so we still must wait
+		// 		assertArrayEquals(handled, [1, 2, 3]);
+		// 		await handledPromise;
+		// 		assert.strictEqual(Date.now() - currentTime >= 5, true);
+		// 		assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+		// 	});
 	});
 
 	suite('LimitedQueue', () => {

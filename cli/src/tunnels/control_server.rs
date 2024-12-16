@@ -566,7 +566,7 @@ async fn process_socket(
 			{
 				debug!(log, "closing socket reader: {}", e);
 				socket_tx
-					.send(SocketSignal::CloseWith(CloseReason(format!("{}", e))))
+					.send(SocketSignal::CloseWith(CloseReason(format!("{e}"))))
 					.await
 					.ok();
 			}
@@ -760,17 +760,18 @@ async fn handle_serve(
 			macro_rules! do_setup {
 				($sb:expr) => {
 					match $sb.get_running().await? {
-						Some(AnyCodeServer::Socket(s)) => s,
+						Some(AnyCodeServer::Socket(s)) => ($sb, Ok(s)),
 						Some(_) => return Err(AnyError::from(MismatchedLaunchModeError())),
 						None => {
 							$sb.setup().await?;
-							$sb.listen_on_default_socket().await?
+							let r = $sb.listen_on_default_socket().await;
+							($sb, r)
 						}
 					}
 				};
 			}
 
-			let server = if params.use_local_download {
+			let (sb, server) = if params.use_local_download {
 				let sb = ServerBuilder::new(
 					&install_log,
 					&resolved,
@@ -782,6 +783,24 @@ async fn handle_serve(
 				let sb =
 					ServerBuilder::new(&install_log, &resolved, &c.launcher_paths, c.http.clone());
 				do_setup!(sb)
+			};
+
+			let server = match server {
+				Ok(s) => s,
+				Err(e) => {
+					// we don't loop to avoid doing so infinitely: allow the client to reconnect in this case.
+					if let AnyError::CodeError(CodeError::ServerUnexpectedExit(ref e)) = e {
+						warning!(
+							c.log,
+							"({}), removing server due to possible corruptions",
+							e
+						);
+						if let Err(e) = sb.evict().await {
+							warning!(c.log, "Failed to evict server: {}", e);
+						}
+					}
+					return Err(e);
+				}
 			};
 
 			server_ref.replace(server.clone());
@@ -901,9 +920,14 @@ async fn handle_update(
 
 	info!(log, "Updating CLI to {}", latest_release);
 
-	updater
+	let r = updater
 		.do_update(&latest_release, SilentCopyProgress())
-		.await?;
+		.await;
+
+	if let Err(e) = r {
+		did_update.store(false, Ordering::SeqCst);
+		return Err(e);
+	}
 
 	Ok(UpdateResult {
 		up_to_date: true,
@@ -1038,7 +1062,6 @@ fn handle_challenge_issue(
 
 	let mut auth_state = auth_state.lock().unwrap();
 	if let AuthState::WaitingForChallenge(Some(s)) = &*auth_state {
-		println!("looking for token {}, got {:?}", s, params.token);
 		match &params.token {
 			Some(t) if s != t => return Err(CodeError::AuthChallengeBadToken.into()),
 			None => return Err(CodeError::AuthChallengeBadToken.into()),
@@ -1168,7 +1191,7 @@ async fn handle_acquire_cli(
 
 	let release = match params.commit_id {
 		Some(commit) => Release {
-			name: format!("{} CLI", PRODUCT_NAME_LONG),
+			name: format!("{PRODUCT_NAME_LONG} CLI"),
 			commit,
 			platform: params.platform,
 			quality: params.quality,

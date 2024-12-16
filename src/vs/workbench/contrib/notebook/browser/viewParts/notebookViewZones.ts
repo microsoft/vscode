@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INotebookViewCellsUpdateEvent, INotebookViewZone, INotebookViewZoneChangeAccessor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
-import { ICoordinatesConverter } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { FastDomNode, createFastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { INotebookViewCellsUpdateEvent, INotebookViewZone, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
+import { NotebookCellListView } from '../view/notebookCellListView.js';
+import { ICoordinatesConverter } from '../view/notebookRenderingCommon.js';
+import { CellViewModel } from '../viewModel/notebookViewModelImpl.js';
 
 const invalidFunc = () => { throw new Error(`Invalid notebook view zone change accessor`); };
 
@@ -179,9 +179,9 @@ export class NotebookViewZones extends Disposable {
 	}
 }
 
-function safeInvoke1Arg(func: Function, arg1: any): any {
+function safeInvoke1Arg(func: Function, arg1: any): void {
 	try {
-		return func(arg1);
+		func(arg1);
 	} catch (e) {
 		onUnexpectedError(e);
 	}

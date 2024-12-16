@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkersFilters } from 'vs/workbench/contrib/markers/browser/markersViewActions';
-import { IView } from 'vs/workbench/common/views';
-import { MarkerElement, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
+import { MarkersFilters } from './markersViewActions.js';
+import { IView } from '../../../common/views.js';
+import { MarkerElement, ResourceMarkers } from './markersModel.js';
+import { MarkersViewMode } from '../common/markers.js';
 
 export interface IMarkersView extends IView {
 

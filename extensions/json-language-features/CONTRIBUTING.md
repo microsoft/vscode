@@ -1,12 +1,12 @@
 ## Setup
 
 - Clone [microsoft/vscode](https://github.com/microsoft/vscode)
-- Run `yarn` at `/`, this will install
+- Run `npm i` at `/`, this will install
 	- Dependencies for `/extension/json-language-features/`
 	- Dependencies for `/extension/json-language-features/server/`
 	- devDependencies such as `gulp`
 - Open `/extensions/json-language-features/` as the workspace in VS Code
-- In `/extensions/json-language-features/` run `yarn compile`(or `yarn watch`) to build the client and server
+- In `/extensions/json-language-features/` run `npm run compile`(or `npm run watch`) to build the client and server
 - Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/json-language-features/.vscode/launch.json) debug target in the Debug View. This will:
 	- Launch a new VS Code instance with the `json-language-features` extension loaded
 - Open a `.json` file to activate the extension. The extension will start the JSON language server process.
@@ -29,13 +29,13 @@ However, within this extension, you can run a development version of `vscode-jso
 #### Linking `vscode-json-languageservice` in `json-language-features/server/`
 
 - Clone [microsoft/vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice)
-- Run `npm install` in `vscode-json-languageservice`
+- Run `npm i` in `vscode-json-languageservice`
 - Run `npm link` in `vscode-json-languageservice`. This will compile and link `vscode-json-languageservice`
-- In `json-language-features/server/`, run `yarn link vscode-json-languageservice`
+- In `json-language-features/server/`, run `npm link vscode-json-languageservice`
 
 #### Testing the development version of `vscode-json-languageservice`
 
 - Open both `vscode-json-languageservice` and this extension in two windows or with a single window with the[multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature.
-- Run `yarn watch` at `json-languagefeatures/server/` to recompile this extension with the linked version of `vscode-json-languageservice`
+- Run `npm run watch` at `json-languagefeatures/server/` to recompile this extension with the linked version of `vscode-json-languageservice`
 - Make some changes in `vscode-json-languageservice`
 - Now when you run `Launch Extension` debug target, the launched instance will use your development version of `vscode-json-languageservice`. You can interactively test the language features.

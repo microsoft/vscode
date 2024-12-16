@@ -183,7 +183,7 @@
 	border: none;
 }
 
-.review-widget .body .review-comment .review-comment-contents .comment-reactions:hover .action-item a.action-label.toolbar-toggle-pickReactions {
+.review-widget .body .review-comment .review-comment-contents:hover .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: inline-block;
 	background-size: 16px;
 }
@@ -213,7 +213,7 @@
 	background-color: var(--vscode-statusBarItem-activeBackground);
 	border: 1px solid transparent;
 }
-.review-widget .body .review-comment .review-comment-contents a {
+.review-widget .body .review-comment .review-comment-contents .comment-body a {
 	cursor: pointer;
 }
 
@@ -242,11 +242,6 @@
 
 .review-widget .body .comment-body li > ul {
 	margin-top: 0;
-}
-
-.review-widget .body .comment-body code {
-	border-radius: 3px;
-	padding: 0 0.4em;
 }
 
 .review-widget .body .comment-body span {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from './position.js';
 
 /**
  * A range in the editor. This interface is suitable for serialization.

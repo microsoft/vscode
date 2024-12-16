@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkProperties, IMarker, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatcher, ITerminalOutputMatch } from 'vs/platform/terminal/common/terminal';
-
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
+import { IMarkProperties, IMarker, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker } from '../capabilities.js';
+import { ITerminalOutputMatcher, ITerminalOutputMatch } from '../../terminal.js';
 import type { IBuffer, IBufferLine, Terminal } from '@xterm/headless';
 
 export interface ITerminalCommandProperties {
@@ -213,7 +210,6 @@ export class TerminalCommand implements ITerminalCommand {
 
 export interface ICurrentPartialCommand {
 	promptStartMarker?: IMarker;
-	promptHeight?: number;
 
 	commandStartMarker?: IMarker;
 	commandStartX?: number;
@@ -245,23 +241,12 @@ export interface ICurrentPartialCommand {
 	 */
 	isInvalid?: boolean;
 
-	/**
-	 * Whether the command start marker has been adjusted on Windows.
-	 */
-	isAdjusted?: boolean;
-
-	/**
-	 * Whether the command start marker adjustment has been attempt on new terminal input.
-	 */
-	isInputAdjusted?: boolean;
-
 	getPromptRowCount(): number;
 	getCommandRowCount(): number;
 }
 
 export class PartialTerminalCommand implements ICurrentPartialCommand {
 	promptStartMarker?: IMarker;
-	promptHeight?: number;
 
 	commandStartMarker?: IMarker;
 	commandStartX?: number;

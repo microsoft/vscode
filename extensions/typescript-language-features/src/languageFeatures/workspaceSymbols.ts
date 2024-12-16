@@ -89,12 +89,12 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 	}
 
 	private toSymbolInformation(item: Proto.NavtoItem): vscode.SymbolInformation | undefined {
-		if (!item.containerName || item.kind === 'alias') {
+		if (item.kind === 'alias' && !item.containerName) {
 			return;
 		}
 
 		const uri = this.client.toResource(item.file);
-		if (uri.scheme === fileSchemes.chatCodeBlock) {
+		if (fileSchemes.isOfScheme(uri, fileSchemes.chatCodeBlock)) {
 			return;
 		}
 

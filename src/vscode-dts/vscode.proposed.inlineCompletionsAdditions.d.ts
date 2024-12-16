@@ -60,6 +60,14 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
+
+		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
+	}
+
+	export interface InlineCompletionContext {
+		readonly userPrompt?: string;
+
+		readonly requestUuid?: string;
 	}
 
 	export interface PartialAcceptInfo {

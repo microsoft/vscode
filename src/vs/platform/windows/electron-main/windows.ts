@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindowConstructorOptions, Display, Rectangle, WebContents, WebPreferences, screen } from 'electron';
-import { Event } from 'vs/base/common/event';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from 'vs/platform/window/electron-main/window';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { join } from 'vs/base/common/path';
-import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { Color } from 'vs/base/common/color';
-import { ILogService } from 'vs/platform/log/common/log';
+import electron from 'electron';
+import { Color } from '../../../base/common/color.js';
+import { Event } from '../../../base/common/event.js';
+import { join } from '../../../base/common/path.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ServicesAccessor, createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -53,7 +53,7 @@ export interface IWindowsMainService {
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
-	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
+	getWindowByWebContents(webContents: electron.WebContents): ICodeWindow | undefined;
 }
 
 export interface IWindowsCountChangedEvent {
@@ -79,7 +79,10 @@ export const enum OpenContext {
 	DESKTOP,
 
 	// opening through the API
-	API
+	API,
+
+	// opening from a protocol link
+	LINK
 }
 
 export interface IBaseOpenConfiguration {
@@ -115,7 +118,12 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 
-export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, webPreferences?: WebPreferences): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
+export interface IDefaultBrowserWindowOptionsOverrides {
+	forceNativeTitlebar?: boolean;
+	disableFullscreen?: boolean;
+}
+
+export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -123,7 +131,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
-	const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
+	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
@@ -161,7 +169,9 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		}
 	}
 
-	if (isMacintosh && !useNativeFullScreen(configurationService)) {
+	if (overrides?.disableFullscreen) {
+		options.fullscreen = false;
+	} else if (isMacintosh && !useNativeFullScreen(configurationService)) {
 		options.fullscreenable = false; // enables simple fullscreen mode
 	}
 
@@ -170,7 +180,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
 	}
 
-	const hideNativeTitleBar = !hasNativeTitlebar(configurationService);
+	const hideNativeTitleBar = !hasNativeTitlebar(configurationService, overrides?.forceNativeTitlebar ? TitlebarStyle.NATIVE : undefined);
 	if (hideNativeTitleBar) {
 		options.titleBarStyle = 'hidden';
 		if (!isMacintosh) {
@@ -215,7 +225,7 @@ export function getLastFocused(windows: ICodeWindow[] | IAuxiliaryWindow[]): ICo
 
 export namespace WindowStateValidator {
 
-	export function validateWindowState(logService: ILogService, state: IWindowState, displays = screen.getAllDisplays()): IWindowState | undefined {
+	export function validateWindowState(logService: ILogService, state: IWindowState, displays = electron.screen.getAllDisplays()): IWindowState | undefined {
 		logService.trace(`window#validateWindowState: validating window state on ${displays.length} display(s)`, state);
 
 		if (
@@ -313,10 +323,10 @@ export namespace WindowStateValidator {
 		}
 
 		// Multi Monitor (non-fullscreen): ensure window is within display bounds
-		let display: Display | undefined;
-		let displayWorkingArea: Rectangle | undefined;
+		let display: electron.Display | undefined;
+		let displayWorkingArea: electron.Rectangle | undefined;
 		try {
-			display = screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
+			display = electron.screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
 			displayWorkingArea = getWorkingArea(display);
 
 			logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
@@ -343,7 +353,7 @@ export namespace WindowStateValidator {
 		return undefined;
 	}
 
-	function getWorkingArea(display: Display): Rectangle | undefined {
+	function getWorkingArea(display: electron.Display): electron.Rectangle | undefined {
 
 		// Prefer the working area of the display to account for taskbars on the
 		// desktop being positioned somewhere (https://github.com/microsoft/vscode/issues/50830).

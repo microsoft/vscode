@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/base/common/range';
-import { ListView } from 'vs/base/browser/ui/list/listView';
-import { IItem, IRangeMap } from 'vs/base/browser/ui/list/rangeMap';
-import { ConstantTimePrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
+import { IRange } from '../../../../../base/common/range.js';
+import { ListView } from '../../../../../base/browser/ui/list/listView.js';
+import { IItem, IRangeMap } from '../../../../../base/browser/ui/list/rangeMap.js';
+import { ConstantTimePrefixSumComputer } from '../../../../../editor/common/model/prefixSumComputer.js';
 
 export interface IWhitespace {
 	id: string;
@@ -189,7 +189,7 @@ export class NotebookCellsLayout implements IRangeMap {
 		const index = afterPosition - 1;
 		const previousItemPosition = this._prefixSumComputer.getPrefixSum(index);
 		const previousItemSize = this._items[index].size;
-		const previousWhitespace = this._whitespace.filter(ws => ws.afterPosition === afterPosition - 1);
+		const previousWhitespace = this._whitespace.filter(ws => (ws.afterPosition <= afterPosition - 1 && ws.afterPosition > 0));
 		const whitespaceBefore = previousWhitespace.reduce((acc, ws) => acc + ws.size, 0);
 		return previousItemPosition + previousItemSize + whitespaceBeforeFirstItem + this.paddingTop + whitespaceBefore;
 	}
@@ -210,7 +210,7 @@ export class NotebookCellsLayout implements IRangeMap {
 			return this.count;
 		}
 
-		return this._prefixSumComputer.getIndexOf(offset).index;
+		return this._prefixSumComputer.getIndexOf(Math.trunc(offset)).index;
 	}
 
 	indexAfter(position: number): number {
@@ -290,8 +290,19 @@ export class NotebookCellListView<T> extends ListView<T> {
 	}
 
 	changeOneWhitespace(id: string, newAfterPosition: number, newSize: number) {
-		this.notebookRangeMap.changeOneWhitespace(id, newAfterPosition, newSize);
-		this.eventuallyUpdateScrollDimensions();
+		const scrollTop = this.scrollTop;
+		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const currentPosition = this.notebookRangeMap.getWhitespacePosition(id);
+
+		if (currentPosition > scrollTop) {
+			this.notebookRangeMap.changeOneWhitespace(id, newAfterPosition, newSize);
+			this.render(previousRenderRange, scrollTop, this.lastRenderHeight, undefined, undefined, false);
+			this._rerender(scrollTop, this.renderHeight, false);
+			this.eventuallyUpdateScrollDimensions();
+		} else {
+			this.notebookRangeMap.changeOneWhitespace(id, newAfterPosition, newSize);
+			this.eventuallyUpdateScrollDimensions();
+		}
 	}
 
 	removeWhitespace(id: string): void {

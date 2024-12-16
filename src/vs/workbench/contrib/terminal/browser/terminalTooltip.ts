@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { asArray } from 'vs/base/common/arrays';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
+import { localize } from '../../../../nls.js';
+import { ITerminalInstance } from './terminal.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { asArray } from '../../../../base/common/arrays.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
 
 export function getInstanceHoverInfo(instance: ITerminalInstance): { content: MarkdownString; actions: IHoverAction[] } {
 	let statusString = '';

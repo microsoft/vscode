@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
+import { workbenchInstantiationService, TestServiceAccessor } from '../../../../test/browser/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { TextFileEditorModelManager } from '../../common/textFileEditorModelManager.js';
+import { createTextBufferFactoryFromStream } from '../../../../../editor/common/model/textModel.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 
 suite('Files - TextFileEditorModel (integration)', () => {
 

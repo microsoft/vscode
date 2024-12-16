@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IdleDeadline, DeferredPromise, runWhenGlobalIdle } from 'vs/base/common/async';
-import { mark } from 'vs/base/common/performance';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getOrSet } from 'vs/base/common/map';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
+import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from '../../platform/instantiation/common/instantiation.js';
+import { ILifecycleService, LifecyclePhase } from '../services/lifecycle/common/lifecycle.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IdleDeadline, DeferredPromise, runWhenGlobalIdle } from '../../base/common/async.js';
+import { mark } from '../../base/common/performance.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IEnvironmentService } from '../../platform/environment/common/environment.js';
+import { getOrSet } from '../../base/common/map.js';
+import { Disposable, DisposableStore, isDisposable } from '../../base/common/lifecycle.js';
+import { IEditorPaneService } from '../services/editor/common/editorPaneService.js';
 
 /**
  * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.
@@ -156,6 +156,7 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 	private readonly contributionsById = new Map<string, IWorkbenchContributionRegistration>();
 
 	private readonly instancesById = new Map<string, IWorkbenchContribution>();
+	private readonly instanceDisposables = this._register(new DisposableStore());
 
 	private readonly timingsByPhase = new Map<LifecyclePhase, Array<[string /* ID */, number /* Creation Time */]>>();
 	get timings() { return this.timingsByPhase; }
@@ -248,6 +249,11 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 		const logService = this.logService = accessor.get(ILogService);
 		const environmentService = this.environmentService = accessor.get(IEnvironmentService);
 		const editorPaneService = this.editorPaneService = accessor.get(IEditorPaneService);
+
+		// Dispose contributions on shutdown
+		this._register(lifecycleService.onDidShutdown(() => {
+			this.instanceDisposables.clear();
+		}));
 
 		// Instantiate contributions by phase when they are ready
 		for (const phase of [LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually]) {
@@ -376,6 +382,9 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 			if (typeof contribution.id === 'string') {
 				this.instancesById.set(contribution.id, instance);
 				this.contributionsById.delete(contribution.id);
+			}
+			if (isDisposable(instance)) {
+				this.instanceDisposables.add(instance);
 			}
 		} catch (error) {
 			logService.error(`Unable to create workbench contribution '${contribution.id ?? contribution.ctor.name}'.`, error);

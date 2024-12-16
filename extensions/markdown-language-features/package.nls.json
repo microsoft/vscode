@@ -91,6 +91,6 @@
 	"configuration.markdown.preferredMdPathExtensionStyle.removeExtension": "Prefer removing the file extension. For example, path completions to a file named `file.md` will insert `file` without the `.md`.",
 	"configuration.markdown.editor.filePaste.videoSnippet": "Snippet used when adding videos to Markdown. This snippet can use the following variables:\n- `${src}` — The resolved path of the video file.\n- `${title}` — The title used for the video. A snippet placeholder will automatically be created for this variable.",
 	"configuration.markdown.editor.filePaste.audioSnippet": "Snippet used when adding audio to Markdown. This snippet can use the following variables:\n- `${src}` — The resolved path of the audio  file.\n- `${title}` — The title used for the audio. A snippet placeholder will automatically be created for this variable.",
-	"configuration.markdown.experimental.updateLinksOnPaste": "Enable/disable automatic updating of links in text that is copied and pasted from one Markdown editor to another.",
+	"configuration.markdown.editor.updateLinksOnPaste.enabled": "Enable/disable a paste option that updates links and reference in text that is copied and pasted between Markdown editors.\n\nTo use this feature, after pasting text that contains updatable links, just click on the Paste Widget and select `Paste and update pasted links`.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

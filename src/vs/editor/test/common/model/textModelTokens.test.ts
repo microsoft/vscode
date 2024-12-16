@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { RangePriorityQueueImpl } from 'vs/editor/common/model/textModelTokens';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { RangePriorityQueueImpl } from '../../../common/model/textModelTokens.js';
 
 suite('RangePriorityQueueImpl', () => {
 

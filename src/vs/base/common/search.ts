@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from './strings';
+import * as strings from './strings.js';
 
 export function buildReplaceStringWithCasePreserved(matches: string[] | null, pattern: string): string {
 	if (matches && (matches[0] !== '')) {

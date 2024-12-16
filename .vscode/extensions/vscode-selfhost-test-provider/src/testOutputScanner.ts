@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
+	decodedMappings,
 	GREATEST_LOWER_BOUND,
 	LEAST_UPPER_BOUND,
 	originalPositionFor,
@@ -12,11 +13,13 @@ import {
 import * as styles from 'ansi-styles';
 import { ChildProcessWithoutNullStreams } from 'child_process';
 import * as vscode from 'vscode';
-import { coverageContext } from './coverageProvider';
+import { istanbulCoverageContext, PerTestCoverageTracker } from './coverageProvider';
 import { attachTestMessageMetadata } from './metadata';
 import { snapshotComment } from './snapshot';
-import { getContentFromFilesystem } from './testTree';
+import { StackTraceLocation, StackTraceParser } from './stackTraceParser';
 import { StreamSplitter } from './streamSplitter';
+import { getContentFromFilesystem } from './testTree';
+import { IScriptCoverage } from './v8CoverageWrangling';
 
 export const enum MochaEvent {
 	Start = 'start',
@@ -24,6 +27,10 @@ export const enum MochaEvent {
 	Pass = 'pass',
 	Fail = 'fail',
 	End = 'end',
+
+	// custom events:
+	CoverageInit = 'coverageInit',
+	CoverageIncrement = 'coverageIncrement',
 }
 
 export interface IStartEvent {
@@ -62,12 +69,20 @@ export interface IEndEvent {
 	end: string /* ISO date */;
 }
 
+export interface ITestCoverageCoverage {
+	file: string;
+	fullTitle: string;
+	coverage: { result: IScriptCoverage[] };
+}
+
 export type MochaEventTuple =
 	| [MochaEvent.Start, IStartEvent]
 	| [MochaEvent.TestStart, ITestStartEvent]
 	| [MochaEvent.Pass, IPassEvent]
 	| [MochaEvent.Fail, IFailEvent]
-	| [MochaEvent.End, IEndEvent];
+	| [MochaEvent.End, IEndEvent]
+	| [MochaEvent.CoverageInit, { result: IScriptCoverage[] }]
+	| [MochaEvent.CoverageIncrement, ITestCoverageCoverage];
 
 const LF = '\n'.charCodeAt(0);
 
@@ -111,11 +126,13 @@ export class TestOutputScanner implements vscode.Disposable {
 		}
 	}
 
-	protected readonly processData = (data: string) => {
+	protected readonly processData = (data: string | Buffer) => {
 		if (this.args) {
 			this.outputEventEmitter.fire(`./scripts/test ${this.args.join(' ')}`);
 			this.args = undefined;
 		}
+
+		data = data.toString();
 
 		try {
 			const parsed = JSON.parse(data.trim()) as unknown;
@@ -158,6 +175,7 @@ export async function scanTestOutput(
 		return prom;
 	};
 
+	let perTestCoverage: PerTestCoverageTracker | undefined;
 	let lastTest: vscode.TestItem | undefined;
 	let ranAnyTest = false;
 
@@ -187,7 +205,7 @@ export async function scanTestOutput(
 					return;
 				}
 
-				const logLocation = store.getSourceLocation(match[2], Number(match[3]));
+				const logLocation = store.getSourceLocation(match[2], Number(match[3]) - 1);
 				const logContents = replaceAllLocations(store, match[1]);
 				const test = currentTest;
 
@@ -222,7 +240,6 @@ export async function scanTestOutput(
 							if (tcase) {
 								lastTest = tcase;
 								task.passed(tcase, evt[1].duration);
-								tests.delete(title);
 							}
 						}
 						break;
@@ -256,8 +273,6 @@ export async function scanTestOutput(
 								return;
 							}
 
-							tests.delete(id);
-
 							const hasDiff =
 								actual !== undefined &&
 								expected !== undefined &&
@@ -274,7 +289,7 @@ export async function scanTestOutput(
 
 							enqueueExitBlocker(
 								(async () => {
-									const location = await tryDeriveStackLocation(store, rawErr, tcase!);
+									const stackInfo = await deriveStackLocations(store, rawErr, tcase!);
 									let message: vscode.TestMessage;
 
 									if (hasDiff) {
@@ -296,7 +311,8 @@ export async function scanTestOutput(
 										);
 									}
 
-									message.location = location ?? testFirstLine;
+									message.location = stackInfo.primary ?? testFirstLine;
+									message.stackTrace = stackInfo.stack;
 									task.failed(tcase!, message, duration);
 								})()
 							);
@@ -305,15 +321,36 @@ export async function scanTestOutput(
 					case MochaEvent.End:
 						// no-op, we wait until the process exits to ensure coverage is written out
 						break;
+					case MochaEvent.CoverageInit:
+						perTestCoverage ??= new PerTestCoverageTracker(store);
+						for (const result of evt[1].result) {
+							perTestCoverage.add(result);
+						}
+						break;
+					case MochaEvent.CoverageIncrement: {
+						const { fullTitle, coverage } = evt[1];
+						const tcase = tests.get(fullTitle);
+						if (tcase) {
+							perTestCoverage ??= new PerTestCoverageTracker(store);
+							for (const result of coverage.result) {
+								perTestCoverage.add(result, tcase);
+							}
+						}
+						break;
+					}
 				}
 			});
 		});
+
+		if (perTestCoverage) {
+			enqueueExitBlocker(perTestCoverage.report(task));
+		}
 
 		await Promise.all([...exitBlockers]);
 
 		if (coverageDir) {
 			try {
-				await coverageContext.apply(task, coverageDir, {
+				await istanbulCoverageContext.apply(task, coverageDir, {
 					mapFileUri: uri => store.getSourceFile(uri.toString()),
 					mapLocation: (uri, position) =>
 						store.getSourceLocation(uri.toString(), position.line, position.character),
@@ -389,17 +426,85 @@ const tryMakeMarkdown = (message: string) => {
 const inlineSourcemapRe = /^\/\/# sourceMappingURL=data:application\/json;base64,(.+)/m;
 const sourceMapBiases = [GREATEST_LOWER_BOUND, LEAST_UPPER_BOUND] as const;
 
+export const enum SearchStrategy {
+	FirstBefore = -1,
+	FirstAfter = 1,
+}
+
+export type SourceLocationMapper = (line: number, col: number, strategy: SearchStrategy) => vscode.Location | undefined;
+
 export class SourceMapStore {
 	private readonly cache = new Map</* file uri */ string, Promise<TraceMap | undefined>>();
 
-	async getSourceLocation(fileUri: string, line: number, col = 1) {
+	async getSourceLocationMapper(fileUri: string): Promise<SourceLocationMapper> {
+		const sourceMap = await this.loadSourceMap(fileUri);
+		return (line, col, strategy) => {
+			if (!sourceMap) {
+				return undefined;
+			}
+
+			// 1. Look for the ideal position on this line if it exists
+			const idealPosition = originalPositionFor(sourceMap, { column: col, line: line + 1, bias: SearchStrategy.FirstAfter ? GREATEST_LOWER_BOUND : LEAST_UPPER_BOUND });
+			if (idealPosition.line !== null && idealPosition.column !== null && idealPosition.source !== null) {
+				return new vscode.Location(
+					this.completeSourceMapUrl(sourceMap, idealPosition.source),
+					new vscode.Position(idealPosition.line - 1, idealPosition.column)
+				);
+			}
+
+			// Otherwise get the first/last valid mapping on another line.
+			const decoded = decodedMappings(sourceMap);
+			const enum MapField {
+				COLUMN = 0,
+				SOURCES_INDEX = 1,
+				SOURCE_LINE = 2,
+				SOURCE_COLUMN = 3,
+			}
+
+			do {
+				line += strategy;
+				const segments = decoded[line];
+				if (!segments?.length) {
+					continue;
+				}
+
+				const index = strategy === SearchStrategy.FirstBefore
+					? findLastIndex(segments, s => s.length !== 1)
+					: segments.findIndex(s => s.length !== 1);
+				const segment = segments[index];
+
+				if (!segment || segment.length === 1) {
+					continue;
+				}
+
+				return new vscode.Location(
+					this.completeSourceMapUrl(sourceMap, sourceMap.sources[segment[MapField.SOURCES_INDEX]]!),
+					new vscode.Position(segment[MapField.SOURCE_LINE] - 1, segment[MapField.SOURCE_COLUMN])
+				);
+			} while (strategy === SearchStrategy.FirstBefore ? line > 0 : line < decoded.length);
+
+			return undefined;
+		};
+	}
+
+	/** Gets an original location from a base 0 line and column */
+	async getSourceLocation(fileUri: string, line: number, col = 0) {
 		const sourceMap = await this.loadSourceMap(fileUri);
 		if (!sourceMap) {
 			return undefined;
 		}
 
+		let smLine = line + 1;
+
+		// if the range is after the end of mappings, adjust it to the last mapped line
+		const decoded = decodedMappings(sourceMap);
+		if (decoded.length <= line) {
+			smLine = decoded.length; // base 1, no -1 needed
+			col = Number.MAX_SAFE_INTEGER;
+		}
+
 		for (const bias of sourceMapBiases) {
-			const position = originalPositionFor(sourceMap, { column: col, line: line + 1, bias });
+			const position = originalPositionFor(sourceMap, { column: col, line: smLine, bias });
 			if (position.line !== null && position.column !== null && position.source !== null) {
 				return new vscode.Location(
 					this.completeSourceMapUrl(sourceMap, position.source),
@@ -505,47 +610,51 @@ async function replaceAllLocations(store: SourceMapStore, str: string) {
 	return values.join('');
 }
 
-async function tryDeriveStackLocation(
+async function deriveStackLocations(
 	store: SourceMapStore,
 	stack: string,
 	tcase: vscode.TestItem
 ) {
 	locationRe.lastIndex = 0;
 
-	return new Promise<vscode.Location | undefined>(resolve => {
-		const matches = [...stack.matchAll(locationRe)];
-		let todo = matches.length;
-		if (todo === 0) {
-			return resolve(undefined);
-		}
+	const locationsRaw = [...new StackTraceParser(stack)].filter(t => t instanceof StackTraceLocation);
+	const locationsMapped = await Promise.all(locationsRaw.map(async location => {
+		const mapped = location.path.startsWith('file:') ? await store.getSourceLocation(location.path, location.lineBase1 - 1, location.columnBase1 - 1) : undefined;
+		const stack = new vscode.TestMessageStackFrame(location.label || '<anonymous>', mapped?.uri, mapped?.range.start || new vscode.Position(location.lineBase1 - 1, location.columnBase1 - 1));
+		return { location: mapped, stack };
+	}));
 
-		let best: undefined | { location: vscode.Location; i: number; score: number };
-		for (const [i, match] of matches.entries()) {
-			deriveSourceLocation(store, match)
-				.catch(() => undefined)
-				.then(location => {
-					if (location) {
-						let score = 0;
-						if (tcase.uri && tcase.uri.toString() === location.uri.toString()) {
-							score = 1;
-							if (tcase.range && tcase.range.contains(location?.range)) {
-								score = 2;
-							}
-						}
-						if (!best || score > best.score || (score === best.score && i < best.i)) {
-							best = { location, i, score };
-						}
-					}
-
-					if (!--todo) {
-						resolve(best?.location);
-					}
-				});
+	let best: undefined | { location: vscode.Location; score: number };
+	for (const { location } of locationsMapped) {
+		if (!location) {
+			continue;
 		}
-	});
+		let score = 0;
+		if (tcase.uri && tcase.uri.toString() === location.uri.toString()) {
+			score = 1;
+			if (tcase.range && tcase.range.contains(location?.range)) {
+				score = 2;
+			}
+		}
+		if (!best || score > best.score) {
+			best = { location, score };
+		}
+	}
+
+	return { stack: locationsMapped.map(s => s.stack), primary: best?.location };
 }
 
 async function deriveSourceLocation(store: SourceMapStore, parts: RegExpMatchArray) {
 	const [, fileUri, line, col] = parts;
-	return store.getSourceLocation(fileUri, Number(line), Number(col));
+	return store.getSourceLocation(fileUri, Number(line) - 1, Number(col));
+}
+
+function findLastIndex<T>(arr: T[], predicate: (value: T) => boolean) {
+	for (let i = arr.length - 1; i >= 0; i--) {
+		if (predicate(arr[i])) {
+			return i;
+		}
+	}
+
+	return -1;
 }

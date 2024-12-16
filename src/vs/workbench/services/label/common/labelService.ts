@@ -3,30 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
-import { posix, sep, win32 } from 'vs/base/common/path';
-import { Emitter } from 'vs/base/common/event';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
-import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
-import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity } from 'vs/platform/label/common/label';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { match } from 'vs/base/common/glob';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Schemas } from 'vs/base/common/network';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { firstOrDefault } from 'vs/base/common/arrays';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IDisposable, Disposable, dispose } from '../../../../base/common/lifecycle.js';
+import { posix, sep, win32 } from '../../../../base/common/path.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { basenameOrAuthority, basename, joinPath, dirname } from '../../../../base/common/resources.js';
+import { tildify, getPathLabel } from '../../../../base/common/labels.js';
+import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity } from '../../../../platform/label/common/label.js';
+import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
+import { match } from '../../../../base/common/glob.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { isProposedApiEnabled } from '../../extensions/common/extensions.js';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Memento } from '../../../common/memento.js';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -252,7 +251,7 @@ export class LabelService extends Disposable implements ILabelService {
 				// scheme that is workspace contained.
 
 				const workspace = this.contextService.getWorkspace();
-				const firstFolder = firstOrDefault(workspace.folders);
+				const firstFolder = workspace.folders.at(0);
 				if (firstFolder && resource.scheme !== firstFolder.uri.scheme && resource.path.startsWith(posix.sep)) {
 					folder = this.contextService.getWorkspaceFolder(firstFolder.uri.with({ path: resource.path }));
 				}
