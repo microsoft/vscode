@@ -15,7 +15,6 @@ import { IConfigurationService, IConfigurationChangeEvent } from '../../../../pl
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../common/theme.js';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from '../../../../base/common/platform.js';
 import { Color } from '../../../../base/common/color.js';
@@ -29,8 +28,6 @@ import { createActionViewItem, fillInActionBarActions as fillInActionBarActions 
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 import { WindowTitle } from './windowTitle.js';
 import { CommandCenterControl } from './commandCenterControl.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -434,21 +431,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
-		// App Icon (Windows, Linux) / Home Indicator (Web)
-		const homeIndicator = this.environmentService.options?.homeIndicator;
-		const supportsAppIcon = isWindows || isLinux || (isWeb && homeIndicator && !this.isAuxiliary);
-		if (supportsAppIcon && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
+		// App Icon (Windows, Linux)
+		if ((isWindows || isLinux) && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
-
-			// Web: home indicator
-			if (isWeb && homeIndicator) {
-				const icon: ThemeIcon = getIconRegistry().getIcon(homeIndicator.icon) ? { id: homeIndicator.icon } : Codicon.code;
-				this.appIcon.setAttribute('href', homeIndicator.href);
-				this.appIcon.classList.add(...ThemeIcon.asClassNameArray(icon));
-				this.appIconBadge = document.createElement('div');
-				this.appIconBadge.classList.add('home-bar-icon-badge');
-				this.appIcon.appendChild(this.appIconBadge);
-			}
 		}
 
 		// Draggable region that we can manipulate for #52522
