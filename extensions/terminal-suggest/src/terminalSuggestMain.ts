@@ -95,6 +95,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				// const cwd = resolveCwdFromPrefix(prefix, terminal.shellIntegration?.cwd) ?? terminal.shellIntegration?.cwd;
 				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: osIsWindows() ? '\\' : '/' });
 			}
+			console.log(result.items.map(r => r.label + ' ' + r.replacementIndex).join('\n'));
 			return result.items;
 		}
 	}, '/', '\\'));
@@ -159,10 +160,13 @@ function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] 
 }
 
 function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
+	const cursorPrefix = commandLine.substring(0, cursorPosition);
+	const endsWithSpace = cursorPrefix.endsWith(' ');
+	const lastWord = endsWithSpace ? '' : cursorPrefix.split(' ').at(-1) ?? '';
 	return {
 		label,
 		detail: description ?? '',
-		replacementIndex: commandLine.length - prefix.length >= 0 ? commandLine.length - prefix.length : commandLine[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
+		replacementIndex: cursorPosition - lastWord.length > 0 ? cursorPosition - lastWord.length : cursorPosition,
 		replacementLength: prefix.length,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
 	};
