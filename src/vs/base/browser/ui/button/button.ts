@@ -28,7 +28,7 @@ import { IActionProvider } from '../dropdown/dropdown.js';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
-	readonly ariaLabel?: boolean | string;
+	readonly ariaLabel?: string;
 	readonly supportIcons?: boolean;
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
