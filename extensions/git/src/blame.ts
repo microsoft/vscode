@@ -144,6 +144,8 @@ class GitBlameInformationCache {
 }
 
 export class GitBlameController {
+	private readonly _subjectMaxLength = 50;
+
 	private readonly _onDidChangeBlameInformation = new EventEmitter<TextEditor>();
 	public readonly onDidChangeBlameInformation = this._onDidChangeBlameInformation.event;
 
@@ -169,10 +171,14 @@ export class GitBlameController {
 	}
 
 	formatBlameInformationMessage(template: string, blameInformation: BlameInformation): string {
+		const subject = blameInformation.subject && blameInformation.subject.length > this._subjectMaxLength
+			? `${blameInformation.subject.substring(0, this._subjectMaxLength)}\u2026`
+			: blameInformation.subject;
+
 		const templateTokens = {
 			hash: blameInformation.hash,
 			hashShort: blameInformation.hash.substring(0, 8),
-			subject: emojify(blameInformation.subject ?? ''),
+			subject: emojify(subject ?? ''),
 			authorName: blameInformation.authorName ?? '',
 			authorEmail: blameInformation.authorEmail ?? '',
 			authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
