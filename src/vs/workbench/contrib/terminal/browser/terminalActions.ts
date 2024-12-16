@@ -1724,7 +1724,9 @@ async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: Ser
 			value: instance.title,
 			prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		});
-		instance.rename(title);
+		if (title) {
+			instance.rename(title);
+		}
 	}
 }
 
