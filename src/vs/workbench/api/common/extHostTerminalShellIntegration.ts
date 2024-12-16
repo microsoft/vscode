@@ -55,30 +55,30 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		}));
 
 		// Convenient test code:
-		// this.onDidChangeTerminalShellIntegration(e => {
-		// 	console.log('*** onDidChangeTerminalShellIntegration', e);
-		// });
-		// this.onDidStartTerminalShellExecution(async e => {
-		// 	console.log('*** onDidStartTerminalShellExecution', e);
-		// 	// new Promise<void>(r => {
-		// 	// 	(async () => {
-		// 	// 		for await (const d of e.execution.read()) {
-		// 	// 			console.log('data2', d);
-		// 	// 		}
-		// 	// 	})();
-		// 	// });
-		// 	for await (const d of e.execution.read()) {
-		// 		console.log('data', d);
-		// 	}
-		// });
-		// this.onDidEndTerminalShellExecution(e => {
-		// 	console.log('*** onDidEndTerminalShellExecution', e);
-		// });
-		// setTimeout(() => {
-		// 	console.log('before executeCommand(\"echo hello\")');
-		// 	Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
-		// 	console.log('after executeCommand(\"echo hello\")');
-		// }, 4000);
+		this.onDidChangeTerminalShellIntegration(e => {
+			console.log('*** onDidChangeTerminalShellIntegration env', e.shellIntegration.env);
+		});
+		this.onDidStartTerminalShellExecution(async e => {
+			console.log('*** onDidStartTerminalShellExecution', e);
+			// new Promise<void>(r => {
+			// 	(async () => {
+			// 		for await (const d of e.execution.read()) {
+			// 			console.log('data2', d);
+			// 		}
+			// 	})();
+			// });
+			for await (const d of e.execution.read()) {
+				console.log('data', d);
+			}
+		});
+		this.onDidEndTerminalShellExecution(e => {
+			console.log('*** onDidEndTerminalShellExecution', e);
+		});
+		setTimeout(() => {
+			console.log('before executeCommand(\"echo hello\")');
+			Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
+			console.log('after executeCommand(\"echo hello\")');
+		}, 4000);
 	}
 
 	public $shellIntegrationChange(instanceId: number): void {
@@ -131,6 +131,10 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.emitData(data);
 	}
 
+	public $shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[]): void {
+		this._activeShellIntegrations.get(instanceId)?.setEnv(shellEnvKeys, shellEnvValues);
+	}
+
 	public $cwdChange(instanceId: number, cwd: UriComponents | undefined): void {
 		this._activeShellIntegrations.get(instanceId)?.setCwd(URI.revive(cwd));
 	}
@@ -147,6 +151,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
+	private _env: { [key: string]: string | undefined } | undefined;
 	private _cwd: URI | undefined;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
@@ -170,6 +175,9 @@ class InternalTerminalShellIntegration extends Disposable {
 		this.value = {
 			get cwd(): URI | undefined {
 				return that._cwd;
+			},
+			get env(): { [key: string]: string | undefined } | undefined {
+				return that._env;
 			},
 			// executeCommand(commandLine: string): vscode.TerminalShellExecution;
 			// executeCommand(executable: string, args: string[]): vscode.TerminalShellExecution;
@@ -232,6 +240,16 @@ class InternalTerminalShellIntegration extends Disposable {
 		}
 	}
 
+	setEnv(keys: string[], values: string[]): void {
+		const env: { [key: string]: string | undefined } = {};
+		for (let i = 0; i < keys.length; i++) {
+			env[keys[i]] = values[i];
+		}
+		this._env = env;
+		// TODO: Make sure env changed. If env doesnt change, dont fire event.
+		this._fireChangeEvent();
+	}
+
 	setCwd(cwd: URI | undefined): void {
 		let wasChanged = false;
 		if (URI.isUri(this._cwd)) {
@@ -241,10 +259,15 @@ class InternalTerminalShellIntegration extends Disposable {
 		}
 		if (wasChanged) {
 			this._cwd = cwd;
-			this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
+			this._fireChangeEvent();
 		}
 	}
+	private _fireChangeEvent() {
+		this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
+	}
 }
+
+
 
 class InternalTerminalShellExecution {
 	private _dataStream: ShellExecutionDataStream | undefined;

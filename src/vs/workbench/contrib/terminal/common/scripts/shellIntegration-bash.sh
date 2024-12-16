@@ -41,6 +41,8 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 	builtin unset VSCODE_INJECTION
 fi
 
+echo "hi"
+
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
@@ -126,7 +128,7 @@ __vsc_escape_value() {
 		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
 		byte="${str:$i:1}"
 		builtin printf -v val '%d' "'$byte"
-		if  (( val < 31 )); then
+		if (( val < 31 )); then
 			builtin printf -v token '\\x%02x' "'$byte"
 		elif (( val == 92 )); then # \
 			token="\\\\"
@@ -214,6 +216,17 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
+__vsc_update_env() {
+	# TODO: EnvStart with nonce
+	for var in $(compgen -v); do
+		if printenv "$var" >/dev/null 2>&1; then
+			value=$(builtin printf '%s' "${!var}")
+			builtin printf '\e]633;EnvSingleVar;%s;%s\a' "$var" "$(__vsc_escape_value "$value")"
+		fi
+	done
+	# TODO: EnvEnd with nonce
+}
+
 __vsc_command_output_start() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
 		builtin return
@@ -240,6 +253,7 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
+	__vsc_update_env
 }
 __vsc_update_prompt() {
 	# in command execution
@@ -269,6 +283,8 @@ __vsc_precmd() {
 	fi
 	__vsc_first_prompt=1
 	__vsc_update_prompt
+
+	__vsc_update_env
 }
 
 __vsc_preexec() {

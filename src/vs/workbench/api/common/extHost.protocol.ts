@@ -2438,7 +2438,8 @@ export interface ExtHostTerminalShellIntegrationShape {
 	$shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void;
 	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
-	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
+	$shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[]): void;
+	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void; // Question: MainThread vs. extHost
 	$closeTerminal(instanceId: number): void;
 }
 

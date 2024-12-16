@@ -111,6 +111,29 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "${PWD}")"
 }
 
+
+__vsc_update_env() {
+	builtin local env_json="{"
+	builtin local first=1
+	for var in ${(k)parameters}; do
+		# Check if the variable is in the environment using 'printenv'
+		if printenv "$var" >/dev/null 2>&1; then # only exported env vars are included
+			# Add comma if not the first item
+			if [ $first -eq 1 ]; then
+				first=0
+			else
+				env_json+=","
+			fi
+			# Retrieve the value without executing it, and escape it for JSON
+			env_json+="\"$var\":\""
+			env_json+="${(P)var//\"/\\\"}"
+			env_json+="\""
+		fi
+	done
+	env_json+="}"
+	builtin printf '\e]633;Env;%s;%s\a' "$(__vsc_escape_value "${env_json}")" $__vsc_nonce
+}
+
 __vsc_command_output_start() {
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 	builtin printf '\e]633;C\a'
@@ -139,8 +162,8 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
+	__vsc_update_env
 }
-
 if [[ -o NOUNSET ]]; then
 	if [ -z "${RPROMPT-}" ]; then
 		RPROMPT=""
@@ -173,6 +196,8 @@ __vsc_precmd() {
 		# non null
 		__vsc_update_prompt
 	fi
+
+	__vsc_update_env
 }
 
 __vsc_preexec() {
