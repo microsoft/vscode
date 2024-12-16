@@ -274,7 +274,7 @@ fn extract_ldd_version(output: &[u8]) -> Option<SimpleSemver> {
 		major: m.get(1).map_or(0, |s| u32_from_bytes(s.as_bytes())),
 		minor: m.get(2).map_or(0, |s| u32_from_bytes(s.as_bytes())),
 		patch: 0,
-    })
+	})
 }
 
 #[allow(dead_code)]
