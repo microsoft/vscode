@@ -11,12 +11,13 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { AuxiliaryBarVisibleContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
-import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
+import { closeIcon } from '../panel/panelActions.js';
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the auxiliary bar on in its right position.'));
@@ -34,10 +35,11 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 			title: ToggleAuxiliaryBarAction.LABEL,
 			toggled: {
 				condition: AuxiliaryBarVisibleContext,
-				title: localize('secondary sidebar', "Secondary Side Bar"),
+				title: localize('closeSecondarySideBar', 'Hide Secondary Side Bar'),
+				icon: closeIcon,
 				mnemonicTitle: localize({ key: 'secondary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "Secondary Si&&de Bar"),
 			},
-
+			icon: closeIcon, // Ensures no flickering when using toggled.icon
 			category: Categories.View,
 			f1: true,
 			keybinding: {
@@ -54,6 +56,11 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
 					order: 2
+				}, {
+					id: MenuId.AuxiliaryBarTitle,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT)
 				}
 			]
 		});

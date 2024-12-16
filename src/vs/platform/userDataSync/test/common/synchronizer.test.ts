@@ -1380,48 +1380,6 @@ suite('TestSynchronizer - Last Sync Data', () => {
 		});
 	});
 
-	test('last sync data is migrated', async () => {
-		await runWithFakedTimers<void>({}, async () => {
-			const storageService = client.instantiationService.get(IStorageService);
-			const fileService = client.instantiationService.get(IFileService);
-			const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
-			const machineId = await testObject.getMachineId();
-			await fileService.writeFile(testObject.getLastSyncResource(), VSBuffer.fromString(JSON.stringify({
-				ref: '1',
-				version: 1,
-				content: JSON.stringify({
-					content: '0',
-					machineId,
-					version: 1
-				}),
-				additionalData: {
-					foo: 'bar'
-				}
-			})));
-
-			const actual = await testObject.getLastSyncUserData();
-
-			assert.deepStrictEqual(storageService.get('settings.lastSyncUserData', StorageScope.APPLICATION), JSON.stringify({
-				ref: '1',
-				version: 1,
-				additionalData: {
-					foo: 'bar'
-				}
-			}));
-			assert.deepStrictEqual(actual, {
-				ref: '1',
-				version: 1,
-				syncData: {
-					content: '0',
-					machineId,
-					version: 1
-				},
-				additionalData: {
-					foo: 'bar'
-				}
-			});
-		});
-	});
 });
 
 function assertConflicts(actual: IBaseResourcePreview[], expected: URI[]) {

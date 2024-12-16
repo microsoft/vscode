@@ -980,7 +980,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const clearButton = new Button(widget, {
 			supportIcons: true,
 			hoverDelegate,
-			title: localize('chat.attachment.clearButton', "Remove from context"),
+			title: localize('chat.attachment.clearButton', "Remove from context")
 		});
 
 		// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
@@ -1166,6 +1166,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			suggestedFilesInWorkingSetCount = entries.filter(e => e.kind === 'reference' && e.state === WorkingSetEntryState.Suggested).length;
 		}
+		overviewTitle.ariaLabel = overviewTitle.textContent;
+		overviewTitle.tabIndex = 0;
 
 		if (excludedEntries.length > 0) {
 			overviewFileCount.textContent = ' ' + localize('chatEditingSession.excludedFiles', '({0}/{1} files)', this.chatEditingService.editingSessionFileLimit + excludedEntries.length, this.chatEditingService.editingSessionFileLimit);
@@ -1282,7 +1284,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		dom.append(addFilesElement, button.element);
 
-		// REALTED files (after Add Files...)
+		// RELATED files (after Add Files...)
 		for (const [uri, metadata] of chatEditingSession.workingSet) {
 			if (metadata.state !== WorkingSetEntryState.Suggested) {
 				continue;

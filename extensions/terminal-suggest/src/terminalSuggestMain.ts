@@ -158,14 +158,34 @@ function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] 
 	return spec.name;
 }
 
-function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
+function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
+	const endsWithSpace = prefix.endsWith(' ');
+	const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
 	return {
 		label,
 		detail: description ?? '',
-		replacementIndex: commandLine.length - prefix.length >= 0 ? commandLine.length - prefix.length : commandLine[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
-		replacementLength: prefix.length,
+		replacementIndex: cursorPosition - lastWord.length,
+		replacementLength: lastWord.length > 0 ? lastWord.length : cursorPosition,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
 	};
+}
+
+async function isExecutable(filePath: string): Promise<boolean> {
+	// Windows doesn't have the concept of an executable bit and running any
+	// file is possible. We considered using $PATHEXT here but since it's mostly
+	// there for legacy reasons and it would be easier and more intuitive to add
+	// a setting if needed instead.
+	if (osIsWindows()) {
+		return true;
+	}
+	try {
+		const stats = await fs.stat(filePath);
+		// On macOS/Linux, check if the executable bit is set
+		return (stats.mode & 0o100) !== 0;
+	} catch (error) {
+		// If the file does not exist or cannot be accessed, it's not executable
+		return false;
+	}
 }
 
 async function getCommandsInPath(): Promise<Set<string> | undefined> {
@@ -176,7 +196,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 	if (!paths) {
 		return;
 	}
-
+	const pathSeparator = osIsWindows() ? '\\' : '/';
 	const executables = new Set<string>();
 	for (const path of paths) {
 		try {
@@ -187,7 +207,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 
 			for (const [file, fileType] of files) {
-				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory) {
+				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file)) {
 					executables.add(file);
 				}
 			}
@@ -231,7 +251,6 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
-	let specificSuggestionsProvided = false;
 	const firstCommand = getFirstCommand(terminalContext.commandLine);
 	for (const spec of specs) {
 		const specLabels = getLabel(spec);
@@ -250,7 +269,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 				|| !!firstCommand && specLabel.startsWith(firstCommand)
 			) {
 				// push it to the completion items
-				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, specLabel));
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, specLabel));
 			}
 			if (!terminalContext.commandLine.startsWith(specLabel)) {
 				// the spec label is not the first word in the command line, so do not provide options or args
@@ -265,7 +284,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 					}
 					for (const optionLabel of optionLabels) {
 						if (!items.find(i => i.label === optionLabel) && optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
-							items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, optionLabel, option.description, vscode.TerminalCompletionItemKind.Flag));
+							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, vscode.TerminalCompletionItemKind.Flag));
 						}
 						const expectedText = `${specLabel} ${optionLabel} `;
 						if (!precedingText.includes(expectedText)) {
@@ -277,7 +296,6 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 						if (!argsCompletions) {
 							continue;
 						}
-						specificSuggestionsProvided = true;
 						const argCompletions = argsCompletions.items;
 						foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 						filesRequested = filesRequested || argsCompletions.filesRequested;
@@ -285,7 +303,6 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 						if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
 							cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
 						}
-						specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
 						return { items: argCompletions, filesRequested, foldersRequested, cwd };
 					}
 				}
@@ -302,18 +319,18 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 					continue;
 				}
 				items.push(...argsCompletions.items);
-				specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
 				filesRequested = filesRequested || argsCompletions.filesRequested;
 				foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 			}
 		}
 	}
-
-	if (!specificSuggestionsProvided && (filesRequested === foldersRequested)) {
+	const shouldShowCommands = !terminalContext.commandLine.substring(0, terminalContext.cursorPosition).trimStart().includes(' ');
+	if (shouldShowCommands && (filesRequested === foldersRequested)) {
 		// Include builitin/available commands in the results
+		const labels = new Set(items.map(i => i.label));
 		for (const command of availableCommands) {
-			if ((!terminalContext.commandLine.trim() || firstCommand && command.startsWith(firstCommand)) && !items.find(item => item.label === command)) {
-				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, command));
+			if (!labels.has(command)) {
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
 			}
 		}
 	}
@@ -341,7 +358,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 	return { items, filesRequested, foldersRequested, cwd };
 }
 
-function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } | undefined {
+function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
 	if (!args) {
 		return;
 	}
@@ -375,20 +392,20 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 						continue;
 					}
 					if (!arg.isVariadic && twoWordsBefore === suggestionLabel && wordBefore?.trim() === '') {
-						return { items: [], filesRequested, foldersRequested, specificSuggestionsProvided: false };
+						return { items: [], filesRequested, foldersRequested };
 					}
 					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const description = typeof suggestion !== 'string' ? suggestion.description : '';
-						items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, wordBefore ?? '', suggestionLabel, description, vscode.TerminalCompletionItemKind.Argument));
+						items.push(createCompletionItem(terminalContext.cursorPosition, wordBefore ?? '', suggestionLabel, description, vscode.TerminalCompletionItemKind.Argument));
 					}
 				}
 			}
 			if (items.length) {
-				return { items, filesRequested, foldersRequested, specificSuggestionsProvided: true };
+				return { items, filesRequested, foldersRequested };
 			}
 		}
 	}
-	return { items, filesRequested, foldersRequested, specificSuggestionsProvided: false };
+	return { items, filesRequested, foldersRequested };
 }
 
 function osIsWindows(): boolean {

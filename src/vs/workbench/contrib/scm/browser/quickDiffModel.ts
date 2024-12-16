@@ -22,7 +22,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ISplice } from '../../../../base/common/sequence.js';
 import { DiffState } from '../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { toLineChanges } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { LineRangeMapping, lineRangeMappingFromChange } from '../../../../editor/common/diff/rangeMapping.js';
+import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { IDiffEditorModel } from '../../../../editor/common/editorCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -33,7 +33,13 @@ export const IQuickDiffModelService = createDecorator<IQuickDiffModelService>('I
 
 export interface QuickDiffModelOptions {
 	readonly algorithm: DiffAlgorithmName;
+	readonly maxComputationTimeMs?: number;
 }
+
+const decoratorQuickDiffModelOptions: QuickDiffModelOptions = {
+	algorithm: 'legacy',
+	maxComputationTimeMs: 1000
+};
 
 export interface IQuickDiffModelService {
 	_serviceBrand: undefined;
@@ -52,7 +58,7 @@ class QuickDiffModelReferenceCollection extends ReferenceCollection<QuickDiffMod
 		super();
 	}
 
-	protected override createReferencedObject(_key: string, textFileModel: IResolvedTextFileEditorModel, options?: QuickDiffModelOptions): QuickDiffModel {
+	protected override createReferencedObject(_key: string, textFileModel: IResolvedTextFileEditorModel, options: QuickDiffModelOptions): QuickDiffModel {
 		return this._instantiationService.createInstance(QuickDiffModel, textFileModel, options);
 	}
 
@@ -74,16 +80,13 @@ export class QuickDiffModelService implements IQuickDiffModelService {
 		this._references = this.instantiationService.createInstance(QuickDiffModelReferenceCollection);
 	}
 
-	createQuickDiffModelReference(resource: URI, options?: QuickDiffModelOptions): IReference<QuickDiffModel> | undefined {
+	createQuickDiffModelReference(resource: URI, options: QuickDiffModelOptions = decoratorQuickDiffModelOptions): IReference<QuickDiffModel> | undefined {
 		const textFileModel = this.textFileService.files.get(resource);
 		if (!textFileModel?.isResolved()) {
 			return undefined;
 		}
 
-		resource = options === undefined
-			? this.uriIdentityService.asCanonicalUri(resource)
-			: this.uriIdentityService.asCanonicalUri(resource).with({ query: JSON.stringify(options) });
-
+		resource = this.uriIdentityService.asCanonicalUri(resource).with({ query: JSON.stringify(options) });
 		return this._references.acquire(resource.toString(), textFileModel, options);
 	}
 }
@@ -119,7 +122,7 @@ export class QuickDiffModel extends Disposable {
 
 	constructor(
 		textFileModel: IResolvedTextFileEditorModel,
-		private readonly options: QuickDiffModelOptions | undefined,
+		private readonly options: QuickDiffModelOptions,
 		@ISCMService private readonly scmService: ISCMService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
@@ -273,15 +276,10 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
-		if (this.options?.algorithm === undefined) {
-			const changes = await this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
-			return { changes, changes2: changes?.map(change => lineRangeMappingFromChange(change)) ?? null };
-		}
+		const maxComputationTimeMs = this.options.maxComputationTimeMs ?? Number.MAX_SAFE_INTEGER;
 
 		const result = await this.editorWorkerService.computeDiff(original, modified, {
-			computeMoves: false,
-			ignoreTrimWhitespace,
-			maxComputationTimeMs: Number.MAX_SAFE_INTEGER
+			computeMoves: false, ignoreTrimWhitespace, maxComputationTimeMs
 		}, this.options.algorithm);
 
 		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };
@@ -363,7 +361,7 @@ export class QuickDiffModel extends Disposable {
 		// When the QuickDiffModel is created for a diff editor, there is no
 		// need to compute the diff information for the `isSCM` quick diff
 		// provider as that information will be provided by the diff editor
-		return this.options?.algorithm !== undefined
+		return this.options.maxComputationTimeMs === undefined
 			? quickDiffs.filter(quickDiff => !quickDiff.isSCM)
 			: quickDiffs;
 	}

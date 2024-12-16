@@ -1249,7 +1249,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	focus(): void {
-		this.focusPart(Parts.EDITOR_PART, getWindow(this.activeContainer));
+		if (this.isPanelMaximized() && this.mainContainer === this.activeContainer) {
+			this.focusPart(Parts.PANEL_PART);
+		} else {
+			this.focusPart(Parts.EDITOR_PART, getWindow(this.activeContainer));
+		}
 	}
 
 	private focusPanelOrEditor(): void {

@@ -69,6 +69,72 @@ suite('TerminalCompletionService', () => {
 	});
 
 	suite('resolveResources should return folder completions', () => {
+		test('', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				pathSeparator
+			};
+			validResources = [URI.parse('file:///test')];
+			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
+			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
+			childResources = [childFolder, childFile];
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 1);
+			assert(!!result);
+			assert(result.length === 1);
+			assert.deepEqual(result![0], {
+				label: `.${pathSeparator}folder1${pathSeparator}`,
+				kind: TerminalCompletionItemKind.Folder,
+				isDirectory: true,
+				isFile: false,
+				replacementIndex: 1,
+				replacementLength: 1
+			});
+		});
+		test('.', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				pathSeparator
+			};
+			validResources = [URI.parse('file:///test')];
+			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
+			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
+			childResources = [childFolder, childFile];
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.', 2);
+			assert(!!result);
+			assert(result.length === 1);
+			assert.deepEqual(result![0], {
+				label: `.${pathSeparator}folder1${pathSeparator}`,
+				kind: TerminalCompletionItemKind.Folder,
+				isDirectory: true,
+				isFile: false,
+				replacementIndex: 1,
+				replacementLength: 1
+			});
+		});
+		test('./', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				pathSeparator
+			};
+			validResources = [URI.parse('file:///test')];
+			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
+			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
+			childResources = [childFolder, childFile];
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3);
+			assert(!!result);
+			assert(result.length === 1);
+			assert.deepEqual(result![0], {
+				label: `.${pathSeparator}folder1${pathSeparator}`,
+				kind: TerminalCompletionItemKind.Folder,
+				isDirectory: true,
+				isFile: false,
+				replacementIndex: 1,
+				replacementLength: 2
+			});
+		});
 		test('cd ', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
@@ -88,7 +154,7 @@ suite('TerminalCompletionService', () => {
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 3,
-				replacementLength: 10
+				replacementLength: 3
 			});
 		});
 		test('cd .', async () => {
