@@ -69,7 +69,7 @@
       "commandPalette": [
         {
           "command": "github.publish",
-          "when": "git-base.gitEnabled && remoteName != 'codespaces'"
+          "when": "git-base.gitEnabled && workspaceFolderCount != 0 && remoteName != 'codespaces'"
         },
         {
           "command": "github.copyVscodeDevLink",

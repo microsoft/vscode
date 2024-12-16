@@ -536,14 +536,18 @@ suite('Ternary Search Tree', () => {
 			}
 			const tst = TernarySearchTree.forUris<boolean>();
 
-			for (const item of keys) {
-				tst.set(item, true);
-				assert.ok(tst._isBalanced(), `SET${item}|${keys.map(String).join()}`);
-			}
+			try {
+				for (const item of keys) {
+					tst.set(item, true);
+					assert.ok(tst._isBalanced(), `SET${item}|${keys.map(String).join()}`);
+				}
 
-			for (const item of keys) {
-				tst.delete(item);
-				assert.ok(tst._isBalanced(), `DEL${item}|${keys.map(String).join()}`);
+				for (const item of keys) {
+					tst.delete(item);
+					assert.ok(tst._isBalanced(), `DEL${item}|${keys.map(String).join()}`);
+				}
+			} catch (err) {
+				assert.ok(false, `FAILED with keys: ${keys.map(String).join()}`);
 			}
 		}
 	});

@@ -254,25 +254,21 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		let badge: IBadge | undefined = undefined;
-		let priority: number | undefined = undefined;
 
 		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
 		} else if (state.type === StateType.CheckingForUpdates) {
 			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for {0} updates...", this.productService.nameShort));
-			priority = 1;
 		} else if (state.type === StateType.Downloading) {
 			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
-			priority = 1;
 		} else if (state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
-			priority = 1;
 		}
 
 		this.badgeDisposable.clear();
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge, priority });
+			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge });
 		}
 
 		this.state = state;

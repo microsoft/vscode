@@ -22,7 +22,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ISplice } from '../../../../base/common/sequence.js';
 import { DiffState } from '../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { toLineChanges } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { LineRangeMapping, lineRangeMappingFromChange } from '../../../../editor/common/diff/rangeMapping.js';
+import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { IDiffEditorModel } from '../../../../editor/common/editorCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -273,16 +273,14 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
-		if (this.options?.algorithm === undefined) {
-			const changes = await this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
-			return { changes, changes2: changes?.map(change => lineRangeMappingFromChange(change)) ?? null };
-		}
+		// When no algorithm is specified, we use the legacy diff algorithm along with a 1000ms
+		// timeout as the diff information is being used for the quick diff editor decorations
+		const algorithm = this.options?.algorithm ?? 'legacy';
+		const maxComputationTimeMs = this.options?.algorithm ? Number.MAX_SAFE_INTEGER : 1000;
 
 		const result = await this.editorWorkerService.computeDiff(original, modified, {
-			computeMoves: false,
-			ignoreTrimWhitespace,
-			maxComputationTimeMs: Number.MAX_SAFE_INTEGER
-		}, this.options.algorithm);
+			computeMoves: false, ignoreTrimWhitespace, maxComputationTimeMs
+		}, algorithm);
 
 		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };
 	}
