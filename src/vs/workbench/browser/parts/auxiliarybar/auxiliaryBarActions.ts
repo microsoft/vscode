@@ -39,7 +39,7 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 				icon: closeIcon,
 				mnemonicTitle: localize({ key: 'secondary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "Secondary Si&&de Bar"),
 			},
-
+			icon: closeIcon, // Ensures no flickering when using toggled.icon
 			category: Categories.View,
 			f1: true,
 			keybinding: {

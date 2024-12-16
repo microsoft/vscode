@@ -43,6 +43,7 @@ export class TogglePanelAction extends Action2 {
 				icon: closeIcon,
 				mnemonicTitle: localize({ key: 'toggle panel mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Panel"),
 			},
+			icon: closeIcon, // Ensures no flickering when using toggled.icon
 			f1: true,
 			category: Categories.View,
 			keybinding: { primary: KeyMod.CtrlCmd | KeyCode.KeyJ, weight: KeybindingWeight.WorkbenchContrib },
