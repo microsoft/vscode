@@ -2618,17 +2618,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			extension.displayName, dependents[0].displayName, dependents[1].displayName);
 	}
 
-	reinstall(extension: IExtension): Promise<IExtension> {
-		return this.doInstall(extension, () => {
-			const ext = extension.local ? extension : this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
-			const toReinstall: ILocalExtension | null = ext && ext.local ? ext.local : null;
-			if (!toReinstall) {
-				throw new Error('Missing local');
-			}
-			return this.extensionManagementService.reinstallFromGallery(toReinstall);
-		});
-	}
-
 	isExtensionIgnoredToSync(extension: IExtension): boolean {
 		return extension.local ? !this.isInstalledExtensionSynced(extension.local)
 			: this.extensionsSyncManagementService.hasToNeverSyncExtension(extension.identifier.id);

@@ -111,7 +111,6 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
 	abstract copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	abstract download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
-	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	abstract cleanUp(): Promise<void>;
 	abstract updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;
 }

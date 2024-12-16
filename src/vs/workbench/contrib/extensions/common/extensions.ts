@@ -143,7 +143,6 @@ export interface IExtensionsWorkbenchService {
 	installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void>;
 	downloadVSIX(extension: string, prerelease: boolean): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
-	reinstall(extension: IExtension): Promise<IExtension>;
 	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
