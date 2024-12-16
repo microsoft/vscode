@@ -114,7 +114,12 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._overflowView.element,
-			position: constObservable(null),
+			position: constObservable({
+				preference: {
+					top: 0,
+					left: 0
+				}
+			}),
 			allowEditorOverflow: true,
 			minContentWidthInPx: constObservable(0),
 		}));
@@ -418,7 +423,14 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		}
 		const stickyScrollHeight = this._stickyScrollHeight.read(reader);
 		const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
-		return top > stickyScrollHeight;
+		if (top <= stickyScrollHeight) {
+			return false;
+		}
+		const bottom = this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
+		if (bottom >= this._editorObs.layoutInfo.read(reader).height) {
+			return false;
+		}
+		return true;
 	});
 
 
@@ -567,10 +579,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _overflowView = n.div({
 		class: 'inline-edits-view',
 		style: {
-			position: 'absolute',
 			overflow: 'visible',
-			top: '0px',
-			left: '0px',
 			zIndex: '100',
 			display: this._display,
 		},
