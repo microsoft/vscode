@@ -318,6 +318,7 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 		if (!proxy) {
 			return false;
 		}
+		enableHost();
 		return proxy.activate(extension, reason);
 	}
 

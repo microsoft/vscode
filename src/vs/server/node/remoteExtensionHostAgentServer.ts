@@ -412,6 +412,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				this._handleConnectionType(remoteAddress, logPrefix, protocol, socket, isReconnection, reconnectionToken, msg2);
 			}
 		});
+		enableHost();
 	}
 
 	private async _handleConnectionType(remoteAddress: string, _logPrefix: string, protocol: PersistentProtocol, socket: NodeSocket | WebSocketNodeSocket, isReconnection: boolean, reconnectionToken: string, msg: ConnectionTypeRequest): Promise<void> {
