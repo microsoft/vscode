@@ -261,11 +261,7 @@ export class Button extends Disposable implements IButton {
 
 		this.setTitle(title);
 
-		if (typeof this.options.ariaLabel === 'string') {
-			this._element.setAttribute('aria-label', this.options.ariaLabel);
-		} else if (this.options.ariaLabel) {
-			this._element.setAttribute('aria-label', title);
-		}
+		this._setAriaLabel();
 
 		this._label = value;
 	}
@@ -286,7 +282,16 @@ export class Button extends Disposable implements IButton {
 		}
 	}
 
+	private _setAriaLabel(): void {
+		if (typeof this.options.ariaLabel === 'string') {
+			this._element.setAttribute('aria-label', this.options.ariaLabel);
+		} else if (typeof this.options.title === 'string') {
+			this._element.setAttribute('aria-label', this.options.title);
+		}
+	}
+
 	set icon(icon: ThemeIcon) {
+		this._setAriaLabel();
 		this._element.classList.add(...ThemeIcon.asClassNameArray(icon));
 	}
 
