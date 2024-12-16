@@ -9,6 +9,7 @@ import { Code, findElement } from './code';
 import { Editors } from './editors';
 import { Editor } from './editor';
 import { IElement } from './driver';
+import { Quality } from './application';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET}`;
@@ -31,7 +32,8 @@ const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_EVALUATION_RESULT = `.repl .evaluation-result.expression .value`;
 const CONSOLE_LINK = `.repl .value a.link`;
 
-const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
+const REPL_FOCUSED_NATIVE_EDIT_CONTEXT = '.repl-input-wrapper .monaco-editor .native-edit-context';
+const REPL_FOCUSED_TEXTAREA = '.repl-input-wrapper .monaco-editor textarea';
 
 export interface IStackFrame {
 	name: string;
@@ -127,8 +129,9 @@ export class Debug extends Viewlet {
 
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.commands.runCommand('Debug: Focus on Debug Console View');
-		await this.code.waitForActiveElement(REPL_FOCUSED);
-		await this.code.waitForSetValue(REPL_FOCUSED, text);
+		const selector = this.code.quality === Quality.Stable ? REPL_FOCUSED_TEXTAREA : REPL_FOCUSED_NATIVE_EDIT_CONTEXT;
+		await this.code.waitForActiveElement(selector);
+		await this.code.waitForSetValue(selector, text);
 
 		// Wait for the keys to be picked up by the editor model such that repl evaluates what just got typed
 		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
