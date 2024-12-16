@@ -95,7 +95,7 @@ export class TerminalChatWidget extends Disposable {
 		private readonly _terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IViewsService private readonly _viewsService: IViewsService,
@@ -103,8 +103,11 @@ export class TerminalChatWidget extends Disposable {
 	) {
 		super();
 
-		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(_contextKeyService);
-		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(_contextKeyService);
+		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(contextKeyService);
+		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(contextKeyService);
+		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(contextKeyService);
+		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(contextKeyService);
+		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
@@ -179,10 +182,6 @@ export class TerminalChatWidget extends Disposable {
 		}));
 
 		this.hide();
-
-		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
-		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
-		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(this._contextKeyService);
 	}
 
 	private _dimension?: Dimension;

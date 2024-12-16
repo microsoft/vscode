@@ -100,7 +100,7 @@ MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '0_workbench_toggles',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
 				title: localize('toggleSecondarySideBar', "Toggle Secondary Side Bar"),
@@ -113,7 +113,7 @@ MenuRegistry.appendMenuItems([
 	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '0_workbench_toggles',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
 				title: localize('toggleSecondarySideBar', "Toggle Secondary Side Bar"),

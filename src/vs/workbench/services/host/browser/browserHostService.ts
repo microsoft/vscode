@@ -640,6 +640,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	//#endregion
 
+	//#region Native Handle
+
+	async getNativeWindowHandle(_windowId: number) {
+		return undefined;
+	}
+
+	//#endregion
 }
 
 registerSingleton(IHostService, BrowserHostService, InstantiationType.Delayed);

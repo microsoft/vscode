@@ -379,7 +379,7 @@ MenuRegistry.appendMenuItems([
 	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '0_workbench_toggles',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
@@ -392,7 +392,7 @@ MenuRegistry.appendMenuItems([
 	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '0_workbench_toggles',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
@@ -1434,7 +1434,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				{
 					id: MenuId.LayoutControlMenu,
 					when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
-					group: 'z_end'
+					group: '1_layout'
 				}
 			]
 		});

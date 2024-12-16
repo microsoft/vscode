@@ -85,17 +85,13 @@ export class RenderingContext extends RestrictedRenderingContext {
 			return domRanges ?? null;
 		}
 		const gpuRanges = this._viewLinesGpu.linesVisibleRangesForRange(range, includeNewLines);
-		if (!domRanges && !gpuRanges) {
-			return null;
+		if (!domRanges) {
+			return gpuRanges;
 		}
-		const ranges = [];
-		if (domRanges) {
-			ranges.push(...domRanges);
+		if (!gpuRanges) {
+			return domRanges;
 		}
-		if (gpuRanges) {
-			ranges.push(...gpuRanges);
-		}
-		return ranges;
+		return domRanges.concat(gpuRanges).sort((a, b) => a.lineNumber - b.lineNumber);
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {

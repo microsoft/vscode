@@ -559,7 +559,9 @@
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-repository-picker,
-.monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-history-item-picker {
+.monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-history-item-picker,
+.monaco-workbench .part.panel > .title > .title-actions .action-label.scm-graph-repository-picker,
+.monaco-workbench .part.panel > .title > .title-actions .action-label.scm-graph-history-item-picker {
 	display: flex;
 }
 

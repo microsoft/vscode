@@ -207,10 +207,6 @@
 	border-color: var(--vscode-commandCenter-inactiveBorder) !important;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .codicon-copilot {
-	font-size: 14px;
-}
-
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:HOVER {
 	color: var(--vscode-commandCenter-activeForeground);
 	background-color: var(--vscode-commandCenter-activeBackground);
@@ -392,7 +388,7 @@
 /* Action Tool Bar Controls */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	display: none;
-	padding-right: 2px;
+	padding-right: 4px;
 	flex-grow: 0;
 	flex-shrink: 0;
 	text-align: center;

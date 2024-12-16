@@ -70,7 +70,6 @@ suite('WindowsFinder', () => {
 			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
 			setDocumentEdited(edited: boolean): void { throw new Error('Method not implemented.'); }
 			isDocumentEdited(): boolean { throw new Error('Method not implemented.'); }
-			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
 			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
 			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
 			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined }): void { throw new Error('Method not implemented.'); }

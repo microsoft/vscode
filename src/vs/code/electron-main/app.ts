@@ -622,7 +622,14 @@ export class CodeApplication extends Disposable {
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-			this._register(runWhenGlobalIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
+			this._register(runWhenGlobalIdle(() => {
+
+				// Signal phase: eventually
+				this.lifecycleMainService.phase = LifecycleMainPhase.Eventually;
+
+				// Eventually Post Open Window Tasks
+				this.eventuallyAfterWindowOpen();
+			}, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
 	}
@@ -1373,9 +1380,6 @@ export class CodeApplication extends Disposable {
 		if (isMacintosh && app.runningUnderARM64Translation) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
-
-		// Validate Device ID is up to date
-		validatedevDeviceId(this.stateService, this.logService);
 	}
 
 	private async installMutex(): Promise<void> {
@@ -1450,5 +1454,12 @@ export class CodeApplication extends Disposable {
 			// Inform the user via notification
 			this.windowsMainService?.sendToFocused('vscode:showArgvParseWarning');
 		}
+	}
+
+	private eventuallyAfterWindowOpen(): void {
+
+		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
+		// Refs: https://github.com/microsoft/vscode/issues/234064
+		validatedevDeviceId(this.stateService, this.logService);
 	}
 }

@@ -5,6 +5,7 @@
 
 import './media/interactive.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -222,7 +223,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	}
 
 	private _createLayoutStyles(): void {
-		this._styleElement = DOM.createStyleSheet(this._rootElement);
+		this._styleElement = domStylesheets.createStyleSheet(this._rootElement);
 		const styleSheets: string[] = [];
 
 		const {

@@ -434,22 +434,20 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
-		// App Icon (Native Windows/Linux and Web)
-		if (!isMacintosh && !isWeb && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
+		// App Icon (Windows, Linux) / Home Indicator (Web)
+		const homeIndicator = this.environmentService.options?.homeIndicator;
+		const supportsAppIcon = isWindows || isLinux || (isWeb && homeIndicator && !this.isAuxiliary);
+		if (supportsAppIcon && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
 
-			// Web-only home indicator and menu (not for auxiliary windows)
-			if (!this.isAuxiliary && isWeb) {
-				const homeIndicator = this.environmentService.options?.homeIndicator;
-				if (homeIndicator) {
-					const icon: ThemeIcon = getIconRegistry().getIcon(homeIndicator.icon) ? { id: homeIndicator.icon } : Codicon.code;
-
-					this.appIcon.setAttribute('href', homeIndicator.href);
-					this.appIcon.classList.add(...ThemeIcon.asClassNameArray(icon));
-					this.appIconBadge = document.createElement('div');
-					this.appIconBadge.classList.add('home-bar-icon-badge');
-					this.appIcon.appendChild(this.appIconBadge);
-				}
+			// Web: home indicator
+			if (isWeb && homeIndicator) {
+				const icon: ThemeIcon = getIconRegistry().getIcon(homeIndicator.icon) ? { id: homeIndicator.icon } : Codicon.code;
+				this.appIcon.setAttribute('href', homeIndicator.href);
+				this.appIcon.classList.add(...ThemeIcon.asClassNameArray(icon));
+				this.appIconBadge = document.createElement('div');
+				this.appIconBadge.classList.add('home-bar-icon-badge');
+				this.appIcon.appendChild(this.appIconBadge);
 			}
 		}
 
@@ -644,6 +642,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 
+			// --- Activity Actions
+			if (this.activityActionsEnabled) {
+				if (isAccountsActionVisible(this.storageService)) {
+					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
+				}
+				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
+			}
+
 			// --- Layout Actions
 			if (this.layoutToolbarMenu) {
 				fillInActionBarActions(
@@ -651,14 +657,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 					actions,
 					() => !this.editorActionsEnabled // Layout Actions in overflow menu when editor actions enabled in title bar
 				);
-			}
-
-			// --- Activity Actions
-			if (this.activityActionsEnabled) {
-				if (isAccountsActionVisible(this.storageService)) {
-					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
-				}
-				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
 			}
 
 			this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));

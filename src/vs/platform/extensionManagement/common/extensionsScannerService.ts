@@ -50,6 +50,7 @@ interface IRelaxedScannedExtension {
 	metadata: Metadata | undefined;
 	isValid: boolean;
 	validations: readonly [Severity, string][];
+	preRelease: boolean;
 }
 
 export type IScannedExtension = Readonly<IRelaxedScannedExtension> & { manifest: IExtensionManifest };
@@ -671,7 +672,8 @@ class ExtensionsScanner extends Disposable {
 					publisherDisplayName: metadata?.publisherDisplayName,
 					metadata,
 					isValid: true,
-					validations: []
+					validations: [],
+					preRelease: !!metadata?.preRelease,
 				};
 				if (input.validate) {
 					extension = this.validate(extension, input);
@@ -1000,6 +1002,7 @@ export function toExtensionDescription(extension: IScannedExtension, isUnderDeve
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
+		preRelease: extension.preRelease,
 		...extension.manifest,
 	};
 }

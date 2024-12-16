@@ -8,7 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { IReference, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import type { ViewCursorStateChangedEvent, ViewScrollChangedEvent } from '../../common/viewEvents.js';
+import type { ViewScrollChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { GPULifecycle } from './gpuDisposable.js';
@@ -244,10 +244,6 @@ export class RectangleRenderer extends ViewEventHandler {
 	// #region Event handlers
 
 	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
-		return true;
-	}
-
-	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
 		if (this._device) {
 			const dpr = getActiveWindow().devicePixelRatio;
 			this._scrollOffsetValueBuffer[0] = this._context.viewLayout.getCurrentScrollLeft() * dpr;

@@ -46,7 +46,7 @@ import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
 import * as search from '../../contrib/search/common/search.js';
 import { TestId } from '../../contrib/testing/common/testId.js';
-import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
+import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestRunProfileReference, ITestTag, TestMessageType, TestResultItem, TestRunProfileBitset, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -1953,6 +1953,28 @@ export namespace TestTag {
 	export const denamespace = denamespaceTestTag;
 }
 
+export namespace TestRunProfile {
+	export function from(item: types.TestRunProfileBase): ITestRunProfileReference {
+		return {
+			controllerId: item.controllerId,
+			profileId: item.profileId,
+			group: TestRunProfileKind.from(item.kind),
+		};
+	}
+}
+
+export namespace TestRunProfileKind {
+	const profileGroupToBitset: { [K in vscode.TestRunProfileKind]: TestRunProfileBitset } = {
+		[types.TestRunProfileKind.Coverage]: TestRunProfileBitset.Coverage,
+		[types.TestRunProfileKind.Debug]: TestRunProfileBitset.Debug,
+		[types.TestRunProfileKind.Run]: TestRunProfileBitset.Run,
+	};
+
+	export function from(kind: types.TestRunProfileKind): TestRunProfileBitset {
+		return profileGroupToBitset.hasOwnProperty(kind) ? profileGroupToBitset[kind] : TestRunProfileBitset.Run;
+	}
+}
+
 export namespace TestItem {
 	export type Raw = vscode.TestItem;
 
@@ -2149,8 +2171,8 @@ export namespace TestCoverage {
 			statement: fromCoverageCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoverageCount(coverage.branchCoverage),
 			declaration: coverage.declarationCoverage && fromCoverageCount(coverage.declarationCoverage),
-			testIds: coverage instanceof types.FileCoverage && coverage.fromTests.length ?
-				coverage.fromTests.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) : undefined,
+			testIds: coverage instanceof types.FileCoverage && coverage.includesTests.length ?
+				coverage.includesTests.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) : undefined,
 		};
 	}
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import * as cssValue from '../../../../base/browser/cssValue.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { debounce, memoize } from '../../../../base/common/decorators.js';
@@ -1213,7 +1213,7 @@ class TerminalEditorStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = dom.createStyleSheet(container);
+		this._styleElement = domStylesheets.createStyleSheet(container);
 		this._register(toDisposable(() => this._styleElement.remove()));
 		this.updateStyles();
 	}

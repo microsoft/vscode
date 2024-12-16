@@ -151,6 +151,21 @@ suite('ChatModel', () => {
 
 		assert.strictEqual(request1.response.response.toString(), 'Hello');
 	});
+
+	test('addCompleteRequest', async function () {
+		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
+
+		model1.startInitialize();
+		model1.initialize(undefined);
+
+		const text = 'hello';
+		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, true);
+
+		assert.strictEqual(request1.isCompleteAddedRequest, true);
+		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);
+		assert.strictEqual(request1.isHidden, false);
+		assert.strictEqual(request1.response!.isHidden, false);
+	});
 });
 
 suite('Response', () => {

@@ -461,7 +461,7 @@ export class LoadedScriptsView extends ViewPane {
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
 
-		this.tree = <WorkbenchCompressibleObjectTree<LoadedScriptsItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleObjectTree,
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleObjectTree<LoadedScriptsItem, FuzzyScore>,
 			'LoadedScriptsView',
 			this.treeContainer,
 			new LoadedScriptsDelegate(),

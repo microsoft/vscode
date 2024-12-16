@@ -71,6 +71,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'update-extensions':
 		case 'list-extensions':
 		case 'force':
+		case 'do-not-include-pack-dependencies':
 		case 'show-versions':
 		case 'category':
 		case 'verbose':
@@ -154,7 +155,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	}
 	if (cliPipe) {
 		if (parsedArgs['openExternal']) {
-			openInBrowser(parsedArgs['_'], verbose);
+			await openInBrowser(parsedArgs['_'], verbose);
 			return;
 		}
 	}
@@ -294,7 +295,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		}
 	} else {
 		if (parsedArgs.status) {
-			sendToPipe({
+			await sendToPipe({
 				type: 'status'
 			}, verbose).then((res: string) => {
 				console.log(res);
@@ -305,7 +306,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		}
 
 		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions'] || parsedArgs['update-extensions']) {
-			sendToPipe({
+			await sendToPipe({
 				type: 'extensionManagement',
 				list: parsedArgs['list-extensions'] ? { showVersions: parsedArgs['show-versions'], category: parsedArgs['category'] } : undefined,
 				install: asExtensionIdOrVSIX(parsedArgs['install-extension']),
@@ -328,7 +329,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			waitMarkerFilePath = createWaitMarkerFileSync(verbose);
 		}
 
-		sendToPipe({
+		await sendToPipe({
 			type: 'open',
 			fileURIs,
 			folderURIs,
@@ -345,7 +346,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		});
 
 		if (waitMarkerFilePath) {
-			waitForFileDeleted(waitMarkerFilePath);
+			await waitForFileDeleted(waitMarkerFilePath);
 		}
 
 		if (readFromStdinPromise) {
@@ -371,11 +372,11 @@ async function waitForFileDeleted(path: string) {
 	}
 }
 
-function openInBrowser(args: string[], verbose: boolean) {
+async function openInBrowser(args: string[], verbose: boolean) {
 	const uris: string[] = [];
 	for (const location of args) {
 		try {
-			if (/^(http|https|file):\/\//.test(location)) {
+			if (/^[a-z-]+:\/\/.+/.test(location)) {
 				uris.push(url.parse(location).href);
 			} else {
 				uris.push(pathToURI(location).href);
@@ -385,7 +386,7 @@ function openInBrowser(args: string[], verbose: boolean) {
 		}
 	}
 	if (uris.length) {
-		sendToPipe({
+		await sendToPipe({
 			type: 'openExternal',
 			uris
 		}, verbose).catch(e => {

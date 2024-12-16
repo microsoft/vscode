@@ -121,6 +121,7 @@ export const TITLE_BAR_SETTINGS = [
 	LayoutSettings.COMMAND_CENTER,
 	LayoutSettings.EDITOR_ACTIONS_LOCATION,
 	LayoutSettings.LAYOUT_ACTIONS,
+	'workbench.navigationControl.enabled',
 	'window.menuBarVisibility',
 	TitleBarSetting.TITLE_BAR_STYLE,
 	TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
@@ -706,11 +707,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Auxiliary Panel to restore
 		if (this.isVisible(Parts.AUXILIARYBAR_PART)) {
-			let viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
+			const viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
 			if (viewContainerToRestore) {
-				if (viewContainerToRestore === 'workbench.panel.chatSidebar') {
-					viewContainerToRestore = 'workbench.panel.chat'; // TODO@bpasero remove me after some months
-				}
 				this.state.initialization.views.containerToRestore.auxiliaryBar = viewContainerToRestore;
 			} else {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
@@ -1617,6 +1615,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangeMainEditorCenteredLayout.fire(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED));
 	}
 
+	getSize(part: Parts): IViewSize {
+		return this.workbenchGrid.getViewSize(this.getPart(part));
+	}
+
+	setSize(part: Parts, size: IViewSize): void {
+		this.workbenchGrid.resizeView(this.getPart(part), size);
+	}
+
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
 		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeWidth));
 		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeHeight));
@@ -1745,9 +1751,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
 			if (viewletToOpen) {
-				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar, true);
+				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar);
 				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar, true);
+					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar);
 				}
 			}
 		}
@@ -1781,6 +1787,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const preMoveSideBarSize = !this.isVisible(Parts.SIDEBAR_PART) ? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.sideBarPartView) ?? this.sideBarPartView.minimumWidth) : this.workbenchGrid.getViewSize(this.sideBarPartView).width;
 		const preMoveAuxiliaryBarSize = !this.isVisible(Parts.AUXILIARYBAR_PART) ? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.auxiliaryBarPartView) ?? this.auxiliaryBarPartView.minimumWidth) : this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
 
+		const focusedPart = [Parts.PANEL_PART, Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART].find(part => this.hasFocus(part)) as SINGLE_WINDOW_PARTS | undefined;
+
 		if (sideBarPosition === Position.LEFT) {
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
 			this.workbenchGrid.moveView(this.sideBarPartView, preMoveSideBarSize, sideBarSiblingToEditor ? this.editorPartView : this.activityBarPartView, sideBarSiblingToEditor ? Direction.Left : Direction.Right);
@@ -1797,6 +1805,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			} else {
 				this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, 0]);
 			}
+		}
+
+		// Maintain focus after moving parts
+		if (focusedPart) {
+			this.focusPart(focusedPart);
 		}
 
 		// We moved all the side parts based on the editor and ignored the panel
@@ -1886,8 +1899,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (panelToOpen) {
-				const focus = !skipLayout;
-				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel, focus);
+				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel);
 			}
 		}
 
@@ -1986,8 +1998,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (panelToOpen) {
-				const focus = !skipLayout;
-				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.AuxiliaryBar, focus);
+				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.AuxiliaryBar);
 			}
 		}
 
@@ -2118,6 +2129,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const sideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 		const auxiliaryBarVisible = this.isVisible(Parts.AUXILIARYBAR_PART);
 
+		const hadFocus = this.hasFocus(Parts.PANEL_PART);
+
 		if (position === Position.BOTTOM) {
 			this.workbenchGrid.moveView(this.panelPartView, editorHidden ? size.height : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT), this.editorPartView, Direction.Down);
 		} else if (position === Position.TOP) {
@@ -2126,6 +2139,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid.moveView(this.panelPartView, editorHidden ? size.width : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH), this.editorPartView, Direction.Right);
 		} else {
 			this.workbenchGrid.moveView(this.panelPartView, editorHidden ? size.width : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH), this.editorPartView, Direction.Left);
+		}
+
+		if (hadFocus) {
+			this.focusPart(Parts.PANEL_PART);
 		}
 
 		// Reset sidebar to original size before shifting the panel

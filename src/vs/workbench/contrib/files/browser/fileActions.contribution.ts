@@ -154,7 +154,7 @@ const copyRelativePathCommand = {
 	title: nls.localize('copyRelativePath', "Copy Relative Path")
 };
 
-export const revealInsideBarCommand = {
+export const revealInSideBarCommand = {
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
 	title: nls.localize('revealInSideBar', "Reveal in Explorer View")
 };
@@ -162,7 +162,7 @@ export const revealInsideBarCommand = {
 // Editor Title Context Menu
 appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
 appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
-appendEditorTitleContextMenuItem(revealInsideBarCommand.id, revealInsideBarCommand.title, ResourceContextKey.IsFileSystemResource, '2_files', false, 1);
+appendEditorTitleContextMenuItem(revealInSideBarCommand.id, revealInSideBarCommand.title, ResourceContextKey.IsFileSystemResource, '2_files', false, 1);
 
 export function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpression | undefined, group: string, supportsMultiSelect: boolean, order?: number): void {
 	const precondition = supportsMultiSelect !== true ? MultipleEditorsSelectedInGroupContext.negate() : undefined;
@@ -776,7 +776,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	group: 'navigation',
 	order: 20,
-	command: revealInsideBarCommand,
+	command: revealInSideBarCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
 
@@ -807,7 +807,7 @@ for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputRe
 	MenuRegistry.appendMenuItem(menuId, {
 		group: 'navigation',
 		order: 20,
-		command: revealInsideBarCommand,
+		command: revealInSideBarCommand,
 		when: ResourceContextKey.IsFileSystemResource
 	});
 

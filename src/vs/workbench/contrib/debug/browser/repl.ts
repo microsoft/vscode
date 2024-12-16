@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
@@ -156,7 +157,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);
-		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 100);
+		this.history = new HistoryNavigator(new Set(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]'))), 100);
 		this.filter = new ReplFilter();
 		this.filter.filterQuery = filterText;
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
@@ -648,8 +649,8 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const expressionRenderer = this.instantiationService.createInstance(DebugExpressionRenderer);
 		this.replDataSource = new ReplDataSource();
 
-		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
+		const tree = this.tree = this.instantiationService.createInstance(
+			WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>,
 			'DebugRepl',
 			this.treeContainer,
 			this.replDelegate,
@@ -708,7 +709,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
-		this.styleElement = dom.createStyleSheet(this.container);
+		this.styleElement = domStylesheetsJs.createStyleSheet(this.container);
 		this.onDidStyleChange();
 	}
 
