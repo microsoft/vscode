@@ -184,10 +184,11 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	parsedArgs['_'] = [];
 
 	let readFromStdinPromise: Promise<void> | undefined;
+	let stdinFilePath: string | undefined;
 
 	if (hasReadStdinArg && hasStdinWithoutTty()) {
 		try {
-			let stdinFilePath = cliStdInFilePath;
+			stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
 				stdinFilePath = getStdinFilePath();
 				const readFromStdinDone = new DeferredPromise<void>();
@@ -351,8 +352,18 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 
 		if (readFromStdinPromise) {
 			await readFromStdinPromise;
+
+		}
+
+		if (waitMarkerFilePath && stdinFilePath) {
+			try {
+				fs.unlinkSync(stdinFilePath);
+			} catch (e) {
+				//ignore
+			}
 		}
 	}
+
 }
 
 function runningInWSL2(): boolean {

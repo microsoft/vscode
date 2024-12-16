@@ -30,6 +30,7 @@ import { IMouseEvent, StandardMouseEvent } from '../../../../base/browser/mouseE
 import { FoldingController } from '../../folding/browser/folding.js';
 import { FoldingModel, toggleCollapseState } from '../../folding/browser/foldingModel.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
@@ -73,6 +74,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _endLineNumbers: number[] = [];
 	private _showEndForLine: number | undefined;
 	private _minRebuildFromLine: number | undefined;
+	private _mouseTarget: EventTarget | null = null;
 
 	private readonly _onDidChangeStickyScrollHeight = this._register(new Emitter<{ height: number }>());
 	public readonly onDidChangeStickyScrollHeight = this._onDidChangeStickyScrollHeight.event;
@@ -300,26 +302,26 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			this._revealPosition(position);
 		}));
-		this._register(dom.addStandardDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_MOVE, (mouseEvent: IMouseEvent) => {
-			if (mouseEvent.shiftKey) {
-				const currentEndForLineIndex = this._stickyScrollWidget.getLineIndexFromChildDomNode(mouseEvent.target);
-				if (currentEndForLineIndex === null || this._showEndForLine !== null && this._showEndForLine === currentEndForLineIndex) {
-					return;
-				}
-				this._showEndForLine = currentEndForLineIndex;
-				this._renderStickyScroll();
-				return;
-			}
+		const mouseMoveListener = (mouseEvent: MouseEvent) => {
+			this._mouseTarget = mouseEvent.target;
+			this._onMouseMoveOrKeyDown(mouseEvent);
+		};
+		const keyDownListener = (mouseEvent: KeyboardEvent) => {
+			this._onMouseMoveOrKeyDown(mouseEvent);
+		};
+		const keyUpListener = (e: KeyboardEvent) => {
 			if (this._showEndForLine !== undefined) {
 				this._showEndForLine = undefined;
 				this._renderStickyScroll();
 			}
-		}));
-		this._register(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_LEAVE, (e) => {
-			if (this._showEndForLine !== undefined) {
-				this._showEndForLine = undefined;
-				this._renderStickyScroll();
-			}
+		};
+		mainWindow.addEventListener(dom.EventType.MOUSE_MOVE, mouseMoveListener);
+		mainWindow.addEventListener(dom.EventType.KEY_DOWN, keyDownListener);
+		mainWindow.addEventListener(dom.EventType.KEY_UP, keyUpListener);
+		this._register(toDisposable(() => {
+			mainWindow.removeEventListener(dom.EventType.MOUSE_MOVE, mouseMoveListener);
+			mainWindow.removeEventListener(dom.EventType.KEY_DOWN, keyDownListener);
+			mainWindow.removeEventListener(dom.EventType.KEY_UP, keyUpListener);
 		}));
 
 		this._register(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
@@ -401,6 +403,21 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			menuId: MenuId.StickyScrollContext,
 			getAnchor: () => event,
 		});
+	}
+
+	private _onMouseMoveOrKeyDown(mouseEvent: KeyboardEvent | MouseEvent): void {
+		if (!mouseEvent.shiftKey) {
+			return;
+		}
+		if (!this._mouseTarget || !dom.isHTMLElement(this._mouseTarget)) {
+			return;
+		}
+		const currentEndForLineIndex = this._stickyScrollWidget.getLineIndexFromChildDomNode(this._mouseTarget);
+		if (currentEndForLineIndex === null || this._showEndForLine === currentEndForLineIndex) {
+			return;
+		}
+		this._showEndForLine = currentEndForLineIndex;
+		this._renderStickyScroll();
 	}
 
 	private _toggleFoldingRegionForLine(line: number | null) {

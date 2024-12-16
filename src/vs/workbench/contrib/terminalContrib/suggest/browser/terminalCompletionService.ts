@@ -249,8 +249,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				kind,
 				isDirectory,
 				isFile: kind === TerminalCompletionItemKind.File,
-				replacementIndex: cursorPosition - lastWord.length > 0 ? cursorPosition - lastWord.length : cursorPosition,
-				replacementLength: lastWord.length > 0 ? lastWord.length : label.length
+				replacementIndex: cursorPosition - lastWord.length,
+				replacementLength: lastWord.length > 0 ? lastWord.length : cursorPosition
 			});
 		}
 
