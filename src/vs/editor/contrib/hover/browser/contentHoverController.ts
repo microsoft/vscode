@@ -5,7 +5,6 @@
 
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from './hoverActionIds.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
@@ -23,6 +22,7 @@ import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
 import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
+import { GotoDefinitionAtPositionEditorContribution } from '../../gotoSymbol/browser/link/goToDefinitionAtPosition.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -240,6 +240,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
+		console.log('_onKeyDown : ', e);
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -247,11 +248,15 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (isPotentialKeyboardShortcut) {
 			return;
 		}
-		const isModifierKeyPressed = this._isModifierKeyPressed(e);
-		if (isModifierKeyPressed && this._mouseMoveEvent) {
-			const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
-			if (contentWidget.showsOrWillShow(this._mouseMoveEvent)) {
-				return;
+		const goToDefinitionAtPosition = GotoDefinitionAtPositionEditorContribution.get(this._editor);
+		if (goToDefinitionAtPosition) {
+			console.log('goToDefinitionAtPosition.triggerKey : ', goToDefinitionAtPosition.triggerKey);
+			console.log('e.keyCode : ', e.keyCode);
+			if (e.keyCode === goToDefinitionAtPosition.triggerKey && this._mouseMoveEvent) {
+				const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
+				if (contentWidget.showsOrWillShow(this._mouseMoveEvent)) {
+					return;
+				}
 			}
 		}
 		this.hideContentHover();
@@ -269,13 +274,6 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 				|| resolvedKeyboardEvent.commandId === DECREASE_HOVER_VERBOSITY_ACTION_ID)
 			&& this._contentWidget.isVisible;
 		return moreChordsAreNeeded || isHoverAction;
-	}
-
-	private _isModifierKeyPressed(e: IKeyboardEvent): boolean {
-		return e.keyCode === KeyCode.Ctrl
-			|| e.keyCode === KeyCode.Alt
-			|| e.keyCode === KeyCode.Meta
-			|| e.keyCode === KeyCode.Shift;
 	}
 
 	public hideContentHover(): void {

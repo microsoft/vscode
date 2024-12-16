@@ -31,11 +31,13 @@ import { getDefinitionsAtPosition } from '../goToSymbol.js';
 import { IWordAtPosition } from '../../../../common/core/wordHelper.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { ModelDecorationInjectedTextOptions } from '../../../../common/model/textModel.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.gotodefinitionatposition';
 	static readonly MAX_SOURCE_PREVIEW_LINES = 8;
+	public triggerKey: KeyCode;
 
 	private readonly editor: ICodeEditor;
 	private readonly toUnhook = new DisposableStore();
@@ -54,6 +56,8 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.linkDecorations = this.editor.createDecorationsCollection();
 
 		const linkGesture = new ClickLinkGesture(editor);
+		this.triggerKey = linkGesture.triggerKey;
+
 		this.toUnhook.add(linkGesture);
 
 		this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
