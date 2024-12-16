@@ -305,7 +305,11 @@ class QuickDiffWidget extends PeekViewWidget {
 	}
 
 	private shouldUseDropdown(): boolean {
-		return this.model.getQuickDiffResults()
+		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
+		const visibleQuickDiffResults = this.model.getQuickDiffResults()
+			.filter(result => visibleQuickDiffs.some(quickDiff => quickDiff.label === result.label));
+
+		return visibleQuickDiffResults
 			.filter(quickDiff => quickDiff.changes.length > 0).length > 1;
 	}
 
@@ -333,9 +337,12 @@ class QuickDiffWidget extends PeekViewWidget {
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
+		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
+
 		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
-		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem, new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
-			this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this._index].label);
+		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem,
+			new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
+			visibleQuickDiffs.map(quickDiff => quickDiff.label), this.model.changes[this._index].label);
 		this.dropdown.render(this.dropdownContainer);
 		this.updateActions();
 	}

@@ -1157,12 +1157,14 @@ class AdditionalDetailsWidget extends Disposable {
 				$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 				$('code', undefined, extension.identifier.id)
 			));
-		append(installInfo,
-			$('.more-info-entry', undefined,
-				$('div.more-info-entry-name', undefined, localize('Version', "Version")),
-				$('code', undefined, extension.manifest.version)
-			)
-		);
+		if (extension.type !== ExtensionType.System) {
+			append(installInfo,
+				$('.more-info-entry', undefined,
+					$('div.more-info-entry-name', undefined, localize('Version', "Version")),
+					$('code', undefined, extension.manifest.version)
+				)
+			);
+		}
 		if (extension.installedTimestamp) {
 			append(installInfo,
 				$('.more-info-entry', undefined,
@@ -1171,7 +1173,7 @@ class AdditionalDetailsWidget extends Disposable {
 				)
 			);
 		}
-		if (extension.source !== 'gallery') {
+		if (!extension.isBuiltin && extension.source !== 'gallery') {
 			const element = $('div', undefined, extension.source === 'vsix' ? localize('vsix', "VSIX") : localize('other', "Local"));
 			append(installInfo,
 				$('.more-info-entry', undefined,

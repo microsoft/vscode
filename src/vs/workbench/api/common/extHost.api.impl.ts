@@ -781,7 +781,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostQuickOpen.showInput(options, token);
 			},
 			showOpenDialog(options) {
-				return extHostDialogs.showOpenDialog(extension, options);
+				return extHostDialogs.showOpenDialog(options);
 			},
 			showSaveDialog(options) {
 				return extHostDialogs.showSaveDialog(options);

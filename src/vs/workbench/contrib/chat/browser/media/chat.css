@@ -661,6 +661,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:first-child {
+	margin: 3px 0px 3px 3px;
 	flex-shrink: 0;
 }
 

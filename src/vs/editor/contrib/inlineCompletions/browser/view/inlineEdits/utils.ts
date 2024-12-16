@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, isSVGElement } from '../../../../../../base/browser/dom.js';
+import { getDomNodePagePosition, h, isSVGElement } from '../../../../../../base/browser/dom.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { derived, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -325,10 +325,10 @@ export abstract class ObserverNode<T extends Element = Element> extends Disposab
 			} else {
 				if (isObservable(value)) {
 					this._deriveds.push(derived(this, reader => {
-						this._element.setAttribute(camelCaseToHyphenCase(key), value.read(reader) as any);
+						setOrRemoveAttribute(this._element, key, value.read(reader));
 					}));
 				} else {
-					this._element.setAttribute(camelCaseToHyphenCase(key), value.toString());
+					setOrRemoveAttribute(this._element, key, value);
 				}
 			}
 		}
@@ -393,6 +393,14 @@ export class ObserverNodeWithElement<T extends Element = Element> extends Observ
 	}
 }
 
+function setOrRemoveAttribute(element: Element, key: string, value: unknown) {
+	if (value === null || value === undefined) {
+		element.removeAttribute(camelCaseToHyphenCase(key));
+	} else {
+		element.setAttribute(camelCaseToHyphenCase(key), String(value));
+	}
+}
+
 function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
@@ -417,4 +425,27 @@ export function mapOutFalsy<T>(obs: IObservable<T | undefined | null | false>): 
 		}
 		return obs as IObservable<T>;
 	});
+}
+
+export function observeElementPosition(element: HTMLElement, store: DisposableStore) {
+	const topLeft = getDomNodePagePosition(element);
+	const top = observableValue<number>('top', topLeft.top);
+	const left = observableValue<number>('left', topLeft.left);
+
+	const resizeObserver = new ResizeObserver(() => {
+		transaction(tx => {
+			const topLeft = getDomNodePagePosition(element);
+			top.set(topLeft.top, tx);
+			left.set(topLeft.left, tx);
+		});
+	});
+
+	resizeObserver.observe(element);
+
+	store.add(toDisposable(() => resizeObserver.disconnect()));
+
+	return {
+		top,
+		left
+	};
 }
