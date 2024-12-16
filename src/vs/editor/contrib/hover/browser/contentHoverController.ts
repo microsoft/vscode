@@ -202,10 +202,6 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (this._contentWidget && (this._contentWidget.isFocused || this._contentWidget.isResizing || this._isMouseDown && this._contentWidget.isColorPickerVisible)) {
 			return false;
 		}
-		const hiddenAndDisabled = !this._contentWidget?.isVisible && !this._hoverSettings.enabled;
-		if (hiddenAndDisabled) {
-			return false;
-		}
 		const sticky = this._hoverSettings.sticky;
 		if (sticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
@@ -232,9 +228,11 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (!mouseEvent) {
 			return;
 		}
-		const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
-		if (contentWidget.showsOrWillShow(mouseEvent)) {
-			return;
+		if (this._hoverSettings.enabled) {
+			const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
+			if (contentWidget.showsOrWillShow(mouseEvent)) {
+				return;
+			}
 		}
 		if (_sticky) {
 			return;
