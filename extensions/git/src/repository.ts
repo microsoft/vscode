@@ -2385,16 +2385,7 @@ export class Repository implements Disposable {
 			}
 
 			switch (raw.y) {
-				case 'M': {
-					// https://git-scm.com/docs/git-status#_porcelain_format_version_1
-					// When using `-z` with the porcelain v1 format any submodule changes
-					// are reported as modified M instead of m or single ?. Due to that we
-					// will ignore any changes reported for the submodule folder.
-					if (this.submodules.every(s => !pathEquals(s.path, raw.path))) {
-						workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri));
-					}
-					break;
-				}
+				case 'M': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
 				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
 				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
 				case 'R': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_RENAME, useIcons, renameUri)); break;
