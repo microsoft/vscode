@@ -536,6 +536,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.title.innerText = this.windowTitle.value;
 			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
 				this.title.innerText = this.windowTitle.value;
+				// layout menubar and other renderings in the titlebar
+				if (this.lastLayoutDimensions) {
+					this.updateLayout(this.lastLayoutDimensions);
+				}
 			}));
 		}
 
