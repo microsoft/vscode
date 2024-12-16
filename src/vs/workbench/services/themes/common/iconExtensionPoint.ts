@@ -106,9 +106,6 @@ export class IconExtensionPoint {
 							collector.warn(nls.localize('invalid.icons.default.fontPath.extension', "Expected `contributes.icons.default.fontPath` to have file extension 'woff', woff2' or 'ttf', is '{0}'.", fileExt));
 							return;
 						}
-						if (!defaultIcon.fontCharacter.match(fontCharacterRegex)) {
-							collector.warn(nls.localize('invalid.icons.default.fontCharacter', 'Expected `contributes.icons.default.fontCharacter` to consist of a single character or a \\ followed by a Unicode code points in hexadecimal.')); return;
-						}
 						const extensionLocation = extension.description.extensionLocation;
 						const iconFontLocation = resources.joinPath(extensionLocation, defaultIcon.fontPath);
 						const fontId = getFontId(extension.description, defaultIcon.fontPath);

@@ -11,7 +11,7 @@ import * as Json from '../../../../base/common/json.js';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme, ThemeSettingDefaults } from '../common/workbenchThemeService.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex, fontCharacterRegex } from '../common/productIconThemeSchema.js';
+import { fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex } from '../common/productIconThemeSchema.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource } from '../../../../platform/theme/common/iconRegistry.js';
@@ -245,7 +245,7 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 
 		for (const iconId in contentValue.iconDefinitions) {
 			const definition = contentValue.iconDefinitions[iconId];
-			if (isString(definition.fontCharacter) && definition.fontCharacter.match(fontCharacterRegex)) {
+			if (isString(definition.fontCharacter)) {
 				const fontId = definition.fontId ?? primaryFontId;
 				const fontDefinition = sanitizedFonts.get(fontId);
 				if (fontDefinition) {
