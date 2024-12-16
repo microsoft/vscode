@@ -593,10 +593,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	}
 
 	async getLastSyncUserData(): Promise<IRemoteUserData | null> {
-		let storedLastSyncUserDataStateContent = this.getStoredLastSyncUserDataStateContent();
-		if (!storedLastSyncUserDataStateContent) {
-			storedLastSyncUserDataStateContent = await this.migrateLastSyncUserData();
-		}
+		const storedLastSyncUserDataStateContent = this.getStoredLastSyncUserDataStateContent();
 
 		// Last Sync Data state does not exist
 		if (!storedLastSyncUserDataStateContent) {
@@ -702,30 +699,6 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	private async writeLastSyncStoredRemoteUserData(lastSyncRemoteUserData: IRemoteUserData): Promise<void> {
 		await this.fileService.writeFile(this.lastSyncResource, VSBuffer.fromString(JSON.stringify(lastSyncRemoteUserData)));
-	}
-
-	private async migrateLastSyncUserData(): Promise<string | undefined> {
-		try {
-			const content = await this.fileService.readFile(this.lastSyncResource);
-			const userData = JSON.parse(content.value.toString());
-			await this.fileService.del(this.lastSyncResource);
-			if (userData.ref && userData.content !== undefined) {
-				this.storageService.store(this.lastSyncUserDataStateKey, JSON.stringify({
-					...userData,
-					content: undefined,
-				}), StorageScope.APPLICATION, StorageTarget.MACHINE);
-				await this.writeLastSyncStoredRemoteUserData({ ref: userData.ref, syncData: userData.content === null ? null : JSON.parse(userData.content) });
-			} else {
-				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Invalid data.`, userData);
-			}
-		} catch (error) {
-			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Resource does not exist.`);
-			} else {
-				this.logService.error(error);
-			}
-		}
-		return this.storageService.get(this.lastSyncUserDataStateKey, StorageScope.APPLICATION);
 	}
 
 	async getRemoteUserData(lastSyncData: IRemoteUserData | null): Promise<IRemoteUserData> {
