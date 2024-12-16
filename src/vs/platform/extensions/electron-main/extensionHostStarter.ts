@@ -13,6 +13,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { WindowUtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { enableHost } from '../../../base/node/unc.js';
 
 export class ExtensionHostStarter extends Disposable implements IDisposable, IExtensionHostStarter {
 
@@ -97,6 +98,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 				}
 			}, 1000);
 		});
+		enableHost();
 		return { id };
 	}
 

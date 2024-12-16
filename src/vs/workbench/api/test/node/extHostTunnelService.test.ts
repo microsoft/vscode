@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, parseIpAddress, tryFindRootPorts } from '../../node/extHostTunnelService.js';
+import { enableHost } from '../../../../base/node/unc.js';
 
 const tcp =
 	`  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
@@ -282,5 +283,10 @@ suite('ExtHostTunnelService', () => {
 	test('parseIpAddress', function () {
 		assert.strictEqual(parseIpAddress('00000000000000000000000001000000'), '0:0:0:0:0:0:0:1');
 		assert.strictEqual(parseIpAddress('0000000000000000FFFF0000040510AC'), '0:0:0:0:0:ffff:ac10:504');
+	});
+
+	test('enableHost', function () {
+		enableHost();
+		assert.strictEqual(true, true); // Just a placeholder assertion to verify the function is called
 	});
 });

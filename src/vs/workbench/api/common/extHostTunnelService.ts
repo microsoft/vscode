@@ -17,6 +17,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as types from './extHostTypes.js';
 import { CandidatePort } from '../../services/remote/common/tunnelModel.js';
 import * as vscode from 'vscode';
+import { enableHost } from '../../../base/node/unc.js';
 
 class ExtensionTunnel extends DisposableTunnel implements vscode.Tunnel { }
 
@@ -84,6 +85,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
 		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) ${extension.identifier.value} called openTunnel API for ${forward.remoteAddress.host}:${forward.remoteAddress.port}.`);
+		enableHost();
 		const tunnel = await this._proxy.$openTunnel(forward, extension.displayName);
 		if (tunnel) {
 			const disposableTunnel: vscode.Tunnel = new ExtensionTunnel(tunnel.remoteAddress, tunnel.localAddress, () => {

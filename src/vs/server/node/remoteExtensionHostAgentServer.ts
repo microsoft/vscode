@@ -23,7 +23,7 @@ import { URI } from '../../base/common/uri.js';
 import { generateUuid } from '../../base/common/uuid.js';
 import { getOSReleaseInfo } from '../../base/node/osReleaseInfo.js';
 import { findFreePort } from '../../base/node/ports.js';
-import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions, enableHost } from '../../base/node/unc.js';
 import { PersistentProtocol } from '../../base/parts/ipc/common/ipc.net.js';
 import { NodeSocket, WebSocketNodeSocket } from '../../base/parts/ipc/node/ipc.net.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';

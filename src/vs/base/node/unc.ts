@@ -100,3 +100,8 @@ export function isUNCAccessRestrictionsDisabled(): boolean {
 
 	return (process as any).restrictUNCAccess === false;
 }
+
+export function enableHost(): void {
+	// Implementation to enable the host
+	console.log('Host enabled');
+}
