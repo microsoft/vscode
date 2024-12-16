@@ -23,6 +23,7 @@ import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
 import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
+import { IModelDecoration } from '../../../common/model.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -49,6 +50,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	private _contentWidget: ContentHoverWidgetWrapper | undefined;
 
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
+	private _mouseProjectedPosition: Range | undefined;
+	private _mouseProjectedPositionDecorations: IModelDecoration[] | null = null;
 	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
 
 	private _hoverSettings!: IHoverSettings;
@@ -98,6 +101,17 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._listenersStore.add(this._editor.onDidChangeModel(() => this._cancelSchedulerAndHide()));
 		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
 		this._listenersStore.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
+		this._listenersStore.add(this._editor.onDidChangeModelDecorations((e) => {
+			if (this._contentWidget && this._contentWidget.isVisible && this._mouseMoveEvent && this._mouseProjectedPosition) {
+				const newDecorations = this._editor.getDecorationsInRange(this._mouseProjectedPosition);
+				console.log('newDecorations ', newDecorations);
+				console.log('this._mouseProjectedPositionDecorations ', this._mouseProjectedPositionDecorations);
+				if (this._mouseProjectedPositionDecorations === newDecorations) {
+					return;
+				}
+				this._contentWidget.showsOrWillShow(this._mouseMoveEvent);
+			}
+		}));
 	}
 
 	private _unhookListeners(): void {
