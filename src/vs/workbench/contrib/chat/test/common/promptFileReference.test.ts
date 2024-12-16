@@ -249,7 +249,7 @@ suite('PromptFileReference (Unix)', function () {
 								children: [
 									{
 										name: 'file4.prompt.md',
-										contents: 'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference\n\nand some non-prompt #file:./some-non-prompt-file.md',
+										contents: 'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference\n\nand some non-prompt #file:./some-non-prompt-file.js',
 									},
 									{
 										name: 'file.txt',
@@ -267,6 +267,10 @@ suite('PromptFileReference (Unix)', function () {
 												contents: 'one_more_file_just_in_case.prompt.md contents',
 											},
 										],
+									},
+									{
+										name: 'some-non-prompt-file.js',
+										contents: 'some-non-prompt-file.js contents',
 									},
 								],
 							},
@@ -313,9 +317,9 @@ suite('PromptFileReference (Unix)', function () {
 					),
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
+					URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.js'),
 					new NonPromptSnippetFile(
-						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
+						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.js'),
 						'Oh no!',
 					),
 				)),

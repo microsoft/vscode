@@ -215,15 +215,19 @@ export class PromptFileReference extends Disposable {
 	 * Get file stream, if the file exsists.
 	 */
 	private async getFileStream(): Promise<IFileStreamContent | null> {
-		// if URI doesn't point to a prompt snippet file, don't try to resolve it
-		if (this.uri.path.endsWith(PROMP_SNIPPET_FILE_EXTENSION) === false) {
-			this._errorCondition = new NonPromptSnippetFile(this.uri);
-
-			return null;
-		}
-
 		try {
-			return await this.fileService.readFileStream(this.uri);
+			// read the file first
+			const result = await this.fileService.readFileStream(this.uri);
+
+			// if file exists but not a prompt snippet file, set appropriate error
+			// condition and return null so we don't resolve nested references in it
+			if (this.uri.path.endsWith(PROMP_SNIPPET_FILE_EXTENSION) === false) {
+				this._errorCondition = new NonPromptSnippetFile(this.uri);
+
+				return null;
+			}
+
+			return result;
 		} catch (error) {
 			this._errorCondition = new FileOpenFailed(this.uri, error);
 
@@ -371,7 +375,10 @@ export class PromptFileReference extends Disposable {
 			// skip the root reference itself (this variable)
 			.slice(1)
 			// filter out unresolved references
-			.filter(reference => reference.resolveFailed === false);
+			.filter((reference) => {
+				return (reference.resolveFailed === false) ||
+					(reference.errorCondition instanceof NonPromptSnippetFile);
+			});
 	}
 
 	/**
