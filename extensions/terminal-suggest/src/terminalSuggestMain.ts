@@ -95,6 +95,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				// const cwd = resolveCwdFromPrefix(prefix, terminal.shellIntegration?.cwd) ?? terminal.shellIntegration?.cwd;
 				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: osIsWindows() ? '\\' : '/' });
 			}
+			console.log(result.items.map(r => r.label + ' ' + r.replacementIndex).join('\n'));
 			return result.items;
 		}
 	}, '/', '\\'));
@@ -159,10 +160,13 @@ function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] 
 }
 
 function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
+	const cursorPrefix = commandLine.substring(0, cursorPosition);
+	const endsWithSpace = cursorPrefix.endsWith(' ');
+	const lastWord = endsWithSpace ? '' : cursorPrefix.split(' ').at(-1) ?? '';
 	return {
 		label,
 		detail: description ?? '',
-		replacementIndex: commandLine.length - prefix.length >= 0 ? commandLine.length - prefix.length : commandLine[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
+		replacementIndex: cursorPosition - lastWord.length > 0 ? cursorPosition - lastWord.length : cursorPosition,
 		replacementLength: prefix.length,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
 	};
@@ -283,6 +287,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 					}
 					for (const optionLabel of optionLabels) {
 						if (!items.find(i => i.label === optionLabel) && optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
+							specificSuggestionsProvided = true;
 							items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, optionLabel, option.description, vscode.TerminalCompletionItemKind.Flag));
 						}
 						const expectedText = `${specLabel} ${optionLabel} `;
@@ -303,7 +308,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 						if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
 							cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
 						}
-						specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
+						specificSuggestionsProvided = specificSuggestionsProvided || argsCompletions.specificSuggestionsProvided;
 						return { items: argCompletions, filesRequested, foldersRequested, cwd };
 					}
 				}
@@ -320,7 +325,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 					continue;
 				}
 				items.push(...argsCompletions.items);
-				specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
+				specificSuggestionsProvided = specificSuggestionsProvided || argsCompletions.specificSuggestionsProvided;
 				filesRequested = filesRequested || argsCompletions.filesRequested;
 				foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 			}
@@ -329,8 +334,9 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 
 	if (!specificSuggestionsProvided && (filesRequested === foldersRequested)) {
 		// Include builitin/available commands in the results
+		const labels = new Set(items.map(i => i.label));
 		for (const command of availableCommands) {
-			if ((!terminalContext.commandLine.trim() || firstCommand && command.startsWith(firstCommand)) && !items.find(item => item.label === command)) {
+			if (!labels.has(command)) {
 				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, command));
 			}
 		}
