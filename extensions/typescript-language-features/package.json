@@ -384,12 +384,6 @@
           "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
           "scope": "resource"
         },
-        "javascript.inlayHints.enumMemberValues.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
-          "scope": "resource"
-        },
         "javascript.suggest.includeCompletionsForImportStatements": {
           "type": "boolean",
           "default": true,
