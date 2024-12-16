@@ -249,7 +249,6 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
-	let specificSuggestionsProvided = false;
 	const firstCommand = getFirstCommand(terminalContext.commandLine);
 	for (const spec of specs) {
 		const specLabels = getLabel(spec);
@@ -283,7 +282,6 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 					}
 					for (const optionLabel of optionLabels) {
 						if (!items.find(i => i.label === optionLabel) && optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
-							specificSuggestionsProvided = true;
 							items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, optionLabel, option.description, vscode.TerminalCompletionItemKind.Flag));
 						}
 						const expectedText = `${specLabel} ${optionLabel} `;
@@ -296,7 +294,6 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 						if (!argsCompletions) {
 							continue;
 						}
-						specificSuggestionsProvided = true;
 						const argCompletions = argsCompletions.items;
 						foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 						filesRequested = filesRequested || argsCompletions.filesRequested;
@@ -304,7 +301,6 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 						if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
 							cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
 						}
-						specificSuggestionsProvided = specificSuggestionsProvided || argsCompletions.specificSuggestionsProvided;
 						return { items: argCompletions, filesRequested, foldersRequested, cwd };
 					}
 				}
@@ -321,14 +317,13 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 					continue;
 				}
 				items.push(...argsCompletions.items);
-				specificSuggestionsProvided = specificSuggestionsProvided || argsCompletions.specificSuggestionsProvided;
 				filesRequested = filesRequested || argsCompletions.filesRequested;
 				foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 			}
 		}
 	}
-
-	if (!specificSuggestionsProvided && (filesRequested === foldersRequested)) {
+	const shouldShowCommands = !terminalContext.commandLine.substring(0, terminalContext.cursorPosition).trimStart().includes(' ');
+	if (shouldShowCommands && (filesRequested === foldersRequested)) {
 		// Include builitin/available commands in the results
 		const labels = new Set(items.map(i => i.label));
 		for (const command of availableCommands) {
@@ -361,7 +356,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 	return { items, filesRequested, foldersRequested, cwd };
 }
 
-function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } | undefined {
+function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
 	if (!args) {
 		return;
 	}
@@ -395,7 +390,7 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 						continue;
 					}
 					if (!arg.isVariadic && twoWordsBefore === suggestionLabel && wordBefore?.trim() === '') {
-						return { items: [], filesRequested, foldersRequested, specificSuggestionsProvided: false };
+						return { items: [], filesRequested, foldersRequested };
 					}
 					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const description = typeof suggestion !== 'string' ? suggestion.description : '';
@@ -404,11 +399,11 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 				}
 			}
 			if (items.length) {
-				return { items, filesRequested, foldersRequested, specificSuggestionsProvided: true };
+				return { items, filesRequested, foldersRequested };
 			}
 		}
 	}
-	return { items, filesRequested, foldersRequested, specificSuggestionsProvided: false };
+	return { items, filesRequested, foldersRequested };
 }
 
 function osIsWindows(): boolean {
