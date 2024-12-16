@@ -165,21 +165,23 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			const theme = this.themeService.getColorTheme();
 			const titleBarForegroundColor = theme.getColor(windowIsActive ? TITLE_BAR_ACTIVE_FOREGROUND : TITLE_BAR_INACTIVE_FOREGROUND);
 			const titleBarBackgroundColor = theme.getColor(windowIsActive ? TITLE_BAR_ACTIVE_BACKGROUND : TITLE_BAR_INACTIVE_BACKGROUND);
-
 			if (!titleBarForegroundColor || !titleBarBackgroundColor) {
 				return;
 			}
 
-			const backgroundColor = dimmed ? new Color(new RGBA(0, 0, 0, 0.3)).makeOpaque(titleBarBackgroundColor) : titleBarBackgroundColor;
-			const foregroundColor = dimmed ? new Color(new RGBA(0, 0, 0, 0.3)).makeOpaque(titleBarForegroundColor) : titleBarForegroundColor;
+			const overlayColor = new Color(new RGBA(0, 0, 0, 0.3));
+			const backgroundColor = dimmed ? overlayColor.makeOpaque(titleBarBackgroundColor) : titleBarBackgroundColor;
+			const foregroundColor = dimmed ? overlayColor.makeOpaque(titleBarForegroundColor) : titleBarForegroundColor;
+
 			this.nativeHostService.updateWindowControls({
-				backgroundColor: backgroundColor.toString(), foregroundColor: foregroundColor.toString()
+				backgroundColor: backgroundColor.toString(),
+				foregroundColor: foregroundColor.toString()
 			});
 		};
 
 		setWCOColors(this.hostService.hasFocus, true);
 		dialogDisposables.add(this.hostService.onDidChangeFocus(focused => setWCOColors(focused, true)));
-		dialogDisposables.add(toDisposable(() => { setWCOColors(true, false); }));
+		dialogDisposables.add(toDisposable(() => { setWCOColors(this.hostService.hasFocus, false); }));
 
 		const result = await dialog.show();
 		dialogDisposables.dispose();
