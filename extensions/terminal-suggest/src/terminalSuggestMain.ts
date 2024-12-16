@@ -283,6 +283,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 					}
 					for (const optionLabel of optionLabels) {
 						if (!items.find(i => i.label === optionLabel) && optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
+							specificSuggestionsProvided = true;
 							items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, optionLabel, option.description, vscode.TerminalCompletionItemKind.Flag));
 						}
 						const expectedText = `${specLabel} ${optionLabel} `;
@@ -303,7 +304,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 						if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
 							cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
 						}
-						specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
+						specificSuggestionsProvided = specificSuggestionsProvided || argsCompletions.specificSuggestionsProvided;
 						return { items: argCompletions, filesRequested, foldersRequested, cwd };
 					}
 				}
@@ -320,7 +321,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 					continue;
 				}
 				items.push(...argsCompletions.items);
-				specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
+				specificSuggestionsProvided = specificSuggestionsProvided || argsCompletions.specificSuggestionsProvided;
 				filesRequested = filesRequested || argsCompletions.filesRequested;
 				foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 			}
@@ -329,8 +330,11 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 
 	if (!specificSuggestionsProvided && (filesRequested === foldersRequested)) {
 		// Include builitin/available commands in the results
+		const labels = new Set(items.map(i => i.label));
 		for (const command of availableCommands) {
-			items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, command));
+			if (!labels.has(command)) {
+				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, command));
+			}
 		}
 	}
 
