@@ -83,18 +83,17 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			sticky: hoverOpts.sticky,
 			hidingDelay: hoverOpts.hidingDelay
 		};
-		if (hoverOpts.enabled) {
-			this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
-			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
-			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
-			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
-			this._listenersStore.add(this._editor.onDidChangeModel(() => this._cancelSchedulerAndHide()));
-			this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
-			this._listenersStore.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
-		} else {
+		if (!hoverOpts.enabled) {
 			this._cancelSchedulerAndHide();
 		}
+		this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
+		this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
+		this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
+		this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
+		this._listenersStore.add(this._editor.onDidChangeModel(() => this._cancelSchedulerAndHide()));
+		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
+		this._listenersStore.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
 	}
 
 	private _unhookListeners(): void {
@@ -201,6 +200,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		}
 		this._mouseMoveEvent = mouseEvent;
 		if (this._contentWidget && (this._contentWidget.isFocused || this._contentWidget.isResizing || this._isMouseDown && this._contentWidget.isColorPickerVisible)) {
+			return false;
+		}
+		const hiddenAndDisabled = !this._contentWidget?.isVisible && !this._hoverSettings.enabled;
+		if (hiddenAndDisabled) {
 			return false;
 		}
 		const sticky = this._hoverSettings.sticky;
