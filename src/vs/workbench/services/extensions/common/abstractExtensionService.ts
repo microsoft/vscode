@@ -765,10 +765,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				let overrideVeto = false;
 				await this._dialogService.prompt({
 					type: Severity.Warning,
-					message: nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
+					message: nls.localize('extensionStopVetoMessage', "Extension restart was prevented but is required for: {0}. Do you want to proceed anyways?", reason),
 					detail: vetoReasonsArray.length === 1 ?
-						nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasonsArray[0]) :
-						nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasonsArray.join('\n -')),
+						nls.localize('extensionStopVetoDetailsOne', "Reason: {0}", vetoReasonsArray[0]) :
+						nls.localize('extensionStopVetoDetailsMany', "Reasons:\n- {0}", vetoReasonsArray.join('\n -')),
 					buttons: [
 						{
 							label: nls.localize('ok', "OK"),
