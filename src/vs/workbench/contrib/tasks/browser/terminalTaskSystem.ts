@@ -1112,7 +1112,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				color: task.configurationProperties.icon?.color || undefined,
 				waitOnExit
 			};
-			let shellSpecified: boolean = false;
 			const shellOptions: IShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
 				if (shellOptions.executable) {
@@ -1121,12 +1120,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						shellLaunchConfig.args = undefined;
 					}
 					shellLaunchConfig.executable = await this._resolveVariable(variableResolver, shellOptions.executable);
-					shellSpecified = true;
 				}
 				if (shellOptions.args) {
 					shellLaunchConfig.args = await this._resolveVariables(variableResolver, shellOptions.args.slice());
 				}
 			}
+			const taskShellArgsSpecified = (defaultProfile.isAutomationShell ? shellLaunchConfig.args : shellOptions?.args) !== undefined;
 			if (shellLaunchConfig.args === undefined) {
 				shellLaunchConfig.args = [];
 			}
@@ -1139,29 +1138,34 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				windowsShellArgs = true;
 				// If we don't have a cwd, then the terminal uses the home dir.
 				const userHome = await this._pathService.userHome();
-				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
-					return undefined;
-				}
-				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
-					if (!shellSpecified) {
+				if (basename === 'cmd.exe') {
+					if ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath))) {
+						return undefined;
+					}
+					if (!taskShellArgsSpecified) {
+						toAdd.push('/d', '/c');
+					}
+				} else if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
+					if (!taskShellArgsSpecified) {
 						toAdd.push('-Command');
 					}
 				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
-					if (!shellSpecified) {
+					if (!taskShellArgsSpecified) {
 						toAdd.push('-c');
 					}
 				} else if (basename === 'wsl.exe') {
-					if (!shellSpecified) {
+					if (!taskShellArgsSpecified) {
 						toAdd.push('-e');
 					}
 				} else {
-					if (!shellSpecified) {
-						toAdd.push('/d', '/c');
+					if (!taskShellArgsSpecified) {
+						// Push `-c` for unknown shells if the user didn't specify the args
+						toAdd.push('-c');
 					}
 				}
 			} else {
-				if (!shellSpecified) {
+				if (!taskShellArgsSpecified) {
 					// Under Mac remove -l to not start it as a login shell.
 					if (platform === Platform.Platform.Mac) {
 						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
@@ -1268,11 +1272,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const combinedShellArgs: string[] = Objects.deepClone(configuredShellArgs);
 		shellCommandArgs.forEach(element => {
 			const shouldAddShellCommandArg = configuredShellArgs.every((arg, index) => {
-				if ((arg.toLowerCase() === element) && (configuredShellArgs.length > index + 1)) {
+				const isDuplicated = arg.toLowerCase() === element.toLowerCase();
+				if (isDuplicated && (configuredShellArgs.length > index + 1)) {
 					// We can still add the argument, but only if not all of the following arguments begin with "-".
 					return !configuredShellArgs.slice(index + 1).every(testArg => testArg.startsWith('-'));
 				} else {
-					return arg.toLowerCase() !== element;
+					return !isDuplicated;
 				}
 			});
 			if (shouldAddShellCommandArg) {
