@@ -312,7 +312,7 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 			// not a file
 			return true;
 		}
-		const folder = this._workspaceService.getWorkspaceFolder(element.resource);
+		const folder = this._workspaceService.getWorkspaceFolder(element.resource, true);
 		if (!folder || !this._cachedExpressions.has(folder.uri.toString())) {
 			// no folder or no filer
 			return true;

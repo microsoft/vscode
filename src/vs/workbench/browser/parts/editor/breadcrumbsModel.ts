@@ -123,7 +123,7 @@ export class BreadcrumbsModel {
 		}
 
 		const info: FileInfo = {
-			folder: this._workspaceService.getWorkspaceFolder(uri) ?? undefined,
+			folder: this._workspaceService.getWorkspaceFolder(uri, true) ?? undefined,
 			path: []
 		};
 

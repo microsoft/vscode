@@ -63,7 +63,7 @@ export interface IWorkspaceContextService {
 	 * Returns the folder for the given resource from the workspace.
 	 * Can be null if there is no workspace or the resource is not inside the workspace.
 	 */
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null;
+	getWorkspaceFolder(resource: URI, useQueryAndFragment?: boolean): IWorkspaceFolder | null;
 
 	/**
 	 * Return `true` if the current workspace has the given identifier or root URI otherwise `false`.
@@ -330,6 +330,7 @@ export function isWorkspaceFolder(thing: unknown): thing is IWorkspaceFolder {
 export class Workspace implements IWorkspace {
 
 	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => true);
+	private _foldersWithQueryAndFragmentMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => false);
 	private _folders!: WorkspaceFolder[];
 
 	constructor(
@@ -375,18 +376,20 @@ export class Workspace implements IWorkspace {
 		this._configuration = configuration;
 	}
 
-	getFolder(resource: URI): IWorkspaceFolder | null {
+	getFolder(resource: URI, useQueryAndFragment?: boolean): IWorkspaceFolder | null {
 		if (!resource) {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource) || null;
+		return useQueryAndFragment ? this._foldersWithQueryAndFragmentMap.findSubstr(resource) || null : this._foldersMap.findSubstr(resource) || null;
 	}
 
 	private updateFoldersMap(): void {
 		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => true);
+		this._foldersWithQueryAndFragmentMap = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => false);
 		for (const folder of this.folders) {
 			this._foldersMap.set(folder.uri, folder);
+			this._foldersWithQueryAndFragmentMap.set(folder.uri, folder);
 		}
 	}
 
