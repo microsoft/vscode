@@ -247,6 +247,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 				bracketPairsHorizontal: false,
 				highlightActiveIndentation: false,
 			},
+			rulers: [],
 			padding: { top: 0, bottom: 0 },
 			folding: false,
 			selectOnLineNumbers: false,
