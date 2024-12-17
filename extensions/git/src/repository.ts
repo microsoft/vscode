@@ -1035,7 +1035,13 @@ export class Repository implements Disposable {
 		}
 
 		// Ignore path that is inside a merge group
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
+		if (this.mergeGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+			return undefined;
+		}
+
+		// Ignore path that is untracked
+		if (this.untrackedGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path)) ||
+			this.workingTreeGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path) && r.type === Status.UNTRACKED)) {
 			return undefined;
 		}
 
@@ -1251,7 +1257,20 @@ export class Repository implements Disposable {
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
 			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
 
-		if (this.rebaseCommit) {
+		if (this.mergeInProgress) {
+			await this.run(
+				Operation.MergeContinue,
+				async () => {
+					if (opts.all) {
+						const addOpts = opts.all === 'tracked' ? { update: true } : {};
+						await this.repository.add([], addOpts);
+					}
+
+					await this.repository.mergeContinue();
+					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
+				},
+				() => this.commitOperationGetOptimisticResourceGroups(opts));
+		} else if (this.rebaseCommit) {
 			await this.run(
 				Operation.RebaseContinue,
 				async () => {
@@ -2452,10 +2471,12 @@ export class Repository implements Disposable {
 		}
 
 		await this.repository.createStash(undefined, true);
-		const result = await runOperation();
-		await this.repository.popStash();
-
-		return result;
+		try {
+			const result = await runOperation();
+			return result;
+		} finally {
+			await this.repository.popStash();
+		}
 	}
 
 	private onFileChange(_uri: Uri): void {
@@ -2521,7 +2542,7 @@ export class Repository implements Disposable {
 		return head
 			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')
 			+ (this.indexGroup.resourceStates.length > 0 ? '+' : '')
-			+ (this.mergeGroup.resourceStates.length > 0 ? '!' : '');
+			+ (this.mergeInProgress || !!this.rebaseCommit ? '!' : '');
 	}
 
 	get syncLabel(): string {

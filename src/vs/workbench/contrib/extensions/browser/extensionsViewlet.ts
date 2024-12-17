@@ -525,9 +525,10 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IExtensionService extensionService: IExtensionService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@ILogService logService: ILogService,
 	) {
-		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, logService);
 
 		this.searchDelayer = new Delayer(500);
 		this.extensionsSearchValueContextKey = ExtensionsSearchValueContext.bindTo(contextKeyService);

@@ -10,6 +10,7 @@ import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
 import { fromGitUri, isGitUri } from './uri';
+import { emojify, ensureEmojis } from './emoji';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -143,6 +144,8 @@ class GitBlameInformationCache {
 }
 
 export class GitBlameController {
+	private readonly _subjectMaxLength = 50;
+
 	private readonly _onDidChangeBlameInformation = new EventEmitter<TextEditor>();
 	public readonly onDidChangeBlameInformation = this._onDidChangeBlameInformation.event;
 
@@ -168,10 +171,14 @@ export class GitBlameController {
 	}
 
 	formatBlameInformationMessage(template: string, blameInformation: BlameInformation): string {
+		const subject = blameInformation.subject && blameInformation.subject.length > this._subjectMaxLength
+			? `${blameInformation.subject.substring(0, this._subjectMaxLength)}\u2026`
+			: blameInformation.subject;
+
 		const templateTokens = {
 			hash: blameInformation.hash,
 			hashShort: blameInformation.hash.substring(0, 8),
-			subject: blameInformation.subject ?? '',
+			subject: emojify(subject ?? ''),
 			authorName: blameInformation.authorName ?? '',
 			authorEmail: blameInformation.authorEmail ?? '',
 			authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
@@ -203,7 +210,7 @@ export class GitBlameController {
 			markdownString.appendMarkdown('\n\n');
 		}
 
-		markdownString.appendMarkdown(`${blameInformation.subject}\n\n`);
+		markdownString.appendMarkdown(`${emojify(blameInformation.subject ?? '')}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
 		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.hash]))} "${l10n.t('View Commit')}")`);
@@ -258,6 +265,10 @@ export class GitBlameController {
 		if (resourceBlameInformation) {
 			return resourceBlameInformation;
 		}
+
+		// Ensure that the emojis are loaded. We will
+		// use them when formatting the blame information.
+		await ensureEmojis();
 
 		// Get blame information for the resource and cache it
 		const blameInformation = await repository.blame2(resource.fsPath, commit) ?? [];
@@ -416,6 +427,8 @@ class GitBlameEditorDecoration {
 		this._disposables.push(this._decorationType);
 
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
+		window.onDidChangeActiveTextEditor(this._onDidChangeActiveTextEditor, this, this._disposables);
+
 		this._controller.onDidChangeBlameInformation(e => this._updateDecorations(e), this, this._disposables);
 	}
 
@@ -434,6 +447,18 @@ class GitBlameEditorDecoration {
 		}
 	}
 
+	private _onDidChangeActiveTextEditor(): void {
+		if (!this._getConfiguration().enabled) {
+			return;
+		}
+
+		for (const editor of window.visibleTextEditors) {
+			if (editor !== window.activeTextEditor) {
+				editor.setDecorations(this._decorationType, []);
+			}
+		}
+	}
+
 	private _getConfiguration(): { enabled: boolean; template: string } {
 		const config = workspace.getConfiguration('git');
 		const enabled = config.get<boolean>('blame.editorDecoration.enabled', false);
@@ -446,15 +471,6 @@ class GitBlameEditorDecoration {
 		const { enabled, template } = this._getConfiguration();
 		if (!enabled) {
 			return;
-		}
-
-		// Clear decorations for the other editors
-		for (const editor of window.visibleTextEditors) {
-			if (editor === textEditor) {
-				continue;
-			}
-
-			editor.setDecorations(this._decorationType, []);
 		}
 
 		// Only support resources with `file` and `git` schemes
@@ -538,9 +554,7 @@ class GitBlameStatusBarItem {
 			return;
 		}
 
-		if (window.activeTextEditor) {
-			this._updateStatusBarItem(window.activeTextEditor);
-		} else {
+		if (!window.activeTextEditor) {
 			this._statusBarItem?.hide();
 		}
 	}

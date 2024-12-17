@@ -22,6 +22,16 @@ import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
 
+/**
+ * Once the sign up button is clicked, and the retry button has been shown, it should be shown every time.
+ */
+let shouldShowRetryButton = false;
+
+/**
+ * Once the 'retry' button is clicked, the wait warning should be shown every time.
+ */
+let shouldShowWaitWarning = false;
+
 export class ChatQuotaExceededPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
@@ -51,30 +61,52 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		button1.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
 		button1.element.classList.add('chat-quota-error-button');
 
-		let didAddSecondary = false;
+		let hasAddedWaitWarning = false;
+		const addWaitWarningIfNeeded = () => {
+			if (!shouldShowWaitWarning || hasAddedWaitWarning) {
+				return;
+			}
+
+			hasAddedWaitWarning = true;
+			dom.append(messageContainer, $('.chat-quota-wait-warning', undefined, localize('waitWarning', "Signing up may take a few minutes to take effect.")));
+		};
+
+		let hasAddedRetryButton = false;
+		const addRetryButtonIfNeeded = () => {
+			if (!shouldShowRetryButton || hasAddedRetryButton) {
+				return;
+			}
+
+			hasAddedRetryButton = true;
+			const button2 = this._register(new Button(messageContainer, {
+				buttonBackground: undefined,
+				buttonForeground: asCssVariable(textLinkForeground)
+			}));
+			button2.element.classList.add('chat-quota-error-secondary-button');
+			button2.label = localize('signedUpClickToContinue', "Signed up? Click to retry.");
+			this._onDidChangeHeight.fire();
+			this._register(button2.onDidClick(() => {
+				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
+				if (!widget) {
+					return;
+				}
+
+				widget.rerunLastRequest();
+
+				shouldShowWaitWarning = true;
+				addWaitWarningIfNeeded();
+			}));
+		};
+
 		this._register(button1.onDidClick(async () => {
 			await commandService.executeCommand('workbench.action.chat.upgradePlan');
 
-			if (!didAddSecondary) {
-				didAddSecondary = true;
-
-				const button2 = this._register(new Button(messageContainer, {
-					buttonBackground: undefined,
-					buttonForeground: asCssVariable(textLinkForeground)
-				}));
-				button2.element.classList.add('chat-quota-error-secondary-button');
-				button2.label = localize('signedUpClickToContinue', "Signed up? Click to continue!");
-				this._onDidChangeHeight.fire();
-				this._register(button2.onDidClick(() => {
-					const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
-					if (!widget) {
-						return;
-					}
-
-					widget.rerunLastRequest();
-				}));
-			}
+			shouldShowRetryButton = true;
+			addRetryButtonIfNeeded();
 		}));
+
+		addRetryButtonIfNeeded();
+		addWaitWarningIfNeeded();
 	}
 
 	hasSameContent(other: unknown): boolean {

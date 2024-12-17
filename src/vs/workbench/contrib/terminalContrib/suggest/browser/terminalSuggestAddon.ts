@@ -42,7 +42,6 @@ export interface ISuggestController {
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
 	hideSuggestWidget(): void;
 }
-
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -115,6 +114,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget()),
 					);
 				}
+				this._register(commandDetection.onCommandExecuted(() => this.hideSuggestWidget()));
 			} else {
 				this._promptInputModel = undefined;
 			}
@@ -156,7 +156,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, token, triggerCharacter, doNotRequestExtensionCompletions);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.prefix, this._promptInputModel.cursorIndex, this._shellType, token, triggerCharacter, doNotRequestExtensionCompletions);
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
 		}
@@ -365,7 +365,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		suggestWidget.setCompletionModel(model);
-		if (model.items.length === 0 || !this._promptInputModel) {
+		if (!this._promptInputModel) {
 			return;
 		}
 		this._model = model;

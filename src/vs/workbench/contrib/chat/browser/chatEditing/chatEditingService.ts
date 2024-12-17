@@ -328,8 +328,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 							if (responseModel.isComplete) {
 								onResponseComplete(responseModel);
 								disposable.dispose();
-							} else if (responseModel.isCanceled || responseModel.isStale) {
-								disposable.dispose();
 							}
 						});
 					}
@@ -487,14 +485,6 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 }
 
 export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResolver {
-	public static readonly scheme = CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME;
-
-	public static getMultiDiffSourceUri(): URI {
-		return URI.from({
-			scheme: ChatEditingMultiDiffSourceResolver.scheme,
-			path: '',
-		});
-	}
 
 	constructor(
 		private readonly _currentSession: IObservable<ChatEditingSession | null>,
@@ -502,7 +492,7 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 	) { }
 
 	canHandleUri(uri: URI): boolean {
-		return uri.scheme === ChatEditingMultiDiffSourceResolver.scheme;
+		return uri.scheme === CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME;
 	}
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {

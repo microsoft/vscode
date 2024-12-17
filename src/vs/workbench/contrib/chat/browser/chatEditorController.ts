@@ -6,7 +6,7 @@
 import './media/chatEditorController.css';
 import { addStandardDisposableListener, getTotalWidth } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
@@ -55,8 +55,11 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		return controller;
 	}
 
-	private readonly _currentChange = observableValue<Position | undefined>(this, undefined);
-	readonly currentChange: IObservable<Position | undefined> = this._currentChange;
+	private readonly _currentEntryIndex = observableValue<number | undefined>(this, undefined);
+	readonly currentEntryIndex: IObservable<number | undefined> = this._currentEntryIndex;
+
+	private readonly _currentChangeIndex = observableValue<number | undefined>(this, undefined);
+	readonly currentChangeIndex: IObservable<number | undefined> = this._currentChangeIndex;
 
 	private _scrollLock: boolean = false;
 
@@ -76,20 +79,28 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		const lineHeightObs = observableCodeEditor(this._editor).getOption(EditorOption.lineHeight);
 		const modelObs = observableCodeEditor(this._editor).model;
 
-		// scroll along unless "another" scroll happens
-		let ignoreScrollEvent = false;
-		this._store.add(this._editor.onDidScrollChange(e => {
-			if (e.scrollTopChanged && !ignoreScrollEvent) {
-				// this._scrollLock = true;
-			}
-		}));
 
 		this._store.add(autorun(r => {
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			this._ctxRequestInProgress.set(session?.state.read(r) === ChatEditingSessionState.StreamingEdits);
 		}));
 
-		let didReveal = false;
+
+		const entryForEditor = derived(r => {
+			const model = modelObs.read(r);
+			const session = this._chatEditingService.currentEditingSessionObs.read(r);
+			if (!session) {
+				return undefined;
+			}
+			const entry = model?.uri ? session.readEntry(model.uri, r) : undefined;
+			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
+				return undefined;
+			}
+			return { session, entry };
+		});
+
+
+		let didReval = false;
 
 		this._register(autorunWithStore((r, store) => {
 
@@ -98,54 +109,47 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				return;
 			}
 
-			fontInfoObs.read(r);
-			lineHeightObs.read(r);
+			const currentEditorEntry = entryForEditor.read(r);
 
-			const model = modelObs.read(r);
-
-			const session = this._chatEditingService.currentEditingSessionObs.read(r);
-			const entry = model?.uri ? session?.readEntry(model.uri, r) : undefined;
-
-			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
+			if (!currentEditorEntry) {
 				this._clearRendering();
-				didReveal = false;
+				didReval = false;
 				return;
 			}
 
+			const { session, entry } = currentEditorEntry;
+
+			const entryIndex = session.entries.read(r).indexOf(entry);
+			this._currentEntryIndex.set(entryIndex, undefined);
+
 			if (entry.isCurrentlyBeingModified.read(r)) {
+				// while modified: scroll along unless locked
+				if (!this._scrollLock) {
+					const maxLineNumber = entry.maxLineNumber.read(r);
+					this._editor.revealLineNearTop(maxLineNumber, ScrollType.Smooth);
+				}
 				const domNode = this._editor.getDomNode();
 				if (domNode) {
 					store.add(addStandardDisposableListener(domNode, 'wheel', () => {
 						this._scrollLock = true;
 					}));
 				}
-			}
+			} else {
+				// done: render diff
+				fontInfoObs.read(r);
+				lineHeightObs.read(r);
 
-			try {
-				ignoreScrollEvent = true;
-				if (!this._scrollLock && !didReveal) {
-					const maxLineNumber = entry.maxLineNumber.read(r);
-					this._editor.revealLineNearTop(maxLineNumber, ScrollType.Smooth);
-				}
 				const diff = entry?.diffInfo.read(r);
 				this._updateWithDiff(entry, diff);
-				if (!entry.isCurrentlyBeingModified.read(r)) {
-					this.initNavigation();
 
-					if (!this._scrollLock && !didReveal) {
-						const currentPosition = this._currentChange.read(r);
-						if (currentPosition) {
-							this._editor.revealLine(currentPosition.lineNumber, ScrollType.Smooth);
-							didReveal = true;
-						} else {
-							didReveal = this.revealNext();
-						}
-					}
+				if (!didReval && !diff.identical) {
+					didReval = true;
+					this.revealNext();
 				}
-			} finally {
-				ignoreScrollEvent = false;
 			}
 		}));
+
+		// ---- readonly while streaming
 
 		const shouldBeReadOnly = derived(this, r => {
 			const value = this._chatEditingService.currentEditingSessionObs.read(r);
@@ -200,7 +204,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._diffVisualDecorations.clear();
 		this._diffLineDecorations.clear();
 		this._ctxHasEditorModification.reset();
-		this._currentChange.set(undefined, undefined);
+		transaction(tx => {
+			this._currentEntryIndex.set(undefined, tx);
+			this._currentChangeIndex.set(undefined, tx);
+		});
 		this._scrollLock = false;
 	}
 
@@ -423,10 +430,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	initNavigation(): void {
 		const position = this._editor.getPosition();
-		const range = position && this._diffLineDecorations.getRanges().find(r => r.containsPosition(position));
-		if (range) {
-			this._currentChange.set(position, undefined);
-		}
+		const target = position ? this._diffLineDecorations.getRanges().findIndex(r => r.containsPosition(position)) : -1;
+		this._currentChangeIndex.set(target >= 0 ? target : undefined, undefined);
 	}
 
 	revealNext(strict = false): boolean {
@@ -440,6 +445,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	private _reveal(next: boolean, strict: boolean): boolean {
 		const position = this._editor.getPosition();
 		if (!position) {
+			this._currentChangeIndex.set(undefined, undefined);
 			return false;
 		}
 
@@ -448,6 +454,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			.sort((a, b) => Range.compareRangesUsingStarts(a, b));
 
 		if (decorations.length === 0) {
+			this._currentChangeIndex.set(undefined, undefined);
 			return false;
 		}
 
@@ -464,18 +471,19 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		}
 
 		if (strict && (target < 0 || target >= decorations.length)) {
+			this._currentChangeIndex.set(undefined, undefined);
 			return false;
 		}
 
 		target = (target + decorations.length) % decorations.length;
 
+		this._currentChangeIndex.set(target, undefined);
+
 		const targetPosition = next ? decorations[target].getStartPosition() : decorations[target].getEndPosition();
-
-		this._currentChange.set(targetPosition, undefined);
-
 		this._editor.setPosition(targetPosition);
 		this._editor.revealPositionInCenter(targetPosition, ScrollType.Smooth);
 		this._editor.focus();
+
 		return true;
 	}
 
