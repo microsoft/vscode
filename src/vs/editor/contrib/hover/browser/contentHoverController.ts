@@ -5,7 +5,6 @@
 
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from './hoverActionIds.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
@@ -243,13 +242,6 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (isPotentialKeyboardShortcut) {
 			return;
 		}
-		const isModifierKeyPressed = this._isModifierKeyPressed(e);
-		if (isModifierKeyPressed && this._mouseMoveEvent) {
-			const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
-			if (contentWidget.showsOrWillShow(this._mouseMoveEvent)) {
-				return;
-			}
-		}
 		this.hideContentHover();
 	}
 
@@ -265,13 +257,6 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 				|| resolvedKeyboardEvent.commandId === DECREASE_HOVER_VERBOSITY_ACTION_ID)
 			&& this._contentWidget.isVisible;
 		return moreChordsAreNeeded || isHoverAction;
-	}
-
-	private _isModifierKeyPressed(e: IKeyboardEvent): boolean {
-		return e.keyCode === KeyCode.Ctrl
-			|| e.keyCode === KeyCode.Alt
-			|| e.keyCode === KeyCode.Meta
-			|| e.keyCode === KeyCode.Shift;
 	}
 
 	public hideContentHover(): void {
