@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, TextEditorDiffInformation } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
@@ -11,6 +11,7 @@ import { throttle } from './decorators';
 import { BlameInformation } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
+import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -277,10 +278,6 @@ export class GitBlameController {
 		return blameInformation;
 	}
 
-	private _findDiffInformation(textEditor: TextEditor, ref: string): TextEditorDiffInformation | undefined {
-		return textEditor.diffInformation?.find(diff => diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === ref);
-	}
-
 	@throttle
 	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined, showBlameInformationForPositionZero = false): Promise<void> {
 		if (!textEditor?.diffInformation || textEditor !== window.activeTextEditor) {
@@ -319,7 +316,7 @@ export class GitBlameController {
 				workingTreeAndIndexChanges = undefined;
 			} else if (ref === '') {
 				// Resource on the right-hand side of the diff editor when viewing a resource from the index.
-				const diffInformationWorkingTreeAndIndex = this._findDiffInformation(textEditor, 'HEAD');
+				const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
 
 				// Working tree + index diff information is present and it is stale
 				if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
@@ -333,7 +330,7 @@ export class GitBlameController {
 			}
 		} else {
 			// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
-			const diffInformationWorkingTree = this._findDiffInformation(textEditor, '~') ?? this._findDiffInformation(textEditor, '');
+			const diffInformationWorkingTree = getWorkingTreeDiffInformation(textEditor);
 
 			// Working tree diff information is not present or it is stale
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
@@ -341,7 +338,7 @@ export class GitBlameController {
 			}
 
 			// Working tree + index diff information
-			const diffInformationWorkingTreeAndIndex = this._findDiffInformation(textEditor, 'HEAD');
+			const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
 
 			// Working tree + index diff information is present and it is stale
 			if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
