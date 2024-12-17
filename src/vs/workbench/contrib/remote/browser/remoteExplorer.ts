@@ -44,6 +44,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private readonly contextKeyListener = this._register(new MutableDisposable<IDisposable>());
 	private readonly activityBadge = this._register(new MutableDisposable<IDisposable>());
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
+	private hasPortsInSession: boolean = false;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -60,6 +61,11 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		}));
 		this.enableBadgeAndStatusBar();
 		this.enableForwardedPortsFeatures();
+		if (!this.environmentService.remoteAuthority) {
+			this._register(Event.once(this.tunnelService.onTunnelOpened)(() => {
+				this.hasPortsInSession = true;
+			}));
+		}
 	}
 
 	private async getViewContainer(): Promise<ViewContainer | null> {
@@ -131,6 +137,11 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private updateStatusBar() {
+		if (!this.environmentService.remoteAuthority && !this.hasPortsInSession) {
+			// We only want to show the ports status bar entry when the user has taken an action that indicates that they might care about it.
+			return;
+		}
+
 		if (!this.entryAccessor) {
 			this._register(this.entryAccessor = this.statusbarService.addEntry(this.entry, 'status.forwardedPorts', StatusbarAlignment.LEFT, 40));
 		} else {
