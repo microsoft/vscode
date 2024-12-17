@@ -59,6 +59,9 @@ export interface IWorkbenchSuggestWidgetOptions {
 
 export class SimpleSuggestWidget extends Disposable {
 
+	private static LOADING_MESSAGE: string = localize('suggestWidget.loading', "Loading...");
+	private static NO_SUGGESTIONS_MESSAGE: string = localize('suggestWidget.noSuggestions', "No suggestions.");
+
 	private _state: State = State.Hidden;
 	private _completionModel?: SimpleCompletionModel;
 	private _cappedHeight?: { wanted: number; capped: number };
@@ -67,6 +70,7 @@ export class SimpleSuggestWidget extends Disposable {
 	private readonly _pendingLayout = this._register(new MutableDisposable());
 
 	readonly element: ResizableHTMLElement;
+	private readonly _messageElement: HTMLElement;
 	private readonly _listElement: HTMLElement;
 	private readonly _list: List<SimpleCompletionItem>;
 	private readonly _status?: SuggestWidgetStatus;
@@ -193,6 +197,8 @@ export class SimpleSuggestWidget extends Disposable {
 			}
 		}));
 
+		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
+
 		if (options.statusBarMenuId) {
 			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
@@ -287,7 +293,9 @@ export class SimpleSuggestWidget extends Disposable {
 
 		switch (state) {
 			case State.Hidden:
-				// dom.hide(this._messageElement, this._listElement, this._status.element);
+				if (this._status) {
+					dom.hide(this._messageElement, this._listElement, this._status.element);
+				}
 				dom.hide(this._listElement);
 				if (this._status) {
 					dom.hide(this._status?.element);
@@ -307,30 +315,30 @@ export class SimpleSuggestWidget extends Disposable {
 				break;
 			case State.Loading:
 				this.element.domNode.classList.add('message');
-				// this._messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
+				this._messageElement.textContent = SimpleSuggestWidget.LOADING_MESSAGE;
 				dom.hide(this._listElement);
 				if (this._status) {
 					dom.hide(this._status?.element);
 				}
-				// dom.show(this._messageElement);
+				dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
 				// this._focusedItem = undefined;
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
-				// this._messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
+				this._messageElement.textContent = SimpleSuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				dom.hide(this._listElement);
 				if (this._status) {
 					dom.hide(this._status?.element);
 				}
-				// dom.show(this._messageElement);
+				dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
 				// this._focusedItem = undefined;
 				break;
 			case State.Open:
-				// dom.hide(this._messageElement);
+				dom.hide(this._messageElement);
 				dom.show(this._listElement);
 				if (this._status) {
 					dom.show(this._status?.element);
@@ -338,7 +346,7 @@ export class SimpleSuggestWidget extends Disposable {
 				this._show();
 				break;
 			case State.Frozen:
-				// dom.hide(this._messageElement);
+				dom.hide(this._messageElement);
 				dom.show(this._listElement);
 				if (this._status) {
 					dom.show(this._status?.element);
@@ -346,7 +354,7 @@ export class SimpleSuggestWidget extends Disposable {
 				this._show();
 				break;
 			case State.Details:
-				// dom.hide(this._messageElement);
+				dom.hide(this._messageElement);
 				dom.show(this._listElement);
 				if (this._status) {
 					dom.show(this._status?.element);

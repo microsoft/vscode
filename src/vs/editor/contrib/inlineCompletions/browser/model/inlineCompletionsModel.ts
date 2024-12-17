@@ -227,6 +227,7 @@ export class InlineCompletionsModel extends Disposable {
 				this._onlyRequestInlineEditsSignal.trigger(tx);
 			}
 			this._isActive.set(true, tx);
+			this._inAcceptFlow.set(true, tx);
 			this._forceUpdateExplicitlySignal.trigger(tx);
 		});
 		await this._fetchInlineCompletionsPromise.get();
@@ -480,6 +481,10 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	private readonly _tabShouldIndent = derived(this, reader => {
+		if (this._inAcceptFlow.read(reader)) {
+			return false;
+		}
+
 		function isMultiLine(range: Range): boolean {
 			return range.startLineNumber !== range.endLineNumber;
 		}
