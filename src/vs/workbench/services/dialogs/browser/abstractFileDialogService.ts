@@ -90,10 +90,11 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			return this.preferredHome(schemeFilter);
 		}
 
-		if ((await this.fileService.stat(candidate)).isDirectory) {
-			return this.configurationService.getValue<'current' | 'parent'>('files.dialog.openFolderStartLocation') === 'current' ? candidate : resources.dirname(candidate);
+		const startParent = this.configurationService.getValue<'current' | 'parent'>('files.dialog.openFolderStartLocation') !== 'current';
+		if (startParent) {
+			return resources.dirname(candidate);
 		} else {
-			return candidate;
+			return (await this.fileService.stat(candidate)).isDirectory ? candidate : resources.dirname(candidate);
 		}
 	}
 
