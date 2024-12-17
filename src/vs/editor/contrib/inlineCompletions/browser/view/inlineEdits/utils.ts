@@ -16,6 +16,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
+import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -34,7 +35,13 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
 		const column = model.getLineMaxColumn(i);
-		const lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		let lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		if (lineContentWidth === -1) {
+			// approximation
+			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+			const approximation = column * typicalHalfwidthCharacterWidth;
+			lineContentWidth = approximation;
+		}
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
 	}
 	const lines = range.mapToLineArray(l => model.getLineContent(l));

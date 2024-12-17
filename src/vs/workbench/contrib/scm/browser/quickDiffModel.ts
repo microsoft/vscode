@@ -214,10 +214,6 @@ export class QuickDiffModel extends Disposable {
 					return; // disposed
 				}
 
-				if (editorModels.every(editorModel => editorModel.textEditorModel.getValueLength() === 0)) {
-					result.changes = [];
-				}
-
 				this.setChanges(result.changes, result.mapChanges);
 			})
 			.catch(err => onUnexpectedError(err));
@@ -355,15 +351,7 @@ export class QuickDiffModel extends Disposable {
 		}
 
 		const isSynchronized = this._model.textEditorModel ? shouldSynchronizeModel(this._model.textEditorModel) : undefined;
-		const quickDiffs = await this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), isSynchronized);
-
-		// TODO@lszomoru - find a long term solution for this
-		// When the QuickDiffModel is created for a diff editor, there is no
-		// need to compute the diff information for the `isSCM` quick diff
-		// provider as that information will be provided by the diff editor
-		return this.options.maxComputationTimeMs === undefined
-			? quickDiffs.filter(quickDiff => !quickDiff.isSCM)
-			: quickDiffs;
+		return this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), isSynchronized);
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {

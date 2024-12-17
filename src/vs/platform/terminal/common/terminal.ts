@@ -871,6 +871,7 @@ export interface ITerminalProfile {
 	overrideName?: boolean;
 	color?: string;
 	icon?: ThemeIcon | URI | { light: URI; dark: URI };
+	isAutomationShell?: boolean;
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {

@@ -1031,11 +1031,34 @@ export class Repository implements Disposable {
 
 		// Ignore path that is not inside the current repository
 		if (this.repositoryResolver.getRepository(uri) !== this) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is not part of the repository: ${uri.toString()}`);
 			return undefined;
 		}
 
 		// Ignore path that is inside a merge group
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
+		if (this.mergeGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is part of a merge group: ${uri.toString()}`);
+			return undefined;
+		}
+
+		// Ignore path that is untracked
+		if (this.untrackedGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path)) ||
+			this.workingTreeGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path) && r.type === Status.UNTRACKED)) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is untracked: ${uri.toString()}`);
+			return undefined;
+		}
+
+		const activeTabInput = window.tabGroups.activeTabGroup.activeTab?.input;
+
+		// Ignore file that is on the right-hand side of a diff editor
+		if (activeTabInput instanceof TabInputTextDiff && pathEquals(activeTabInput.modified.fsPath, uri.fsPath)) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is on the right-hand side of a diff editor: ${uri.toString()}`);
+			return undefined;
+		}
+
+		// Ignore file that is on the right -hand side of a multi-file diff editor
+		if (activeTabInput instanceof TabInputTextMultiDiff && activeTabInput.textDiffs.some(diff => pathEquals(diff.modified.fsPath, uri.fsPath))) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is on the right-hand side of a multi-file diff editor: ${uri.toString()}`);
 			return undefined;
 		}
 

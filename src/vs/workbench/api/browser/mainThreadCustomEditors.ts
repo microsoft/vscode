@@ -389,7 +389,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			this._register(workingCopyService.registerWorkingCopy(this));
 
 			this._register(extensionService.onWillStop(e => {
-				e.veto(true, localize('vetoExtHostRestart', "A custom editor for '{0}' is open.", this.name));
+				e.veto(true, localize('vetoExtHostRestart', "An extension provided editor for '{0}' is still open that would close otherwise.", this.name));
 			}));
 		}
 

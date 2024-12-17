@@ -38,6 +38,8 @@ import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsView } from '../view/inlineCompletionsView.js';
 
 export class InlineCompletionsController extends Disposable {
+	private static readonly _instances = new Set<InlineCompletionsController>();
+
 	public static hot = createHotClass(InlineCompletionsController);
 	public static ID = 'editor.contrib.inlineCompletionsController';
 
@@ -115,6 +117,22 @@ export class InlineCompletionsController extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
+
+		InlineCompletionsController._instances.add(this);
+		this._register(toDisposable(() => InlineCompletionsController._instances.delete(this)));
+
+		this._register(autorun(reader => {
+			// Cancel all other inline completions when a new one starts
+			const model = this.model.read(reader);
+			if (!model) { return; }
+			if (model.state.read(reader) !== undefined) {
+				for (const ctrl of InlineCompletionsController._instances) {
+					if (ctrl !== this) {
+						ctrl.reject();
+					}
+				}
+			}
+		}));
 
 		this._register(runOnChange(this._editorObs.onDidType, (_value, _changes) => {
 			if (this._enabled.get()) {
