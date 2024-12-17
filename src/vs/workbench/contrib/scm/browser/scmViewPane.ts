@@ -1477,6 +1477,7 @@ class SCMInputWidgetEditorOptions {
 			e => {
 				return e.affectsConfiguration('editor.accessibilitySupport') ||
 					e.affectsConfiguration('editor.cursorBlinking') ||
+					e.affectsConfiguration('editor.emptySelectionClipboard') ||
 					e.affectsConfiguration('editor.fontFamily') ||
 					e.affectsConfiguration('editor.rulers') ||
 					e.affectsConfiguration('editor.wordWrap') ||
@@ -1490,21 +1491,14 @@ class SCMInputWidgetEditorOptions {
 	}
 
 	getEditorConstructionOptions(): IEditorConstructionOptions {
-		const fontFamily = this._getEditorFontFamily();
-		const fontSize = this._getEditorFontSize();
-		const lineHeight = this._getEditorLineHeight(fontSize);
-
 		return {
 			...getSimpleEditorOptions(this.configurationService),
-			...this._getEditorLanguageConfiguration(),
+			...this.getEditorOptions(),
 			cursorWidth: 1,
 			dragAndDrop: true,
 			dropIntoEditor: { enabled: true },
-			fontFamily: fontFamily,
-			fontSize: fontSize,
 			formatOnType: true,
 			lineDecorationsWidth: 6,
-			lineHeight: lineHeight,
 			overflowWidgetsDomNode: this.overflowWidgetsDomNode,
 			padding: { top: 2, bottom: 2 },
 			quickSuggestions: false,
@@ -1524,8 +1518,9 @@ class SCMInputWidgetEditorOptions {
 		const lineHeight = this._getEditorLineHeight(fontSize);
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
+		const emptySelectionClipboard = this.configurationService.getValue<boolean>('editor.emptySelectionClipboard') === true;
 
-		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, fontFamily, fontSize, lineHeight };
+		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, fontFamily, fontSize, lineHeight, emptySelectionClipboard };
 	}
 
 	private _getEditorFontFamily(): string {
