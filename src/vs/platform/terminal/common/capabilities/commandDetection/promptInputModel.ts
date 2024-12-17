@@ -404,6 +404,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _handleUserInput(e: string) {
+		if (e === '\x1b[?25l' || e === '\x1b[?25h') {
+			// Ignore cursor hide/show as its coming from the
+			// screen reader and causes problems #233921
+			return;
+		}
 		this._lastUserInput = e;
 	}
 
