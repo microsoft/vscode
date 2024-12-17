@@ -8,6 +8,9 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
+import { IChatService } from '../../../chat/common/chatService.js';
 import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
@@ -206,6 +209,48 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.terminalChatWidget?.acceptCommand(false);
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.RerunRequest,
+	title: localize2('chat.rerun.label', "Rerun Request"),
+	f1: false,
+	icon: Codicon.refresh,
+	category: AbstractInlineChatAction.category,
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalChatContextKeys.requestActive.negate(),
+	),
+	keybinding: {
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyR
+	},
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
+		order: 5,
+		when: ContextKeyExpr.and(TerminalChatContextKeys.inputHasText.toNegated(), TerminalChatContextKeys.requestActive.negate())
+	},
+	run: async (_xterm, _accessor, activeInstance) => {
+		const chatService = _accessor.get(IChatService);
+		const chatWidgetService = _accessor.get(IChatWidgetService);
+		const contr = TerminalChatController.activeChatController;
+		const model = contr?.terminalChatWidget?.inlineChatWidget.chatWidget.viewModel?.model;
+		if (!model) {
+			return;
+		}
+
+		const lastRequest = model.getRequests().at(-1);
+		if (lastRequest) {
+			const widget = chatWidgetService.getWidgetBySessionId(model.sessionId);
+			await chatService.resendRequest(lastRequest, {
+				noCommandDetection: false,
+				attempt: lastRequest.attempt + 1,
+				location: ChatAgentLocation.Terminal,
+				userSelectedModelId: widget?.input.currentLanguageModel
+			});
+		}
 	}
 });
 
