@@ -66,7 +66,7 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			e.veto(true, localize('vetoExtHostRestart', "An extension provided text editor for '{0}' is still open.", this.name));
+			e.veto(true, localize('vetoExtHostRestart', "An extension provided text editor for '{0}' is still open that would close otherwise.", this.name));
 		}));
 	}
 
