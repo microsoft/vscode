@@ -328,16 +328,6 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 			}
 		}
 	}
-	const shouldShowCommands = !terminalContext.commandLine.substring(0, terminalContext.cursorPosition).trimStart().includes(' ');
-	if (shouldShowCommands && (filesRequested === foldersRequested)) {
-		// Include builitin/available commands in the results
-		const labels = new Set(items.map(i => i.label));
-		for (const command of availableCommands) {
-			if (!labels.has(command)) {
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
-			}
-		}
-	}
 
 	const shouldShowResourceCompletions =
 		(
@@ -350,6 +340,17 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 		)
 		// and neither files nor folders are going to be requested (for a specific spec's argument)
 		&& (!filesRequested && !foldersRequested);
+
+	const shouldShowCommands = !terminalContext.commandLine.substring(0, terminalContext.cursorPosition).trimStart().includes(' ');
+	if (shouldShowCommands && (filesRequested === foldersRequested)) {
+		// Include builitin/available commands in the results
+		const labels = new Set(items.map(i => i.label));
+		for (const command of availableCommands) {
+			if (!labels.has(command)) {
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
+			}
+		}
+	}
 
 	if (shouldShowResourceCompletions) {
 		filesRequested = true;
