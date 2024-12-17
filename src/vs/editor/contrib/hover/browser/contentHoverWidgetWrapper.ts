@@ -27,6 +27,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 	private _currentResult: ContentHoverResult | null = null;
 	private _renderedContentHover: RenderedContentHover | undefined;
+	private _temporarilySticky: boolean = false;
 
 	private readonly _contentHoverWidget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
@@ -153,6 +154,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	private _setCurrentResult(hoverResult: ContentHoverResult | null): void {
+		if (this._temporarilySticky) {
+			return;
+		}
 		let currentHoverResult = hoverResult;
 		const currentResultEqualToPreviousResult = this._currentResult === currentHoverResult;
 		if (currentResultEqualToPreviousResult) {
@@ -291,6 +295,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		if (isMousePositionOutsideOfEditor) {
 			this.hide();
 		}
+	}
+
+	public set temporarilySticky(value: boolean) {
+		this._temporarilySticky = value;
 	}
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {

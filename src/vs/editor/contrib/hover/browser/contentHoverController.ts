@@ -22,6 +22,7 @@ import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
 import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -93,6 +94,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 		this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 		this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+		this._listenersStore.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => this._cancelSchedulerAndHide()));
 		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
@@ -235,14 +237,26 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		if (!this._editor.hasModel()) {
+		if (!this._contentWidget) {
 			return;
+		}
+		if (e.keyCode === KeyCode.Alt) {
+			this._contentWidget.temporarilySticky = true;
 		}
 		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(e);
 		if (isPotentialKeyboardShortcut) {
 			return;
 		}
 		this.hideContentHover();
+	}
+
+	private _onKeyUp(e: IKeyboardEvent): void {
+		if (!this._contentWidget) {
+			return;
+		}
+		if (e.keyCode === KeyCode.Alt) {
+			this._contentWidget.temporarilySticky = false;
+		}
 	}
 
 	private _isPotentialKeyboardShortcut(e: IKeyboardEvent): boolean {
