@@ -484,8 +484,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
 		for (const editor of this.historyService.getHistory()) {
 			const resource = editor.resource;
-			// allow untitled and terminal editors to go through
-			// allow github copilot chat to go through
 			if (!resource) {
 				continue;
 			}
