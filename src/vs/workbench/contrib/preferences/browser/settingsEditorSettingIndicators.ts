@@ -360,7 +360,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		for (const indicator of this.parenthesizedIndicators) {
 			indicator.disposables.dispose();
 		}
-		this.scopeOverridesIndicator.disposables.dispose();
 	}
 
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
