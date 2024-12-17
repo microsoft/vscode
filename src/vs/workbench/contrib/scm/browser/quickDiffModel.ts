@@ -214,10 +214,6 @@ export class QuickDiffModel extends Disposable {
 					return; // disposed
 				}
 
-				if (editorModels.every(editorModel => editorModel.textEditorModel.getValueLength() === 0)) {
-					result.changes = [];
-				}
-
 				this.setChanges(result.changes, result.mapChanges);
 			})
 			.catch(err => onUnexpectedError(err));
