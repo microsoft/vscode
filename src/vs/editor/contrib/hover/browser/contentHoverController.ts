@@ -165,6 +165,9 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (_sticky) {
 			return;
 		}
+		if (this._contentWidget) {
+			this._contentWidget.temporarilySticky = false;
+		}
 		this.hideContentHover();
 	}
 
