@@ -7,7 +7,7 @@ import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
 import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
-import { SettingsManager, getData } from './settings';
+import { SettingsManager, getData, getRawData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
 import type { ToWebviewMessage } from '../types/previewMessaging';
@@ -61,8 +61,16 @@ function doAfterImagesLoaded(cb: () => void) {
 }
 
 onceDocumentLoaded(() => {
-	const scrollProgress = state.scrollProgress;
+	// Load initial html
+	const htmlParser = new DOMParser();
+	const markDownHtml = htmlParser.parseFromString(
+		getRawData('data-initial-md-content'),
+		'text/html'
+	);
+	document.body.appendChild(markDownHtml.body);
 
+	// Restore
+	const scrollProgress = state.scrollProgress;
 	addImageContexts();
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
@@ -352,15 +360,6 @@ document.addEventListener('click', event => {
 		node = node.parentNode;
 	}
 }, true);
-
-window.addEventListener('load', () => {
-	const htmlParser = new DOMParser();
-	const markDownHtml = htmlParser.parseFromString(
-		decodeURIComponent(getData('data-md-content')),
-		'text/html'
-	);
-	document.body.appendChild(markDownHtml.body);
-});
 
 window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();

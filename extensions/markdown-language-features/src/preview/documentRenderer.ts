@@ -99,7 +99,7 @@ export class MdDocumentRenderer {
 					data-settings="${escapeAttribute(JSON.stringify(initialData))}"
 					data-strings="${escapeAttribute(JSON.stringify(previewStrings))}"
 					data-state="${escapeAttribute(JSON.stringify(state || {}))}"
-					data-md-content="${escapeAttribute(JSON.stringify(encodeURIComponent(body.html)))}">
+					data-initial-md-content="${escapeAttribute(body.html)}">
 				<script src="${this._extensionResourcePath(resourceProvider, 'pre.js')}" nonce="${nonce}"></script>
 				${this._getStyles(resourceProvider, sourceUri, config, imageInfo)}
 				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
