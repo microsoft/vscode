@@ -1563,11 +1563,15 @@ export class CommandCenter {
 			return;
 		}
 
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] changes: ${JSON.stringify(changes)}`);
+
 		const modifiedDocument = textEditor.document;
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 		const selectedChanges = changes
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(d => !!d) as LineChange[];
+
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] selectedChanges: ${JSON.stringify(selectedChanges)}`);
 
 		if (!selectedChanges.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
@@ -1745,6 +1749,8 @@ export class CommandCenter {
 			return;
 		}
 
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] changes: ${JSON.stringify(changes)}`);
+
 		const modifiedDocument = textEditor.document;
 		const selections = textEditor.selections;
 		const selectedChanges = changes.filter(change => {
@@ -1756,6 +1762,8 @@ export class CommandCenter {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
+
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] selectedChanges: ${JSON.stringify(selectedChanges)}`);
 
 		const selectionsBeforeRevert = textEditor.selections;
 		await this._revertChanges(textEditor, selectedChanges);
@@ -1835,6 +1843,8 @@ export class CommandCenter {
 			return;
 		}
 
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(changes)}`);
+
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
@@ -1848,8 +1858,11 @@ export class CommandCenter {
 		}
 
 		const invertedDiffs = selectedDiffs.map(invertLineChange);
-		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffs: ${JSON.stringify(selectedDiffs)}`);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
+
+		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
