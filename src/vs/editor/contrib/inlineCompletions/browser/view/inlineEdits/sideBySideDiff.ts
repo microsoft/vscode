@@ -412,7 +412,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const codeEditDist = codeEditDistRange.clip(dist);
 		const editHeight = this._editor.getOption(EditorOption.lineHeight) * inlineEdit.modifiedLineRange.length;
 
-		const previewEditorWidth = remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist;
+		const previewEditorWidth = Math.min(previewContentWidth, remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist);
 
 		const edit1 = new Point(left + codeEditDist, selectionTop);
 		const edit2 = new Point(left + codeEditDist, selectionTop + editHeight);
