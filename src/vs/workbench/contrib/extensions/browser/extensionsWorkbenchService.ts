@@ -1585,7 +1585,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (toAdd.length || toRemove.length) {
-			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"), auto)) {
+			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Changing extension enablement"), auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 				if (auto) {
 					this.notificationService.notify({
@@ -2616,17 +2616,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		return nls.localize('multipleDependentsUninstallError', "Cannot uninstall '{0}' extension alone. '{1}', '{2}' and other extensions depend on this. Do you want to uninstall all these extensions?",
 			extension.displayName, dependents[0].displayName, dependents[1].displayName);
-	}
-
-	reinstall(extension: IExtension): Promise<IExtension> {
-		return this.doInstall(extension, () => {
-			const ext = extension.local ? extension : this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
-			const toReinstall: ILocalExtension | null = ext && ext.local ? ext.local : null;
-			if (!toReinstall) {
-				throw new Error('Missing local');
-			}
-			return this.extensionManagementService.reinstallFromGallery(toReinstall);
-		});
 	}
 
 	isExtensionIgnoredToSync(extension: IExtension): boolean {

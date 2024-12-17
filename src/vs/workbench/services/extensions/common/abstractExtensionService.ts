@@ -761,12 +761,29 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				const vetoReasonsArray = Array.from(vetoReasons);
 
 				this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
-				await this._dialogService.warn(
-					nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
-					vetoReasonsArray.length === 1 ?
-						nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasonsArray[0]) :
-						nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasonsArray.join('\n -')),
-				);
+
+				let overrideVeto = false;
+				await this._dialogService.prompt({
+					type: Severity.Warning,
+					message: nls.localize('extensionStopVetoMessage', "Restart of extensions was prevented but is required for: {0}. Do you want to proceed anyways?", reason),
+					detail: vetoReasonsArray.length === 1 ?
+						nls.localize('extensionStopVetoDetailsOne', "Reason: {0}", vetoReasonsArray[0]) :
+						nls.localize('extensionStopVetoDetailsMany', "Reasons:\n- {0}", vetoReasonsArray.join('\n -')),
+					buttons: [
+						{
+							label: nls.localize('ok', "OK"),
+							run: () => { /* noop */ }
+						},
+						{
+							label: nls.localize('proceedAnyways', "Proceed Anyways"),
+							run: () => overrideVeto = true
+						}
+					]
+				});
+
+				if (overrideVeto) {
+					return true;
+				}
 			}
 
 		}

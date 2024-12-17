@@ -11,7 +11,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import { TokenizationRegistry } from '../../../common/languages.js';
 import { HoverOperation, HoverResult, HoverStartMode, HoverStartSource } from './hoverOperation.js';
-import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IContentsChangeOptions, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from './hoverTypes.js';
+import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from './hoverTypes.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { HoverVerbosityAction } from '../../../common/standalone/standaloneEnums.js';
@@ -27,6 +27,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 	private _currentResult: ContentHoverResult | null = null;
 	private _renderedContentHover: RenderedContentHover | undefined;
+	private _temporarilySticky: boolean = false;
 
 	private readonly _contentHoverWidget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
@@ -162,11 +163,25 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		if (currentHoverResultIsEmpty) {
 			currentHoverResult = null;
 		}
+		const hoverVisible = this._contentHoverWidget.isVisible;
+		if (!hoverVisible) {
+			this._renderResult(currentHoverResult);
+		} else {
+			if (this._temporarilySticky) {
+				return;
+			} else {
+				this._renderResult(currentHoverResult);
+			}
+		}
+	}
+
+	private _renderResult(currentHoverResult: ContentHoverResult | null): void {
 		this._currentResult = currentHoverResult;
 		if (this._currentResult) {
 			this._showHover(this._currentResult);
 		} else {
-			this._hideHover();
+			this._contentHoverWidget.hide();
+			this._participants.forEach(participant => participant.handleHide?.());
 		}
 	}
 
@@ -215,18 +230,13 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 	}
 
-	private _hideHover(): void {
-		this._contentHoverWidget.hide();
-		this._participants.forEach(participant => participant.handleHide?.());
-	}
-
 	private _getHoverContext(): IEditorHoverContext {
 		const hide = () => {
 			this.hide();
 		};
-		const onContentsChanged = (opts: IContentsChangeOptions) => {
+		const onContentsChanged = () => {
 			this._onContentsChanged.fire();
-			this._contentHoverWidget.onContentsChanged(opts);
+			this._contentHoverWidget.onContentsChanged();
 		};
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
@@ -291,6 +301,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		if (isMousePositionOutsideOfEditor) {
 			this.hide();
 		}
+	}
+
+	public set temporarilySticky(value: boolean) {
+		this._temporarilySticky = value;
 	}
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {

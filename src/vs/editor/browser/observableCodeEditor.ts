@@ -12,7 +12,8 @@ import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
+import { Point } from './point.js';
 
 /**
  * Returns a facade for the code editor that provides observables for various states/events.
@@ -241,10 +242,10 @@ export class ObservableCodeEditor extends Disposable {
 		return d;
 	}
 
-	private _overlayWidgetCounter = 0;
+	private _widgetCounter = 0;
 
 	public createOverlayWidget(widget: IObservableOverlayWidget): IDisposable {
-		const overlayWidgetId = 'observableOverlayWidget' + (this._overlayWidgetCounter++);
+		const overlayWidgetId = 'observableOverlayWidget' + (this._widgetCounter++);
 		const w: IOverlayWidget = {
 			getDomNode: () => widget.domNode,
 			getPosition: () => widget.position.get(),
@@ -262,6 +263,33 @@ export class ObservableCodeEditor extends Disposable {
 			d.dispose();
 			this.editor.removeOverlayWidget(w);
 		});
+	}
+
+	public observePosition(position: IObservable<Position | null>, store: DisposableStore): IObservable<Point | null> {
+		const result = observableValueOpts<Point | null>({ owner: this, equalsFn: equalsIfDefined(Point.equals) }, new Point(0, 0));
+		const contentWidgetId = `observablePositionWidget` + (this._widgetCounter++);
+		const domNode = document.createElement('div');
+		const w: IContentWidget = {
+			getDomNode: () => domNode,
+			getPosition: () => {
+				const pos = position.get();
+				return pos ? { preference: [ContentWidgetPositionPreference.EXACT], position: position.get() } : null;
+			},
+			getId: () => contentWidgetId,
+			allowEditorOverflow: false,
+			afterRender(position, coordinate) {
+				result.set(coordinate ? new Point(coordinate.left, coordinate.top) : null, undefined);
+			},
+		};
+		this.editor.addContentWidget(w);
+		store.add(autorun(reader => {
+			position.read(reader);
+			this.editor.layoutContentWidget(w);
+		}));
+		store.add(toDisposable(() => {
+			this.editor.removeContentWidget(w);
+		}));
+		return result;
 	}
 }
 

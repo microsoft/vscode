@@ -105,6 +105,28 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			this.changedObservablesSets.get(derived)!.add(observable);
 			return existingHandleChange.apply(derived, [observable, change]);
 		};
+
+		const debugTrackUpdating = false;
+		if (debugTrackUpdating) {
+			const updating: IObservable<any>[] = [];
+			(derived as any).__debugUpdating = updating;
+
+			const existingBeginUpdate = derived.beginUpdate;
+			derived.beginUpdate = (obs) => {
+				updating.push(obs);
+				return existingBeginUpdate.apply(derived, [obs]);
+			};
+
+			const existingEndUpdate = derived.endUpdate;
+			derived.endUpdate = (obs) => {
+				const idx = updating.indexOf(obs);
+				if (idx === -1) {
+					console.error('endUpdate called without beginUpdate', derived.debugName, obs.debugName);
+				}
+				updating.splice(idx, 1);
+				return existingEndUpdate.apply(derived, [obs]);
+			};
+		}
 	}
 
 	handleDerivedRecomputed(derived: Derived<unknown>, info: IChangeInformation): void {

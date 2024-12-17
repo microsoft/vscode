@@ -619,7 +619,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
 		const command = await this._configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
 		cwd = cwd ? await this._configurationResolverService.resolveAsync(workspaceFolder, cwd) : undefined;
-		const paths = envPath ? await Promise.all(envPath.split(path.delimiter).map(p => this._configurationResolverService.resolveAsync(workspaceFolder, p))) : undefined;
+		const delimiter = (await this._pathService.path).delimiter;
+		const paths = envPath ? await Promise.all(envPath.split(delimiter).map(p => this._configurationResolverService.resolveAsync(workspaceFolder, p))) : undefined;
 		const foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
 		if (foundExecutable) {
 			return foundExecutable;
@@ -1124,7 +1125,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					shellLaunchConfig.args = await this._resolveVariables(variableResolver, shellOptions.args.slice());
 				}
 			}
-			const shellArgsSpecified: boolean = shellLaunchConfig.args !== undefined;
+			const taskShellArgsSpecified = (defaultProfile.isAutomationShell ? shellLaunchConfig.args : shellOptions?.args) !== undefined;
 			if (shellLaunchConfig.args === undefined) {
 				shellLaunchConfig.args = [];
 			}
@@ -1141,25 +1142,30 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath))) {
 						return undefined;
 					}
-					if (!shellArgsSpecified) {
+					if (!taskShellArgsSpecified) {
 						toAdd.push('/d', '/c');
 					}
 				} else if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
-					if (!shellArgsSpecified) {
+					if (!taskShellArgsSpecified) {
 						toAdd.push('-Command');
 					}
 				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
-					if (!shellArgsSpecified) {
+					if (!taskShellArgsSpecified) {
 						toAdd.push('-c');
 					}
 				} else if (basename === 'wsl.exe') {
-					if (!shellArgsSpecified) {
+					if (!taskShellArgsSpecified) {
 						toAdd.push('-e');
+					}
+				} else {
+					if (!taskShellArgsSpecified) {
+						// Push `-c` for unknown shells if the user didn't specify the args
+						toAdd.push('-c');
 					}
 				}
 			} else {
-				if (!shellArgsSpecified) {
+				if (!taskShellArgsSpecified) {
 					// Under Mac remove -l to not start it as a login shell.
 					if (platform === Platform.Platform.Mac) {
 						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563

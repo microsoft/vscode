@@ -2226,9 +2226,6 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
-		throw new Error('Method not implemented.');
-	}
 	async getInstalled(type?: ExtensionType | undefined): Promise<ILocalExtension[]> { return []; }
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
 		throw new Error('Method not implemented.');
