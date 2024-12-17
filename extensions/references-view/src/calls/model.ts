@@ -163,9 +163,11 @@ class CallItemDataProvider implements vscode.TreeDataProvider<CallItem> {
 	readonly onDidChangeTreeData = this._emitter.event;
 
 	private readonly _modelListener: vscode.Disposable;
+	private readonly collapseResults: 'alwaysCollapse' | 'alwaysExpand';
 
 	constructor(private _model: CallsModel) {
 		this._modelListener = _model.onDidChange(e => this._emitter.fire(e instanceof CallItem ? e : undefined));
+		this.collapseResults = vscode.workspace.getConfiguration().get('references.collapseResults') ?? 'alwaysCollapse';
 	}
 
 	dispose(): void {
@@ -210,6 +212,10 @@ class CallItemDataProvider implements vscode.TreeDataProvider<CallItem> {
 			arguments: openArgs
 		};
 		item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+		item.collapsibleState = this.collapseResults === 'alwaysCollapse'
+			? vscode.TreeItemCollapsibleState.Collapsed
+			: vscode.TreeItemCollapsibleState.Expanded;
+
 		return item;
 	}
 
