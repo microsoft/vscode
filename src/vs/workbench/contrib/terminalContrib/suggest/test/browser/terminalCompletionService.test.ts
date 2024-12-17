@@ -6,7 +6,6 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
 import { TerminalCompletionService, TerminalCompletionItemKind, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
-import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert from 'assert';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -44,10 +43,6 @@ suite('TerminalCompletionService', () => {
 		childResources = [];
 	});
 
-	teardown(() => {
-		sinon.restore();
-	});
-
 	suite('resolveResources should return undefined', () => {
 		test('if cwd is not provided', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
@@ -69,157 +64,124 @@ suite('TerminalCompletionService', () => {
 	});
 
 	suite('resolveResources should return folder completions', () => {
-		test('', async () => {
+		setup(() => {
+			validResources = [URI.parse('file:///test')];
+			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
+			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
+			childResources = [childFolder, childFile];
+		});
+
+		test('|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				pathSeparator
 			};
-			validResources = [URI.parse('file:///test')];
-			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
-			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
-			childResources = [childFolder, childFile];
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 1);
-			assert(!!result);
-			assert(result.length === 1);
-			assert.deepEqual(result![0], {
+			assert.deepEqual(result, [{
 				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 1,
 				replacementLength: 1
-			});
+			}]);
 		});
-		test('.', async () => {
+		test('.|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				pathSeparator
 			};
-			validResources = [URI.parse('file:///test')];
-			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
-			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
-			childResources = [childFolder, childFile];
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.', 2);
-			assert(!!result);
-			assert(result.length === 1);
-			assert.deepEqual(result![0], {
+			assert.deepEqual(result, [{
 				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 1,
 				replacementLength: 1
-			});
+			}]);
 		});
-		test('./', async () => {
+		test('./|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				pathSeparator
 			};
-			validResources = [URI.parse('file:///test')];
-			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
-			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
-			childResources = [childFolder, childFile];
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3);
-			assert(!!result);
-			assert(result.length === 1);
-			assert.deepEqual(result![0], {
+			assert.deepEqual(result, [{
 				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 1,
 				replacementLength: 2
-			});
+			}]);
 		});
-		test('cd ', async () => {
+		test('cd |', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				pathSeparator
 			};
-			validResources = [URI.parse('file:///test')];
-			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
-			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
-			childResources = [childFolder, childFile];
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3);
-			assert(!!result);
-			assert(result.length === 1);
-			assert.deepEqual(result![0], {
+			assert.deepEqual(result, [{
 				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 3,
 				replacementLength: 3
-			});
+			}]);
 		});
-		test('cd .', async () => {
+		test('cd .|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				pathSeparator
 			};
-			validResources = [URI.parse('file:///test/')];
-			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
-			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
-			childResources = [childFolder, childFile];
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd .', 4);
-			assert(!!result);
-			assert(result.length === 1);
-			assert.deepEqual(result![0], {
+			assert.deepEqual(result, [{
 				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 3,
 				replacementLength: 1 // replacing .
-			});
+			}]);
 		});
-		test('cd ./', async () => {
+		test('cd ./|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				pathSeparator
 			};
-			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
-			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
-			childResources = [childFolder, childFile];
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5);
-			assert(!!result);
-			assert(result.length === 1);
-			assert.deepEqual(result![0], {
+			assert.deepEqual(result, [{
 				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 3,
 				replacementLength: 2 // replacing ./
-			});
+			}]);
 		});
-		test('cd ./f', async () => {
+		test('cd ./f|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				pathSeparator
 			};
-			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
-			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
-			childResources = [childFolder, childFile];
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./f', 6);
-			assert(!!result);
-			assert(result.length === 1);
-			assert.deepEqual(result![0], {
+			assert.deepEqual(result, [{
 				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 3,
 				replacementLength: 3 // replacing ./f
-			});
+			}]);
 		});
 	});
 });
