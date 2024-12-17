@@ -194,6 +194,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 		this.addHoverDisposables(disposables, syncIgnoredElement, showHover);
 
+
 		return {
 			element: syncIgnoredElement,
 			label: syncIgnoredLabel,
@@ -359,6 +360,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		for (const indicator of this.parenthesizedIndicators) {
 			indicator.disposables.dispose();
 		}
+		this.scopeOverridesIndicator.disposables.dispose();
 	}
 
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
