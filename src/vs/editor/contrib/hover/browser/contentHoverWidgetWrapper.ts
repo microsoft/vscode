@@ -154,9 +154,6 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	private _setCurrentResult(hoverResult: ContentHoverResult | null): void {
-		if (this._temporarilySticky) {
-			return;
-		}
 		let currentHoverResult = hoverResult;
 		const currentResultEqualToPreviousResult = this._currentResult === currentHoverResult;
 		if (currentResultEqualToPreviousResult) {
@@ -166,11 +163,25 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		if (currentHoverResultIsEmpty) {
 			currentHoverResult = null;
 		}
+		const hoverVisible = this._contentHoverWidget.isVisible;
+		if (!hoverVisible) {
+			this._renderResult(currentHoverResult);
+		} else {
+			if (this._temporarilySticky) {
+				return;
+			} else {
+				this._renderResult(currentHoverResult);
+			}
+		}
+	}
+
+	private _renderResult(currentHoverResult: ContentHoverResult | null): void {
 		this._currentResult = currentHoverResult;
 		if (this._currentResult) {
 			this._showHover(this._currentResult);
 		} else {
-			this._hideHover();
+			this._contentHoverWidget.hide();
+			this._participants.forEach(participant => participant.handleHide?.());
 		}
 	}
 
@@ -217,11 +228,6 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		} else {
 			this._renderedContentHover.dispose();
 		}
-	}
-
-	private _hideHover(): void {
-		this._contentHoverWidget.hide();
-		this._participants.forEach(participant => participant.handleHide?.());
 	}
 
 	private _getHoverContext(): IEditorHoverContext {
