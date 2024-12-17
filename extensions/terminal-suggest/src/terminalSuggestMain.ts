@@ -25,39 +25,43 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 		}
 		const filter = (cmd: string) => cmd;
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
+		let commands: string[] | undefined;
 		switch (shellType) {
 			case 'bash': {
 				const bashOutput = execSync('compgen -b', options);
-				const bashResult = bashOutput.split('\n').filter(filter);
-				if (bashResult.length) {
-					cachedBuiltinCommands?.set(shellType, bashResult);
-					return bashResult;
-				}
+				commands = bashOutput.split('\n').filter(filter);
 				break;
 			}
 			case 'zsh': {
 				const zshOutput = execSync('printf "%s\\n" ${(k)builtins}', options);
-				const zshResult = zshOutput.split('\n').filter(filter);
-				if (zshResult.length) {
-					cachedBuiltinCommands?.set(shellType, zshResult);
-					return zshResult;
-				}
+				commands = zshOutput.split('\n').filter(filter);
+				break;
 			}
 			case 'fish': {
 				// TODO: ghost text in the command line prevents
 				// completions from working ATM for fish
 				const fishOutput = execSync('functions -n', options);
-				const fishResult = fishOutput.split(', ').filter(filter);
-				if (fishResult.length) {
-					cachedBuiltinCommands?.set(shellType, fishResult);
-					return fishResult;
-				}
+				commands = fishOutput.split(', ').filter(filter);
 				break;
 			}
 			case 'pwsh': {
-				// native pwsh completions are builtin to vscode
-				return [];
+				const output = execSync('Get-Command | Select-Object Name, CommandType, DisplayName | ConvertTo-Json', options);
+				let json: any;
+				try {
+					json = JSON.parse(output);
+				} catch (e) {
+					console.error('Error parsing pwsh output:', e);
+					return [];
+				}
+				// TODO: Return a rich type with kind and detail
+				commands = (json as any[]).map(e => e.Name);
+				break;
 			}
+		}
+		// TODO: Cache failure results too
+		if (commands?.length) {
+			cachedBuiltinCommands?.set(shellType, commands);
+			return commands;
 		}
 		return;
 

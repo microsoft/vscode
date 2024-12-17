@@ -247,6 +247,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 				bracketPairsHorizontal: false,
 				highlightActiveIndentation: false,
 			},
+			rulers: [],
 			padding: { top: 0, bottom: 0 },
 			folding: false,
 			selectOnLineNumbers: false,
@@ -600,7 +601,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		class: 'inline-edits-view',
 		style: {
 			overflow: 'visible',
-			zIndex: '100',
+			zIndex: '10',
 			display: this._display,
 		},
 	}, [
