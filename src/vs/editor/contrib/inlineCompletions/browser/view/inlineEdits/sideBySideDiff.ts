@@ -8,7 +8,7 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -335,6 +335,22 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
 	private readonly _originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
 
+	private readonly _originalDisplayRange = this._uiState.map(s => s?.originalDisplayRange);
+	private readonly _editorMaxContentWidthInRange = derived(this, reader => {
+		const originalDisplayRange = this._originalDisplayRange.read(reader);
+		if (!originalDisplayRange) {
+			return constObservable(0);
+		}
+		this._editorObs.versionId.read(reader);
+
+		// Take the max value that we observed.
+		// Reset when either the edit changes or the editor text version.
+		return derivedObservableWithCache<number>(this, (reader, lastValue) => {
+			const maxWidth = maxContentWidthInRange(this._editorObs, originalDisplayRange, reader);
+			return Math.max(maxWidth, lastValue ?? 0);
+		});
+	}).map((v, r) => v.read(r));
+
 	/**
 	 * ![test](./layout.dio.svg)
 	*/
@@ -352,7 +368,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 
-		const editorContentMaxWidthInRange = maxContentWidthInRange(this._editorObs, state.originalDisplayRange, reader);
+		const editorContentMaxWidthInRange = this._editorMaxContentWidthInRange.read(reader);
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const previewContentWidth = this._previewEditorWidth.read(reader);
 		const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
@@ -389,7 +405,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		} else {
 			desiredPreviewEditorScrollLeft = horizontalScrollOffset - previewEditorLeftInTextArea;
 			left = editorLayout.contentLeft;
-
 		}
 
 		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
