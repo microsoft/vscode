@@ -616,7 +616,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		class: 'inline-edits-view',
 		style: {
 			overflow: 'visible',
-			zIndex: '10',
+			zIndex: '20',
 			display: this._display,
 		},
 	}, [

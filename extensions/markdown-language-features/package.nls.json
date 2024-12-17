@@ -2,6 +2,7 @@
 	"displayName": "Markdown Language Features",
 	"description": "Provides rich language support for Markdown.",
 	"markdown.copyImage.title": "Copy Image",
+	"markdown.openImage.title": "Open Image",
 	"markdown.preview.breaks.desc": "Sets how line-breaks are rendered in the Markdown preview. Setting it to `true` creates a `<br>` for newlines inside paragraphs.",
 	"markdown.preview.linkify": "Convert URL-like text to links in the Markdown preview.",
 	"markdown.preview.typographer": "Enable some language-neutral replacement and quotes beautification in the Markdown preview.",
