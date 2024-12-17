@@ -353,6 +353,12 @@ document.addEventListener('click', event => {
 	}
 }, true);
 
+window.addEventListener('load', () => {
+	const htmlParser = new DOMParser();
+	const markDownHtml = htmlParser.parseFromString(getData('data-md-content'), 'text/html');
+	document.body.appendChild(markDownHtml.body);
+});
+
 window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
