@@ -215,9 +215,9 @@ function registerActiveEditorMoveCopyCommand(): void {
 	function moveTabs(args: SelectedEditorsMoveCopyArguments, group: IEditorGroup, editors: EditorInput[]): void {
 		const to = args.to;
 		if (to === 'first' || to === 'right') {
-			editors.reverse();
+			editors = [...editors].reverse();
 		} else if (to === 'position' && (args.value ?? 1) < group.getIndexOfEditor(editors[0])) {
-			editors.reverse();
+			editors = [...editors].reverse();
 		}
 
 		for (const editor of editors) {
