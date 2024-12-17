@@ -194,7 +194,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 		this.addHoverDisposables(disposables, syncIgnoredElement, showHover);
 
-
 		return {
 			element: syncIgnoredElement,
 			label: syncIgnoredLabel,
