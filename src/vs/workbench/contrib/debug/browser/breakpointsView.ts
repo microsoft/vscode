@@ -1664,7 +1664,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.debug.viewlet.action.toggleBreakpointsActivatedAction',
-			title: localize2('activateBreakpoints', 'Toggle Activate Breakpoints'),
+			title: localize2('activateBreakpoints', 'Toggle Active Breakpoints'),
 			f1: true,
 			icon: icons.breakpointsActivate,
 			menu: {
