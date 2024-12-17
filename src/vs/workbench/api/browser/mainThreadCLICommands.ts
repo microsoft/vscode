@@ -18,7 +18,6 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { AbstractMessageLogger, ILogger, LogLevel } from '../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
-import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IOpenWindowOptions, IWindowOpenable } from '../../../platform/window/common/window.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { IExtensionManagementServerService } from '../../services/extensionManagement/common/extensionManagement.js';
@@ -104,12 +103,11 @@ class RemoteExtensionManagementCLI extends ExtensionManagementCLI {
 		logger: ILogger,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILabelService labelService: ILabelService,
 		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService,
 		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(logger, extensionManagementService, extensionGalleryService, uriIdentityService);
+		super(logger, extensionManagementService, extensionGalleryService);
 
 		const remoteAuthority = envService.remoteAuthority;
 		this._location = remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) : undefined;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -123,11 +123,14 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		// TODO: @justschen caching of code actions based on extensions loaded: https://github.com/microsoft/vscode/issues/216019
-		this._register(languageFeatures.codeActionProvider.onDidChange(() => {
-			this._allProvidedCodeActionKinds = this.getAllProvidedCodeActionKinds();
-			this.updateConfigurationSchema(this._allProvidedCodeActionKinds);
-			this._onDidChangeSchemaContributions.fire();
-		}, 2000));
+		this._register(
+			Event.runAndSubscribe(
+				Event.debounce(languageFeatures.codeActionProvider.onDidChange, () => { }, 1000),
+				() => {
+					this._allProvidedCodeActionKinds = this.getAllProvidedCodeActionKinds();
+					this.updateConfigurationSchema(this._allProvidedCodeActionKinds);
+					this._onDidChangeSchemaContributions.fire();
+				}));
 
 		keybindingService.registerSchemaContribution({
 			getSchemaAdditions: () => this.getKeybindingSchemaAdditions(),

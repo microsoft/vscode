@@ -126,6 +126,11 @@
         "category": "Markdown"
       },
       {
+        "command": "_markdown.openImage",
+        "title": "%markdown.openImage.title%",
+        "category": "Markdown"
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -189,7 +194,11 @@
       "webview/context": [
         {
           "command": "_markdown.copyImage",
-          "when": "webviewId == 'markdown.preview' && webviewSection == 'image'"
+          "when": "webviewId == 'markdown.preview' && (webviewSection == 'image' || webviewSection == 'localImage')"
+        },
+        {
+          "command": "_markdown.openImage",
+          "when": "webviewId == 'markdown.preview' && webviewSection == 'localImage'"
         }
       ],
       "editor/title": [
@@ -244,6 +253,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "_markdown.openImage",
+          "when": "false"
+        },
         {
           "command": "_markdown.copyImage",
           "when": "false"
@@ -763,7 +776,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@vscode/extension-telemetry": "^0.9.8",
     "dompurify": "^3.1.7",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",

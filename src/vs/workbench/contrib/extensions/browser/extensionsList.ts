@@ -12,10 +12,10 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { Event } from '../../../../base/common/event.js';
-import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from '../common/extensions.js';
+import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService, IExtensionsViewState } from '../common/extensions.js';
 import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from './extensionsActions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from './extensionsWidgets.js';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from './extensionsWidgets.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -28,11 +28,6 @@ import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from './extension
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 
 const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
-
-export interface IExtensionsViewState {
-	onFocus: Event<IExtension>;
-	onBlur: Event<IExtension>;
-}
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -63,7 +58,7 @@ export type ExtensionListRendererOptions = {
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
-		private extensionViewState: IExtensionsViewState,
+		private readonly extensionViewState: IExtensionsViewState,
 		private readonly options: ExtensionListRendererOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -148,7 +143,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			verifiedPublisherWidget,
 			extensionHoverWidget,
 			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
-			this.instantiationService.createInstance(ExtensionActivationStatusWidget, activationStatus, true),
+			this.instantiationService.createInstance(ExtensionRuntimeStatusWidget, this.extensionViewState, activationStatus),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true),
 		];

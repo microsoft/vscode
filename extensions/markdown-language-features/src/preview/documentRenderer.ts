@@ -98,13 +98,13 @@ export class MdDocumentRenderer {
 				<meta id="vscode-markdown-preview-data"
 					data-settings="${escapeAttribute(JSON.stringify(initialData))}"
 					data-strings="${escapeAttribute(JSON.stringify(previewStrings))}"
-					data-state="${escapeAttribute(JSON.stringify(state || {}))}">
+					data-state="${escapeAttribute(JSON.stringify(state || {}))}"
+					data-md-content="${escapeAttribute(JSON.stringify(encodeURIComponent(body.html)))}">
 				<script src="${this._extensionResourcePath(resourceProvider, 'pre.js')}" nonce="${nonce}"></script>
 				${this._getStyles(resourceProvider, sourceUri, config, imageInfo)}
 				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
-				${body.html}
 				${this._getScripts(resourceProvider, nonce)}
 			</body>
 			</html>`;

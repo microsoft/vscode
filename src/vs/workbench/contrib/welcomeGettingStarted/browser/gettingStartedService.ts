@@ -231,7 +231,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this._register(this.extensionManagementService.onDidInstallExtensions((result) => {
 
-			if (result.some(e => ExtensionIdentifier.equals(this.productService.gitHubEntitlement?.extensionId, e.identifier.id) && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT])) {
+			if (result.some(e => ExtensionIdentifier.equals(this.productService.defaultChatAgent?.extensionId, e.identifier.id) && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT])) {
 				result.forEach(e => {
 					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
 					this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);

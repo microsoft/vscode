@@ -494,7 +494,7 @@ function registerOpenEditorAPICommands(): void {
 
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
-		await editorService.openEditor({ resource: URI.from(resource, true), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
+		await editorService.openEditor({ resource: URI.from(resource, true), options: { pinned: true, ...optionsArg, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
 	});
 
 	// partial, renderer-side API command to open diff editor

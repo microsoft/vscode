@@ -6,13 +6,14 @@
 import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
@@ -41,6 +42,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -138,44 +140,82 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
 		let toolInvocation: ChatToolInvocation | undefined;
-		if (dto.context) {
-			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
-			const request = model.getRequests().at(-1)!;
-
-			const prepared = tool.impl.prepareToolInvocation ?
-				await tool.impl.prepareToolInvocation(dto.parameters, token)
-				: undefined;
-
-			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
-			const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
-			toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
-			token.onCancellationRequested(() => {
-				toolInvocation!.confirmed.complete(false);
-			});
-			model.acceptResponseProgress(request, toolInvocation);
-			if (prepared?.confirmationMessages) {
-				const userConfirmed = await toolInvocation.confirmed.p;
-				if (!userConfirmed) {
-					throw new CancellationError();
-				}
-			}
-		} else {
-			const prepared = tool.impl.prepareToolInvocation ?
-				await tool.impl.prepareToolInvocation(dto.parameters, token)
-				: undefined;
-
-			if (prepared?.confirmationMessages) {
-				const result = await this._dialogService.confirm({ message: prepared.confirmationMessages.title, detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
-				if (!result.confirmed) {
-					throw new CancellationError();
-				}
-			}
-		}
 
 		try {
-			return await tool.impl.invoke(dto, countTokens, token);
+			if (dto.context) {
+				const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
+				const request = model.getRequests().at(-1)!;
+
+				const prepared = tool.impl.prepareToolInvocation ?
+					await tool.impl.prepareToolInvocation(dto.parameters, token)
+					: undefined;
+
+				const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
+				const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
+				toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
+				token.onCancellationRequested(() => {
+					toolInvocation!.confirmed.complete(false);
+				});
+				model.acceptResponseProgress(request, toolInvocation);
+				if (prepared?.confirmationMessages) {
+					const userConfirmed = await toolInvocation.confirmed.p;
+					if (!userConfirmed) {
+						throw new CancellationError();
+					}
+				}
+			} else {
+				const prepared = tool.impl.prepareToolInvocation ?
+					await tool.impl.prepareToolInvocation(dto.parameters, token)
+					: undefined;
+
+				if (prepared?.confirmationMessages) {
+					const result = await this._dialogService.confirm({ message: prepared.confirmationMessages.title, detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
+					if (!result.confirmed) {
+						throw new CancellationError();
+					}
+				}
+			}
+
+
+			const result = await tool.impl.invoke(dto, countTokens, token);
+			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
+				'languageModelToolInvoked',
+				{
+					result: 'success',
+					chatSessionId: dto.context?.sessionId,
+					toolId: tool.data.id,
+					toolExtensionId: tool.data.extensionId?.value,
+				});
+			return result;
+		} catch (err) {
+			const result = isCancellationError(err) ? 'userCancelled' : 'error';
+			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
+				'languageModelToolInvoked',
+				{
+					result,
+					chatSessionId: dto.context?.sessionId,
+					toolId: tool.data.id,
+					toolExtensionId: tool.data.extensionId?.value,
+				});
+			throw err;
 		} finally {
 			toolInvocation?.isCompleteDeferred.complete();
 		}
 	}
 }
+
+type LanguageModelToolInvokedEvent = {
+	result: 'success' | 'error' | 'userCancelled';
+	chatSessionId: string | undefined;
+	toolId: string;
+	toolExtensionId: string | undefined;
+};
+
+type LanguageModelToolInvokedClassification = {
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the LanguageModelTool resulted in an error.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
+	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of language model tools.';
+};

@@ -263,6 +263,34 @@ suitability for any purpose.
 
 ---------------------------------------------------------
 
+autocomplete 2.684.0 - MIT
+https://github.com/withfig/autocomplete
+
+MIT License
+
+Copyright (c) 2021 Hercules Labs Inc. (Fig)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
 cacheable-request 7.0.4 - MIT
 
 
@@ -545,7 +573,7 @@ to the base-name name of the original file, and an extension of txt, html, or si
 
 ---------------------------------------------------------
 
-go-syntax 0.7.7 - MIT
+go-syntax 0.7.8 - MIT
 https://github.com/worlpaker/go-syntax
 
 MIT License
@@ -593,7 +621,7 @@ without specific, written prior permission. Title to copyright in this document 
 
 ---------------------------------------------------------
 
-Ionic documentation 1.2.4 - Apache2
+Ionic documentation 1.2.4 - Apache-2.0
 https://github.com/ionic-team/ionic-site
 
 Copyright Drifty Co. http://drifty.com/.
@@ -861,7 +889,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jlelong/vscode-latex-basics 1.7.0 - MIT
+jlelong/vscode-latex-basics 1.9.0 - MIT
 https://github.com/jlelong/vscode-latex-basics
 
 Copyright (c) vscode-latex-basics authors
@@ -977,7 +1005,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 
 ---------------------------------------------------------
 
-language-docker 0.0.0 - Apache2
+language-docker 0.0.0 - Apache-2.0
 https://github.com/moby/moby
 
 Apache License
@@ -2603,7 +2631,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-Web Background Synchronization  - Apache2
+Web Background Synchronization  - Apache-2.0
 https://github.com/WICG/background-sync
 
 Apache License

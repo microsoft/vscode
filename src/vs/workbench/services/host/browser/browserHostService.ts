@@ -428,7 +428,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: Verbosity.LONG });
 		}
 
-		return this.labelService.getUriLabel(openable.fileUri);
+		return this.labelService.getUriLabel(openable.fileUri, { appendWorkspaceSuffix: true });
 	}
 
 	private shouldReuse(options: IOpenWindowOptions = Object.create(null), isFile: boolean): boolean {
@@ -640,6 +640,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	//#endregion
 
+	//#region Native Handle
+
+	async getNativeWindowHandle(_windowId: number) {
+		return undefined;
+	}
+
+	//#endregion
 }
 
 registerSingleton(IHostService, BrowserHostService, InstantiationType.Delayed);

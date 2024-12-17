@@ -7,44 +7,48 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay } from '../../../../../base/common/date.js';
+import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { IChatQuotasService, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, quotaToButtonMessage } from '../chatQuotasService.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
-import product from '../../../../../platform/product/common/product.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
-import { IChatVariablesService } from '../../common/chatVariables.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -86,9 +90,12 @@ class OpenChatGlobalAction extends Action2 {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
 			title: OpenChatGlobalAction.TITLE,
-			icon: defaultChat.icon,
+			icon: Codicon.copilot,
 			f1: true,
-			precondition: ChatContextKeys.panelParticipantRegistered,
+			precondition: ContextKeyExpr.or(
+				ChatContextKeys.Setup.installed,
+				ChatContextKeys.panelParticipantRegistered
+			),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -99,7 +106,7 @@ class OpenChatGlobalAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_chat',
+				group: 'a_open',
 				order: 1
 			}
 		});
@@ -162,7 +169,7 @@ class ChatHistoryAction extends Action2 {
 			title: localize2('chat.history.label', "Show Chats..."),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
+				when: ContextKeyExpr.equals('view', ChatViewId),
 				group: 'navigation',
 				order: 2
 			},
@@ -253,7 +260,7 @@ class ChatHistoryAction extends Action2 {
 				try {
 					const item = picker.selectedItems[0];
 					const sessionId = item.chat.sessionId;
-					const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+					const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 					view.loadSession(sessionId);
 				} finally {
 					picker.hide();
@@ -329,6 +336,14 @@ class ChatAddAction extends Action2 {
 	}
 }
 
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	command: {
+		id: 'update.showCurrentReleaseNotes',
+		title: localize2('chat.releaseNotes.label', "Explore New Features"),
+	},
+	when: ContextKeyExpr.equals('view', ChatViewId)
+});
+
 export function registerChatActions() {
 	registerAction2(OpenChatGlobalAction);
 	registerAction2(ChatHistoryAction);
@@ -368,7 +383,7 @@ export function registerChatActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.clearAllHistoryEntries();
 
-			const chatView = viewsService.getViewWithId(CHAT_VIEW_ID) as ChatViewPane | undefined;
+			const chatView = viewsService.getViewWithId(ChatViewId) as ChatViewPane | undefined;
 			if (chatView) {
 				chatView.widget.clear();
 			}
@@ -449,35 +464,48 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class LearnMoreChatAction extends Action2 {
+	function registerOpenLinkAction(id: string, title: ILocalizedString, url: string, order: number): void {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id,
+					title,
+					category: CHAT_CATEGORY,
+					f1: true,
+					precondition: ChatContextKeys.enabled,
+					menu: {
+						id: MenuId.ChatCommandCenter,
+						group: 'y_manage',
+						order
+					}
+				});
+			}
 
-		static readonly ID = 'workbench.action.chat.learnMore';
-		static readonly TITLE = localize2('learnMore', "Learn More");
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const openerService = accessor.get(IOpenerService);
+				openerService.open(URI.parse(url));
+			}
+		});
+	}
+
+	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage Copilot Plan"), defaultChat.managePlanUrl, 1);
+	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2);
+	registerOpenLinkAction('workbench.action.chat.learnMore', localize2('learnMore', "Learn More"), defaultChat.documentationUrl, 3);
+
+	registerAction2(class ShowExtensionsUsingCopilit extends Action2 {
 
 		constructor() {
 			super({
-				id: LearnMoreChatAction.ID,
-				title: LearnMoreChatAction.TITLE,
-				category: CHAT_CATEGORY,
-				menu: [{
-					id: MenuId.ChatCommandCenter,
-					group: 'a_atfirst',
-					order: 2,
-					when: ChatContextKeys.panelParticipantRegistered.negate()
-				}, {
-					id: MenuId.ChatCommandCenter,
-					group: 'z_atlast',
-					order: 1,
-					when: ChatContextKeys.panelParticipantRegistered
-				}]
+				id: 'workbench.action.chat.showExtensionsUsingCopilot',
+				title: localize2('showCopilotUsageExtensions', "Show Extensions using Copilot"),
+				f1: true,
+				category: EXTENSIONS_CATEGORY,
 			});
 		}
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
-			const openerService = accessor.get(IOpenerService);
-			if (defaultChat.documentationUrl) {
-				openerService.open(URI.parse(defaultChat.documentationUrl));
-			}
+			const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+			extensionsWorkbenchService.openSearch(`@feature:${CopilotUsageExtensionFeatureId}`);
 		}
 	});
 }
@@ -494,57 +522,60 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 // --- command center chat
 
 const defaultChat = {
-	name: product.defaultChatAgent?.name ?? '',
-	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
+	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
+	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 };
 
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatCommandCenter,
 	title: localize('title4', "Chat"),
-	icon: defaultChat.icon,
+	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.or(
-			ChatContextKeys.panelParticipantRegistered,
-			ChatContextKeys.ChatSetup.entitled,
-			ContextKeyExpr.has('config.chat.experimental.offerSetup')
+			ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+			ChatContextKeys.Setup.installed,
+			ChatContextKeys.panelParticipantRegistered
 		)
 	),
 	order: 10001,
 });
 
-registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
+registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
 			'chat.commandCenter.enabled',
-			localize('toggle.chatControl', 'Chat Controls'),
-			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
+			localize('toggle.chatControl', 'Copilot Controls'),
+			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 4, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
 				ContextKeyExpr.or(
-					ChatContextKeys.panelParticipantRegistered,
-					ChatContextKeys.ChatSetup.entitled,
-					ContextKeyExpr.has('config.chat.experimental.offerSetup')
+					ChatContextKeys.Setup.installed,
+					ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+					ChatContextKeys.panelParticipantRegistered
 				)
 			)
 		);
 	}
 });
 
-export class ChatCommandCenterRendering implements IWorkbenchContribution {
+export class ChatCommandCenterRendering extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.commandCenterRendering';
-
-	private readonly _store = new DisposableStore();
-	private _dropdown: DropdownWithPrimaryActionViewItem | undefined;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
+		@IChatQuotasService chatQuotasService: IChatQuotasService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
+		super();
+
+		const contextKeySet = new Set([ChatContextKeys.Setup.signedOut.key]);
+
+		actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
@@ -556,21 +587,40 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 			});
 
 			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
+			const { chatQuotaExceeded, completionsQuotaExceeded } = chatQuotasService.quotas;
+			const signedOut = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key) ?? false;
 
-			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup', // TODO@bpasero revisit layering of this action
-				title: OpenChatGlobalAction.TITLE,
-				icon: defaultChat.icon,
-			}, undefined, undefined, undefined, undefined);
-
-			this._dropdown = instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
-
-			return this._dropdown;
-		}, agentService.onDidChangeAgents));
-	}
-
-	dispose() {
-		this._store.dispose();
+			let primaryActionId: string;
+			let primaryActionTitle: string;
+			let primaryActionIcon: ThemeIcon;
+			if (!chatExtensionInstalled) {
+				primaryActionId = 'workbench.action.chat.triggerSetup';
+				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for Free...");
+				primaryActionIcon = Codicon.copilot;
+			} else {
+				if (signedOut) {
+					primaryActionId = CHAT_OPEN_ACTION_ID;
+					primaryActionTitle = localize('signInToChatSetup', "Sign in to Use Copilot...");
+					primaryActionIcon = Codicon.copilotWarning;
+				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
+					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
+					primaryActionTitle = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
+					primaryActionIcon = Codicon.copilotWarning;
+				} else {
+					primaryActionId = CHAT_OPEN_ACTION_ID;
+					primaryActionTitle = OpenChatGlobalAction.TITLE.value;
+					primaryActionIcon = Codicon.copilot;
+				}
+			}
+			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {
+				id: primaryActionId,
+				title: primaryActionTitle,
+				icon: primaryActionIcon,
+			}, undefined, undefined, undefined, undefined), dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
+		}, Event.any(
+			agentService.onDidChangeAgents,
+			chatQuotasService.onDidChangeQuotas,
+			Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(contextKeySet))
+		));
 	}
 }
-

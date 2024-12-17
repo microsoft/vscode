@@ -60,6 +60,7 @@ export const CONTEXT_CALLSTACK_ITEM_TYPE = new RawContextKey<string>('callStackI
 export const CONTEXT_CALLSTACK_SESSION_IS_ATTACH = new RawContextKey<boolean>('callStackSessionIsAttach', false, { type: 'boolean', description: nls.localize('callStackSessionIsAttach', "True when the session in the CALL STACK view is attach, false otherwise. Used internally for inline menus in the CALL STACK view.") });
 export const CONTEXT_CALLSTACK_ITEM_STOPPED = new RawContextKey<boolean>('callStackItemStopped', false, { type: 'boolean', description: nls.localize('callStackItemStopped', "True when the focused item in the CALL STACK is stopped. Used internaly for inline menus in the CALL STACK view.") });
 export const CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD = new RawContextKey<boolean>('callStackSessionHasOneThread', false, { type: 'boolean', description: nls.localize('callStackSessionHasOneThread', "True when the focused session in the CALL STACK view has exactly one thread. Used internally for inline menus in the CALL STACK view.") });
+export const CONTEXT_CALLSTACK_FOCUSED = new RawContextKey<boolean>('callStackFocused', true, { type: 'boolean', description: nls.localize('callStackFocused', "True when the CALLSTACK view is focused, false otherwise.") });
 export const CONTEXT_WATCH_ITEM_TYPE = new RawContextKey<string>('watchItemType', undefined, { type: 'string', description: nls.localize('watchItemType', "Represents the item type of the focused element in the WATCH view. For example: 'expression', 'variable'") });
 export const CONTEXT_CAN_VIEW_MEMORY = new RawContextKey<boolean>('canViewMemory', undefined, { type: 'boolean', description: nls.localize('canViewMemory', "Indicates whether the item in the view has an associated memory refrence.") });
 export const CONTEXT_BREAKPOINT_ITEM_TYPE = new RawContextKey<string>('breakpointItemType', undefined, { type: 'string', description: nls.localize('breakpointItemType', "Represents the item type of the focused element in the BREAKPOINTS view. For example: 'breakpoint', 'exceptionBreakppint', 'functionBreakpoint', 'dataBreakpoint'") });
@@ -1018,7 +1019,8 @@ export interface IConfigurationManager {
 	onDidChangeConfigurationProviders: Event<void>;
 
 	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean;
-	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]>;
+	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig; label: string } | undefined> }[]>;
+	getDynamicConfigurationsByType(type: string, token?: CancellationToken): Promise<{ launch: ILaunch; config: IConfig; label: string }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
@@ -1049,9 +1051,18 @@ export interface IAdapterManager {
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	getEnabledDebugger(type: string): (IDebugger & IDebuggerMetadata) | undefined;
-	guessDebugger(gettingConfigurations: boolean): Promise<(IDebugger & IDebuggerMetadata) | undefined>;
+	guessDebugger(gettingConfigurations: boolean): Promise<IGuessedDebugger | undefined>;
 
 	get onDidDebuggersExtPointRead(): Event<void>;
+}
+
+export interface IGuessedDebugger {
+	debugger: IDebugger;
+	withConfig?: {
+		label: string;
+		launch: ILaunch;
+		config: IConfig;
+	};
 }
 
 export interface ILaunch {

@@ -252,6 +252,7 @@ fn get_release_from_path(path: &str, platform: Platform) -> Option<(Release, Str
 
 	let (quality_commit, remaining) = path.split_at(i);
 	let (quality, commit) = quality_commit.split_at(quality_commit_sep);
+	let commit = &commit[1..];
 
 	if !is_commit_hash(commit) {
 		return None;

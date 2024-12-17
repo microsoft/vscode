@@ -77,6 +77,8 @@ export interface IChatRequestViewModel {
 	readonly isHidden: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly slashCommand: IChatAgentCommand | undefined;
+	readonly agentOrSlashCommandDetected: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -180,7 +182,6 @@ export interface IChatResponseViewModel {
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	readonly isHidden: boolean;
 	readonly isCompleteAddedRequest: boolean;
-	readonly editChangeCount: number;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
@@ -388,6 +389,14 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isHidden;
 	}
 
+	get slashCommand(): IChatAgentCommand | undefined {
+		return this._model.response?.slashCommand;
+	}
+
+	get agentOrSlashCommandDetected(): boolean {
+		return this._model.response?.agentOrSlashCommandDetected ?? false;
+	}
+
 	currentRenderedHeight: number | undefined;
 
 	constructor(
@@ -407,10 +416,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get id() {
 		return this._model.id;
-	}
-
-	get editChangeCount() {
-		return this._model.editChangeCount;
 	}
 
 	get dataId() {
@@ -530,7 +535,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			return this._usedReferencesExpanded;
 		}
 
-		return this.response.value.length === 0;
+		return this.response.value.length === 0 && !this.errorDetails;
 	}
 
 	set usedReferencesExpanded(v: boolean) {

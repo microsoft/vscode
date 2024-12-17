@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use cli::commands::args::{
 	CliCore, Commands, DesktopCodeOptions, ExtensionArgs, ExtensionSubcommand,
-	InstallExtensionArgs, ListExtensionArgs, UninstallExtensionArgs, DownloadExtensionArgs,
+	InstallExtensionArgs, ListExtensionArgs, UninstallExtensionArgs,
 };
 
 /// Tries to parse the argv using the legacy CLI interface, looking for its
@@ -64,7 +64,6 @@ pub fn try_parse_legacy(
 	// Now translate them to subcommands.
 	// --list-extensions        -> ext list
 	// --update-extensions      -> update
-	// --download-extension      -> ext download <id>
 	// --install-extension=id   -> ext install <id>
 	// --uninstall-extension=id -> ext uninstall <id>
 	// --status                 -> status
@@ -80,23 +79,14 @@ pub fn try_parse_legacy(
 			})),
 			..Default::default()
 		})
-	} else if let Some(exts) = args.get("download-extension") {
-		Some(CliCore {
-			subcommand: Some(Commands::Extension(ExtensionArgs {
-				subcommand: ExtensionSubcommand::Download(DownloadExtensionArgs {
-					id: exts.to_vec(),
-					location: get_first_arg_value("location"),
-				}),
-				desktop_code_options,
-			})),
-			..Default::default()
-		})
 	} else if let Some(exts) = args.remove("install-extension") {
 		Some(CliCore {
 			subcommand: Some(Commands::Extension(ExtensionArgs {
 				subcommand: ExtensionSubcommand::Install(InstallExtensionArgs {
 					id_or_path: exts,
 					pre_release: args.contains_key("pre-release"),
+					donot_include_pack_and_dependencies: args
+						.contains_key("do-not-include-pack-dependencies"),
 					force: args.contains_key("force"),
 				}),
 				desktop_code_options,

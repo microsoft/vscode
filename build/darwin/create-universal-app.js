@@ -24,6 +24,8 @@ async function main(buildDir) {
     const filesToSkip = [
         '**/CodeResources',
         '**/Credits.rtf',
+        // TODO: Should we consider expanding this to other files in this area?
+        '**/node_modules/@parcel/node-addon-api/nothing.target.mk'
     ];
     await (0, vscode_universal_bundler_1.makeUniversalApp)({
         x64AppPath,

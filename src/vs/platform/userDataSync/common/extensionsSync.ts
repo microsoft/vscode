@@ -477,7 +477,7 @@ export class LocalExtensionsProvider {
 								|| installedExtension.pinned !== e.pinned  // Install if the extension pinned preference has changed
 								|| (version && installedExtension.manifest.version !== version)  // Install if the extension version has changed
 							) {
-								if (await this.extensionManagementService.canInstall(extension)) {
+								if (await this.extensionManagementService.canInstall(extension) === true) {
 									extensionsToInstall.push({
 										extension, options: {
 											isMachineScoped: false /* set isMachineScoped value to prevent install and sync dialog in web */,
@@ -485,6 +485,7 @@ export class LocalExtensionsProvider {
 											installGivenVersion: e.pinned && !!e.version,
 											pinned: e.pinned,
 											installPreReleaseVersion: e.preRelease,
+											preRelease: e.preRelease,
 											profileLocation: profile.extensionsResource,
 											isApplicationScoped: e.isApplicationScoped,
 											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.SETTINGS_SYNC }

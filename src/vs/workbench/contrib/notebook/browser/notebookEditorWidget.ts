@@ -17,7 +17,10 @@ import './media/notebookCellOutput.css';
 import './media/notebookEditorStickyScroll.css';
 import './media/notebookKernelActionViewItem.css';
 import './media/notebookOutline.css';
+import './media/notebookChatEditController.css';
+import './media/notebookChatEditorOverlay.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -636,7 +639,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _createLayoutStyles(): void {
-		this._styleElement = DOM.createStyleSheet(this._body);
+		this._styleElement = domStylesheets.createStyleSheet(this._body);
 		const {
 			cellRightMargin,
 			cellTopMargin,
@@ -812,6 +815,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${getCellEditorContainerLeftMargin}px; }`);
+		// Chat Edit, deleted Cell Overlay
+		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .view-zones .code-cell-row div.cell.code { margin-left: ${getCellEditorContainerLeftMargin}px; }`);
+		// Chat Edit, deleted Cell Overlay
+		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .view-zones .code-cell-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .cell-inner-container { padding-top: ${cellTopMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row > .cell-inner-container { padding-bottom: ${markdownCellBottomMargin}px; padding-top: ${markdownCellTopMargin}px; }`);

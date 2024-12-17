@@ -394,6 +394,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
+		const history = options.searchHistory || [];
 		const inputOptions: IFindInputOptions = {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
@@ -401,7 +402,7 @@ export class SearchWidget extends Widget {
 			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleCaseSensitiveCommandId)),
 			appendWholeWordsLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleWholeWordCommandId)),
 			appendRegexLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleRegexCommandId)),
-			history: options.searchHistory,
+			history: new Set(history),
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT,
