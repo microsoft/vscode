@@ -203,7 +203,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 			switch (args.by) {
 				case 'tab':
 					if (isMove) {
-						moveTabs(args, activeGroup, selectedEditors);
+						return moveTabs(args, activeGroup, selectedEditors);
 					}
 					break;
 				case 'group':
