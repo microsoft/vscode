@@ -259,6 +259,9 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (isPotentialKeyboardShortcut) {
 			return;
 		}
+		if (this._contentWidget.isFocused && event.keyCode === KeyCode.Tab) {
+			return;
+		}
 		this.hideContentHover();
 	}
 
