@@ -345,6 +345,20 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
+
+		if (this._notebookEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+			this._domNode.style.top = '26px';
+		}
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotebookSetting.globalToolbar)) {
+				if (this._notebookEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+					this._domNode.style.top = '26px';
+				} else {
+					this._domNode.style.top = '0';
+				}
+			}
+		}));
+
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
 
