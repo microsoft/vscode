@@ -440,19 +440,17 @@ class ChatParticipantDataRenderer extends Disposable implements IExtensionFeatur
 		}
 
 		const headers = [
-			localize('participantId', "ID"),
+			localize('participantName', "Name"),
 			localize('participantFullName', "Full Name"),
 			localize('participantDescription', "Description"),
-			localize('participantName', "Name"),
 			localize('participantCommands', "Commands"),
 		];
 
 		const rows: IRowData[][] = nonDefaultContributions.map(d => {
 			return [
-				new MarkdownString(`\`${d.id}\``),
+				'@' + d.name,
 				d.fullName,
 				d.description ?? '-',
-				'@' + d.name,
 				d.commands?.length ? new MarkdownString(d.commands.map(c => `- /` + c.name).join('\n')) : '-'
 			];
 		});
