@@ -214,6 +214,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 					this.tree?.updateChildren(undefined, true, false);
 					this.onDidStyleChange();
 				}
+				this.focus();
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
