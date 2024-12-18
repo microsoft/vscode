@@ -266,13 +266,13 @@ export class ObservableCodeEditor extends Disposable {
 	}
 
 	public observePosition(position: IObservable<Position | null>, store: DisposableStore): IObservable<Point | null> {
-		const result = observableValueOpts<Point | null>({ owner: this, equalsFn: equalsIfDefined(Point.equals) }, new Point(0, 0));
+		let pos = position.get();
+		const result = observableValueOpts<Point | null>({ owner: this, debugName: () => `topLeftOfPosition${pos?.toString()}`, equalsFn: equalsIfDefined(Point.equals) }, new Point(0, 0));
 		const contentWidgetId = `observablePositionWidget` + (this._widgetCounter++);
 		const domNode = document.createElement('div');
 		const w: IContentWidget = {
 			getDomNode: () => domNode,
 			getPosition: () => {
-				const pos = position.get();
 				return pos ? { preference: [ContentWidgetPositionPreference.EXACT], position: position.get() } : null;
 			},
 			getId: () => contentWidgetId,
@@ -283,7 +283,7 @@ export class ObservableCodeEditor extends Disposable {
 		};
 		this.editor.addContentWidget(w);
 		store.add(autorun(reader => {
-			position.read(reader);
+			pos = position.read(reader);
 			this.editor.layoutContentWidget(w);
 		}));
 		store.add(toDisposable(() => {
