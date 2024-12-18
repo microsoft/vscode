@@ -773,7 +773,6 @@ declare namespace monaco {
 		 * Moves the range by the given amount of lines.
 		 */
 		delta(lineCount: number): Range;
-		isSingleLine(): boolean;
 		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
 		 * Create a `Range` from an `IRange`.
@@ -4606,6 +4605,7 @@ declare namespace monaco.editor {
 				useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 				onlyShowWhenCloseToCursor?: boolean;
+				useGutterIndicator?: boolean;
 			};
 		};
 	}
