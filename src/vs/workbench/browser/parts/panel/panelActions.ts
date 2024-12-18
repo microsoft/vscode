@@ -74,6 +74,21 @@ export class TogglePanelAction extends Action2 {
 registerAction2(TogglePanelAction);
 
 registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.closePanel',
+			title: localize2('closePanel', 'Hide Panel'),
+			category: Categories.View,
+			precondition: PanelVisibleContext,
+			f1: true,
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.PANEL_PART);
+	}
+});
+
+registerAction2(class extends Action2 {
 
 	static readonly ID = 'workbench.action.focusPanel';
 	static readonly LABEL = localize('focusPanel', "Focus into Panel");
