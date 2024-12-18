@@ -60,7 +60,7 @@ export interface INativeServerExtensionManagementService extends IExtensionManag
 	readonly _serviceBrand: undefined;
 	scanAllUserInstalledExtensions(): Promise<ILocalExtension[]>;
 	scanInstalledExtensionAtLocation(location: URI): Promise<ILocalExtension | null>;
-	deleteExtensions(...extensions: IExtension[]): Promise<void>;
+	markAsUninstalled(...extensions: IExtension[]): Promise<void>;
 }
 
 type ExtractExtensionResult = { readonly local: ILocalExtension; readonly verificationStatus?: ExtensionSignatureVerificationCode };
@@ -222,8 +222,8 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return this.extensionsScanner.copyExtensions(fromProfileLocation, toProfileLocation, { version: this.productService.version, date: this.productService.date });
 	}
 
-	deleteExtensions(...extensions: IExtension[]): Promise<void> {
-		return this.extensionsScanner.setExtensionsForRemoval(...extensions);
+	markAsUninstalled(...extensions: IExtension[]): Promise<void> {
+		return this.extensionsScanner.setUninstalled(...extensions);
 	}
 
 	async cleanUp(): Promise<void> {
@@ -480,20 +480,8 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				continue;
 			}
 
-			// Ignore changes to the deleted folder
-			if (this.uriIdentityService.extUri.basename(resource).endsWith(DELETED_FOLDER_POSTFIX)) {
-				continue;
-			}
-
-			try {
-				// Check if this is a directory
-				if (!(await this.fileService.stat(resource)).isDirectory) {
-					continue;
-				}
-			} catch (error) {
-				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
-					this.logService.error(error);
-				}
+			// Check if this is a directory
+			if (!(await this.fileService.stat(resource)).isDirectory) {
 				continue;
 			}
 
@@ -514,9 +502,22 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	private async addExtensionsToProfile(extensions: [ILocalExtension, Metadata | undefined][], profileLocation: URI): Promise<void> {
 		const localExtensions = extensions.map(e => e[0]);
-		await this.extensionsScanner.unsetExtensionsForRemoval(...localExtensions.map(extension => ExtensionKey.create(extension)));
+		await this.setInstalled(localExtensions);
 		await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, profileLocation);
 		this._onDidInstallExtensions.fire(localExtensions.map(local => ({ local, identifier: local.identifier, operation: InstallOperation.None, profileLocation })));
+	}
+
+	private async setInstalled(extensions: ILocalExtension[]): Promise<void> {
+		const uninstalled = await this.extensionsScanner.getUninstalledExtensions();
+		for (const extension of extensions) {
+			const extensionKey = ExtensionKey.create(extension);
+			if (!uninstalled[extensionKey.toString()]) {
+				continue;
+			}
+			this.logService.trace('Removing the extension from uninstalled list:', extensionKey.id);
+			await this.extensionsScanner.setInstalled(extensionKey);
+			this.logService.info('Removed the extension from uninstalled list:', extensionKey.id);
+		}
 	}
 }
 
@@ -535,8 +536,8 @@ type UpdateMetadataErrorEvent = {
 
 export class ExtensionsScanner extends Disposable {
 
-	private readonly obsoletedResource: URI;
-	private readonly obsoleteFileLimiter: Queue<any>;
+	private readonly uninstalledResource: URI;
+	private readonly uninstalledFileLimiter: Queue<any>;
 
 	private readonly _onExtract = this._register(new Emitter<URI>());
 	readonly onExtract = this._onExtract.event;
@@ -554,13 +555,13 @@ export class ExtensionsScanner extends Disposable {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.obsoletedResource = joinPath(this.extensionsScannerService.userExtensionsLocation, '.obsolete');
-		this.obsoleteFileLimiter = new Queue();
+		this.uninstalledResource = joinPath(this.extensionsScannerService.userExtensionsLocation, '.obsolete');
+		this.uninstalledFileLimiter = new Queue();
 	}
 
 	async cleanUp(): Promise<void> {
 		await this.removeTemporarilyDeletedFolders();
-		await this.deleteExtensionsMarkedForRemoval();
+		await this.removeUninstalledExtensions();
 		await this.initializeMetadata();
 	}
 
@@ -719,38 +720,40 @@ export class ExtensionsScanner extends Disposable {
 		return this.scanLocalExtension(local.location, local.type, profileLocation);
 	}
 
-	async setExtensionsForRemoval(...extensions: IExtension[]): Promise<void> {
+	async getUninstalledExtensions(): Promise<IStringDictionary<boolean>> {
+		try {
+			return await this.withUninstalledExtensions();
+		} catch (error) {
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.ReadUninstalled);
+		}
+	}
+
+	async setUninstalled(...extensions: IExtension[]): Promise<void> {
 		const extensionKeys: ExtensionKey[] = extensions.map(e => ExtensionKey.create(e));
-		await this.withRemovedExtensions(removedExtensions =>
+		await this.withUninstalledExtensions(uninstalled =>
 			extensionKeys.forEach(extensionKey => {
-				removedExtensions[extensionKey.toString()] = true;
-				this.logService.info('Marked extension as removed', extensionKey.toString());
+				uninstalled[extensionKey.toString()] = true;
+				this.logService.info('Marked extension as uninstalled', extensionKey.toString());
 			}));
 	}
 
-	async unsetExtensionsForRemoval(...extensionKeys: ExtensionKey[]): Promise<boolean[]> {
+	async setInstalled(extensionKey: ExtensionKey): Promise<void> {
 		try {
-			const results: boolean[] = [];
-			await this.withRemovedExtensions(removedExtensions =>
-				extensionKeys.forEach(extensionKey => {
-					if (removedExtensions[extensionKey.toString()]) {
-						results.push(true);
-						delete removedExtensions[extensionKey.toString()];
-					} else {
-						results.push(false);
-					}
-				}));
-			return results;
+			await this.withUninstalledExtensions(uninstalled => delete uninstalled[extensionKey.toString()]);
 		} catch (error) {
-			throw toExtensionManagementError(error, ExtensionManagementErrorCode.UnsetRemoved);
+			throw toExtensionManagementError(error, ExtensionManagementErrorCode.UnsetUninstalled);
 		}
 	}
 
-	async deleteExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
+	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
 		if (this.uriIdentityService.extUri.isEqualOrParent(extension.location, this.extensionsScannerService.userExtensionsLocation)) {
 			return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
 		}
-		await this.unsetExtensionsForRemoval(ExtensionKey.create(extension));
+	}
+
+	async removeUninstalledExtension(extension: ILocalExtension | IScannedExtension): Promise<void> {
+		await this.removeExtension(extension, 'uninstalled');
+		await this.withUninstalledExtensions(uninstalled => delete uninstalled[ExtensionKey.create(extension).toString()]);
 	}
 
 	async copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
@@ -789,11 +792,11 @@ export class ExtensionsScanner extends Disposable {
 		this.logService.info(`Deleted ${type} extension from disk`, id, location.fsPath);
 	}
 
-	private withRemovedExtensions(updateFn?: (removed: IStringDictionary<boolean>) => void): Promise<IStringDictionary<boolean>> {
-		return this.obsoleteFileLimiter.queue(async () => {
+	private withUninstalledExtensions(updateFn?: (uninstalled: IStringDictionary<boolean>) => void): Promise<IStringDictionary<boolean>> {
+		return this.uninstalledFileLimiter.queue(async () => {
 			let raw: string | undefined;
 			try {
-				const content = await this.fileService.readFile(this.obsoletedResource, 'utf8');
+				const content = await this.fileService.readFile(this.uninstalledResource, 'utf8');
 				raw = content.value.toString();
 			} catch (error) {
 				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
@@ -801,23 +804,23 @@ export class ExtensionsScanner extends Disposable {
 				}
 			}
 
-			let removed = {};
+			let uninstalled = {};
 			if (raw) {
 				try {
-					removed = JSON.parse(raw);
+					uninstalled = JSON.parse(raw);
 				} catch (e) { /* ignore */ }
 			}
 
 			if (updateFn) {
-				updateFn(removed);
-				if (Object.keys(removed).length) {
-					await this.fileService.writeFile(this.obsoletedResource, VSBuffer.fromString(JSON.stringify(removed)));
+				updateFn(uninstalled);
+				if (Object.keys(uninstalled).length) {
+					await this.fileService.writeFile(this.uninstalledResource, VSBuffer.fromString(JSON.stringify(uninstalled)));
 				} else {
-					await this.fileService.del(this.obsoletedResource);
+					await this.fileService.del(this.uninstalledResource);
 				}
 			}
 
-			return removed;
+			return uninstalled;
 		});
 	}
 
@@ -895,25 +898,19 @@ export class ExtensionsScanner extends Disposable {
 		}));
 	}
 
-	private async deleteExtensionsMarkedForRemoval(): Promise<void> {
-		let removed: IStringDictionary<boolean>;
-		try {
-			removed = await this.withRemovedExtensions();
-		} catch (error) {
-			throw toExtensionManagementError(error, ExtensionManagementErrorCode.ReadRemoved);
-		}
-
-		if (Object.keys(removed).length === 0) {
-			this.logService.debug(`No extensions are marked as removed.`);
+	private async removeUninstalledExtensions(): Promise<void> {
+		const uninstalled = await this.getUninstalledExtensions();
+		if (Object.keys(uninstalled).length === 0) {
+			this.logService.debug(`No uninstalled extensions found.`);
 			return;
 		}
 
-		this.logService.debug(`Deleting extensions marked as removed:`, Object.keys(removed));
+		this.logService.debug(`Removing uninstalled extensions:`, Object.keys(uninstalled));
 
-		const extensions = await this.extensionsScannerService.scanUserExtensions({ includeAllVersions: true, includeInvalid: true }); // All user extensions
+		const extensions = await this.extensionsScannerService.scanUserExtensions({ includeAllVersions: true, includeUninstalled: true, includeInvalid: true }); // All user extensions
 		const installed: Set<string> = new Set<string>();
 		for (const e of extensions) {
-			if (!removed[ExtensionKey.create(e).toString()]) {
+			if (!uninstalled[ExtensionKey.create(e).toString()]) {
 				installed.add(e.identifier.id.toLowerCase());
 			}
 		}
@@ -931,8 +928,8 @@ export class ExtensionsScanner extends Disposable {
 			this.logService.error(error);
 		}
 
-		const toRemove = extensions.filter(e => e.metadata /* Installed by System */ && removed[ExtensionKey.create(e).toString()]);
-		await Promise.allSettled(toRemove.map(e => this.deleteExtension(e, 'marked for removal')));
+		const toRemove = extensions.filter(e => e.metadata /* Installed by System */ && uninstalled[ExtensionKey.create(e).toString()]);
+		await Promise.allSettled(toRemove.map(e => this.removeUninstalledExtension(e)));
 	}
 
 	private async removeTemporarilyDeletedFolders(): Promise<void> {
@@ -1024,7 +1021,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			if (existingExtension) {
 				if (this.extensionKey.equals(new ExtensionKey(existingExtension.identifier, existingExtension.manifest.version))) {
 					try {
-						await this.extensionsScanner.deleteExtension(existingExtension, 'existing');
+						await this.extensionsScanner.removeExtension(existingExtension, 'existing');
 					} catch (e) {
 						throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
 					}
@@ -1032,10 +1029,10 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			}
 			// Remove the extension with same version if it is already uninstalled.
 			// Installing a VSIX extension shall replace the existing extension always.
-			const existingWithSameVersion = await this.unsetIfRemoved(this.extensionKey);
+			const existingWithSameVersion = await this.unsetIfUninstalled(this.extensionKey);
 			if (existingWithSameVersion) {
 				try {
-					await this.extensionsScanner.deleteExtension(existingWithSameVersion, 'existing');
+					await this.extensionsScanner.removeExtension(existingWithSameVersion, 'existing');
 				} catch (e) {
 					throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
 				}
@@ -1061,7 +1058,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			}
 
 			// Unset if the extension is uninstalled and return the unset extension.
-			local = await this.unsetIfRemoved(this.extensionKey);
+			local = await this.unsetIfUninstalled(this.extensionKey);
 		}
 
 		if (token.isCancellationRequested) {
@@ -1104,15 +1101,19 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 		return result;
 	}
 
-	private async unsetIfRemoved(extensionKey: ExtensionKey): Promise<ILocalExtension | undefined> {
-		// If the same version of extension is marked as removed, remove it from there and return the local.
-		const [removed] = await this.extensionsScanner.unsetExtensionsForRemoval(extensionKey);
-		if (removed) {
-			this.logService.info('Removed the extension from removed list:', extensionKey.id);
-			const userExtensions = await this.extensionsScanner.scanAllUserExtensions(true);
-			return userExtensions.find(i => ExtensionKey.create(i).equals(extensionKey));
+	private async unsetIfUninstalled(extensionKey: ExtensionKey): Promise<ILocalExtension | undefined> {
+		const uninstalled = await this.extensionsScanner.getUninstalledExtensions();
+		if (!uninstalled[extensionKey.toString()]) {
+			return undefined;
 		}
-		return undefined;
+
+		this.logService.trace('Removing the extension from uninstalled list:', extensionKey.id);
+		// If the same version of extension is marked as uninstalled, remove it from there and return the local.
+		await this.extensionsScanner.setInstalled(extensionKey);
+		this.logService.info('Removed the extension from uninstalled list:', extensionKey.id);
+
+		const userExtensions = await this.extensionsScanner.scanAllUserExtensions(true);
+		return userExtensions.find(i => ExtensionKey.create(i).equals(extensionKey));
 	}
 
 	private async updateMetadata(extension: ILocalExtension, token: CancellationToken): Promise<void> {
@@ -1148,8 +1149,8 @@ class UninstallExtensionInProfileTask extends AbstractExtensionTask<void> implem
 		super();
 	}
 
-	protected doRun(token: CancellationToken): Promise<void> {
-		return this.extensionsProfileScannerService.removeExtensionFromProfile(this.extension, this.options.profileLocation);
+	protected async doRun(token: CancellationToken): Promise<void> {
+		await this.extensionsProfileScannerService.removeExtensionFromProfile(this.extension, this.options.profileLocation);
 	}
 
 }
