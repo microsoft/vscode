@@ -192,7 +192,7 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1,
 		when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
 	},
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions()
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions(true)
 });
 
 registerActiveInstanceAction({
