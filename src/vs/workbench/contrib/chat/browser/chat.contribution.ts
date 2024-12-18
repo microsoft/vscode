@@ -121,13 +121,6 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control Copilot (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
-		'chat.experimental.offerSetup': {
-			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: nls.localize('chat.experimental.offerSetup', "Controls whether setup is offered for Chat if not done already."),
-			tags: ['experimental', 'onExP']
-		},
 		'chat.editing.alwaysSaveWithGeneratedChanges': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
