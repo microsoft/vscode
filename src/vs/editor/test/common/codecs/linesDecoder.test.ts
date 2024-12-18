@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { TestDecoder } from '../utils/testDecoder.js';
 import { Range } from '../../../common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -42,9 +43,9 @@ export class TestLinesDecoder extends TestDecoder<TLineToken, LinesDecoder> {
 }
 
 suite('LinesDecoder', () => {
-	suite('produces expected tokens', () => {
-		const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('produces expected tokens', () => {
 		test('input starts with line data', async () => {
 			const test = testDisposables.add(new TestLinesDecoder());
 
@@ -134,6 +135,72 @@ suite('LinesDecoder', () => {
 					new NewLine(new Range(5, 2, 5, 3)),
 					new Line(6, ' '),
 				],
+			);
+		});
+	});
+
+	suite('`transform` function', () => {
+		test('transforms a provided stream', async () => {
+			const stream = newWriteableStream<VSBuffer>(null);
+
+			const transformed = testDisposables.add(
+				new LinesDecoder(stream)
+					.transform((token) => {
+						if (token instanceof Line) {
+							return token;
+						}
+
+						return null;
+					}),
+			);
+
+			assert(
+				transformed instanceof LinesDecoder,
+				"Must return an instance of the original decoder.",
+			);
+
+			setTimeout(() => {
+				stream.write(VSBuffer.fromString('hello\nworld\r\nhow ☁️ are\n\nyou\rdoing\n\n'));
+
+				stream.end();
+			}, 1);
+
+			const messages = await transformed.consumeAll();
+			assert.strictEqual(messages.length, 7);
+
+			assert(
+				messages[0].equals(new Line(1, 'hello')),
+				`Message #0 must a corrent 'Line', got '${messages[0]}'.`,
+			);
+
+			assert(
+				messages[1].equals(new Line(2, 'world')),
+				`Message #1 must a corrent 'Line', got '${messages[1]}'.`,
+			);
+
+			assert(
+				messages[2].equals(new Line(3, 'how ☁️ are')),
+				`Message #2 must a corrent 'Line', got '${messages[2]}'.`,
+			);
+
+			assert(
+				messages[3].equals(new Line(4, '')),
+				`Message #3 must a corrent 'Line', got '${messages[3]}'.`,
+			);
+
+			assert(
+				messages[4].equals(new Line(5, 'you')),
+				`Message #4 must a corrent 'Line', got '${messages[4]}'.`,
+			);
+
+			assert(
+				messages[5].equals(new Line(6, 'doing')),
+				`Message #5 must a corrent 'Line', got '${messages[5]}'.`,
+			);
+
+			assert(
+				messages[6].equals(new Line(7, '')),
+				`Message #6 must a corrent 'Line', got '${messages[6]}'.`,
 			);
 		});
 	});

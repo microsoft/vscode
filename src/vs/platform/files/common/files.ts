@@ -926,7 +926,7 @@ export class FileOperationEvent implements IFileOperationEvent {
 export const enum FileChangeType {
 	UPDATED,
 	ADDED,
-	DELETED
+	DELETED,
 }
 
 /**

@@ -15,7 +15,7 @@ import { IPromptContentsProvider, PromptContentsProviderBase } from './promptCon
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
 
 /**
- * Prompt contents provider for a file represented by a {@linkcode URI} reference.
+ * Prompt contents provider for a file on the disk referenced by the provided {@linkcode URI}.
  */
 export class FilePromptContentProvider extends PromptContentsProviderBase<FileChangesEvent> implements IPromptContentsProvider {
 	constructor(
@@ -27,7 +27,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 		// make sure the object is updated on file changes
 		this._register(
 			this.fileService.onDidFilesChange((event) => {
-				if (event.contains(this.uri, FileChangeType.UPDATED)) {
+				if (event.contains(this.uri, FileChangeType.ADDED, FileChangeType.UPDATED)) {
 					// we support only full file parsing right now because
 					// the event doesn't contain a list of changed lines
 					return this.onChangeEmitter.fire('full');

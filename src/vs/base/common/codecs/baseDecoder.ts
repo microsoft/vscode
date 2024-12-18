@@ -313,13 +313,15 @@ export abstract class BaseDecoder<
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Transforms the current stream data type to the one returned by
+	 * the provided `transform` function.
+	 *
+	 * See also {@linkcode TransformDecoder}.
 	 */
 	public transform<M extends NonNullable<unknown>>(
 		transform: (data: T) => (M | null),
 	): TransformDecoder<this, M, T> {
-		// TODO: @legomushroom - consume the current object?
-		// TODO: @legomushroom - throw if already used/started
+		// TODO: @legomushroom - throw if already used/started?
 
 		return new TransformDecoder(this, transform);
 	}
@@ -334,9 +336,10 @@ export abstract class BaseDecoder<
 }
 
 /**
- * TODO: @legomushroom
+ * Transforms a provided stream data type by piping it through
+ * a provided `transformData` function.
  */
-export class TransformDecoder<
+class TransformDecoder<
 	I extends BaseDecoder<T, NonNullable<unknown>>,
 	M extends NonNullable<unknown>,
 	T extends NonNullable<unknown>,
@@ -347,10 +350,7 @@ export class TransformDecoder<
 	) {
 		super(stream);
 
-		// // TODO: @legomushroom - is this correct?
-		// Object.setPrototypeOf(this, this.constructor.prototype);
-		// // Object.setPrototypeOf(instance, this.constructor);
-		// // Object.setPrototypeOf(instance, this);
+		Object.setPrototypeOf(this.constructor.prototype, stream);
 	}
 
 	protected override onStreamData(data: T): void {
