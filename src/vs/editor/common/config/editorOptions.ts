@@ -4198,6 +4198,7 @@ export interface IInlineSuggestOptions {
 			useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 			onlyShowWhenCloseToCursor?: boolean;
+			useGutterIndicator?: boolean;
 		};
 	};
 }
@@ -4230,6 +4231,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					useMixedLinesDiff: 'forStableInsertions',
 					useInterleavedLinesDiff: 'never',
 					onlyShowWhenCloseToCursor: true,
+					useGutterIndicator: false,
 				},
 			},
 		};
@@ -4290,6 +4292,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.edits.experimental.onlyShowWhenCloseToCursor,
 					description: nls.localize('inlineSuggest.edits.experimental.onlyShowWhenCloseToCursor', "Controls whether to only show inline suggestions when the cursor is close to the suggestion.")
 				},
+				'editor.inlineSuggest.edits.experimental.useGutterIndicator': {
+					type: 'boolean',
+					default: defaults.edits.experimental.useGutterIndicator,
+					description: nls.localize('inlineSuggest.edits.experimental.useGutterIndicator', "Controls whether to show a gutter indicator for inline suggestions.")
+				},
 			}
 		);
 	}
@@ -4313,6 +4320,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
 					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
 					onlyShowWhenCloseToCursor: boolean(input.edits?.experimental?.onlyShowWhenCloseToCursor, this.defaultValue.edits.experimental.onlyShowWhenCloseToCursor),
+					useGutterIndicator: boolean(input.edits?.experimental?.useGutterIndicator, this.defaultValue.edits.experimental.useGutterIndicator),
 				},
 			},
 		};
