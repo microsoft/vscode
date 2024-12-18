@@ -10,22 +10,25 @@ import { VerticalTab } from './tokens/verticalTab.js';
 import { Space } from '../simpleCodec/tokens/space.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { LeftBracket, RightBracket } from './tokens/brackets.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
 import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
+import { LeftParenthesis, RightParenthesis } from './tokens/parentheses.js';
 
 /**
  * A token type that this decoder can handle.
  */
-export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed | CarriageReturn;
+export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed |
+	CarriageReturn | LeftBracket | RightBracket | LeftParenthesis | RightParenthesis;
 
 /**
  * Characters that stop a "word" sequence.
  * Note! the `\r` and `\n` are excluded from the list because this decoder based on `LinesDecoder` which
  * 	     already handles the `carriagereturn`/`newline` cases and emits lines that don't contain them.
  */
-const STOP_CHARACTERS = [Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol];
+const STOP_CHARACTERS = [Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol, LeftBracket.symbol, RightBracket.symbol, LeftParenthesis.symbol, RightParenthesis.symbol];
 
 /**
  * A decoder that can decode a stream of `Line`s into a stream
@@ -84,8 +87,36 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 				continue;
 			}
 
-			// if a non-space character, parse out the whole word and
-			// emit it, then continue from the last word character position
+			if (token.text[i] === LeftBracket.symbol) {
+				this._onData.fire(LeftBracket.newOnLine(token, columnNumber));
+
+				i++;
+				continue;
+			}
+
+			if (token.text[i] === RightBracket.symbol) {
+				this._onData.fire(RightBracket.newOnLine(token, columnNumber));
+
+				i++;
+				continue;
+			}
+
+			if (token.text[i] === LeftParenthesis.symbol) {
+				this._onData.fire(LeftParenthesis.newOnLine(token, columnNumber));
+
+				i++;
+				continue;
+			}
+
+			if (token.text[i] === RightParenthesis.symbol) {
+				this._onData.fire(RightParenthesis.newOnLine(token, columnNumber));
+
+				i++;
+				continue;
+			}
+
+			// if a non-stop character, parse out the whole word and emit it
+			// then continue from the last word character position
 			let word = '';
 			while (i < token.text.length && !(STOP_CHARACTERS.includes(token.text[i]))) {
 				word += token.text[i];
