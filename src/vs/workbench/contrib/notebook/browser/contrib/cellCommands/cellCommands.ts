@@ -15,7 +15,7 @@ import { KeybindingWeight } from '../../../../../../platform/keybinding/common/k
 import { ResourceNotebookCellEdit } from '../../../../bulkEdit/browser/bulkCellEdits.js';
 import { changeCellToKind, computeCellLinesContents, copyCellRange, joinCellsWithSurrounds, joinSelectedCells, moveCellRange } from '../../controller/cellOperations.js';
 import { cellExecutionArgs, CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookCellAction, NotebookMultiCellAction, parseMultiCellExecutionArgs } from '../../controller/coreActions.js';
-import { CellEditState, CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellOutputViewModel, ICellViewModel, INotebookEditor } from '../../notebookBrowser.js';
+import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellOutputViewModel, ICellViewModel, INotebookEditor } from '../../notebookBrowser.js';
 import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from '../../../common/notebookContextKeys.js';
 import * as icons from '../../notebookIcons.js';
 import { CellEditType, CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
@@ -206,9 +206,7 @@ registerAction2(class extends NotebookCellAction {
 					{ quotableLabel: 'Split Notebook Cell' }
 				);
 
-				if (cell.getEditState() !== CellEditState.Preview) {
-					context.notebookEditor.cellAt(index + 1)?.updateEditState(CellEditState.Editing, 'splitCell');
-				}
+				context.notebookEditor.cellAt(index + 1)?.updateEditState(cell.getEditState(), 'splitCell');
 			}
 		}
 	}
