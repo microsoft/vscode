@@ -292,7 +292,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						}
 						for (const char of provider.triggerCharacters) {
 							if (prefix?.endsWith(char)) {
-								this.requestCompletions(true);
+								this.requestCompletions();
 								sent = true;
 								break;
 							}
