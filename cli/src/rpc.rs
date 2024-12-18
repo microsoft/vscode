@@ -105,7 +105,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 		F: Fn(P, &C) -> Result<R, AnyError> + Send + Sync + 'static,
 	{
 		if self.methods.contains_key(method_name) {
-			panic!("Method already registered: {}", method_name);
+			panic!("Method already registered: {method_name}");
 		}
 
 		let serial = self.serializer.clone();
@@ -121,7 +121,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 								id,
 								error: ResponseError {
 									code: 0,
-									message: format!("{:?}", err),
+									message: format!("{err:?}"),
 								},
 							})
 						})
@@ -135,7 +135,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 							id,
 							error: ResponseError {
 								code: -1,
-								message: format!("{:?}", err),
+								message: format!("{err:?}"),
 							},
 						})
 					}),
@@ -165,7 +165,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 								id,
 								error: ResponseError {
 									code: 0,
-									message: format!("{:?}", err),
+									message: format!("{err:?}"),
 								},
 							})
 						}))
@@ -186,7 +186,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 								id,
 								error: ResponseError {
 									code: -1,
-									message: format!("{:?}", err),
+									message: format!("{err:?}"),
 								},
 							})
 						}),
@@ -226,7 +226,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 									id,
 									error: ResponseError {
 										code: 0,
-										message: format!("{:?}", err),
+										message: format!("{err:?}"),
 									},
 								})
 							}))
@@ -259,7 +259,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 								id,
 								error: ResponseError {
 									code: -1,
-									message: format!("{:?}", err),
+									message: format!("{err:?}"),
 								},
 							})
 						}),
@@ -431,7 +431,7 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 						id,
 						error: ResponseError {
 							code: -1,
-							message: format!("Method not found: {}", method_name),
+							message: format!("Method not found: {method_name}"),
 						},
 					})
 				})),

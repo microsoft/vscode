@@ -5,7 +5,7 @@
 
 import { IContextMenuProvider } from '../../contextmenu.js';
 import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus } from '../../dom.js';
-import { sanitize } from '../../dompurify/dompurify.js';
+import dompurify from '../../dompurify/dompurify.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { renderMarkdown, renderStringAsPlaintext } from '../../markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../touch.js';
@@ -28,7 +28,10 @@ import { IActionProvider } from '../dropdown/dropdown.js';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
-	readonly ariaLabel?: boolean | string;
+	/**
+	 * Will fallback to `title` if not set.
+	 */
+	readonly ariaLabel?: string;
 	readonly supportIcons?: boolean;
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
@@ -239,7 +242,7 @@ export class Button extends Disposable implements IButton {
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
 				// Only allow a very limited set of inline html tags
-				const sanitized = sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
+				const sanitized = dompurify.sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
 				labelElement.innerHTML = sanitized as unknown as string;
 			} else {
 				reset(labelElement);
@@ -261,11 +264,7 @@ export class Button extends Disposable implements IButton {
 
 		this.setTitle(title);
 
-		if (typeof this.options.ariaLabel === 'string') {
-			this._element.setAttribute('aria-label', this.options.ariaLabel);
-		} else if (this.options.ariaLabel) {
-			this._element.setAttribute('aria-label', title);
-		}
+		this._setAriaLabel();
 
 		this._label = value;
 	}
@@ -286,7 +285,16 @@ export class Button extends Disposable implements IButton {
 		}
 	}
 
+	private _setAriaLabel(): void {
+		if (typeof this.options.ariaLabel === 'string') {
+			this._element.setAttribute('aria-label', this.options.ariaLabel);
+		} else if (typeof this.options.title === 'string') {
+			this._element.setAttribute('aria-label', this.options.title);
+		}
+	}
+
 	set icon(icon: ThemeIcon) {
+		this._setAriaLabel();
 		this._element.classList.add(...ThemeIcon.asClassNameArray(icon));
 	}
 

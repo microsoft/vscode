@@ -26,7 +26,7 @@ import { CodeActionController } from '../../../../editor/contrib/codeAction/brow
 import { localize } from '../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider, IAccessibleViewService, IAccessibleViewSymbol } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX, IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -655,9 +655,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 
 	private _updateToolbar(providedActions?: IAction[], type?: AccessibleViewType): void {
 		this._toolbar.setAriaLabel(type === AccessibleViewType.Help ? localize('accessibleHelpToolbar', 'Accessibility Help') : localize('accessibleViewToolbar', "Accessible View"));
-		const menuActions: IAction[] = [];
 		const toolbarMenu = this._register(this._menuService.createMenu(MenuId.AccessibleView, this._contextKeyService));
-		createAndFillInActionBarActions(toolbarMenu, {}, menuActions);
+		const menuActions = getFlatActionBarActions(toolbarMenu.getActions({}));
 		if (providedActions) {
 			for (const providedAction of providedActions) {
 				providedAction.class = providedAction.class || ThemeIcon.asClassName(Codicon.primitiveSquare);

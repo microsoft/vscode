@@ -52,8 +52,8 @@ export class MatchInNotebook extends MatchImpl implements IMatchInNotebook {
 		return this._webviewIndex !== undefined;
 	}
 
-	public override isReadonly() {
-		return super.isReadonly() || (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
+	override get isReadonly(): boolean {
+		return super.isReadonly || (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
 	}
 
 	get cellIndex() {
@@ -443,9 +443,9 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 	}
 
 
-	override createMatches(isAiContributed: boolean): void {
+	override createMatches(): void {
 		const model = this.modelService.getModel(this._resource);
-		if (model && !isAiContributed) {
+		if (model) {
 			// todo: handle better when ai contributed results has model, currently, createMatches does not work for this
 			this.bindModel(model);
 			this.updateMatchesForModel();
@@ -459,7 +459,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 				this.rawMatch.results
 					.filter(resultIsMatch)
 					.forEach(rawMatch => {
-						textSearchResultToMatches(rawMatch, this, isAiContributed)
+						textSearchResultToMatches(rawMatch, this, false)
 							.forEach(m => this.add(m));
 					});
 			}

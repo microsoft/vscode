@@ -224,31 +224,6 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
 	});
 
-	test('scan exclude uninstalled extensions', async () => {
-		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
-		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub' }));
-		await instantiationService.get(IFileService).writeFile(joinPath(URI.file(instantiationService.get(INativeEnvironmentService).extensionsPath), '.obsolete'), VSBuffer.fromString(JSON.stringify({ 'pub.name2-1.0.0': true })));
-		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
-
-		const actual = await testObject.scanUserExtensions({});
-
-		assert.deepStrictEqual(actual.length, 1);
-		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
-	});
-
-	test('scan include uninstalled extensions', async () => {
-		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
-		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub' }));
-		await instantiationService.get(IFileService).writeFile(joinPath(URI.file(instantiationService.get(INativeEnvironmentService).extensionsPath), '.obsolete'), VSBuffer.fromString(JSON.stringify({ 'pub.name2-1.0.0': true })));
-		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
-
-		const actual = await testObject.scanUserExtensions({ includeUninstalled: true });
-
-		assert.deepStrictEqual(actual.length, 2);
-		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
-		assert.deepStrictEqual(actual[1].identifier, { id: 'pub.name2' });
-	});
-
 	test('scan include invalid extensions', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub', engines: { vscode: '^1.67.0' } }));
@@ -351,7 +326,7 @@ suite('ExtensionScannerInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('compare inputs - location', () => {
-		const anInput = (location: URI, mtime: number | undefined) => new ExtensionScannerInput(location, mtime, undefined, undefined, false, undefined, ExtensionType.User, true, true, '1.1.1', undefined, undefined, true, undefined, {});
+		const anInput = (location: URI, mtime: number | undefined) => new ExtensionScannerInput(location, mtime, undefined, undefined, false, undefined, ExtensionType.User, true, '1.1.1', undefined, undefined, true, undefined, {});
 
 		assert.strictEqual(ExtensionScannerInput.equals(anInput(ROOT, undefined), anInput(ROOT, undefined)), true);
 		assert.strictEqual(ExtensionScannerInput.equals(anInput(ROOT, 100), anInput(ROOT, 100)), true);
@@ -361,7 +336,7 @@ suite('ExtensionScannerInput', () => {
 	});
 
 	test('compare inputs - application location', () => {
-		const anInput = (location: URI, mtime: number | undefined) => new ExtensionScannerInput(ROOT, undefined, location, mtime, false, undefined, ExtensionType.User, true, true, '1.1.1', undefined, undefined, true, undefined, {});
+		const anInput = (location: URI, mtime: number | undefined) => new ExtensionScannerInput(ROOT, undefined, location, mtime, false, undefined, ExtensionType.User, true, '1.1.1', undefined, undefined, true, undefined, {});
 
 		assert.strictEqual(ExtensionScannerInput.equals(anInput(ROOT, undefined), anInput(ROOT, undefined)), true);
 		assert.strictEqual(ExtensionScannerInput.equals(anInput(ROOT, 100), anInput(ROOT, 100)), true);
@@ -371,7 +346,7 @@ suite('ExtensionScannerInput', () => {
 	});
 
 	test('compare inputs - profile', () => {
-		const anInput = (profile: boolean, profileScanOptions: IProfileExtensionsScanOptions | undefined) => new ExtensionScannerInput(ROOT, undefined, undefined, undefined, profile, profileScanOptions, ExtensionType.User, true, true, '1.1.1', undefined, undefined, true, undefined, {});
+		const anInput = (profile: boolean, profileScanOptions: IProfileExtensionsScanOptions | undefined) => new ExtensionScannerInput(ROOT, undefined, undefined, undefined, profile, profileScanOptions, ExtensionType.User, true, '1.1.1', undefined, undefined, true, undefined, {});
 
 		assert.strictEqual(ExtensionScannerInput.equals(anInput(true, { bailOutWhenFileNotFound: true }), anInput(true, { bailOutWhenFileNotFound: true })), true);
 		assert.strictEqual(ExtensionScannerInput.equals(anInput(false, { bailOutWhenFileNotFound: true }), anInput(false, { bailOutWhenFileNotFound: true })), true);
@@ -384,7 +359,7 @@ suite('ExtensionScannerInput', () => {
 	});
 
 	test('compare inputs - extension type', () => {
-		const anInput = (type: ExtensionType) => new ExtensionScannerInput(ROOT, undefined, undefined, undefined, false, undefined, type, true, true, '1.1.1', undefined, undefined, true, undefined, {});
+		const anInput = (type: ExtensionType) => new ExtensionScannerInput(ROOT, undefined, undefined, undefined, false, undefined, type, true, '1.1.1', undefined, undefined, true, undefined, {});
 
 		assert.strictEqual(ExtensionScannerInput.equals(anInput(ExtensionType.System), anInput(ExtensionType.System)), true);
 		assert.strictEqual(ExtensionScannerInput.equals(anInput(ExtensionType.User), anInput(ExtensionType.User)), true);

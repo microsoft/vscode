@@ -308,7 +308,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 			// If we have text to show, add a space to separate from progress
 			let textContent = text ?? '';
 			if (textContent) {
-				textContent = ` ${textContent}`;
+				textContent = `\u00A0${textContent}`; // prepend non-breaking space
 			}
 
 			// Append new elements

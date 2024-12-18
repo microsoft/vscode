@@ -23,7 +23,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { PanelFocusContext } from '../../../common/contextkeys.js';
-import { CONTEXT_IN_CHAT_SESSION } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { openBreakpointSource } from './breakpointsView.js';
 import { DisassemblyView } from './disassemblyView.js';
 import { Repl } from './repl.js';
@@ -100,8 +100,7 @@ class ConditionalBreakpointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.conditionalBreakpoint',
-			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
-			alias: 'Debug: Add Conditional Breakpoint...',
+			label: nls.localize2('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
 			menuOpts: {
 				menuId: MenuId.MenubarNewBreakpointMenu,
@@ -128,9 +127,8 @@ class LogPointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.addLogPoint',
-			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
+			label: nls.localize2('logPointEditorAction', "Debug: Add Logpoint..."),
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
-			alias: 'Debug: Add Logpoint...',
 			menuOpts: [
 				{
 					menuId: MenuId.MenubarNewBreakpointMenu,
@@ -309,7 +307,7 @@ export class RunToCursorAction extends EditorAction {
 				CONTEXT_DEBUGGERS_AVAILABLE,
 				PanelFocusContext.toNegated(),
 				ContextKeyExpr.or(EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLY_VIEW_FOCUS),
-				CONTEXT_IN_CHAT_SESSION.negate()
+				ChatContextKeys.inChatSession.negate()
 			),
 			contextMenuOpts: {
 				group: 'debug',
@@ -354,7 +352,7 @@ export class SelectionToReplAction extends EditorAction {
 			precondition: ContextKeyExpr.and(
 				CONTEXT_IN_DEBUG_MODE,
 				EditorContextKeys.editorTextFocus,
-				CONTEXT_IN_CHAT_SESSION.negate()),
+				ChatContextKeys.inChatSession.negate()),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 0
@@ -397,7 +395,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 			precondition: ContextKeyExpr.and(
 				CONTEXT_IN_DEBUG_MODE,
 				EditorContextKeys.editorTextFocus,
-				CONTEXT_IN_CHAT_SESSION.negate()),
+				ChatContextKeys.inChatSession.negate()),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 1
@@ -443,8 +441,7 @@ class ShowDebugHoverAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.showDebugHover',
-			label: nls.localize('showDebugHover', "Debug: Show Hover"),
-			alias: 'Debug: Show Hover',
+			label: nls.localize2('showDebugHover', "Debug: Show Hover"),
 			precondition: CONTEXT_IN_DEBUG_MODE,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -596,8 +593,7 @@ class GoToNextBreakpointAction extends GoToBreakpointAction {
 	constructor() {
 		super(true, {
 			id: 'editor.debug.action.goToNextBreakpoint',
-			label: nls.localize('goToNextBreakpoint', "Debug: Go to Next Breakpoint"),
-			alias: 'Debug: Go to Next Breakpoint',
+			label: nls.localize2('goToNextBreakpoint', "Debug: Go to Next Breakpoint"),
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}
@@ -607,8 +603,7 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 	constructor() {
 		super(false, {
 			id: 'editor.debug.action.goToPreviousBreakpoint',
-			label: nls.localize('goToPreviousBreakpoint', "Debug: Go to Previous Breakpoint"),
-			alias: 'Debug: Go to Previous Breakpoint',
+			label: nls.localize2('goToPreviousBreakpoint', "Debug: Go to Previous Breakpoint"),
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}
@@ -619,8 +614,7 @@ class CloseExceptionWidgetAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.closeExceptionWidget',
-			label: nls.localize('closeExceptionWidget', "Close Exception Widget"),
-			alias: 'Close Exception Widget',
+			label: nls.localize2('closeExceptionWidget', "Close Exception Widget"),
 			precondition: CONTEXT_EXCEPTION_WIDGET_VISIBLE,
 			kbOpts: {
 				primary: KeyCode.Escape,

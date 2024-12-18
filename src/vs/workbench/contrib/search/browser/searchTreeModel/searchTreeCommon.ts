@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IAITextQuery, IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
+import { IAITextQuery, IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -138,7 +138,7 @@ export interface ISearchResult {
 	toggleHighlights(value: boolean, ai?: boolean): void;
 	getRangeHighlightDecorations(ai?: boolean): RangeHighlightDecorations;
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any>;
-
+	setAIQueryUsingTextQuery(query?: ITextQuery | null): void;
 	dispose(): void;
 }
 
@@ -160,7 +160,7 @@ export interface ITextSearchHeading {
 	groupFilesByFolder(fileMatches: ISearchTreeFileMatch[]): { byFolder: Map<URI, ISearchTreeFileMatch[]>; other: ISearchTreeFileMatch[] };
 	isEmpty(): boolean;
 	findFolderSubstr(resource: URI): ISearchTreeFolderMatch | undefined;
-	query: ITextQuery | null;
+	query: ITextSearchQuery | null;
 	folderMatches(): ISearchTreeFolderMatch[];
 	matches(): ISearchTreeFileMatch[];
 	showHighlights: boolean;
@@ -190,24 +190,19 @@ export interface ISearchTreeFolderMatch {
 	matches(): (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[];
 	allDownstreamFileMatches(): ISearchTreeFileMatch[];
 	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): void;
-	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string, isAiContributed: boolean): void;
+	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string): void;
 	isEmpty(): boolean;
 	clear(clearingAll?: boolean): void;
 	showHighlights: boolean;
 	searchModel: ISearchModel;
-	query: ITextQuery | null;
+	query: ITextSearchQuery | null;
 	replace(match: ISearchTreeFileMatch): Promise<any>;
 	replacingAll: boolean;
 	bindModel(model: ITextModel): void;
 	getDownstreamFileMatch(uri: URI): ISearchTreeFileMatch | null;
 	replaceAll(): Promise<any>;
 	recursiveFileCount(): number;
-	disposeMatches(): void;
 	doRemoveFile(fileMatches: ISearchTreeFileMatch[], dispose?: boolean, trigger?: boolean, keepReadonly?: boolean): void;
-	doAddFile(fileMatch: ISearchTreeFileMatch): void;
-	onFileChange(fileMatch: ISearchTreeFileMatch, removed?: boolean): void;
-	createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: ISearchTreeFolderMatchWorkspaceRoot): ISearchTreeFolderMatchWithResource;
-	getFolderMatch(resource: URI): ISearchTreeFolderMatchWithResource | undefined;
 	unbindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): void;
 	bindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): Promise<void>;
 	unbindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): void;
@@ -216,8 +211,8 @@ export interface ISearchTreeFolderMatch {
 	folderMatchesIterator(): IterableIterator<ISearchTreeFolderMatchWithResource>;
 	recursiveFileCount(): number;
 	recursiveMatchCount(): number;
-	readonly closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null;
 	dispose(): void;
+	isAIContributed(): boolean;
 }
 
 export interface ISearchTreeFolderMatchWithResource extends ISearchTreeFolderMatch {
@@ -275,7 +270,7 @@ export interface ISearchTreeMatch {
 	rangeInPreview(): ISearchRange;
 	fullPreviewLines(): string[];
 	getMatchString(): string;
-	isReadonly(): boolean;
+	isReadonly: boolean;
 }
 
 export function isSearchModel(obj: any): obj is ISearchModel {
@@ -338,4 +333,19 @@ export function isSearchTreeMatch(obj: any): obj is ISearchTreeMatch {
 		obj !== null &&
 		typeof obj.id === 'function' &&
 		obj.id().startsWith(MATCH_PREFIX);
+}
+
+export function getFileMatches(matches: (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): ISearchTreeFileMatch[] {
+
+	const folderMatches: ISearchTreeFolderMatchWithResource[] = [];
+	const fileMatches: ISearchTreeFileMatch[] = [];
+	matches.forEach((e) => {
+		if (isSearchTreeFileMatch(e)) {
+			fileMatches.push(e);
+		} else {
+			folderMatches.push(e);
+		}
+	});
+
+	return fileMatches.concat(folderMatches.map(e => e.allDownstreamFileMatches()).flat());
 }

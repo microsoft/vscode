@@ -16,7 +16,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
-import { CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE } from './chatContextKeys.js';
+import { ChatContextKeys } from './chatContextKeys.js';
 
 export const enum ChatMessageRole {
 	System,
@@ -32,7 +32,7 @@ export interface IChatMessageTextPart {
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
 	toolCallId: string;
-	value: any;
+	value: (IChatResponseTextPart | IChatResponsePromptTsxPart)[];
 	isError?: boolean;
 }
 
@@ -47,6 +47,11 @@ export interface IChatMessage {
 export interface IChatResponseTextPart {
 	type: 'text';
 	value: string;
+}
+
+export interface IChatResponsePromptTsxPart {
+	type: 'prompt_tsx';
+	value: unknown;
 }
 
 export interface IChatResponseToolUsePart {
@@ -185,7 +190,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
-		this._hasUserSelectableModels = CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE.bindTo(this._contextKeyService);
+		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(this._contextKeyService);
 
 		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
 

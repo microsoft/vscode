@@ -20,7 +20,7 @@ import { DebugVisualizationType, IAdapterDescriptor, IConfig, IDebugAdapter, IDe
 import { convertToDAPaths, convertToVSCPaths, isDebuggerMainContribution } from '../../contrib/debug/common/debugUtils.js';
 import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, IStackFrameFocusDto, IThreadFocusDto, MainContext, MainThreadDebugServiceShape } from './extHost.protocol.js';
+import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, IStackFrameFocusDto, IThreadFocusDto, MainContext, MainThreadDebugServiceShape, MainThreadTelemetryShape } from './extHost.protocol.js';
 import { IExtHostCommands } from './extHostCommands.js';
 import { IExtHostConfiguration } from './extHostConfiguration.js';
 import { IExtHostEditorTabs } from './extHostEditorTabs.js';
@@ -116,15 +116,17 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 	private readonly _visualizers = new Map<number, { v: vscode.DebugVisualization; provider: vscode.DebugVisualizationProvider; extensionId: string }>();
 	private _visualizerIdCounter = 0;
 
+	private _telemetryProxy: MainThreadTelemetryShape;
+
 	constructor(
 		@IExtHostRpcService extHostRpcService: IExtHostRpcService,
-		@IExtHostWorkspace protected _workspaceService: IExtHostWorkspace,
-		@IExtHostExtensionService private _extensionService: IExtHostExtensionService,
-		@IExtHostConfiguration protected _configurationService: IExtHostConfiguration,
-		@IExtHostEditorTabs protected _editorTabs: IExtHostEditorTabs,
-		@IExtHostVariableResolverProvider private _variableResolver: IExtHostVariableResolverProvider,
-		@IExtHostCommands private _commands: IExtHostCommands,
-		@IExtHostTesting private _testing: IExtHostTesting,
+		@IExtHostWorkspace protected readonly _workspaceService: IExtHostWorkspace,
+		@IExtHostExtensionService private readonly _extensionService: IExtHostExtensionService,
+		@IExtHostConfiguration protected readonly _configurationService: IExtHostConfiguration,
+		@IExtHostEditorTabs protected readonly _editorTabs: IExtHostEditorTabs,
+		@IExtHostVariableResolverProvider private readonly _variableResolver: IExtHostVariableResolverProvider,
+		@IExtHostCommands private readonly _commands: IExtHostCommands,
+		@IExtHostTesting private readonly _testing: IExtHostTesting,
 	) {
 		super();
 
@@ -161,6 +163,8 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			}));
 			this.registerAllDebugTypes(extensionRegistry);
 		});
+
+		this._telemetryProxy = extHostRpcService.getProxy(MainContext.MainThreadTelemetry);
 	}
 
 	public async $getVisualizerTreeItem(treeId: string, element: IDebugVisualizationContext): Promise<IDebugVisualizationTreeItem | undefined> {
@@ -654,7 +658,14 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 						}
 
 						// DA -> VS Code
-						message = convertToVSCPaths(message, true);
+						try {
+							// Try to catch details for #233167
+							message = convertToVSCPaths(message, true);
+						} catch (e) {
+							const type = message.type + '_' + ((message as any).command ?? (message as any).event ?? '');
+							this._telemetryProxy.$publicLog2<DebugProtocolMessageErrorEvent, DebugProtocolMessageErrorClassification>('debugProtocolMessageError', { type, from: session.type });
+							throw e;
+						}
 
 						mythis._debugServiceProxy.$acceptDAMessage(debugAdapterHandle, message);
 					}
@@ -1273,3 +1284,16 @@ export class WorkerExtHostDebugService extends ExtHostDebugServiceBase {
 		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands, testing);
 	}
 }
+
+// Collecting info for #233167 specifically
+type DebugProtocolMessageErrorClassification = {
+	from: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the debug adapter that the event is from.' };
+	type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the event that was malformed.' };
+	owner: 'roblourens';
+	comment: 'Sent to collect details about misbehaving debug extensions.';
+};
+
+type DebugProtocolMessageErrorEvent = {
+	from: string;
+	type: string;
+};

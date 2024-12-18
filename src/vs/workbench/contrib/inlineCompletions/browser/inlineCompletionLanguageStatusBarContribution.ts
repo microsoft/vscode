@@ -9,7 +9,6 @@ import { autorunWithStore } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { InlineEditsAdapter } from '../../../../editor/contrib/inlineCompletions/browser/model/inlineEditsAdapter.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
@@ -19,7 +18,8 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 
 	public static Id = 'vs.editor.contrib.inlineCompletionLanguageStatusBarContribution';
 
-	private readonly _inlineCompletionInlineEdits = observableConfigValue(InlineEditsAdapter.experimentalInlineEditsEnabled, false, this._configurationService);
+	// TODO always enable this!
+	private readonly _inlineCompletionInlineEdits = observableConfigValue('editor.inlineSuggest.experimentalInlineEditsEnabled', false, this._configurationService);
 
 	constructor(
 		private readonly _editor: ICodeEditor,

@@ -36,7 +36,6 @@ exports.workbenchDesktop = [
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
 	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
-	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
 	createModuleDescription('vs/workbench/workbench.desktop.main')
 ];
 
@@ -55,8 +54,6 @@ exports.code = [
 	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain'),
 	createModuleDescription('vs/code/electron-sandbox/workbench/workbench'),
-	// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop.
-	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporter'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorer')
 ];
 

@@ -202,7 +202,7 @@ export class ReplaceService implements IReplaceService {
 		const edits: ResourceTextEdit[] = [];
 
 		if (isSearchTreeMatch(arg)) {
-			if (!arg.isReadonly()) {
+			if (!arg.isReadonly) {
 				if (isIMatchInNotebook(arg)) {
 					// only apply edits if it's not a webview match, since webview matches are read-only
 					const match = arg;

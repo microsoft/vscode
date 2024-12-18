@@ -334,11 +334,15 @@ export interface IEditorActionContextMenuOptions {
 	when?: ContextKeyExpression;
 	menuId?: MenuId;
 }
-export interface IActionOptions extends ICommandOptions {
+export type IActionOptions = ICommandOptions & {
+	contextMenuOpts?: IEditorActionContextMenuOptions | IEditorActionContextMenuOptions[];
+} & ({
+	label: nls.ILocalizedString;
+	alias?: string;
+} | {
 	label: string;
 	alias: string;
-	contextMenuOpts?: IEditorActionContextMenuOptions | IEditorActionContextMenuOptions[];
-}
+});
 
 export abstract class EditorAction extends EditorCommand {
 
@@ -358,7 +362,7 @@ export abstract class EditorAction extends EditorCommand {
 				item.menuId = MenuId.EditorContext;
 			}
 			if (!item.title) {
-				item.title = opts.label;
+				item.title = typeof opts.label === 'string' ? opts.label : opts.label.value;
 			}
 			item.when = ContextKeyExpr.and(opts.precondition, item.when);
 			return <ICommandMenuOptions>item;
@@ -379,8 +383,13 @@ export abstract class EditorAction extends EditorCommand {
 
 	constructor(opts: IActionOptions) {
 		super(EditorAction.convertOptions(opts));
-		this.label = opts.label;
-		this.alias = opts.alias;
+		if (typeof opts.label === 'string') {
+			this.label = opts.label;
+			this.alias = opts.alias ?? opts.label;
+		} else {
+			this.label = opts.label.value;
+			this.alias = opts.alias ?? opts.label.original;
+		}
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
@@ -643,6 +652,11 @@ export const UndoCommand = registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('undo', "Undo"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: '1_do',
+		title: nls.localize('undo', "Undo"),
+		order: 1
 	}]
 }));
 
@@ -667,6 +681,11 @@ export const RedoCommand = registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('redo', "Redo"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: '1_do',
+		title: nls.localize('redo', "Redo"),
+		order: 2
 	}]
 }));
 
@@ -688,6 +707,11 @@ export const SelectAllCommand = registerCommand(new MultiCommand({
 	}, {
 		menuId: MenuId.CommandPalette,
 		group: '',
+		title: nls.localize('selectAll', "Select All"),
+		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: '9_select',
 		title: nls.localize('selectAll', "Select All"),
 		order: 1
 	}]

@@ -9,7 +9,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import './media/scm.css';
 import { localize } from '../../../../nls.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenu, IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -19,18 +19,6 @@ import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResou
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
 }
-
-const repositoryMenuDisposables = new DisposableStore();
-
-MenuRegistry.onDidChangeMenu(e => {
-	if (e.has(MenuId.SCMTitle)) {
-		repositoryMenuDisposables.clear();
-
-		for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
-			repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
-		}
-	}
-});
 
 export class SCMTitleMenu implements IDisposable {
 
@@ -58,9 +46,7 @@ export class SCMTitleMenu implements IDisposable {
 	}
 
 	private updateTitleActions(): void {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, { primary, secondary });
+		const { primary, secondary } = getActionBarActions(this.menu.getActions({ shouldForwardArgs: true }));
 
 		if (equals(primary, this._actions, actionEquals) && equals(secondary, this._secondaryActions, actionEquals)) {
 			return;
@@ -246,6 +232,7 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 
 	readonly titleMenu: SCMTitleMenu;
 	private readonly disposables = new DisposableStore();
+	private readonly repositoryMenuDisposables = new DisposableStore();
 	private readonly menus = new Map<ISCMProvider, { menus: SCMRepositoryMenus; dispose: () => void }>();
 
 	constructor(
@@ -254,6 +241,20 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 	) {
 		this.titleMenu = instantiationService.createInstance(SCMTitleMenu);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+
+		// Duplicate the `SCMTitle` menu items to the `SCMSourceControlInline` menu. We do this
+		// so that menu items can be independently hidden/shown in the "Source Control" and the
+		// "Source Control Repositories" views.
+		MenuRegistry.onDidChangeMenu(e => {
+			if (!e.has(MenuId.SCMTitle)) {
+				return;
+			}
+
+			this.repositoryMenuDisposables.clear();
+			for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
+				this.repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
+			}
+		}, this, this.disposables);
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {

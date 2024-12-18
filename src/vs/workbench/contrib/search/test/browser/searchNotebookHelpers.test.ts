@@ -220,7 +220,7 @@ suite('searchNotebookHelpers', () => {
 			const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
 				pattern: ''
 			}, undefined, undefined, folderMatch, rawMatch, null, '');
-			fileMatch.createMatches(false);
+			fileMatch.createMatches();
 			store.add(folderMatch);
 			store.add(fileMatch);
 

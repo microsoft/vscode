@@ -12,11 +12,12 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IProgress, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
-import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
-import { AI_TEXT_SEARCH_RESULT_ID, arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, PLAIN_TEXT_SEARCH__RESULT_ID, RenderableMatch, SEARCH_RESULT_PREFIX } from './searchTreeCommon.js';
+import { IAITextQuery, IFileMatch, ISearchComplete, ITextQuery, QueryType } from '../../../../services/search/common/search.js';
+import { arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, RenderableMatch, SEARCH_RESULT_PREFIX } from './searchTreeCommon.js';
 
 import { RangeHighlightDecorations } from './rangeDecorations.js';
-import { PlainTextSearchHeadingImpl, TextSearchHeadingImpl } from './textSearchHeading.js';
+import { PlainTextSearchHeadingImpl } from './textSearchHeading.js';
+import { AITextSearchHeadingImpl } from '../AISearch/aiSearchModel.js';
 
 export class SearchResultImpl extends Disposable implements ISearchResult {
 
@@ -26,8 +27,8 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 	private _onWillChangeModelListener: IDisposable | undefined;
 	private _onDidChangeModelListener: IDisposable | undefined;
-	private _plainTextSearchResult: IPlainTextSearchHeading;
-	private _aiTextSearchResult: ITextSearchHeading;
+	private _plainTextSearchResult: PlainTextSearchHeadingImpl;
+	private _aiTextSearchResult: AITextSearchHeadingImpl;
 
 	private readonly _id: string;
 	constructor(
@@ -37,8 +38,8 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
 		super();
-		this._plainTextSearchResult = this._register(this.instantiationService.createInstance(PlainTextSearchHeadingImpl, true, this, PLAIN_TEXT_SEARCH__RESULT_ID));
-		this._aiTextSearchResult = this._register(this.instantiationService.createInstance(TextSearchHeadingImpl, true, this, AI_TEXT_SEARCH_RESULT_ID));
+		this._plainTextSearchResult = this._register(this.instantiationService.createInstance(PlainTextSearchHeadingImpl, this));
+		this._aiTextSearchResult = this._register(this.instantiationService.createInstance(AITextSearchHeadingImpl, this));
 
 		this._register(this._plainTextSearchResult.onChange((e) => this._onChange.fire(e)));
 		this._register(this._aiTextSearchResult.onChange((e) => this._onChange.fire(e)));
@@ -140,7 +141,13 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 
 	set query(query: ITextQuery | null) {
 		this._plainTextSearchResult.query = query;
-		this._aiTextSearchResult.query = query;
+	}
+
+	setAIQueryUsingTextQuery(query?: ITextQuery | null) {
+		if (!query) {
+			query = this.query;
+		}
+		this.aiTextSearchResult.query = aiTextQueryFromTextQuery(query);
 	}
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
@@ -193,15 +200,15 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		this._aiTextSearchResult.hidden = false;
 
 		if (ai) {
-			this._aiTextSearchResult.add(allRaw, searchInstanceID, ai, silent);
+			this._aiTextSearchResult.add(allRaw, searchInstanceID, silent);
 		} else {
-			this._plainTextSearchResult.add(allRaw, searchInstanceID, ai, silent);
+			this._plainTextSearchResult.add(allRaw, searchInstanceID, silent);
 		}
 	}
 
 	clear(): void {
-		this._aiTextSearchResult.clear();
 		this._plainTextSearchResult.clear();
+		this._aiTextSearchResult.clear();
 	}
 
 	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatch | (ISearchTreeFileMatch | ISearchTreeFolderMatch)[], ai = false): void {
@@ -278,4 +285,8 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		this._onDidChangeModelListener?.dispose();
 		super.dispose();
 	}
+}
+
+function aiTextQueryFromTextQuery(query: ITextQuery | null): IAITextQuery | null {
+	return query === null ? null : { ...query, contentPattern: query.contentPattern.pattern, type: QueryType.aiText };
 }

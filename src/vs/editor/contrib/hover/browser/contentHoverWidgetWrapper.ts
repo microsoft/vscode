@@ -21,11 +21,13 @@ import { ContentHoverResult } from './contentHoverTypes.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { RenderedContentHover } from './contentHoverRendered.js';
 import { isMousePositionWithinElement } from './hoverUtils.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 
 	private _currentResult: ContentHoverResult | null = null;
 	private _renderedContentHover: RenderedContentHover | undefined;
+	private _temporarilySticky: boolean = false;
 
 	private readonly _contentHoverWidget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
@@ -38,6 +40,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IHoverService private readonly _hoverService: IHoverService
 	) {
 		super();
 		this._contentHoverWidget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
@@ -160,11 +163,25 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		if (currentHoverResultIsEmpty) {
 			currentHoverResult = null;
 		}
+		const hoverVisible = this._contentHoverWidget.isVisible;
+		if (!hoverVisible) {
+			this._renderResult(currentHoverResult);
+		} else {
+			if (this._temporarilySticky) {
+				return;
+			} else {
+				this._renderResult(currentHoverResult);
+			}
+		}
+	}
+
+	private _renderResult(currentHoverResult: ContentHoverResult | null): void {
 		this._currentResult = currentHoverResult;
 		if (this._currentResult) {
 			this._showHover(this._currentResult);
 		} else {
-			this._hideHover();
+			this._contentHoverWidget.hide();
+			this._participants.forEach(participant => participant.handleHide?.());
 		}
 	}
 
@@ -205,16 +222,12 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 	private _showHover(hoverResult: ContentHoverResult): void {
 		const context = this._getHoverContext();
-		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService);
+		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService, this._hoverService);
 		if (this._renderedContentHover.domNodeHasChildren) {
 			this._contentHoverWidget.show(this._renderedContentHover);
 		} else {
 			this._renderedContentHover.dispose();
 		}
-	}
-
-	private _hideHover(): void {
-		this._contentHoverWidget.hide();
 	}
 
 	private _getHoverContext(): IEditorHoverContext {
@@ -228,7 +241,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
 		};
-		return { hide, onContentsChanged, setMinimumDimensions };
+		const focus = () => this.focus();
+		return { hide, onContentsChanged, setMinimumDimensions, focus };
 	}
 
 
@@ -289,6 +303,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 	}
 
+	public set temporarilySticky(value: boolean) {
+		this._temporarilySticky = value;
+	}
+
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
@@ -326,6 +344,11 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public focus(): void {
+		const hoverPartsCount = this._renderedContentHover?.hoverPartsCount;
+		if (hoverPartsCount === 1) {
+			this.focusHoverPartWithIndex(0);
+			return;
+		}
 		this._contentHoverWidget.focus();
 	}
 

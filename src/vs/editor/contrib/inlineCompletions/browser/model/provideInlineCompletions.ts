@@ -9,6 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { SetMap } from '../../../../../base/common/map.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
@@ -32,8 +33,10 @@ export async function provideInlineCompletions(
 	baseToken: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
+	const requestUuid = generateUuid();
 	const tokenSource = new CancellationTokenSource(baseToken);
 	const token = tokenSource.token;
+	const contextWithUuid = { ...context, requestUuid: requestUuid };
 
 	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
 	const providers = registry.all(model);
@@ -116,9 +119,9 @@ export async function provideInlineCompletions(
 		let result: InlineCompletions | null | undefined;
 		try {
 			if (positionOrRange instanceof Position) {
-				result = await provider.provideInlineCompletions(model, positionOrRange, context, token);
+				result = await provider.provideInlineCompletions(model, positionOrRange, contextWithUuid, token);
 			} else {
-				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, context, token);
+				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, contextWithUuid, token);
 			}
 		} catch (e) {
 			onUnexpectedExternalError(e);
@@ -140,7 +143,7 @@ export async function provideInlineCompletions(
 		return new InlineCompletionProviderResult([], new Set(), []);
 	}
 
-	const result = await addRefAndCreateResult(context, inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
+	const result = await addRefAndCreateResult(contextWithUuid, inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
 	tokenSource.dispose(true); // This disposes results that are not referenced.
 	return result;
 }
@@ -175,7 +178,14 @@ async function addRefAndCreateResult(
 	for await (const completions of inlineCompletionLists) {
 		if (!completions) { continue; }
 		completions.addRef();
+		lists.push(completions);
 		for (const item of completions.inlineCompletions.items) {
+			if (!context.includeInlineEdits && item.isInlineEdit) {
+				continue;
+			}
+			if (!context.includeInlineCompletions && !item.isInlineEdit) {
+				continue;
+			}
 			const inlineCompletionItem = InlineCompletionItem.from(
 				item,
 				completions,
@@ -183,9 +193,11 @@ async function addRefAndCreateResult(
 				model,
 				languageConfigurationService
 			);
+
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
 
-			if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			// Stop after first visible inline completion
+			if (!item.isInlineEdit && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
 				if (!minifiedEdit.isEmpty) {
 					shouldStop = true;
@@ -314,6 +326,7 @@ export class InlineCompletionItem {
 		return new InlineCompletionItem(
 			insertText,
 			inlineCompletion.command,
+			inlineCompletion.shownCommand,
 			range,
 			insertText,
 			snippetInfo,
@@ -323,9 +336,12 @@ export class InlineCompletionItem {
 		);
 	}
 
+	private _didCallShow = false;
+
 	constructor(
 		readonly filterText: string,
 		readonly command: Command | undefined,
+		readonly shownCommand: Command | undefined,
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
@@ -349,10 +365,18 @@ export class InlineCompletionItem {
 		insertText = filterText.replace(/\r\n|\r/g, '\n');
 	}
 
+	public get didShow(): boolean {
+		return this._didCallShow;
+	}
+	public markAsShown(): void {
+		this._didCallShow = true;
+	}
+
 	public withRange(updatedRange: Range): InlineCompletionItem {
 		return new InlineCompletionItem(
 			this.filterText,
 			this.command,
+			this.shownCommand,
 			updatedRange,
 			this.insertText,
 			this.snippetInfo,

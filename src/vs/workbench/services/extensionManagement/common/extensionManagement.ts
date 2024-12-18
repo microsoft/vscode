@@ -9,7 +9,7 @@ import { IExtension, ExtensionType, IExtensionManifest, IExtensionIdentifier } f
 import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent, DidUpdateExtensionMetadata } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileAccess } from '../../../../base/common/network.js';
-import { localize } from '../../../../nls.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export type DidChangeProfileEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
 
@@ -59,6 +59,10 @@ export type UninstallExtensionOnServerEvent = UninstallExtensionEvent & { server
 export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
 export type DidChangeProfileForServerEvent = DidChangeProfileEvent & { server: IExtensionManagementServer };
 
+export interface IWorkbenchInstallOptions extends InstallOptions {
+	readonly installEverywhere?: boolean;
+}
+
 export const IWorkbenchExtensionManagementService = refineServiceDecorator<IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService>(IProfileAwareExtensionManagementService);
 export interface IWorkbenchExtensionManagementService extends IProfileAwareExtensionManagementService {
 	readonly _serviceBrand: undefined;
@@ -78,22 +82,16 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	getInstalledWorkspaceExtensionLocations(): URI[];
 	getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]>;
 
-	canInstall(extension: IGalleryExtension | IResourceExtension): Promise<boolean>;
+	canInstall(extension: IGalleryExtension | IResourceExtension): Promise<true | IMarkdownString>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallOptions): Promise<ILocalExtension>;
+	installFromGallery(gallery: IGalleryExtension, installOptions?: IWorkbenchInstallOptions): Promise<ILocalExtension>;
 	installFromLocation(location: URI): Promise<ILocalExtension>;
 	installResourceExtension(extension: IResourceExtension, installOptions: InstallOptions): Promise<ILocalExtension>;
 
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension>;
 }
-
-export const extensionsConfigurationNodeBase = {
-	id: 'extensions',
-	order: 30,
-	title: localize('extensionsConfigurationTitle', "Extensions"),
-	type: 'object'
-};
 
 export const enum EnablementState {
 	DisabledByTrustRequirement,
@@ -102,6 +100,7 @@ export const enum EnablementState {
 	EnabledByEnvironment,
 	DisabledByVirtualWorkspace,
 	DisabledByInvalidExtension,
+	DisabledByAllowlist,
 	DisabledByExtensionDependency,
 	DisabledGlobally,
 	DisabledWorkspace,

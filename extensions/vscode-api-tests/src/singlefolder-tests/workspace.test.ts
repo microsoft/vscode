@@ -598,19 +598,19 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('`findFiles2`', () => {
-		return vscode.workspace.findFiles2('**/image.png').then((res) => {
+		return vscode.workspace.findFiles2(['**/image.png']).then((res) => {
 			assert.strictEqual(res.length, 2);
 		});
 	});
 
 	test('findFiles2 - null exclude', async () => {
-		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: true, useDefaultSearchExcludes: false }).then((res) => {
+		await vscode.workspace.findFiles2(['**/file.txt'], { useExcludeSettings: vscode.ExcludeSettingOptions.FilesExclude }).then((res) => {
 			// file.exclude folder is still searched, search.exclude folder is not
 			assert.strictEqual(res.length, 1);
 			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
 		});
 
-		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: false, useDefaultSearchExcludes: false }).then((res) => {
+		await vscode.workspace.findFiles2(['**/file.txt'], { useExcludeSettings: vscode.ExcludeSettingOptions.None }).then((res) => {
 			// search.exclude and files.exclude folders are both searched
 			assert.strictEqual(res.length, 2);
 			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
@@ -618,7 +618,7 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('findFiles2, exclude', () => {
-		return vscode.workspace.findFiles2('**/image.png', { exclude: '**/sub/**' }).then((res) => {
+		return vscode.workspace.findFiles2(['**/image.png'], { exclude: ['**/sub/**'] }).then((res) => {
 			res.forEach(r => console.log(r.toString()));
 			assert.strictEqual(res.length, 1);
 		});
@@ -630,7 +630,7 @@ suite('vscode API - workspace', () => {
 		const token = source.token; // just to get an instance first
 		source.cancel();
 
-		return vscode.workspace.findFiles2('*.js', {}, token).then((res) => {
+		return vscode.workspace.findFiles2(['*.js'], {}, token).then((res) => {
 			assert.deepStrictEqual(res, []);
 		});
 	});

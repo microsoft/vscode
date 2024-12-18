@@ -8,7 +8,7 @@ import { localize } from '../../nls.js';
 import { URI } from '../../base/common/uri.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { equals } from '../../base/common/objects.js';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
 import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../base/common/actions.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from '../common/editor.js';
@@ -25,7 +25,7 @@ import { ipcRenderer, process } from '../../base/parts/sandbox/electron-sandbox/
 import { IWorkspaceEditingService } from '../services/workspaces/common/workspaceEditing.js';
 import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from '../../platform/actions/common/actions.js';
 import { ICommandAction } from '../../platform/action/common/action.js';
-import { createAndFillInActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
 import { RunOnceScheduler } from '../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
@@ -41,13 +41,12 @@ import { WorkbenchState, IWorkspaceContextService } from '../../platform/workspa
 import { coalesce } from '../../base/common/arrays.js';
 import { ConfigurationTarget, IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
-import { assertIsDefined } from '../../base/common/types.js';
 import { IOpenerService, IResolvedExternalUri, OpenOptions } from '../../platform/opener/common/opener.js';
 import { Schemas } from '../../base/common/network.js';
 import { INativeHostService } from '../../platform/native/common/native.js';
 import { posix } from '../../base/common/path.js';
 import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping, extractQueryLocalHostUriMetaDataForPortMapping } from '../../platform/tunnel/common/tunnel.js';
-import { IWorkbenchLayoutService, Parts, positionFromString, Position } from '../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, positionFromString, Position } from '../services/layout/browser/layoutService.js';
 import { IWorkingCopyService } from '../services/workingCopy/common/workingCopyService.js';
 import { WorkingCopyCapabilities } from '../services/workingCopy/common/workingCopy.js';
 import { IFilesConfigurationService } from '../services/filesConfiguration/common/filesConfigurationService.js';
@@ -397,21 +396,6 @@ export class NativeWindow extends BaseWindow {
 			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.handleRepresentedFilename(part)));
 		}
 
-		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && !hasNativeTitlebar(this.configurationService)) {
-			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
-				const targetWindow = getWindow(container);
-				const targetWindowId = targetWindow.vscodeWindowId;
-				const titlePart = assertIsDefined(this.layoutService.getContainer(targetWindow, Parts.TITLEBAR_PART));
-
-				disposables.add(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
-					EventHelper.stop(e);
-
-					this.nativeHostService.handleTitleDoubleClick({ targetWindowId });
-				}));
-			}, { container: this.layoutService.mainContainer, disposables: this._store }));
-		}
-
 		// Document edited: indicate for dirty working copies
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
 			const gotDirty = workingCopy.isDirty();
@@ -749,12 +733,11 @@ export class NativeWindow extends BaseWindow {
 			}
 		}
 
-		// macOS 10.13 and 10.14 warning
+		// macOS 10.15 warning
 		if (isMacintosh) {
 			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
 			const eolReleases = new Map<string, string>([
-				['17', 'macOS High Sierra'],
-				['18', 'macOS Mojave'],
+				['19', 'macOS Catalina'],
 			]);
 
 			if (eolReleases.has(majorVersion)) {
@@ -932,14 +915,12 @@ export class NativeWindow extends BaseWindow {
 			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
 		}
 
-		const actions: Array<MenuItemAction | Separator> = [];
-
 		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
 		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
 		const ignoredItems = Array.isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
-		createAndFillInActionBarActions(this.touchBarMenu, undefined, actions);
+		const actions = getFlatActionBarActions(this.touchBarMenu.getActions());
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];

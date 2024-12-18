@@ -28,7 +28,7 @@ export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetCheckpointEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -42,8 +42,8 @@ export interface IChatSessionInitEvent {
 	kind: 'initialize';
 }
 
-export interface IChatSetCheckpointEvent {
-	kind: 'setCheckpoint';
+export interface IChatSetHiddenEvent {
+	kind: 'setHidden';
 }
 
 export interface IChatViewModel {
@@ -72,9 +72,13 @@ export interface IChatRequestViewModel {
 	readonly variables: IChatRequestVariableEntry[];
 	currentRenderedHeight: number | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
+	readonly workingSet?: ReadonlyArray<URI>;
 	readonly confirmation?: string;
-	readonly isDisabled?: boolean;
+	readonly isHidden: boolean;
+	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly slashCommand: IChatAgentCommand | undefined;
+	readonly agentOrSlashCommandDetected: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -176,7 +180,7 @@ export interface IChatResponseViewModel {
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
-	readonly isDisabled: boolean;
+	readonly isHidden: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
@@ -276,7 +280,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			const modelEventToVmEvent: IChatViewModelChangeEvent =
 				e.kind === 'addRequest' ? { kind: 'addRequest' }
 					: e.kind === 'initialize' ? { kind: 'initialize' }
-						: e.kind === 'setCheckpoint' ? { kind: 'setCheckpoint' }
+						: e.kind === 'setHidden' ? { kind: 'setHidden' }
 							: null;
 			this._onDidChange.fire(modelEventToVmEvent);
 		}));
@@ -295,7 +299,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
-		return [...this._items];
+		return [...this._items].filter((item) => !item.isHidden);
 	}
 
 	override dispose() {
@@ -318,7 +322,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			if (token.type === 'code') {
 				const lang = token.lang || '';
 				const text = token.text;
-				this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang });
+				this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang, isComplete: true });
 			}
 		});
 	}
@@ -330,7 +334,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get dataId() {
-		return this.id + `_${ChatModelInitState[this._model.session.initState]}_${hash(this.variables)}`;
+		return this.id + `_${ChatModelInitState[this._model.session.initState]}_${hash(this.variables)}_${hash(this.isComplete)}`;
 	}
 
 	get sessionId() {
@@ -365,16 +369,32 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.response?.contentReferences;
 	}
 
+	get workingSet() {
+		return this._model.workingSet;
+	}
+
 	get confirmation() {
 		return this._model.confirmation;
 	}
 
-	get isDisabled() {
-		return this._model.isDisabled;
+	get isComplete() {
+		return this._model.response?.isComplete ?? false;
 	}
 
 	get isCompleteAddedRequest() {
 		return this._model.isCompleteAddedRequest;
+	}
+
+	get isHidden() {
+		return this._model.isHidden;
+	}
+
+	get slashCommand(): IChatAgentCommand | undefined {
+		return this._model.response?.slashCommand;
+	}
+
+	get agentOrSlashCommandDetected(): boolean {
+		return this._model.response?.agentOrSlashCommandDetected ?? false;
 	}
 
 	currentRenderedHeight: number | undefined;
@@ -466,8 +486,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.isCanceled;
 	}
 
-	get isDisabled() {
-		return this._model.isDisabled;
+	get isHidden() {
+		return this._model.isHidden;
 	}
 
 	get isCompleteAddedRequest() {
@@ -515,7 +535,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			return this._usedReferencesExpanded;
 		}
 
-		return this.response.value.length === 0;
+		return this.response.value.length === 0 && !this.errorDetails;
 	}
 
 	set usedReferencesExpanded(v: boolean) {
