@@ -364,7 +364,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		try {
 
 			const isRemoteDataFromCurrentMachine = await this.isRemoteDataFromCurrentMachine(remoteUserData);
-			const acceptRemote = !isRemoteDataFromCurrentMachine && lastSyncUserData === null;
+			const acceptRemote = !isRemoteDataFromCurrentMachine && lastSyncUserData === null && this.getStoredLastSyncUserDataStateContent() !== undefined;
 			const merge = strategy === SyncStrategy.Preview || (strategy === SyncStrategy.Merge && !acceptRemote);
 			const apply = strategy === SyncStrategy.Merge || strategy === SyncStrategy.PullOrPush;
 
@@ -596,7 +596,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	}
 
 	async getLastSyncUserData(): Promise<IRemoteUserData | null> {
-		const storedLastSyncUserDataStateContent = this.storageService.get(this.lastSyncUserDataStateKey, StorageScope.APPLICATION);
+		const storedLastSyncUserDataStateContent = this.getStoredLastSyncUserDataStateContent();
 
 		// Last Sync Data state does not exist
 		if (!storedLastSyncUserDataStateContent) {
@@ -681,6 +681,10 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 		this.storageService.store(this.lastSyncUserDataStateKey, JSON.stringify(lastSyncUserDataState), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		await this.writeLastSyncStoredRemoteUserData(lastSyncRemoteUserData);
+	}
+
+	private getStoredLastSyncUserDataStateContent(): string | undefined {
+		return this.storageService.get(this.lastSyncUserDataStateKey, StorageScope.APPLICATION);
 	}
 
 	private async readLastSyncStoredRemoteUserData(): Promise<IRemoteUserData | undefined> {
