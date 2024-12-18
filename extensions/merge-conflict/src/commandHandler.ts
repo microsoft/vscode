@@ -36,7 +36,9 @@ export default class CommandHandler implements vscode.Disposable {
 			this.registerTextEditorCommand('merge-conflict.accept.all-both', this.acceptAllBoth),
 			this.registerTextEditorCommand('merge-conflict.next', this.navigateNext),
 			this.registerTextEditorCommand('merge-conflict.previous', this.navigatePrevious),
-			this.registerTextEditorCommand('merge-conflict.compare', this.compare)
+			this.registerTextEditorCommand('merge-conflict.compare', this.compareCurrentIncoming),
+			this.registerTextEditorCommand('merge-conflict.compare-ancestor-current', this.compareAncestorCurrent),
+			this.registerTextEditorCommand('merge-conflict.compare-ancestor-incoming', this.compareAncestorIncoming),
 		);
 	}
 
@@ -82,7 +84,14 @@ export default class CommandHandler implements vscode.Disposable {
 		return this.acceptAll(interfaces.CommitType.Both, editor);
 	}
 
-	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
+	private async compare(
+		editor: vscode.TextEditor,
+		conflict: interfaces.IDocumentMergeConflict | null,
+		leftTitle: string,
+		leftRegion: (conflict: interfaces.IDocumentMergeConflict) => interfaces.IMergeRegion,
+		rightTitle: string,
+		rightRegion: (conflict: interfaces.IDocumentMergeConflict) => interfaces.IMergeRegion,
+	) {
 
 		// No conflict, command executed from command palette
 		if (!conflict) {
@@ -104,18 +113,18 @@ export default class CommandHandler implements vscode.Disposable {
 		}
 
 		const scheme = editor.document.uri.scheme;
-		let range = conflict.current.content;
-		const leftRanges = conflicts.map(conflict => [conflict.current.content, conflict.range]);
-		const rightRanges = conflicts.map(conflict => [conflict.incoming.content, conflict.range]);
+		const leftRanges = conflicts.map(conflict => [leftRegion(conflict)?.content, conflict.range]);
+		const rightRanges = conflicts.map(conflict => [rightRegion(conflict)?.content, conflict.range]);
 
 		const leftUri = editor.document.uri.with({
 			scheme: ContentProvider.scheme,
-			query: JSON.stringify({ scheme, range: range, ranges: leftRanges })
+			query: JSON.stringify({ scheme, ranges: leftRanges })
 		});
 
-
-		range = conflict.incoming.content;
-		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, ranges: rightRanges }) });
+		const rightUri = editor.document.uri.with({
+			scheme: ContentProvider.scheme,
+			query: JSON.stringify({ scheme, ranges: rightRanges })
+		});
 
 		let mergeConflictLineOffsets = 0;
 		for (const nextconflict of conflicts) {
@@ -132,7 +141,7 @@ export default class CommandHandler implements vscode.Disposable {
 
 		const docPath = editor.document.uri.path;
 		const fileName = docPath.substring(docPath.lastIndexOf('/') + 1); // avoid NodeJS path to keep browser webpack small
-		const title = vscode.l10n.t("{0}: Current Changes ↔ Incoming Changes", fileName);
+		const title = `${fileName}: ${leftTitle} ↔ ${rightTitle}`;
 		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
 		const openToTheSide = mergeConflictConfig.get<string>('diffViewPosition');
 		const opts: vscode.TextDocumentShowOptions = {
@@ -145,6 +154,47 @@ export default class CommandHandler implements vscode.Disposable {
 		}
 
 		await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, opts);
+	}
+
+	compareCurrentIncoming(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
+		return this.compare(
+			editor,
+			conflict,
+			vscode.l10n.t("Current Changes"),
+			(conflict: interfaces.IDocumentMergeConflict) => conflict.current,
+			vscode.l10n.t("Incoming Changes"),
+			(conflict: interfaces.IDocumentMergeConflict) => conflict.incoming,
+		);
+	}
+
+	compareAncestorCurrent(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
+		return this.compare(
+			editor,
+			conflict,
+			vscode.l10n.t("Common Ancestor"),
+			// Fall back to not showing any changes if there's no common ancestor.
+			// This can happen if the conflict file is broken, or they use the
+			// command palette to run this command on a file without common
+			// ancestors markers.
+			(conflict: interfaces.IDocumentMergeConflict) => conflict.commonAncestors[0] || conflict.current,
+			vscode.l10n.t("Current Changes"),
+			(conflict: interfaces.IDocumentMergeConflict) => conflict.current,
+		);
+	}
+
+	compareAncestorIncoming(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
+		return this.compare(
+			editor,
+			conflict,
+			vscode.l10n.t("Common Ancestor"),
+			// Fall back to not showing any changes if there's no common ancestor.
+			// This can happen if the conflict file is broken, or they use the
+			// command palette to run this command on a file without common
+			// ancestors markers.
+			(conflict: interfaces.IDocumentMergeConflict) => conflict.commonAncestors[0] || conflict.incoming,
+			vscode.l10n.t("Incoming Changes"),
+			(conflict: interfaces.IDocumentMergeConflict) => conflict.incoming,
+		);
 	}
 
 	navigateNext(editor: vscode.TextEditor): Promise<void> {

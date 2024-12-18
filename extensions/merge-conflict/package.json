@@ -101,6 +101,20 @@
         "original": "Compare Current Conflict",
         "command": "merge-conflict.compare",
         "enablement": "!isMergeEditor"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.compare-ancestor-current%",
+        "original": "Compare Current Conflict (common ancestor ↔ current)",
+        "command": "merge-conflict.compare-ancestor-current",
+        "enablement": "!isMergeEditor"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.compare-ancestor-incoming%",
+        "original": "Compare Current Conflict (common ancestor ↔ incoming)",
+        "command": "merge-conflict.compare-ancestor-incoming",
+        "enablement": "!isMergeEditor"
       }
     ],
     "menus": {
