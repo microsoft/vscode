@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { ReadableStream } from '../../../../base/common/stream.js';
-import { CancellationError } from '../../../../base/common/errors.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { FileOpenFailed, ParseError } from './promptFileReferenceErrors.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { Line } from '../../../../editor/common/codecs/linesCodec/tokens/line.js';
-import { cancelPreviousCalls } from '../../../../base/common/decorators/cancelPreviousCalls.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ReadableStream } from '../../../../../base/common/stream.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Line } from '../../../../../editor/common/codecs/linesCodec/tokens/line.js';
+import { FailedToResolveContentsStream, ParseError } from '../promptFileReferenceErrors.js';
+import { cancelPreviousCalls } from '../../../../../base/common/decorators/cancelPreviousCalls.js';
 
 /**
- * TODO: @legomushroom
+ * Interface for a prompt contents provider. Prompt contents providers are
+ * responsible for providing contents of a prompt as a stream of lines and
+ * allow to subscribe to the change events of the prompt contents.
  */
 export interface IPromptContentsProvider extends IDisposable {
 	/**
@@ -23,17 +25,24 @@ export interface IPromptContentsProvider extends IDisposable {
 	readonly uri: URI;
 
 	/**
-	 * TODO: @legomushroom
+	 * Start the contents provider to produce the underlying contents.
 	 */
-	start(): void;
+	start(): this;
 
 	/**
-	 * TODO: @legomushroom
+	 * Event that fires when the prompt contents change. The event is either a
+	 * {@linkcode ReadableStream<Line>} stream with changed lines or an instance
+	 * of the {@linkcode ParseError} error.
 	 */
 	onContentChanged(
 		callback: (streamOrError: ReadableStream<Line> | ParseError) => void,
 	): IDisposable;
 }
+
+/**
+ * File extension for the prompt snippets.
+ */
+export const PROMP_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
 
 /**
  * Base class for prompt contents providers. Classes that extend this one are responsible to:
@@ -48,14 +57,6 @@ export interface IPromptContentsProvider extends IDisposable {
  *     the contents are for
  *   - implement the {@linkcode toString} method to return a string representation of this
  *     provider type to aid with debugging/tracing
- *
- * ### Examples
- *
- * ```typescript
- * console.log('TODO: @legomushroom - add the example');
- * ```
- *
- * TODO: @legomushroom - move to a correct place
  */
 export abstract class PromptContentsProviderBase<
 	TChangeEvent extends NonNullable<unknown>,
@@ -146,8 +147,9 @@ export abstract class PromptContentsProviderBase<
 					return;
 				}
 
-				// TODO: @legomushroom - use a better error type
-				this.onContentChangedEmitter.fire(new FileOpenFailed(this.uri, error));
+				this.onContentChangedEmitter.fire(
+					new FailedToResolveContentsStream(this.uri, error),
+				);
 			});
 
 		return this;
@@ -163,5 +165,12 @@ export abstract class PromptContentsProviderBase<
 		this.onChangeHandler('full');
 
 		return this;
+	}
+
+	/**
+	 * Check if the current URI points to a prompt snippet.
+	 */
+	public isPromptSnippet(): boolean {
+		return this.uri.path.endsWith(PROMP_SNIPPET_FILE_EXTENSION);
 	}
 }

@@ -312,11 +312,54 @@ export abstract class BaseDecoder<
 		return asyncDecoder[Symbol.asyncIterator]();
 	}
 
+	/**
+	 * TODO: @legomushroom
+	 */
+	public transform<M extends NonNullable<unknown>>(
+		transform: (data: T) => (M | null),
+	): TransformDecoder<this, M, T> {
+		// TODO: @legomushroom - consume the current object?
+		// TODO: @legomushroom - throw if already used/started
+
+		return new TransformDecoder(this, transform);
+	}
+
 	public override dispose(): void {
 		this.onStreamEnd();
 
 		this.stream.destroy();
 		this.removeAllListeners();
 		super.dispose();
+	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+export class TransformDecoder<
+	I extends BaseDecoder<T, NonNullable<unknown>>,
+	M extends NonNullable<unknown>,
+	T extends NonNullable<unknown>,
+> extends BaseDecoder<M, T> {
+	constructor(
+		stream: I,
+		private readonly transformData: (data: T) => (M | null),
+	) {
+		super(stream);
+
+		// // TODO: @legomushroom - is this correct?
+		// Object.setPrototypeOf(this, this.constructor.prototype);
+		// // Object.setPrototypeOf(instance, this.constructor);
+		// // Object.setPrototypeOf(instance, this);
+	}
+
+	protected override onStreamData(data: T): void {
+		const newData = this.transformData(data);
+
+		if (newData === null) {
+			return;
+		}
+
+		this._onData.fire(newData);
 	}
 }
