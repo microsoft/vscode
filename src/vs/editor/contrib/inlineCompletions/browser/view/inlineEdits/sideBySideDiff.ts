@@ -14,6 +14,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { darken, lighten, registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
@@ -108,7 +109,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			originalDisplayRange: LineRange;
 		} | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -487,19 +489,33 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		return extendedModifiedPathBuilder.build();
 	});
 
+	private readonly _originalBackgroundColor = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => {
+		return this._themeService.getColorTheme().getColor(originalBackgroundColor) ?? Color.transparent;
+	});
+
 	private readonly _backgroundSvg = n.svg({
 		transform: 'translate(-0.5 -0.5)',
 		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
 	}, [
 		n.svgElem('path', {
 			class: 'rightOfModifiedBackgroundCoverUp',
-			d: this._previewEditorLayoutInfo.map(layoutInfo => layoutInfo && new PathBuilder()
-				.moveTo(layoutInfo.code1)
-				.lineTo(layoutInfo.code1.deltaX(1000))
-				.lineTo(layoutInfo.code2.deltaX(1000))
-				.lineTo(layoutInfo.code2)
-				.build()
-			),
+			d: derived(reader => {
+				const layoutInfo = this._previewEditorLayoutInfo.read(reader);
+				if (!layoutInfo) {
+					return undefined;
+				}
+				const originalBackgroundColor = this._originalBackgroundColor.read(reader);
+				if (originalBackgroundColor.isTransparent()) {
+					return undefined;
+				}
+
+				return new PathBuilder()
+					.moveTo(layoutInfo.code1)
+					.lineTo(layoutInfo.code1.deltaX(1000))
+					.lineTo(layoutInfo.code2.deltaX(1000))
+					.lineTo(layoutInfo.code2)
+					.build();
+			}),
 			style: {
 				fill: 'var(--vscode-editor-background, transparent)',
 			}
