@@ -5,15 +5,15 @@
 
 import { BaseToken } from '../baseToken.js';
 import { MarkdownLink } from './tokens/markdownLink.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { LeftBracket, RightBracket } from '../simpleCodec/tokens/brackets.js';
-import { ReadableStream } from '../../../../base/common/stream.js';
-import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
-import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { FormFeed } from '../simpleCodec/tokens/formFeed.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { VerticalTab } from '../simpleCodec/tokens/verticalTab.js';
+import { ReadableStream } from '../../../../base/common/stream.js';
+import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
+import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
+import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
+import { LeftBracket, RightBracket } from '../simpleCodec/tokens/brackets.js';
 import { LeftParenthesis, RightParenthesis } from '../simpleCodec/tokens/parentheses.js';
 
 /**
@@ -35,13 +35,14 @@ interface IParseFailure extends IParseResult {
 	result: 'failure';
 }
 
-type TParseResult<T> = IParseSuccess<T> | IParseFailure;
+export type TParseResult<T> = IParseSuccess<T> | IParseFailure;
 
 /**
  * An abstract parser class that is able to parse a sequence of
  * tokens into a new single entity.
+ * TODO: @legomushroom - move out to a differnet file
  */
-abstract class ParserBase<TToken extends BaseToken, TNextObject> {
+export abstract class ParserBase<TToken extends BaseToken, TNextObject> {
 	constructor(
 		/**
 		 * Set of tokens that were accumulated so far.
@@ -181,9 +182,12 @@ class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink |
 }
 
 /**
- * TODO: @legomushroom
+ * Decoder capable of parsing markdown entities (e.g., links) from a sequence of simple tokens.
  */
 export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
+	/**
+	 * TODO: @legomushroom
+	 */
 	private current?: PartialMarkdownLinkCaption | MarkdownLinkCaption | PartialMarkdownLink;
 
 	constructor(

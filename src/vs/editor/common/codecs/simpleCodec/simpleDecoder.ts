@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Hash } from './tokens/hash.js';
+import { Colon } from './tokens/colon.js';
 import { FormFeed } from './tokens/formFeed.js';
 import { Tab } from '../simpleCodec/tokens/tab.js';
 import { Word } from '../simpleCodec/tokens/word.js';
@@ -21,14 +23,19 @@ import { LeftParenthesis, RightParenthesis } from './tokens/parentheses.js';
  * A token type that this decoder can handle.
  */
 export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed |
-	CarriageReturn | LeftBracket | RightBracket | LeftParenthesis | RightParenthesis;
+	CarriageReturn | LeftBracket | RightBracket | LeftParenthesis | RightParenthesis |
+	Colon | Hash;
 
 /**
  * Characters that stop a "word" sequence.
  * Note! the `\r` and `\n` are excluded from the list because this decoder based on `LinesDecoder` which
  * 	     already handles the `carriagereturn`/`newline` cases and emits lines that don't contain them.
  */
-const STOP_CHARACTERS = [Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol, LeftBracket.symbol, RightBracket.symbol, LeftParenthesis.symbol, RightParenthesis.symbol];
+const STOP_CHARACTERS = [
+	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol,
+	LeftBracket.symbol, RightBracket.symbol, LeftParenthesis.symbol,
+	RightParenthesis.symbol, Colon.symbol, Hash.symbol,
+];
 
 /**
  * A decoder that can decode a stream of `Line`s into a stream
@@ -94,6 +101,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 				continue;
 			}
 
+			// TODO: @legomushroom - refactor these
 			if (token.text[i] === RightBracket.symbol) {
 				this._onData.fire(RightBracket.newOnLine(token, columnNumber));
 
@@ -110,6 +118,20 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 
 			if (token.text[i] === RightParenthesis.symbol) {
 				this._onData.fire(RightParenthesis.newOnLine(token, columnNumber));
+
+				i++;
+				continue;
+			}
+
+			if (token.text[i] === Colon.symbol) {
+				this._onData.fire(Colon.newOnLine(token, columnNumber));
+
+				i++;
+				continue;
+			}
+
+			if (token.text[i] === Hash.symbol) {
+				this._onData.fire(Hash.newOnLine(token, columnNumber));
 
 				i++;
 				continue;

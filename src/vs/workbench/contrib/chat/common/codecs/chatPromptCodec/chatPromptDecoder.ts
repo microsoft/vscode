@@ -5,64 +5,122 @@
 
 import { FileReference } from './tokens/fileReference.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
 import { Word } from '../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
-import { LeftBracket } from '../../../../../../editor/common/codecs/simpleCodec/tokens/brackets.js';
-import { MarkdownDecoder, TDetailedToken, TMarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
+import { Hash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
+import { Colon } from '../../../../../../editor/common/codecs/simpleCodec/tokens/colon.js';
+import { NewLine } from '../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
+import { FormFeed } from '../../../../../../editor/common/codecs/simpleCodec/tokens/formFeed.js';
+import { VerticalTab } from '../../../../../../editor/common/codecs/simpleCodec/tokens/verticalTab.js';
+import { CarriageReturn } from '../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
+import { MarkdownDecoder, ParserBase, TMarkdownToken, TParseResult } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
 
-// class MarkdownLink extends BaseToken {
-// 	public override toString(): string {
-// 		throw new Error('Method not implemented.');
-// 	}
-// }
+/**
+ * TODO: @legomushroom - list
+ * 	- update unit tests
+ *  - add unit tests for the `MarkdownDecoder`
+ */
 
-// /**
-//  * Tokens handled by the `ChatPromptDecoder` decoder.
-//  */
-// export type TChatPromptToken = FileReference | MarkdownLink;
-
-// abstract class Base<T> {
-// 	protected currentTokens: TDetailedToken[] = [];
-
-// 	public get tokens(): readonly TDetailedToken[] {
-// 		return this.currentTokens;
-// 	}
-
-// 	public abstract accept(token: TDetailedToken): [T, boolean];
-// }
-
-// class PartialMarkdownLinkCaption extends Base<PartialMarkdownLinkCaption | MarkdownLinkCaption> {
-// 	constructor(token: LeftBracket) {
-// 		super();
-// 		this.currentTokens.push(token);
-// 	}
-
-// 	public accept(token: TDetailedToken): [PartialMarkdownLinkCaption, boolean] {
-// 		throw new Error('Method not implemented.');
-// 	}
-// }
-
-// class MarkdownLinkCaption extends Base<PartialMarkdownLink> {
-// 	public accept(token: TDetailedToken): [PartialMarkdownLink, boolean] {
-// 		throw new Error('Method not implemented.');
-// 	}
-// }
-
-// class PartialMarkdownLink extends Base<MarkdownLink> {
-// 	public accept(token: TDetailedToken): [MarkdownLink, boolean] {
-// 		throw new Error('Method not implemented.');
-// 	}
-// }
-
-class PartialFileReference extends Base<PartialFileReference | FileReference> {
-	constructor(token: Word) {
-		super();
-		this.currentTokens.push(token);
+/**
+ * TODO: @legomushroom
+ */
+class PartialPromptVariableName extends ParserBase<TMarkdownToken, PartialPromptVariableName | PartialPromptFileReference | FileReference> {
+	constructor(token: Hash) {
+		super([token]);
 	}
 
-	public accept(token: TDetailedToken): [PartialFileReference | FileReference, boolean] {
-		throw new Error('Method not implemented.');
+	/**
+	 * TODO: @legomushroom
+	 */
+	public accept(token: TMarkdownToken): TParseResult<PartialPromptVariableName | PartialPromptFileReference | FileReference> {
+		if (token instanceof Word) {
+			if (token.text === 'file') {
+				this.currentTokens.push(token);
+
+				return {
+					result: 'success',
+					nextParser: this,
+					wasTokenConsumed: true,
+				};
+			}
+
+			return {
+				result: 'failure',
+				wasTokenConsumed: false,
+			};
+		}
+
+		if (token instanceof Colon) {
+			const lastToken = this.currentTokens[this.currentTokens.length - 1];
+			this.currentTokens.push(token);
+
+			if (lastToken instanceof Word) {
+				return {
+					result: 'success',
+					nextParser: new PartialPromptFileReference(this.currentTokens),
+					wasTokenConsumed: true,
+				};
+			}
+		}
+
+		return {
+			result: 'failure',
+			wasTokenConsumed: false,
+		};
+	}
+}
+
+class PartialPromptFileReference extends ParserBase<TMarkdownToken, PartialPromptFileReference | FileReference> {
+	/**
+	 * TODO: @legomushroom
+	 */
+	private readonly variableNameTokens: (Hash | Word | Colon)[];
+
+	constructor(tokens: (Hash | Word | Colon)[]) {
+		super([]);
+
+		this.variableNameTokens = tokens;
+	}
+
+	public override get tokens(): readonly (Hash | Word | Colon)[] {
+		return [...this.variableNameTokens, ...this.currentTokens];
+	}
+
+	public accept(token: TMarkdownToken): TParseResult<PartialPromptFileReference | FileReference> {
+		// any of stop characters is are breaking a prompt variable sequence
+		if (token instanceof CarriageReturn || token instanceof NewLine || token instanceof VerticalTab || token instanceof FormFeed) { // TODO: @legomushroom - are the vertical tab/form feed correct here?
+			// use only tokens in the `currentTokens` list to
+			// create the path component of the file reference
+			const path = this.currentTokens
+				.map((token) => { return token.text; })
+				.join('');
+
+			const firstToken = this.tokens[0];
+
+			const range = new Range(
+				firstToken.range.startLineNumber,
+				firstToken.range.startColumn,
+				firstToken.range.startLineNumber,
+				firstToken.range.startColumn + path.length,
+			);
+
+			return {
+				result: 'success',
+				wasTokenConsumed: false,
+				nextParser: new FileReference(range, path),
+			};
+		}
+
+		// any other token can be included in the sequence so accumulate
+		// it and continue with using the current parser instance
+		this.currentTokens.push(token);
+		return {
+			result: 'success',
+			wasTokenConsumed: true,
+			nextParser: this,
+		};
 	}
 }
 
@@ -70,13 +128,11 @@ class PartialFileReference extends Base<PartialFileReference | FileReference> {
  * Decoder for the common chatbot prompt message syntax.
  * For instance, the file references `#file:./path/file.md` are handled by this decoder.
  */
-export class ChatPromptDecoder extends BaseDecoder<TMarkdownToken, TDetailedToken> {
+export class ChatPromptDecoder extends BaseDecoder<TMarkdownToken, TMarkdownToken> {
 	/**
 	 * TODO: @legomushroom
 	 */
-	private current?: PartialMarkdownLinkCaption | MarkdownLinkCaption | PartialMarkdownLink | PartialFileReference;
-
-	private sequence: TDetailedToken[] = [];
+	private current?: PartialPromptVariableName;
 
 	constructor(
 		stream: ReadableStream<VSBuffer>,
@@ -84,59 +140,48 @@ export class ChatPromptDecoder extends BaseDecoder<TMarkdownToken, TDetailedToke
 		super(new MarkdownDecoder(stream));
 	}
 
-	protected override onStreamData(token: TDetailedToken): void {
-		if (token instanceof LeftBracket && !this.current) {
-			// TODO: @legomushroom - if `this.sequence`, re-emit the tokens
-			this.current = new PartialMarkdownLinkCaption(token);
+	protected override onStreamData(token: TMarkdownToken): void {
+		// prompt variables always start with the `#` character
+		if (token instanceof Hash && !this.current) {
+			this.current = new PartialPromptVariableName(token);
 
 			return;
 		}
 
-		if (token instanceof Word && token.text.startsWith(FileReference.TOKEN_START) && !this.current) {
-			// TODO: @legomushroom - if `this.sequence`, re-emit the tokens
-			this.current = new PartialFileReference(token);
-
-			return;
-		}
-
+		// if current parser was not initiated before, - we are in the general
+		// "text" mode, therefore re-emit the token immediatelly and continue
+		// TODO: @legomushroom - collect this into a text sequence entity?
 		if (!this.current) {
-			this.sequence.push(token);
+			this._onData.fire(token);
 			return;
 		}
 
-		try {
-			const [result, tokenConsumed] = this.current.accept(token);
-			if (result instanceof MarkdownLink || result instanceof FileReference) {
+		// if there is a current parser object, submit the token to it
+		// so it can progress with parsing the tokens sequence
+		const parseResult = this.current.accept(token);
+		if (parseResult.result === 'success') {
+			if (parseResult.nextParser instanceof FileReference) {
+				this._onData.fire(parseResult.nextParser);
 				delete this.current;
-				this._onData.fire(result);
-
-				if (!tokenConsumed) {
-					this.onStreamData(token);
-				}
-
-				return;
+			} else {
+				// otherwise, update the current parser object
+				this.current = parseResult.nextParser;
 			}
-
-			this.current = result;
-		} catch (error) {
-			// TODO: @legomushroom - re-emit the tokens from `this.current`
+		} else {
+			// if failed to parse a sequence of a tokens as a single prompt entity
+			// (e.g., a #file: link), re-emit the tokens accumulated so far then
+			// reset the current parser object
+			for (const token of this.current.tokens) {
+				this._onData.fire(token);
+				delete this.current;
+			}
 		}
 
-		// TOOD: @legomushroom - readd support for `#file:` references
-
-		// // handle the word tokens only
-		// if (!(token instanceof Word)) {
-		// 	return;
-		// }
-
-		// // handle file references only for now
-		// const { text } = token;
-		// if (!text.startsWith(FileReference.TOKEN_START)) {
-		// 	return;
-		// }
-
-		// this._onData.fire(
-		// 	FileReference.fromWord(token),
-		// );
+		// if token was not consumed by the parser, call `onStreamData` again
+		// so the token is properly handled by the decoder in the case when a
+		// new sequence starts with this token
+		if (!parseResult.wasTokenConsumed) {
+			this.onStreamData(token);
+		}
 	}
 }
