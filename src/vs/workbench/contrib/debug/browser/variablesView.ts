@@ -40,8 +40,9 @@ import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.j
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from '../common/debug.js';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IDebugViewWithVariables, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID, WATCH_VIEW_ID } from '../common/debug.js';
 import { getContextForVariable } from '../common/debugContext.js';
 import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from '../common/debugModel.js';
 import { DebugVisualizer, IDebugVisualizerService } from '../common/debugVisualizers.js';
@@ -61,13 +62,17 @@ interface IVariablesContext {
 	variable: DebugProtocol.Variable;
 }
 
-export class VariablesView extends ViewPane {
+export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 
 	private updateTreeScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private tree!: WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>;
 	private savedViewState = new Map<string, IAsyncDataTreeViewState>();
 	private autoExpandedScopes = new Set<string>();
+
+	public get treeSelection() {
+		return this.tree.getSelection();
+	}
 
 	constructor(
 		options: IViewletViewOptions,
@@ -653,12 +658,34 @@ CommandsRegistry.registerCommand({
 		description: COPY_VALUE_LABEL,
 	},
 	id: COPY_VALUE_ID,
-	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | IVariablesContext, ctx?: (Variable | Expression)[]) => {
+	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | IVariablesContext | undefined, ctx?: (Variable | Expression)[]) => {
+		if (!arg) {
+			const viewService = accessor.get(IViewsService);
+			const view = viewService.getActiveViewWithId(WATCH_VIEW_ID) || viewService.getActiveViewWithId(VARIABLES_VIEW_ID);
+			if (view) {
+
+			}
+		}
 		const debugService = accessor.get(IDebugService);
 		const clipboardService = accessor.get(IClipboardService);
 		let elementContext = '';
 		let elements: (Variable | Expression)[];
-		if (arg instanceof Variable || arg instanceof Expression) {
+		if (!arg) {
+			const viewService = accessor.get(IViewsService);
+			const focusedView = viewService.getFocusedView();
+			let view: IDebugViewWithVariables | null | undefined;
+			if (focusedView?.id === WATCH_VIEW_ID) {
+				view = viewService.getActiveViewWithId<IDebugViewWithVariables>(WATCH_VIEW_ID);
+				elementContext = 'watch';
+			} else if (focusedView?.id === VARIABLES_VIEW_ID) {
+				view = viewService.getActiveViewWithId<IDebugViewWithVariables>(VARIABLES_VIEW_ID);
+				elementContext = 'variables';
+			}
+			if (!view) {
+				return;
+			}
+			elements = view.treeSelection.filter(e => e instanceof Expression || e instanceof Variable);
+		} else if (arg instanceof Variable || arg instanceof Expression) {
 			elementContext = 'watch';
 			elements = ctx ? ctx : [];
 		} else {

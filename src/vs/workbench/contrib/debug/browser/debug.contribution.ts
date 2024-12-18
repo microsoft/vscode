@@ -63,6 +63,8 @@ import { ReplAccessibilityHelp } from './replAccessibilityHelp.js';
 import { ReplAccessibilityAnnouncer } from '../common/replAccessibilityAnnouncer.js';
 import { RunAndDebugAccessibilityHelp } from './runAndDebugAccessibilityHelp.js';
 import { DebugWatchAccessibilityAnnouncer } from '../common/debugAccessibilityAnnouncer.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -205,6 +207,16 @@ registerDebugViewMenuItem(MenuId.DebugWatchContext, REMOVE_EXPRESSION_COMMAND_ID
 registerDebugViewMenuItem(MenuId.DebugWatchContext, REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, REMOVE_WATCH_EXPRESSIONS_LABEL, 20, undefined, undefined, 'z_commands');
 
 registerDebugViewMenuItem(MenuId.NotebookVariablesContext, COPY_NOTEBOOK_VARIABLE_VALUE_ID, COPY_NOTEBOOK_VARIABLE_VALUE_LABEL, 20, CONTEXT_VARIABLE_VALUE);
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: COPY_VALUE_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.or(
+		FocusedViewContext.isEqualTo(WATCH_VIEW_ID),
+		FocusedViewContext.isEqualTo(VARIABLES_VIEW_ID),
+	),
+	primary: KeyMod.CtrlCmd | KeyCode.KeyC
+});
 
 // Touch Bar
 if (isMacintosh) {
