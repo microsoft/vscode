@@ -43,7 +43,7 @@ type QuickInputViewState = {
 
 export class QuickInputController extends Disposable {
 	private static readonly MIN_WIDTH = 400;
-	private static readonly MIN_HEIGHT = 400;
+	private static readonly MIN_HEIGHT = 200;
 	private static readonly MAX_WIDTH = 600;
 	private static readonly MAX_HEIGHT = 600;
 
