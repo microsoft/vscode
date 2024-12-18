@@ -227,6 +227,7 @@ export class InlineCompletionsModel extends Disposable {
 				this._onlyRequestInlineEditsSignal.trigger(tx);
 			}
 			this._isActive.set(true, tx);
+			this._inAcceptFlow.set(true, tx);
 			this._forceUpdateExplicitlySignal.trigger(tx);
 		});
 		await this._fetchInlineCompletionsPromise.get();
@@ -419,7 +420,7 @@ export class InlineCompletionsModel extends Disposable {
 		return 'noSuggestion';
 	});
 
-	public readonly inlineCompletionState = derived(reader => {
+	public readonly inlineCompletionState = derived(this, reader => {
 		const s = this.state.read(reader);
 		if (!s || s.kind !== 'ghostText') {
 			return undefined;
@@ -430,7 +431,7 @@ export class InlineCompletionsModel extends Disposable {
 		return s;
 	});
 
-	public readonly inlineEditState = derived(reader => {
+	public readonly inlineEditState = derived(this, reader => {
 		const s = this.state.read(reader);
 		if (!s || s.kind !== 'inlineEdit') {
 			return undefined;
@@ -438,7 +439,7 @@ export class InlineCompletionsModel extends Disposable {
 		return s;
 	});
 
-	public readonly inlineEditAvailable = derived(reader => {
+	public readonly inlineEditAvailable = derived(this, reader => {
 		const s = this.inlineEditState.read(reader);
 		return !!s;
 	});
@@ -480,6 +481,10 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	private readonly _tabShouldIndent = derived(this, reader => {
+		if (this._inAcceptFlow.read(reader)) {
+			return false;
+		}
+
 		function isMultiLine(range: Range): boolean {
 			return range.startLineNumber !== range.endLineNumber;
 		}

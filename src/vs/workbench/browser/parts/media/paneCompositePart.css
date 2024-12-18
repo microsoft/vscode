@@ -183,7 +183,7 @@
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .badge {
-	margin-left: 8px;
+	margin-left: 2px;
 	display: flex;
 	align-items: center;
 }
@@ -196,11 +196,11 @@
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content {
 	padding: 3px 5px;
-	border-radius: 11px;
-	font-size: 11px;
-	min-width: 18px;
-	height: 18px;
-	line-height: 11px;
+	border-radius: 10px;
+	font-size: 10px;
+	min-width: 16px;
+	height: 16px;
+	line-height: 10px;
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;

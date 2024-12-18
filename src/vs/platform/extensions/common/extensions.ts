@@ -447,6 +447,20 @@ export class ExtensionIdentifierMap<T> {
 	}
 }
 
+/**
+ * An error that is clearly from an extension, identified by the `ExtensionIdentifier`
+ */
+export class ExtensionError extends Error {
+
+	readonly extension: ExtensionIdentifier;
+
+	constructor(extensionIdentifier: ExtensionIdentifier, cause: Error, message?: string) {
+		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${message ?? cause.message}`, { cause });
+		this.name = 'ExtensionError';
+		this.extension = extensionIdentifier;
+	}
+}
+
 export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
 	id?: string;
 	identifier: ExtensionIdentifier;

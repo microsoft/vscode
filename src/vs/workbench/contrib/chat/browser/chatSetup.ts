@@ -42,7 +42,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -132,12 +132,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	private registerActions(): void {
 		const that = this;
 
-		const chatSetupTriggerContext = ContextKeyExpr.and(
-			ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-			ContextKeyExpr.or(
-				ChatContextKeys.Setup.installed.negate(),
-				ChatContextKeys.Setup.canSignUp
-			)
+		const chatSetupTriggerContext = ContextKeyExpr.or(
+			ChatContextKeys.Setup.installed.negate(),
+			ChatContextKeys.Setup.canSignUp
 		);
 		class ChatSetupTriggerAction extends Action2 {
 
@@ -188,10 +185,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: ChatSetupHideAction.TITLE,
 					f1: true,
 					category: CHAT_CATEGORY,
-					precondition: ContextKeyExpr.and(
-						ChatContextKeys.Setup.installed.negate(),
-						ContextKeyExpr.has('config.chat.experimental.offerSetup')
-					),
+					precondition: ChatContextKeys.Setup.installed.negate(),
 					menu: {
 						id: MenuId.ChatCommandCenter,
 						group: 'z_hide',
@@ -574,7 +568,7 @@ class ChatSetupRequests extends Disposable {
 		return this.resolveEntitlement(session, CancellationToken.None);
 	}
 
-	async signUpLimited(session: AuthenticationSession): Promise<boolean> {
+	async signUpLimited(session: AuthenticationSession): Promise<true /* signed up */ | false /* already signed up */ | undefined /* error */> {
 		const body = {
 			restricted_telemetry: this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? 'disabled' : 'enabled',
 			public_code_suggestions: 'enabled'
@@ -583,7 +577,7 @@ class ChatSetupRequests extends Disposable {
 		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None);
 		if (!response) {
 			this.onUnknownSignUpError('[chat setup] sign-up: no response');
-			return false;
+			return undefined;
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
@@ -594,7 +588,7 @@ class ChatSetupRequests extends Disposable {
 						const responseError: { message: string } = JSON.parse(responseText);
 						if (typeof responseError.message === 'string' && responseError.message) {
 							this.onUnprocessableSignUpError(`[chat setup] sign-up: unprocessable entity (${responseError.message})`, responseError.message);
-							return false;
+							return undefined;
 						}
 					}
 				} catch (error) {
@@ -602,7 +596,7 @@ class ChatSetupRequests extends Disposable {
 				}
 			}
 			this.onUnknownSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
-			return false;
+			return undefined;
 		}
 
 		let responseText: string | null = null;
@@ -614,7 +608,7 @@ class ChatSetupRequests extends Disposable {
 
 		if (!responseText) {
 			this.onUnknownSignUpError('[chat setup] sign-up: response has no content');
-			return false;
+			return undefined;
 		}
 
 		let parsedResult: { subscribed: boolean } | undefined = undefined;
@@ -623,20 +617,14 @@ class ChatSetupRequests extends Disposable {
 			this.logService.trace(`[chat setup] sign-up: response is ${responseText}`);
 		} catch (err) {
 			this.onUnknownSignUpError(`[chat setup] sign-up: error parsing response (${err})`);
+			return undefined;
 		}
 
-		const subscribed = Boolean(parsedResult?.subscribed);
-		if (subscribed) {
-			this.logService.trace('[chat setup] sign-up: successfully subscribed');
-		} else {
-			this.logService.error('[chat setup] sign-up: not subscribed');
-		}
+		// We have made it this far, so the user either did sign-up or was signed-up already.
+		// That is, because the endpoint throws in all other case according to Patrick.
+		this.update({ entitlement: ChatEntitlement.Limited });
 
-		if (subscribed) {
-			this.update({ entitlement: ChatEntitlement.Limited });
-		}
-
-		return subscribed;
+		return Boolean(parsedResult?.subscribed);
 	}
 
 	private onUnknownSignUpError(logMessage: string): void {
@@ -706,6 +694,7 @@ class ChatSetupController extends Disposable {
 		private readonly requests: ChatSetupRequests,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService private readonly productService: IProductService,
@@ -804,8 +793,11 @@ class ChatSetupController extends Disposable {
 
 			session = await this.authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes[0]);
 			entitlement = await this.requests.forceResolveEntitlement(session);
+
+			this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, defaultChat.providerId, session.account);
+			this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, defaultChat.providerId, session.account);
 		} catch (error) {
-			// noop
+			this.logService.error(`[chat setup] signIn: error ${error}`);
 		}
 
 		if (!session) {
@@ -820,14 +812,14 @@ class ChatSetupController extends Disposable {
 
 		let installResult: 'installed' | 'cancelled' | 'failedInstall' | undefined = undefined;
 		const wasInstalled = this.context.state.installed;
-		let didSignUp = false;
+		let didSignUp: boolean | undefined = undefined;
 		try {
 			showCopilotView(this.viewsService, this.layoutService);
 
 			if (entitlement !== ChatEntitlement.Limited && entitlement !== ChatEntitlement.Pro && entitlement !== ChatEntitlement.Unavailable) {
 				didSignUp = await this.requests.signUpLimited(session);
 
-				if (!didSignUp) {
+				if (typeof didSignUp === 'undefined' /* error */) {
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', signedIn });
 				}
 			}
@@ -1008,6 +1000,7 @@ class ChatSetupContext extends Disposable {
 	private readonly canSignUpContextKey = ChatContextKeys.Setup.canSignUp.bindTo(this.contextKeyService);
 	private readonly signedOutContextKey = ChatContextKeys.Setup.signedOut.bindTo(this.contextKeyService);
 	private readonly limitedContextKey = ChatContextKeys.Setup.limited.bindTo(this.contextKeyService);
+	private readonly proContextKey = ChatContextKeys.Setup.pro.bindTo(this.contextKeyService);
 	private readonly triggeredContext = ChatContextKeys.Setup.triggered.bindTo(this.contextKeyService);
 	private readonly installedContext = ChatContextKeys.Setup.installed.bindTo(this.contextKeyService);
 
@@ -1110,6 +1103,7 @@ class ChatSetupContext extends Disposable {
 		this.signedOutContextKey.set(this._state.entitlement === ChatEntitlement.Unknown);
 		this.canSignUpContextKey.set(this._state.entitlement === ChatEntitlement.Available);
 		this.limitedContextKey.set(this._state.entitlement === ChatEntitlement.Limited);
+		this.proContextKey.set(this._state.entitlement === ChatEntitlement.Pro);
 		this.triggeredContext.set(!!this._state.triggered);
 		this.installedContext.set(!!this._state.installed);
 

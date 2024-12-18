@@ -42,31 +42,31 @@ export namespace ChatContextKeys {
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 
 	export const Setup = {
-		canSignUp: new RawContextKey<boolean>('chatSetupCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
 
+		// State
 		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
-		limited: new RawContextKey<boolean>('chatSetupLimited', false, true), 		// True when user is a chat limited user.
-
 		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, true), 	// True when chat setup is triggered.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
+
+		// Plans
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
+		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),		// True when user is a chat limited user.
+		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
 	};
 
 	export const SetupViewKeys = new Set([ChatContextKeys.Setup.triggered.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
-	export const SetupViewCondition = ContextKeyExpr.and(
-		ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-		ContextKeyExpr.or(
-			ContextKeyExpr.and(
-				ChatContextKeys.Setup.triggered,
-				ChatContextKeys.Setup.installed.negate()
-			),
-			ContextKeyExpr.and(
-				ChatContextKeys.Setup.canSignUp,
-				ChatContextKeys.Setup.installed
-			),
-			ContextKeyExpr.and(
-				ChatContextKeys.Setup.signedOut,
-				ChatContextKeys.Setup.installed
-			)
+	export const SetupViewCondition = ContextKeyExpr.or(
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.triggered,
+			ChatContextKeys.Setup.installed.negate()
+		),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.canSignUp,
+			ChatContextKeys.Setup.installed
+		),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.signedOut,
+			ChatContextKeys.Setup.installed
 		)
 	)!;
 

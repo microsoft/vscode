@@ -328,8 +328,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 							if (responseModel.isComplete) {
 								onResponseComplete(responseModel);
 								disposable.dispose();
-							} else if (responseModel.isCanceled || responseModel.isStale) {
-								disposable.dispose();
 							}
 						});
 					}

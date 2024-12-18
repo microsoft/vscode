@@ -327,7 +327,7 @@ export abstract class MenubarControl extends Disposable {
 			openable = { workspaceUri: uri };
 		} else {
 			uri = recent.fileUri;
-			label = recent.label || this.labelService.getUriLabel(uri);
+			label = recent.label || this.labelService.getUriLabel(uri, { appendWorkspaceSuffix: true });
 			commandId = 'openRecentFile';
 			openable = { fileUri: uri };
 		}

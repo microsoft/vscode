@@ -144,9 +144,6 @@ export class ExtensionManagementChannel implements IServerChannel {
 				const arg: UninstallExtensionInfo[] = args[0];
 				return this.service.uninstallExtensions(arg.map(({ extension, options }) => ({ extension: transformIncomingExtension(extension, uriTransformer), options: transformIncomingOptions(options, uriTransformer) })));
 			}
-			case 'reinstallFromGallery': {
-				return this.service.reinstallFromGallery(transformIncomingExtension(args[0], uriTransformer));
-			}
 			case 'getInstalled': {
 				const extensions = await this.service.getInstalled(args[0], transformIncomingURI(args[1], uriTransformer), args[2]);
 				return extensions.map(e => transformOutgoingExtension(e, uriTransformer));
@@ -297,10 +294,6 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 		}
 		return Promise.resolve(this.channel.call<void>('uninstallExtensions', [extensions]));
 
-	}
-
-	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
-		return Promise.resolve(this.channel.call<ILocalExtension>('reinstallFromGallery', [extension])).then(local => transformIncomingExtension(local, null));
 	}
 
 	getInstalled(type: ExtensionType | null = null, extensionsProfileResource?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, TextEditorDiffInformation } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
@@ -11,6 +11,7 @@ import { throttle } from './decorators';
 import { BlameInformation } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
+import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -144,6 +145,8 @@ class GitBlameInformationCache {
 }
 
 export class GitBlameController {
+	private readonly _subjectMaxLength = 50;
+
 	private readonly _onDidChangeBlameInformation = new EventEmitter<TextEditor>();
 	public readonly onDidChangeBlameInformation = this._onDidChangeBlameInformation.event;
 
@@ -169,10 +172,14 @@ export class GitBlameController {
 	}
 
 	formatBlameInformationMessage(template: string, blameInformation: BlameInformation): string {
+		const subject = blameInformation.subject && blameInformation.subject.length > this._subjectMaxLength
+			? `${blameInformation.subject.substring(0, this._subjectMaxLength)}\u2026`
+			: blameInformation.subject;
+
 		const templateTokens = {
 			hash: blameInformation.hash,
 			hashShort: blameInformation.hash.substring(0, 8),
-			subject: emojify(blameInformation.subject ?? ''),
+			subject: emojify(subject ?? ''),
 			authorName: blameInformation.authorName ?? '',
 			authorEmail: blameInformation.authorEmail ?? '',
 			authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
@@ -271,10 +278,6 @@ export class GitBlameController {
 		return blameInformation;
 	}
 
-	private _findDiffInformation(textEditor: TextEditor, ref: string): TextEditorDiffInformation | undefined {
-		return textEditor.diffInformation?.find(diff => diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === ref);
-	}
-
 	@throttle
 	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined, showBlameInformationForPositionZero = false): Promise<void> {
 		if (!textEditor?.diffInformation || textEditor !== window.activeTextEditor) {
@@ -313,7 +316,7 @@ export class GitBlameController {
 				workingTreeAndIndexChanges = undefined;
 			} else if (ref === '') {
 				// Resource on the right-hand side of the diff editor when viewing a resource from the index.
-				const diffInformationWorkingTreeAndIndex = this._findDiffInformation(textEditor, 'HEAD');
+				const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
 
 				// Working tree + index diff information is present and it is stale
 				if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
@@ -327,7 +330,7 @@ export class GitBlameController {
 			}
 		} else {
 			// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
-			const diffInformationWorkingTree = this._findDiffInformation(textEditor, '~') ?? this._findDiffInformation(textEditor, '');
+			const diffInformationWorkingTree = getWorkingTreeDiffInformation(textEditor);
 
 			// Working tree diff information is not present or it is stale
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
@@ -335,7 +338,7 @@ export class GitBlameController {
 			}
 
 			// Working tree + index diff information
-			const diffInformationWorkingTreeAndIndex = this._findDiffInformation(textEditor, 'HEAD');
+			const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
 
 			// Working tree + index diff information is present and it is stale
 			if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
@@ -421,6 +424,8 @@ class GitBlameEditorDecoration {
 		this._disposables.push(this._decorationType);
 
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
+		window.onDidChangeActiveTextEditor(this._onDidChangeActiveTextEditor, this, this._disposables);
+
 		this._controller.onDidChangeBlameInformation(e => this._updateDecorations(e), this, this._disposables);
 	}
 
@@ -439,6 +444,18 @@ class GitBlameEditorDecoration {
 		}
 	}
 
+	private _onDidChangeActiveTextEditor(): void {
+		if (!this._getConfiguration().enabled) {
+			return;
+		}
+
+		for (const editor of window.visibleTextEditors) {
+			if (editor !== window.activeTextEditor) {
+				editor.setDecorations(this._decorationType, []);
+			}
+		}
+	}
+
 	private _getConfiguration(): { enabled: boolean; template: string } {
 		const config = workspace.getConfiguration('git');
 		const enabled = config.get<boolean>('blame.editorDecoration.enabled', false);
@@ -451,15 +468,6 @@ class GitBlameEditorDecoration {
 		const { enabled, template } = this._getConfiguration();
 		if (!enabled) {
 			return;
-		}
-
-		// Clear decorations for the other editors
-		for (const editor of window.visibleTextEditors) {
-			if (editor === textEditor) {
-				continue;
-			}
-
-			editor.setDecorations(this._decorationType, []);
 		}
 
 		// Only support resources with `file` and `git` schemes
@@ -543,9 +551,7 @@ class GitBlameStatusBarItem {
 			return;
 		}
 
-		if (window.activeTextEditor) {
-			this._updateStatusBarItem(window.activeTextEditor);
-		} else {
+		if (!window.activeTextEditor) {
 			this._statusBarItem?.hide();
 		}
 	}

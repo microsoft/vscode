@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, isSVGElement } from '../../../../../../base/browser/dom.js';
+import { getDomNodePagePosition, h, isSVGElement } from '../../../../../../base/browser/dom.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { derived, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
+import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -34,7 +35,13 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
 		const column = model.getLineMaxColumn(i);
-		const lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		let lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		if (lineContentWidth === -1) {
+			// approximation
+			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+			const approximation = column * typicalHalfwidthCharacterWidth;
+			lineContentWidth = approximation;
+		}
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
 	}
 	const lines = range.mapToLineArray(l => model.getLineContent(l));
@@ -425,4 +432,27 @@ export function mapOutFalsy<T>(obs: IObservable<T | undefined | null | false>): 
 		}
 		return obs as IObservable<T>;
 	});
+}
+
+export function observeElementPosition(element: HTMLElement, store: DisposableStore) {
+	const topLeft = getDomNodePagePosition(element);
+	const top = observableValue<number>('top', topLeft.top);
+	const left = observableValue<number>('left', topLeft.left);
+
+	const resizeObserver = new ResizeObserver(() => {
+		transaction(tx => {
+			const topLeft = getDomNodePagePosition(element);
+			top.set(topLeft.top, tx);
+			left.set(topLeft.left, tx);
+		});
+	});
+
+	resizeObserver.observe(element);
+
+	store.add(toDisposable(() => resizeObserver.disconnect()));
+
+	return {
+		top,
+		left
+	};
 }
