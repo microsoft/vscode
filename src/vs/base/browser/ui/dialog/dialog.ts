@@ -275,6 +275,22 @@ export class Dialog extends Disposable {
 					return; // leave default handling
 				}
 
+				// Cmd+D (trigger the "no"/"do not save"-button) (macOS only)
+				if (isMacintosh && evt.equals(KeyMod.CtrlCmd | KeyCode.KeyD)) {
+					EventHelper.stop(e);
+
+					const noButton = buttonMap.find(button => button.index === 1 && button.index !== this.options.cancelId);
+					if (noButton) {
+						resolve({
+							button: noButton.index,
+							checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
+							values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+						});
+					}
+
+					return; // leave default handling
+				}
+
 				if (evt.equals(KeyCode.Space)) {
 					return; // leave default handling
 				}
