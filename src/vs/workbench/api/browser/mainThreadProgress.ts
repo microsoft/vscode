@@ -9,6 +9,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { Action } from '../../../base/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { localize } from '../../../nls.js';
+import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 
 class ManageExtensionAction extends Action {
 	constructor(extensionId: string, label: string, commandService: ICommandService) {
@@ -52,7 +53,13 @@ export class MainThreadProgress implements MainThreadProgressShape {
 			options = notificationOptions;
 		}
 
-		this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+		try {
+			this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+		} catch (err) {
+			// the withProgress-method will throw synchronously when invoked with bad options
+			// which is then an enternal/extension error
+			onUnexpectedExternalError(err);
+		}
 	}
 
 	$progressReport(handle: number, message: IProgressStep): void {
