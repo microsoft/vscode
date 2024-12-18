@@ -26,20 +26,26 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { QuickInputTree } from './quickInputTree.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
-import { autorun, observableSignal, observableValue, transaction } from '../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { ResizableHTMLElement } from '../../../base/browser/ui/resizable/resizable.js';
 
 const $ = dom.$;
 
-const POSITION_STORAGE_KEY = 'workbench.commandPalette.position';
+const VIEWSTATE_STORAGE_KEY = 'workbench.commandPalette.viewState';
+
 type QuickInputViewState = {
-	readonly top: number;
-	readonly left: number;
+	readonly top?: number;
+	readonly left?: number;
+	readonly size?: dom.Dimension;
 };
 
 export class QuickInputController extends Disposable {
-	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
+	private static readonly MIN_WIDTH = 400;
+	private static readonly MIN_HEIGHT = 400;
+	private static readonly MAX_WIDTH = 600;
+	private static readonly MAX_HEIGHT = 600;
 
 	private idPrefix: string;
 	private ui: QuickInputUI | undefined;
@@ -67,8 +73,8 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
-	private dndTopRatio: number | undefined;
-	private dndLeftRatio: number | undefined;
+	private viewState: QuickInputViewState = {};
+	private readonly resizableContainer: ResizableHTMLElement;
 	private dndController: QuickInputDragAndDropController | undefined;
 
 	private readonly inQuickInputContext = InQuickInputContextKey.bindTo(this.contextKeyService);
@@ -95,6 +101,20 @@ export class QuickInputController extends Disposable {
 				// (https://github.com/microsoft/vscode/issues/195870)
 				this.reparentUI(this.layoutService.mainContainer);
 				this.layout(this.layoutService.mainContainerDimension, this.layoutService.mainContainerOffset.quickPickTop);
+			}
+		}));
+
+		this.resizableContainer = this._register(new ResizableHTMLElement());
+		this.resizableContainer.minSize = new dom.Dimension(QuickInputController.MIN_WIDTH, QuickInputController.MIN_HEIGHT);
+		this.resizableContainer.maxSize = new dom.Dimension(QuickInputController.MAX_WIDTH, QuickInputController.MAX_HEIGHT);
+
+		this._register(this.resizableContainer.onDidResize(e => {
+			this.viewState = { ...this.viewState, size: e.dimension };
+			this.updateLayout();
+
+			// Save size
+			if (e.done) {
+				this.saveViewState(this.viewState);
 			}
 		}));
 	}
@@ -124,7 +144,8 @@ export class QuickInputController extends Disposable {
 			return this.ui;
 		}
 
-		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
+		this.resizableContainer.domNode.classList.add('quick-input-widget', 'show-file-icons');
+		const container = dom.append(this._container, this.resizableContainer.domNode);
 		container.tabIndex = -1;
 		container.style.display = 'none';
 
@@ -334,19 +355,23 @@ export class QuickInputController extends Disposable {
 
 		// DnD update layout
 		this._register(autorun(reader => {
-			this.dndTopRatio = this.dndController?.dragTopRatio.read(reader);
-			this.dndLeftRatio = this.dndController?.dragLeftRatio.read(reader);
+			const dndViewState = this.dndController?.dndViewState.read(reader);
+			if (!dndViewState) {
+				return;
+			}
+
+			this.viewState = {
+				...this.viewState,
+				top: dndViewState.top,
+				left: dndViewState.left
+			};
 
 			this.updateLayout();
-		}));
 
-		// DnD load position
-		[this.dndTopRatio, this.dndLeftRatio] = this.loadDnDPosition();
-
-		// DnD save position
-		this._register(autorun(reader => {
-			this.dndController?.onDidDropSignal.read(reader);
-			this.saveDnDPosition(this.dndTopRatio, this.dndLeftRatio);
+			// Save position
+			if (dndViewState.done) {
+				this.saveViewState(this.viewState);
+			}
 		}));
 
 		this.ui = {
@@ -766,14 +791,17 @@ export class QuickInputController extends Disposable {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
 
-			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
-			style.width = width + 'px';
+			// Size
+			const heigth = this.viewState.size?.height ?? Math.floor(Math.floor(this.dimension!.height * 0.4) / 44) * 44 + 35 /* header */ + 2 /* progress */;
+			const width = this.viewState.size?.width ?? Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 
-			style.top = `${this.dndTopRatio ? Math.round(this.dimension!.height * this.dndTopRatio) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * (this.dndLeftRatio ?? 0.5 /* center */)) - (width / 2))}px`;
+			// Position
+			style.top = `${this.viewState.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+			style.left = `${Math.round((this.dimension!.width * (this.viewState.left ?? 0.5 /* center */)) - (width / 2))}px`;
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
+			this.ui.list.layout();
+			this.resizableContainer.layout(heigth, width);
 		}
 	}
 
@@ -837,38 +865,50 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	private loadDnDPosition(): [number | undefined, number | undefined] {
-		try {
-			const data = JSON.parse(this.storageService.get(POSITION_STORAGE_KEY, StorageScope.APPLICATION, ''));
-			if (data.top !== undefined && data.left !== undefined) {
-				return [data.top, data.left];
-			}
-		} catch { }
+	// private loadViewState(): QuickInputViewState | undefined {
+	// 	// try {
+	// 	// 	const data = JSON.parse(this.storageService.get(STATE_STORAGE_KEY, StorageScope.WORKSPACE, '{}'));
+	// 	// 	if (data.top !== undefined && data.left !== undefined && data.width !== undefined && data.size !== undefined) {
+	// 	// 		return data;
+	// 	// 	}
+	// 	// } catch { }
 
-		return [undefined, undefined];
-	}
+	// 	// return {};
+	// 	return undefined;
+	// }
 
-	private saveDnDPosition(topRatio: number | undefined, leftRatio: number | undefined): void {
+	private saveViewState(viewState: QuickInputViewState): void {
 		const isMainWindow = this.layoutService.activeContainer === this.layoutService.mainContainer;
 		if (!isMainWindow) {
 			return;
 		}
 
-		if (topRatio !== undefined && leftRatio !== undefined) {
-			const data = { top: topRatio, left: leftRatio } satisfies QuickInputViewState;
-			this.storageService.store(POSITION_STORAGE_KEY, JSON.stringify(data), StorageScope.APPLICATION, StorageTarget.MACHINE);
-		} else if (topRatio === undefined && leftRatio === undefined) {
-			this.storageService.remove(POSITION_STORAGE_KEY, StorageScope.APPLICATION);
+		if (viewState !== undefined) {
+			this.storageService.store(VIEWSTATE_STORAGE_KEY, JSON.stringify(viewState), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(VIEWSTATE_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 	}
+
+	// private loadViewState() {
+	// 	// try {
+	// 	// 	const data = JSON.parse(this.storageService.get(POSITION_STORAGE_KEY, StorageScope.APPLICATION, ''));
+	// 	// 	if (data.top !== undefined && data.left !== undefined) {
+	// 	// 		return [data.top, data.left];
+	// 	// 	}
+	// 	// } catch { }
+
+	// 	// return [undefined, undefined];
+	// }
 }
 
 export interface IQuickInputControllerHost extends ILayoutService { }
 
 class QuickInputDragAndDropController extends Disposable {
-	readonly onDidDropSignal = observableSignal(this);
-	readonly dragTopRatio = observableValue<number | undefined>(this, undefined);
-	readonly dragLeftRatio = observableValue<number | undefined>(this, undefined);
+	// readonly onDidDropSignal = observableSignal(this);
+	// readonly dragTopRatio = observableValue<number | undefined>(this, undefined);
+	// readonly dragLeftRatio = observableValue<number | undefined>(this, undefined);
+	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean } | undefined>(this, undefined);
 
 	private readonly _snapThreshold = 20;
 	private readonly _snapLineHorizontalRatio = 0.15;
@@ -902,12 +942,11 @@ class QuickInputDragAndDropController extends Disposable {
 			}
 
 			if (originEvent.detail === 2) {
-				transaction(tx => {
-					this.dragTopRatio.set(undefined, tx);
-					this.dragLeftRatio.set(undefined, tx);
-				});
-
-				this.onDidDropSignal.trigger(undefined);
+				this.dndViewState.set({
+					top: undefined,
+					left: undefined,
+					done: true
+				}, undefined);
 			}
 		}));
 
@@ -921,12 +960,28 @@ class QuickInputDragAndDropController extends Disposable {
 				return;
 			}
 
+			// Mouse position offset
 			const dragOffsetX = originEvent.browserEvent.offsetX;
 			const dragOffsetY = originEvent.browserEvent.offsetY;
 
+			// Snap lines
 			let snapLinesVisible = false;
 			const snapCoordinateY = Math.round(this._container.clientHeight * this._snapLineHorizontalRatio);
 			const snapCoordinateX = Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
+
+			// Top ratio calculation
+			const computeTopRatio = (e: MouseEvent) => {
+				let top = e.clientY - dragOffsetY;
+				top = Math.abs(top - snapCoordinateY) < this._snapThreshold ? snapCoordinateY : top;
+				return top / this._container.clientHeight;
+			};
+
+			// Left ration calculation
+			const computeLeftRatio = (e: MouseEvent) => {
+				let left = e.clientX - dragOffsetX;
+				left = Math.abs(left - snapCoordinateX) < this._snapThreshold ? snapCoordinateX : left;
+				return (left + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth;
+			};
 
 			// Mouse move
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
@@ -938,18 +993,11 @@ class QuickInputDragAndDropController extends Disposable {
 					snapLinesVisible = true;
 				}
 
-				transaction(tx => {
-					let top = e.clientY - dragOffsetY;
-					top = Math.abs(top - snapCoordinateY) < this._snapThreshold ? snapCoordinateY : top;
-					const topRatio = top / this._container.clientHeight;
-
-					let left = e.clientX - dragOffsetX;
-					left = Math.abs(left - snapCoordinateX) < this._snapThreshold ? snapCoordinateX : left;
-					const leftRatio = (left + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth;
-
-					this.dragTopRatio.set(topRatio, tx);
-					this.dragLeftRatio.set(leftRatio, tx);
-				});
+				this.dndViewState.set({
+					top: computeTopRatio(e),
+					left: computeLeftRatio(e),
+					done: false
+				}, undefined);
 			});
 
 			// Mouse up
@@ -958,7 +1006,11 @@ class QuickInputDragAndDropController extends Disposable {
 				this._hideSnapLines();
 
 				// Save position
-				this.onDidDropSignal.trigger(undefined);
+				this.dndViewState.set({
+					top: computeTopRatio(e),
+					left: computeLeftRatio(e),
+					done: true
+				}, undefined);
 
 				// Dispose listeners
 				mouseMoveListener.dispose();
