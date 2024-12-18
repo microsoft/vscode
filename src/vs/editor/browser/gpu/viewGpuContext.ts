@@ -19,8 +19,10 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
+import { DecorationCssRuleExtractor } from './decorationCssRuleExtractor.js';
 import { Event } from '../../../base/common/event.js';
 import type { IEditorOptions } from '../../common/config/editorOptions.js';
+import { InlineDecorationType } from '../../common/viewModel.js';
 
 const enum GpuRenderLimits {
 	maxGpuLines = 3000,
@@ -47,8 +49,12 @@ export class ViewGpuContext extends Disposable {
 
 	readonly rectangleRenderer: RectangleRenderer;
 
-	private static _atlas: TextureAtlas | undefined;
+	private static readonly _decorationCssRuleExtractor = new DecorationCssRuleExtractor();
+	static get decorationCssRuleExtractor(): DecorationCssRuleExtractor {
+		return ViewGpuContext._decorationCssRuleExtractor;
+	}
 
+	private static _atlas: TextureAtlas | undefined;
 
 	/**
 	 * The shared texture atlas to use across all views.
@@ -136,24 +142,54 @@ export class ViewGpuContext extends Disposable {
 	 * renderer. Eventually this should trend all lines, except maybe exceptional cases like
 	 * decorations that use class names.
 	 */
-	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
+	public canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
+
+		// Check if the line has simple attributes that aren't supported
 		if (
 			data.containsRTL ||
 			data.maxColumn > GpuRenderLimits.maxGpuCols ||
 			data.continuesWithWrappedLine ||
-			data.inlineDecorations.length > 0 ||
 			lineNumber >= GpuRenderLimits.maxGpuLines
 		) {
 			return false;
 		}
+
+		// Check if all inline decorations are supported
+		if (data.inlineDecorations.length > 0) {
+			let supported = true;
+			for (const decoration of data.inlineDecorations) {
+				if (decoration.type !== InlineDecorationType.Regular) {
+					supported = false;
+					break;
+				}
+				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(this.canvas.domNode, decoration.inlineClassName);
+				supported &&= styleRules.every(rule => {
+					// Pseudo classes aren't supported currently
+					if (rule.selectorText.includes(':')) {
+						return false;
+					}
+					for (const r of rule.style) {
+						if (!gpuSupportedDecorationCssRules.includes(r)) {
+							return false;
+						}
+					}
+					return true;
+				});
+				if (!supported) {
+					break;
+				}
+			}
+			return supported;
+		}
+
 		return true;
 	}
 
 	/**
-	 * Like {@link canRender} but returned detailed information about why the line cannot be rendered.
+	 * Like {@link canRender} but returns detailed information about why the line cannot be rendered.
 	 */
-	public static canRenderDetailed(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
+	public canRenderDetailed(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
 		const reasons: string[] = [];
 		if (data.containsRTL) {
@@ -166,7 +202,44 @@ export class ViewGpuContext extends Disposable {
 			reasons.push('continuesWithWrappedLine');
 		}
 		if (data.inlineDecorations.length > 0) {
-			reasons.push('inlineDecorations > 0');
+			let supported = true;
+			const problemTypes: InlineDecorationType[] = [];
+			const problemSelectors: string[] = [];
+			const problemRules: string[] = [];
+			for (const decoration of data.inlineDecorations) {
+				if (decoration.type !== InlineDecorationType.Regular) {
+					problemTypes.push(decoration.type);
+					supported = false;
+					continue;
+				}
+				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(this.canvas.domNode, decoration.inlineClassName);
+				supported &&= styleRules.every(rule => {
+					// Pseudo classes aren't supported currently
+					if (rule.selectorText.includes(':')) {
+						problemSelectors.push(rule.selectorText);
+						return false;
+					}
+					for (const r of rule.style) {
+						if (!gpuSupportedDecorationCssRules.includes(r)) {
+							problemRules.push(r);
+							return false;
+						}
+					}
+					return true;
+				});
+				if (!supported) {
+					continue;
+				}
+			}
+			if (problemTypes.length > 0) {
+				reasons.push(`inlineDecorations with unsupported types (${problemTypes.map(e => `\`${e}\``).join(', ')})`);
+			}
+			if (problemRules.length > 0) {
+				reasons.push(`inlineDecorations with unsupported CSS rules (${problemRules.map(e => `\`${e}\``).join(', ')})`);
+			}
+			if (problemSelectors.length > 0) {
+				reasons.push(`inlineDecorations with unsupported CSS selectors (${problemSelectors.map(e => `\`${e}\``).join(', ')})`);
+			}
 		}
 		if (lineNumber >= GpuRenderLimits.maxGpuLines) {
 			reasons.push('lineNumber >= maxGpuLines');
@@ -174,3 +247,10 @@ export class ViewGpuContext extends Disposable {
 		return reasons;
 	}
 }
+
+/**
+ * A list of fully supported decoration CSS rules that can be used in the GPU renderer.
+ */
+const gpuSupportedDecorationCssRules = [
+	'color',
+];

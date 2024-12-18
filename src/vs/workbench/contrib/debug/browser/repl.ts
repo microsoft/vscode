@@ -11,7 +11,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { memoize } from '../../../../base/common/decorators.js';
@@ -71,6 +71,7 @@ import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL,
 import { Variable } from '../common/debugModel.js';
 import { ReplEvaluationResult, ReplGroup } from '../common/replModel.js';
 import { FocusSessionActionViewItem } from './debugActionViewItems.js';
+import { DEBUG_COMMAND_CATEGORY, FOCUS_REPL_ID } from './debugCommands.js';
 import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from './debugIcons.js';
 import './media/repl.css';
@@ -214,6 +215,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 					this.tree?.updateChildren(undefined, true, false);
 					this.onDidStyleChange();
 				}
+				this.focus();
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -553,9 +555,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.tree?.domFocus();
 	}
 
-	override focus(): void {
+	override async focus(): Promise<void> {
 		super.focus();
-		setTimeout(() => this.replInput.focus(), 0);
+		await timeout(0); // wait a task for the repl to get attached to the DOM, #83387
+		this.replInput.focus();
 	}
 
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -649,8 +652,8 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const expressionRenderer = this.instantiationService.createInstance(DebugExpressionRenderer);
 		this.replDataSource = new ReplDataSource();
 
-		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
+		const tree = this.tree = this.instantiationService.createInstance(
+			WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>,
 			'DebugRepl',
 			this.treeContainer,
 			this.replDelegate,
@@ -1206,5 +1209,21 @@ registerAction2(class extends Action2 {
 		} catch (e) {
 			return;
 		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_REPL_ID,
+			category: DEBUG_COMMAND_CATEGORY,
+			title: localize2({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, "Focus on Debug Console View"),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const repl = await viewsService.openView<Repl>(REPL_VIEW_ID);
+		await repl?.focus();
 	}
 });

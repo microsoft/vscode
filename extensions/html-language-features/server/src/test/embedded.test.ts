@@ -128,4 +128,12 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<div onKeyUp=return\n/><script>foo();</script>', 'javascript', '             return;\n          foo();         ');
 	});
 
+	test('Script content - HTML escape characters', function (): any {
+		assertEmbeddedLanguageContent('<div style="font-family: &quot;Arial&quot;"></div>', 'css', '         __{font-family: "     Arial     "}       ');
+		assertEmbeddedLanguageContent('<div style="font-family: &#34;Arial&#34;"></div>', 'css', '         __{font-family: "    Arial    "}       ');
+		assertEmbeddedLanguageContent('<div style="font-family: &quot;Arial&#34;"></div>', 'css', '         __{font-family: "     Arial    "}       ');
+		assertEmbeddedLanguageContent('<div style="font-family:&quot; Arial &quot; "></div>', 'css', '         __{font-family:     " Arial      " }       ');
+		assertEmbeddedLanguageContent('<div style="font-family: Arial"></div>', 'css', '         __{font-family: Arial}       ');
+	});
+
 });

@@ -57,6 +57,7 @@ import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
+import { ResourceSet } from '../../../base/common/map.js';
 
 //#region Helper Interfaces
 
@@ -729,7 +730,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private async getPathsToOpen(openConfig: IOpenConfiguration): Promise<IPathToOpen[]> {
 		let pathsToOpen: IPathToOpen[];
 		let isCommandLineOrAPICall = false;
-		let restoredWindows = false;
+		let isRestoringPaths = false;
 
 		// Extract paths: from API
 		if (openConfig.urisToOpen && openConfig.urisToOpen.length > 0) {
@@ -759,19 +760,26 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to restore
 			}
 
-			restoredWindows = true;
+			isRestoringPaths = true;
 		}
 
-		// Convert multiple folders into workspace (if opened via API or CLI)
-		// This will ensure to open these folders in one window instead of multiple
-		// If we are in `addMode`, we should not do this because in that case all
-		// folders should be added to the existing window.
+		// Handle the case of multiple folders being opened from CLI while we are
+		// not in `--add` mode by creating an untitled workspace, only if:
+		// - they all share the same remote authority
+		// - there is no existing workspace to open that matches these folders
 		if (!openConfig.addMode && isCommandLineOrAPICall) {
-			const foldersToOpen = pathsToOpen.filter(path => isSingleFolderWorkspacePathToOpen(path)) as ISingleFolderWorkspacePathToOpen[];
+			const foldersToOpen = pathsToOpen.filter(path => isSingleFolderWorkspacePathToOpen(path));
 			if (foldersToOpen.length > 1) {
 				const remoteAuthority = foldersToOpen[0].remoteAuthority;
-				if (foldersToOpen.every(folderToOpen => isEqualAuthority(folderToOpen.remoteAuthority, remoteAuthority))) { // only if all folder have the same authority
-					const workspace = await this.workspacesManagementMainService.createUntitledWorkspace(foldersToOpen.map(folder => ({ uri: folder.workspace.uri })));
+				if (foldersToOpen.every(folderToOpen => isEqualAuthority(folderToOpen.remoteAuthority, remoteAuthority))) {
+					let workspace: IWorkspaceIdentifier | undefined;
+
+					const lastSessionWorkspaceMatchingFolders = await this.doGetWorkspaceMatchingFoldersFromLastSession(remoteAuthority, foldersToOpen);
+					if (lastSessionWorkspaceMatchingFolders) {
+						workspace = lastSessionWorkspaceMatchingFolders;
+					} else {
+						workspace = await this.workspacesManagementMainService.createUntitledWorkspace(foldersToOpen.map(folder => ({ uri: folder.workspace.uri })));
+					}
 
 					// Add workspace and remove folders thereby
 					pathsToOpen.push({ workspace, remoteAuthority });
@@ -780,12 +788,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		// Check for `window.startup` setting to include all windows
+		// Check for `window.restoreWindows` setting to include all windows
 		// from the previous session if this is the initial startup and we have
 		// not restored windows already otherwise.
-		// Use `unshift` to ensure any new window to open comes last
-		// for proper focus treatment.
-		if (openConfig.initialStartup && !restoredWindows && this.configurationService.getValue<IWindowSettings | undefined>('window')?.restoreWindows === 'preserve') {
+		// Use `unshift` to ensure any new window to open comes last for proper
+		// focus treatment.
+		if (openConfig.initialStartup && !isRestoringPaths && this.configurationService.getValue<IWindowSettings | undefined>('window')?.restoreWindows === 'preserve') {
 			const lastSessionPaths = await this.doGetPathsFromLastSession();
 			pathsToOpen.unshift(...lastSessionPaths.filter(path => isWorkspacePathToOpen(path) || isSingleFolderWorkspacePathToOpen(path) || path.backupPath));
 		}
@@ -972,6 +980,30 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		return restoreWindows;
+	}
+
+	private async doGetWorkspaceMatchingFoldersFromLastSession(remoteAuthority: string | undefined, folders: ISingleFolderWorkspacePathToOpen[]): Promise<IWorkspaceIdentifier | undefined> {
+		const workspaces = (await this.doGetPathsFromLastSession()).filter(path => isWorkspacePathToOpen(path));
+		const folderUris = folders.map(folder => folder.workspace.uri);
+
+		for (const { workspace } of workspaces) {
+			const resolvedWorkspace = await this.workspacesManagementMainService.resolveLocalWorkspace(workspace.configPath);
+			if (
+				!resolvedWorkspace ||
+				resolvedWorkspace.remoteAuthority !== remoteAuthority ||
+				resolvedWorkspace.transient ||
+				resolvedWorkspace.folders.length !== folders.length
+			) {
+				continue;
+			}
+
+			const folderSet = new ResourceSet(folderUris, uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+			if (resolvedWorkspace.folders.every(folder => folderSet.has(folder.uri))) {
+				return resolvedWorkspace;
+			}
+		}
+
+		return undefined;
 	}
 
 	private async resolveOpenable(openable: IWindowOpenable, options: IPathResolveOptions = Object.create(null)): Promise<IPathToOpen | undefined> {

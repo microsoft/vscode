@@ -7,10 +7,12 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -118,18 +120,17 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 		const pos = dom.getDomNodePagePosition(this.button.element);
 		const anchor = { x: pos.left + pos.width, y: pos.top + pos.height };
 
-		this._actionWidgetService.show('postEditWidget', false, [
-			...this.edits.allEdits.map((edit, i): IActionListItem<T> => {
+		this._actionWidgetService.show('postEditWidget', false,
+			this.edits.allEdits.map((edit, i): IActionListItem<T> => {
 				return {
-					item: edit,
 					kind: ActionListItemKind.Action,
+					item: edit,
 					label: edit.title,
 					disabled: false,
 					canPreview: false,
-					hideIcon: true
+					group: { title: '', icon: ThemeIcon.fromId(i === this.edits.activeEditIndex ? Codicon.check.id : Codicon.blank.id) },
 				};
-			})
-		], {
+			}), {
 			onHide: () => {
 				this.editor.focus();
 			},

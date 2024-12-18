@@ -4,4 +4,4 @@
 
 ## Features
 
-Provides terminal suggestions for zsh, bash, and fish.
+Provides terminal suggestions for zsh, bash, fish, and pwsh.

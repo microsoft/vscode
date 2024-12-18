@@ -85,6 +85,7 @@
         slashCommands: [  ],
         disambiguation: [  ]
       },
+      workingSet: undefined,
       slashCommand: undefined,
       usedContext: {
         documents: [
@@ -153,6 +154,7 @@
         disambiguation: [  ],
         isDefault: true
       },
+      workingSet: undefined,
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatAgentLocation } from './chatAgents.js';
 
 export namespace ChatContextKeys {
@@ -42,13 +42,34 @@ export namespace ChatContextKeys {
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 
 	export const Setup = {
-		signedIn: new RawContextKey<boolean>('chatSetupSignedIn', false, { type: 'boolean', description: localize('chatSetupSignedIn', "True when chat setup is offered for a signed-in user.") }),
-		entitled: new RawContextKey<boolean>('chatSetupEntitled', false, { type: 'boolean', description: localize('chatSetupEntitled', "True when chat setup is offered for a signed-in, entitled user.") }),
 
-		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, { type: 'boolean', description: localize('chatSetupTriggered', "True when chat setup is triggered.") }),
-		installing: new RawContextKey<boolean>('chatSetupInstalling', false, { type: 'boolean', description: localize('chatSetupInstalling', "True when chat setup is installing chat.") }),
-		signingIn: new RawContextKey<boolean>('chatSetupSigningIn', false, { type: 'boolean', description: localize('chatSetupSigningIn', "True when chat setup is waiting for signing in.") }),
+		// State
+		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
+		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, true), 	// True when chat setup is triggered.
+		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
 
-		installed: new RawContextKey<boolean>('chatSetupInstalled', false, { type: 'boolean', description: localize('chatSetupInstalled', "True when the chat extension is installed.") }),
+		// Plans
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
+		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),		// True when user is a chat limited user.
+		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
 	};
+
+	export const SetupViewKeys = new Set([ChatContextKeys.Setup.triggered.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
+	export const SetupViewCondition = ContextKeyExpr.or(
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.triggered,
+			ChatContextKeys.Setup.installed.negate()
+		),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.canSignUp,
+			ChatContextKeys.Setup.installed
+		),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.signedOut,
+			ChatContextKeys.Setup.installed
+		)
+	)!;
+
+	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
+	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 }

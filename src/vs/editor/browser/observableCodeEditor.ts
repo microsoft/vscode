@@ -7,12 +7,15 @@ import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { IObservable, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
+import { LineRange } from '../common/core/lineRange.js';
+import { OffsetRange } from '../common/core/offsetRange.js';
 import { Position } from '../common/core/position.js';
 import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
+import { Point } from './point.js';
 
 /**
  * Returns a facade for the code editor that provides observables for various states/events.
@@ -167,14 +170,22 @@ export class ObservableCodeEditor extends Disposable {
 		};
 	}, () => this.editor.hasWidgetFocus());
 
-	private _inComposition = false;
+	public readonly isTextFocused = observableFromEvent(this, e => {
+		const d1 = this.editor.onDidFocusEditorText(e);
+		const d2 = this.editor.onDidBlurEditorText(e);
+		return {
+			dispose() {
+				d1.dispose();
+				d2.dispose();
+			}
+		};
+	}, () => this.editor.hasTextFocus());
+
 	public readonly inComposition = observableFromEvent(this, e => {
 		const d1 = this.editor.onDidCompositionStart(() => {
-			this._inComposition = true;
 			e(undefined);
 		});
 		const d2 = this.editor.onDidCompositionEnd(() => {
-			this._inComposition = false;
 			e(undefined);
 		});
 		return {
@@ -183,7 +194,7 @@ export class ObservableCodeEditor extends Disposable {
 				d2.dispose();
 			}
 		};
-	}, () => this._inComposition);
+	}, () => this.editor.inComposition);
 
 	public readonly value = derivedWithSetter(this,
 		reader => { this.versionId.read(reader); return this.model.read(reader)?.getValue() ?? ''; },
@@ -233,10 +244,10 @@ export class ObservableCodeEditor extends Disposable {
 		return d;
 	}
 
-	private _overlayWidgetCounter = 0;
+	private _widgetCounter = 0;
 
 	public createOverlayWidget(widget: IObservableOverlayWidget): IDisposable {
-		const overlayWidgetId = 'observableOverlayWidget' + (this._overlayWidgetCounter++);
+		const overlayWidgetId = 'observableOverlayWidget' + (this._widgetCounter++);
 		const w: IOverlayWidget = {
 			getDomNode: () => widget.domNode,
 			getPosition: () => widget.position.get(),
@@ -254,6 +265,47 @@ export class ObservableCodeEditor extends Disposable {
 			d.dispose();
 			this.editor.removeOverlayWidget(w);
 		});
+	}
+
+	public observeLineOffsetRange(lineRange: IObservable<LineRange>, store: DisposableStore): IObservable<OffsetRange> {
+		const start = this.observePosition(lineRange.map(r => new Position(r.startLineNumber, 1)), store);
+		const end = this.observePosition(lineRange.map(r => new Position(r.endLineNumberExclusive + 1, 1)), store);
+
+		return derived(reader => {
+			start.read(reader);
+			end.read(reader);
+			const range = lineRange.read(reader);
+			const s = this.editor.getTopForLineNumber(range.startLineNumber) - this.scrollTop.read(reader);
+			const e = range.isEmpty ? s : (this.editor.getBottomForLineNumber(range.endLineNumberExclusive - 1) - this.scrollTop.read(reader));
+			return new OffsetRange(s, e);
+		});
+	}
+
+	public observePosition(position: IObservable<Position | null>, store: DisposableStore): IObservable<Point | null> {
+		let pos = position.get();
+		const result = observableValueOpts<Point | null>({ owner: this, debugName: () => `topLeftOfPosition${pos?.toString()}`, equalsFn: equalsIfDefined(Point.equals) }, new Point(0, 0));
+		const contentWidgetId = `observablePositionWidget` + (this._widgetCounter++);
+		const domNode = document.createElement('div');
+		const w: IContentWidget = {
+			getDomNode: () => domNode,
+			getPosition: () => {
+				return pos ? { preference: [ContentWidgetPositionPreference.EXACT], position: position.get() } : null;
+			},
+			getId: () => contentWidgetId,
+			allowEditorOverflow: false,
+			afterRender(position, coordinate) {
+				result.set(coordinate ? new Point(coordinate.left, coordinate.top) : null, undefined);
+			},
+		};
+		this.editor.addContentWidget(w);
+		store.add(autorun(reader => {
+			pos = position.read(reader);
+			this.editor.layoutContentWidget(w);
+		}));
+		store.add(toDisposable(() => {
+			this.editor.removeContentWidget(w);
+		}));
+		return result;
 	}
 }
 

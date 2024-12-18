@@ -58,8 +58,8 @@ interface EditContextEventHandlersEventMap {
 
 type EventHandler<TEvent extends Event = Event> = (event: TEvent) => void;
 
-declare class TextUpdateEvent extends Event {
-	constructor(type: DOMString, options?: TextUpdateEventInit);
+interface TextUpdateEvent extends Event {
+	new(type: DOMString, options?: TextUpdateEventInit): TextUpdateEvent;
 
 	readonly updateRangeStart: number;
 	readonly updateRangeEnd: number;

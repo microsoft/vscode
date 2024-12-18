@@ -94,7 +94,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private readonly _capabilities: ITerminalCapabilityStore;
 
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
-	private static _checkedWebglCompatible = false;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
 	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
 
@@ -667,24 +666,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			return;
 		}
 
-		// Check if the the WebGL renderer is compatible with xterm.js:
-		// - https://github.com/microsoft/vscode/issues/190195
-		// - https://github.com/xtermjs/xterm.js/issues/4665
-		// - https://bugs.chromium.org/p/chromium/issues/detail?id=1476475
-		if (!XtermTerminal._checkedWebglCompatible) {
-			XtermTerminal._checkedWebglCompatible = true;
-			const checkCanvas = document.createElement('canvas');
-			const checkGl = checkCanvas.getContext('webgl2');
-			const debugInfo = checkGl?.getExtension('WEBGL_debug_renderer_info');
-			if (checkGl && debugInfo) {
-				const renderer = checkGl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-				if (renderer.startsWith('ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)')) {
-					this._disableWebglForThisSession();
-					return;
-				}
-			}
-		}
-
 		const Addon = await this._xtermAddonLoader.importAddon('webgl');
 		this._webglAddon = new Addon();
 		try {
@@ -706,13 +687,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			// }, 5000);
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the DOM renderer`, e);
-			this._disableWebglForThisSession();
+			XtermTerminal._suggestedRendererType = 'dom';
+			this._disposeOfWebglRenderer();
 		}
-	}
-
-	private _disableWebglForThisSession() {
-		XtermTerminal._suggestedRendererType = 'dom';
-		this._disposeOfWebglRenderer();
 	}
 
 	@debounce(100)

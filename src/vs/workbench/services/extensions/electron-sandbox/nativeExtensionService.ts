@@ -742,7 +742,7 @@ class RestartExtensionHostAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionService = accessor.get(IExtensionService);
 
-		const stopped = await extensionService.stopExtensionHosts(nls.localize('restartExtensionHost.reason', "Restarting extension host on explicit request."));
+		const stopped = await extensionService.stopExtensionHosts(nls.localize('restartExtensionHost.reason', "An explicit request"));
 		if (stopped) {
 			extensionService.startExtensionHosts();
 		}

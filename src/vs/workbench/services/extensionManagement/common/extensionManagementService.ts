@@ -11,7 +11,7 @@ import {
 	DidUpdateExtensionMetadata,
 	UninstallExtensionInfo
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from './extensionManagement.js';
+import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, IWorkbenchInstallOptions, UninstallExtensionOnServerEvent } from './extensionManagement.js';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -256,15 +256,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	}
 
-	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
-		const server = this.getServer(extension);
-		if (server) {
-			await this.checkForWorkspaceTrust(extension.manifest, false);
-			return server.extensionManagementService.reinstallFromGallery(extension);
-		}
-		return Promise.reject(`Invalid location ${extension.location.toString()}`);
-	}
-
 	updateMetadata(extension: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
@@ -468,20 +459,21 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return [...results.values()];
 	}
 
-	async installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	async installFromGallery(gallery: IGalleryExtension, installOptions?: IWorkbenchInstallOptions): Promise<ILocalExtension> {
 		const servers = await this.validateAndGetExtensionManagementServersToInstall(gallery, installOptions);
 		if (!installOptions || isUndefined(installOptions.isMachineScoped)) {
 			const isMachineScoped = await this.hasToFlagExtensionsMachineScoped([gallery]);
 			installOptions = { ...(installOptions || {}), isMachineScoped };
 		}
 
-		if (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled()) {
+		if (installOptions.installEverywhere || (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled())) {
 			if (this.extensionManagementServerService.localExtensionManagementServer
 				&& !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)
 				&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery) === true) {
 				servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 			}
 		}
+
 		return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 	}
 

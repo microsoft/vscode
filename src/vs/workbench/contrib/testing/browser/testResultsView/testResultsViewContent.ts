@@ -248,7 +248,7 @@ export class TestResultsViewContent extends Disposable {
 		this.contextKeyTestMessage = TestingContextKeys.testMessageContext.bindTo(this.messageContextKeyService);
 		this.contextKeyResultOutdated = TestingContextKeys.testResultOutdated.bindTo(this.messageContextKeyService);
 
-		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
+		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree.testing-stdtree'));
 		const tree = this._register(this.instantiationService.createInstance(
 			OutputPeekTree,
 			treeContainer,

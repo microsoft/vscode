@@ -6,7 +6,7 @@
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from '../common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ILocalExtension, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IAllowedExtensionsService, ILocalExtension, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -25,6 +25,7 @@ export class NativeExtensionManagementService extends ProfileAwareExtensionManag
 	constructor(
 		channel: IChannel,
 		@IProductService productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
@@ -32,7 +33,7 @@ export class NativeExtensionManagementService extends ProfileAwareExtensionManag
 		@INativeWorkbenchEnvironmentService private readonly nativeEnvironmentService: INativeWorkbenchEnvironmentService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		super(channel, productService, userDataProfileService, uriIdentityService);
+		super(channel, productService, allowedExtensionsService, userDataProfileService, uriIdentityService);
 	}
 
 	protected filterEvent(profileLocation: URI, isApplicationScoped: boolean): boolean {

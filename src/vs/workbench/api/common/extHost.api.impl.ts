@@ -14,7 +14,7 @@ import { TextEditorCursorStyle } from '../../../editor/common/config/editorOptio
 import { score, targetsNotebooks } from '../../../editor/common/languageSelector.js';
 import * as languageConfiguration from '../../../editor/common/languages/languageConfiguration.js';
 import { OverviewRulerLane } from '../../../editor/common/model.js';
-import { ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionError, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import * as files from '../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService, ILoggerService, LogLevel } from '../../../platform/log/common/log.js';
@@ -245,8 +245,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					try {
 						listener.call(thisArgs, e);
 					} catch (err) {
-						errors.onUnexpectedExternalError(new Error(`[ExtensionListenerError] Extension '${extension.identifier.value}' FAILED to handle event: ${err.toString()}`, { cause: err }));
-						extHostTelemetry.onExtensionError(extension.identifier, err);
+						errors.onUnexpectedExternalError(new ExtensionError(extension.identifier, err, 'FAILED to handle event'));
 					}
 				});
 				disposables?.push(handle);
@@ -436,10 +435,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appCommit(): string | undefined {
 				checkProposedApiEnabled(extension, 'resolvers');
 				return initData.commit;
-			},
-			get handle(): string | undefined {
-				checkProposedApiEnabled(extension, 'nativeWindowHandle');
-				return initData.handle;
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
@@ -785,7 +780,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostQuickOpen.showInput(options, token);
 			},
 			showOpenDialog(options) {
-				return extHostDialogs.showOpenDialog(extension, options);
+				return extHostDialogs.showOpenDialog(options);
 			},
 			showSaveDialog(options) {
 				return extHostDialogs.showSaveDialog(options);
@@ -927,6 +922,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerShareProvider(selector: vscode.DocumentSelector, provider: vscode.ShareProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'shareProvider');
 				return extHostShare.registerShareProvider(checkSelector(selector), provider);
+			},
+			get nativeHandle(): Uint8Array | undefined {
+				checkProposedApiEnabled(extension, 'nativeWindowHandle');
+				return extHostWindow.nativeHandle;
 			}
 		};
 
@@ -1732,7 +1731,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DataTransferItem: extHostTypes.DataTransferItem,
 			TestCoverageCount: extHostTypes.TestCoverageCount,
 			FileCoverage: extHostTypes.FileCoverage,
-			FileCoverage2: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,
 			BranchCoverage: extHostTypes.BranchCoverage,
 			DeclarationCoverage: extHostTypes.DeclarationCoverage,

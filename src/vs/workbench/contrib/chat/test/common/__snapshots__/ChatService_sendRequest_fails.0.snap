@@ -78,6 +78,7 @@
         slashCommands: [  ],
         disambiguation: [  ]
       },
+      workingSet: undefined,
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],

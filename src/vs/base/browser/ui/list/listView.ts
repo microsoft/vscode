@@ -9,7 +9,7 @@ import { DomEmitter } from '../../event.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
 import { EventType as TouchEventType, Gesture, GestureEvent } from '../../touch.js';
 import { SmoothScrollableElement } from '../scrollbar/scrollableElement.js';
-import { distinct, equals } from '../../../common/arrays.js';
+import { distinct, equals, splice } from '../../../common/arrays.js';
 import { Delayer, disposableTimeout } from '../../../common/async.js';
 import { memoize } from '../../../common/decorators.js';
 import { Emitter, Event, IValueWithChangeEvent } from '../../../common/event.js';
@@ -643,7 +643,7 @@ export class ListView<T> implements IListView<T> {
 			this.items = inserted;
 		} else {
 			this.rangeMap.splice(start, deleteCount, inserted);
-			deleted = this.items.splice(start, deleteCount, ...inserted);
+			deleted = splice(this.items, start, deleteCount, inserted);
 		}
 
 		const delta = elements.length - deleteCount;

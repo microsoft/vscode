@@ -33,8 +33,10 @@ export class ChatAttachmentModel extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
-	delete(variableEntryId: string) {
-		this._attachments.delete(variableEntryId);
+	delete(...variableEntryIds: string[]) {
+		for (const variableEntryId of variableEntryIds) {
+			this._attachments.delete(variableEntryId);
+		}
 		this._onDidChangeContext.fire();
 	}
 
@@ -78,7 +80,7 @@ export class EditsAttachmentModel extends ChatAttachmentModel {
 	private _onFileLimitExceeded = this._register(new Emitter<void>());
 	readonly onFileLimitExceeded = this._onFileLimitExceeded.event;
 
-	private get fileAttachments() {
+	get fileAttachments() {
 		return this.attachments.filter(attachment => attachment.isFile);
 	}
 
@@ -99,10 +101,19 @@ export class EditsAttachmentModel extends ChatAttachmentModel {
 
 	override addContext(...attachments: IChatRequestVariableEntry[]) {
 		const currentAttachmentIds = this.getAttachmentIDs();
-
 		const fileAttachments = attachments.filter(attachment => attachment.isFile);
-		const newFileAttachments = fileAttachments.filter(attachment => !currentAttachmentIds.has(attachment.id));
 		const otherAttachments = attachments.filter(attachment => !attachment.isFile);
+
+		// deduplicate file attachments
+		const newFileAttachments = [];
+		const newFileAttachmentIds = new Set<string>();
+		for (const attachment of fileAttachments) {
+			if (newFileAttachmentIds.has(attachment.id) || currentAttachmentIds.has(attachment.id)) {
+				continue;
+			}
+			newFileAttachmentIds.add(attachment.id);
+			newFileAttachments.push(attachment);
+		}
 
 		const availableFileCount = Math.max(0, this._chatEditingService.editingSessionFileLimit - this.fileAttachments.length);
 		const fileAttachmentsToBeAdded = newFileAttachments.slice(0, availableFileCount);
@@ -122,13 +133,15 @@ export class EditsAttachmentModel extends ChatAttachmentModel {
 		super.clear();
 	}
 
-	override delete(variableEntryId: string) {
-		const excludedFileIndex = this._excludedFileAttachments.findIndex(attachment => attachment.id === variableEntryId);
-		if (excludedFileIndex !== -1) {
-			this._excludedFileAttachments.splice(excludedFileIndex, 1);
+	override delete(...variableEntryIds: string[]) {
+		for (const variableEntryId of variableEntryIds) {
+			const excludedFileIndex = this._excludedFileAttachments.findIndex(attachment => attachment.id === variableEntryId);
+			if (excludedFileIndex !== -1) {
+				this._excludedFileAttachments.splice(excludedFileIndex, 1);
+			}
 		}
 
-		super.delete(variableEntryId);
+		super.delete(...variableEntryIds);
 
 		if (this.fileAttachments.length < this._chatEditingService.editingSessionFileLimit) {
 			const availableFileCount = Math.max(0, this._chatEditingService.editingSessionFileLimit - this.fileAttachments.length);

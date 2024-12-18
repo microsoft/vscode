@@ -412,7 +412,7 @@ export class ExtHostTextEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _disposed: boolean = false;
 	private _hasDecorationsForKey = new Set<string>();
-	private _diffInformation: vscode.TextEditorDiffInformation | undefined;
+	private _diffInformation: vscode.TextEditorDiffInformation[] | undefined;
 
 	readonly value: vscode.TextEditor;
 
@@ -604,7 +604,7 @@ export class ExtHostTextEditor {
 		this._selections = selections;
 	}
 
-	_acceptDiffInformation(diffInformation: vscode.TextEditorDiffInformation | undefined): void {
+	_acceptDiffInformation(diffInformation: vscode.TextEditorDiffInformation[] | undefined): void {
 		ok(!this._disposed);
 		this._diffInformation = diffInformation;
 	}
