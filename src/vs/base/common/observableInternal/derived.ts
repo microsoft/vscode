@@ -459,6 +459,16 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		}
 		super.removeObserver(observer);
 	}
+
+	public override log(): IObservable<T> {
+		if (!getLogger()) {
+			super.log();
+			getLogger()?.handleDerivedCreated(this);
+		} else {
+			super.log();
+		}
+		return this;
+	}
 }
 
 
