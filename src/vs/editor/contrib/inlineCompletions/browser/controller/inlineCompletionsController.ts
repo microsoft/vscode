@@ -181,14 +181,16 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
-			if (this.model.get()?.inlineEditAvailable.get()) {
-				// dont hide inline edits on blur
+			const model = this.model.get();
+			if (!model) { return; }
+			if (model.state.get()?.inlineCompletion?.request.isExplicitRequest && model.inlineEditAvailable.get()) {
+				// dont hide inline edits on blur when requested explicitly
 				return;
 			}
 
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidBlurEditorWidget */
-				this.model.get()?.stop('automatic', tx);
+				model.stop('automatic', tx);
 			});
 		}));
 
