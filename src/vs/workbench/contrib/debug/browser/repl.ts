@@ -108,7 +108,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private replInput!: CodeEditorWidget;
 	private replInputContainer!: HTMLElement;
 	private bodyContentDimension: dom.Dimension | undefined;
-	private replInputLineCount = 1;
 	private model: ITextModel | undefined;
 	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
 	private scopedInstantiationService!: IInstantiationService;
@@ -475,9 +474,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			revealLastElement(this.tree!);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
-			const shouldRelayout = this.replInputLineCount > 1;
-			this.replInputLineCount = 1;
-			if (shouldRelayout && this.bodyContentDimension) {
+			if (this.bodyContentDimension) {
 				// Trigger a layout to shrink a potential multi line input
 				this.layoutBodyContent(this.bodyContentDimension.height, this.bodyContentDimension.width);
 			}
@@ -735,12 +732,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
+		let lastContentHeight = -1;
 		this._register(this.replInput.onDidChangeModelContent(() => {
 			const model = this.replInput.getModel();
 			this.setHistoryNavigationEnablement(!!model && model.getValue() === '');
-			const lineCount = model ? Math.min(10, model.getLineCount()) : 1;
-			if (lineCount !== this.replInputLineCount) {
-				this.replInputLineCount = lineCount;
+
+			const contentHeight = this.replInput.getContentHeight();
+			if (contentHeight !== lastContentHeight) {
+				lastContentHeight = contentHeight;
 				if (this.bodyContentDimension) {
 					this.layoutBodyContent(this.bodyContentDimension.height, this.bodyContentDimension.width);
 				}
