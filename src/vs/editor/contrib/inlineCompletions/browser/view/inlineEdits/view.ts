@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, derived, IObservable, IReader } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -15,6 +15,7 @@ import { StringText } from '../../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
+import { InlineEditsGutterIndicator } from './gutterIndicatorView.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './indicatorView.js';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
 import { InlineEditsSideBySideDiff } from './sideBySideDiff.js';
@@ -118,19 +119,29 @@ export class InlineEditsView extends Disposable {
 
 	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
 
-	protected readonly _indicator = this._register(new InlineEditsIndicator(
-		this._editorObs,
-		derived<IInlineEditsIndicatorState | undefined>(reader => {
-			const state = this._uiState.read(reader);
-			if (!state) { return undefined; }
+	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useGutterIndicator);
 
-			const range = state.originalDisplayRange;
-			const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
-
-			return { editTop: top, showAlways: state.state !== 'sideBySide' };
-		}),
-		this._model,
-	));
+	protected readonly _indicator = this._register(autorunWithStore((reader, store) => {
+		if (this._useGutterIndicator.read(reader)) {
+			store.add(new InlineEditsGutterIndicator(
+				this._editorObs,
+				this._uiState.map(s => s && s.originalDisplayRange),
+				this._model,
+			));
+		} else {
+			store.add(new InlineEditsIndicator(
+				this._editorObs,
+				derived<IInlineEditsIndicatorState | undefined>(reader => {
+					const state = this._uiState.read(reader);
+					if (!state) { return undefined; }
+					const range = state.originalDisplayRange;
+					const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
+					return { editTop: top, showAlways: state.state !== 'sideBySide' };
+				}),
+				this._model,
+			));
+		}
+	}));
 
 	private determinRenderState(edit: InlineEditWithChanges, reader: IReader, diff: DetailedLineRangeMapping[]) {
 		if (edit.isCollapsed) {

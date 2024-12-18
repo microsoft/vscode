@@ -7,6 +7,8 @@ import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { IObservable, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
+import { LineRange } from '../common/core/lineRange.js';
+import { OffsetRange } from '../common/core/offsetRange.js';
 import { Position } from '../common/core/position.js';
 import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
@@ -262,6 +264,20 @@ export class ObservableCodeEditor extends Disposable {
 		return toDisposable(() => {
 			d.dispose();
 			this.editor.removeOverlayWidget(w);
+		});
+	}
+
+	public observeLineOffsetRange(lineRange: IObservable<LineRange>, store: DisposableStore): IObservable<OffsetRange> {
+		const start = this.observePosition(lineRange.map(r => new Position(r.startLineNumber, 1)), store);
+		const end = this.observePosition(lineRange.map(r => new Position(r.endLineNumberExclusive + 1, 1)), store);
+
+		return derived(reader => {
+			start.read(reader);
+			end.read(reader);
+			const range = lineRange.read(reader);
+			const s = this.editor.getTopForLineNumber(range.startLineNumber) - this.scrollTop.read(reader);
+			const e = range.isEmpty ? s : (this.editor.getBottomForLineNumber(range.endLineNumberExclusive - 1) - this.scrollTop.read(reader));
+			return new OffsetRange(s, e);
 		});
 	}
 
