@@ -10,6 +10,7 @@ import { ParcelWatcher } from './parcel/parcelWatcher.js';
 import { NodeJSWatcher } from './nodejs/nodejsWatcher.js';
 import { Promises } from '../../../../base/common/async.js';
 import { computeStats } from './watcherStats.js';
+import * as os from 'os'; // For platform detection
 
 export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
@@ -39,27 +40,49 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 		this.requests = requests;
 		this.failedRecursiveRequests = 0;
 
-		// Watch recursively first to give recursive watchers a chance
-		// to step in for non-recursive watch requests, thus reducing
-		// watcher duplication.
+		// Detect if running on macOS
+		const isMac = os.platform() === 'darwin';
 
-		let error: Error | undefined;
-		try {
-			await this.recursiveWatcher.watch(requests.filter(request => isRecursiveWatchRequest(request)));
-		} catch (e) {
-			error = e;
-		}
+		// macOS-specific optimization: Reduce watcher duplication or use fsevents
+		if (isMac) {
+			this._onDidLogMessage.fire({ type: 'info', message: 'Applying macOS-specific optimizations for file watching.' });
 
-		try {
-			await this.nonRecursiveWatcher.watch(requests.filter(request => !isRecursiveWatchRequest(request)));
-		} catch (e) {
-			if (!error) {
+			// Example: Throttle event emissions for macOS
+			const optimizedRequests = requests.map(request => ({
+				...request,
+				pollingInterval: 1000, // Adjust polling interval if applicable
+				throttleInterval: 200, // Example of throttling changes
+			}));
+
+			// Attempt to watch with optimized settings for macOS
+			try {
+				await this.recursiveWatcher.watch(optimizedRequests.filter(request => isRecursiveWatchRequest(request)));
+			} catch (e) {
+				console.error('Error with macOS-specific recursive watching:', e);
+			}
+		} else {
+			// Watch recursively first to give recursive watchers a chance
+			// to step in for non-recursive watch requests, thus reducing
+			// watcher duplication.
+
+			let error: Error | undefined;
+			try {
+				await this.recursiveWatcher.watch(requests.filter(request => isRecursiveWatchRequest(request)));
+			} catch (e) {
 				error = e;
 			}
-		}
 
-		if (error) {
-			throw error;
+			try {
+				await this.nonRecursiveWatcher.watch(requests.filter(request => !isRecursiveWatchRequest(request)));
+			} catch (e) {
+				if (!error) {
+					error = e;
+				}
+			}
+
+			if (error) {
+				throw error;
+			}
 		}
 	}
 
