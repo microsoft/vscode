@@ -41,6 +41,9 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 			},
 			icon: closeIcon, // Ensures no flickering when using toggled.icon
 			category: Categories.View,
+			metadata: {
+				description: localize('openAndCloseAuxiliaryBar', 'Open/Show and Close/Hide Secondary Side Bar'),
+			},
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

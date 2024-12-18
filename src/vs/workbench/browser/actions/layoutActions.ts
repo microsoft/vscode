@@ -304,6 +304,9 @@ class ToggleSidebarVisibilityAction extends Action2 {
 				title: localize('primary sidebar', "Primary Side Bar"),
 				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
 			},
+			metadata: {
+				description: localize('openAndCloseSidebar', 'Open/Show and Close/Hide Sidebar'),
+			},
 			category: Categories.View,
 			f1: true,
 			keybinding: {

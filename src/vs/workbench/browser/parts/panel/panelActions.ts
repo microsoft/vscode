@@ -46,6 +46,9 @@ export class TogglePanelAction extends Action2 {
 			icon: closeIcon, // Ensures no flickering when using toggled.icon
 			f1: true,
 			category: Categories.View,
+			metadata: {
+				description: localize('openAndClosePanel', 'Open/Show and Close/Hide Panel'),
+			},
 			keybinding: { primary: KeyMod.CtrlCmd | KeyCode.KeyJ, weight: KeybindingWeight.WorkbenchContrib },
 			menu: [
 				{
