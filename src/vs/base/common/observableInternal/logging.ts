@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AutorunObserver } from './autorun.js';
-import { IObservable, ObservableValue, TransactionImpl } from './base.js';
+import { IObservable, TransactionImpl } from './base.js';
 import { Derived } from './derived.js';
 import { FromEventObservable } from './utils.js';
 
@@ -39,7 +39,7 @@ interface IChangeInformation {
 }
 
 export interface IObservableLogger {
-	handleObservableChanged(observable: ObservableValue<any, any>, info: IChangeInformation): void;
+	handleObservableChanged(observable: IObservable<any, any>, info: IChangeInformation): void;
 	handleFromEventObservableTriggered(observable: FromEventObservable<any, any>, info: IChangeInformation): void;
 
 	handleAutorunCreated(autorun: AutorunObserver): void;

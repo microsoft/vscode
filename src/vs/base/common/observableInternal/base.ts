@@ -71,7 +71,7 @@ export interface IObservable<T, TChange = unknown> {
 	 * ONLY FOR DEBUGGING!
 	 * Logs computations of this derived.
 	*/
-	log(): IObservable<T>;
+	log(): IObservable<T, TChange>;
 
 	/**
 	 * Makes sure this value is computed eagerly.
@@ -239,7 +239,7 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 		);
 	}
 
-	public log(): IObservable<T> {
+	public log(): IObservable<T, TChange> {
 		logObservable(this);
 		return this;
 	}
