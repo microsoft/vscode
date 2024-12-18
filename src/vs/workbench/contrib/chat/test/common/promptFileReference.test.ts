@@ -18,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../../../../platform/configuration/common/configurationService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { FileOpenFailed, RecursiveReference, NonPromptSnippetFile } from '../../common/promptFileReferenceErrors.js';
+import { FileOpenFailed, RecursiveReference, NotPromptSnippetFile } from '../../common/promptFileReferenceErrors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 /**
@@ -301,7 +301,7 @@ suite('PromptFileReference (Unix)', function () {
 				)),
 				testDisposables.add(new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
-					new NonPromptSnippetFile(
+					new NotPromptSnippetFile(
 						URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
 						'Ughh oh!',
 					),
@@ -319,7 +319,7 @@ suite('PromptFileReference (Unix)', function () {
 				)),
 				testDisposables.add(new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.js'),
-					new NonPromptSnippetFile(
+					new NotPromptSnippetFile(
 						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.js'),
 						'Oh no!',
 					),
@@ -462,7 +462,7 @@ suite('PromptFileReference (Unix)', function () {
 				)),
 				testDisposables.add(new ExpectedReference(
 					URI.joinPath(rootUri, './file1.md'),
-					new NonPromptSnippetFile(
+					new NotPromptSnippetFile(
 						URI.joinPath(rootUri, './file1.md'),
 						'Uggh oh!',
 					),

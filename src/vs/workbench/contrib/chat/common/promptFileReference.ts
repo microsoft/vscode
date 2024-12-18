@@ -11,13 +11,13 @@ import { Location } from '../../../../editor/common/languages.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatPromptCodec } from './codecs/chatPromptCodec/chatPromptCodec.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
+import { FileOpenFailed, NotPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
  */
-export type TErrorCondition = FileOpenFailed | RecursiveReference | NonPromptSnippetFile;
+export type TErrorCondition = FileOpenFailed | RecursiveReference | NotPromptSnippetFile;
 
 /**
  * File extension for the prompt snippet files.
@@ -245,7 +245,7 @@ export class PromptFileReference extends Disposable {
 			// if file exists but not a prompt snippet file, set appropriate error
 			// condition and return null so we don't resolve nested references in it
 			if (this.uri.path.endsWith(PROMP_SNIPPET_FILE_EXTENSION) === false) {
-				this._errorCondition = new NonPromptSnippetFile(this.uri);
+				this._errorCondition = new NotPromptSnippetFile(this.uri);
 
 				return null;
 			}
@@ -401,7 +401,7 @@ export class PromptFileReference extends Disposable {
 			// filter out unresolved references
 			.filter((reference) => {
 				return (reference.resolveFailed === false) ||
-					(reference.errorCondition instanceof NonPromptSnippetFile);
+					(reference.errorCondition instanceof NotPromptSnippetFile);
 			});
 	}
 
