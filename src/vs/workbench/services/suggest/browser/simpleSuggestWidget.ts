@@ -11,7 +11,7 @@ import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resi
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from './simpleCompletionModel.js';
 import { getAriaId, SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
-import { CancelablePromise, TimeoutTimer } from '../../../../base/common/async.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
 import { Emitter, Event, PauseableEmitter } from '../../../../base/common/event.js';
 import { MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -68,7 +68,7 @@ export class SimpleSuggestWidget extends Disposable {
 	private _forceRenderingAbove: boolean = false;
 	private _preference?: WidgetPositionPreference;
 	private readonly _pendingLayout = this._register(new MutableDisposable());
-	private _currentSuggestionDetails?: CancelablePromise<void>;
+	// private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: SimpleCompletionItem;
 	private _ignoreFocusEvents: boolean = false;
 	readonly element: ResizableHTMLElement;
@@ -231,11 +231,11 @@ export class SimpleSuggestWidget extends Disposable {
 		}
 
 		if (!e.elements.length) {
-			if (this._currentSuggestionDetails) {
-				this._currentSuggestionDetails.cancel();
-				this._currentSuggestionDetails = undefined;
-				this._focusedItem = undefined;
-			}
+			// if (this._currentSuggestionDetails) {
+			// 	this._currentSuggestionDetails.cancel();
+			// 	this._currentSuggestionDetails = undefined;
+			// 	this._focusedItem = undefined;
+			// }
 			this._clearAriaActiveDescendant();
 			return;
 		}
@@ -250,8 +250,8 @@ export class SimpleSuggestWidget extends Disposable {
 
 		if (item !== this._focusedItem) {
 
-			this._currentSuggestionDetails?.cancel();
-			this._currentSuggestionDetails = undefined;
+			// this._currentSuggestionDetails?.cancel();
+			// this._currentSuggestionDetails = undefined;
 
 			this._focusedItem = item;
 
@@ -266,7 +266,6 @@ export class SimpleSuggestWidget extends Disposable {
 				this._clearAriaActiveDescendant();
 			}
 		}
-
 		// emit an event
 		this._onDidFocus.fire({ item, index, model: this._completionModel });
 	}
