@@ -561,7 +561,7 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 
 		const contextKeySet = new Set([ChatContextKeys.Setup.signedOut.key]);
 
-		actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
@@ -607,6 +607,6 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 			agentService.onDidChangeAgents,
 			chatQuotasService.onDidChangeQuotas,
 			Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(contextKeySet))
-		));
+		)));
 	}
 }
