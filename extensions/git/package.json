@@ -943,19 +943,19 @@
         "command": "git.stageSelectedRanges",
         "key": "ctrl+k ctrl+alt+s",
         "mac": "cmd+k cmd+alt+s",
-        "when": "editorTextFocus && resourceScheme =~ /^git$|^file$/"
+        "when": "editorTextFocus && resourceScheme == file"
       },
       {
         "command": "git.unstageSelectedRanges",
         "key": "ctrl+k ctrl+n",
         "mac": "cmd+k cmd+n",
-        "when": "isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && resourceScheme == git"
       },
       {
         "command": "git.revertSelectedRanges",
         "key": "ctrl+k ctrl+r",
         "mac": "cmd+k cmd+r",
-        "when": "editorTextFocus && resourceScheme =~ /^git$|^file$/"
+        "when": "editorTextFocus && resourceScheme == file"
       }
     ],
     "menus": {
@@ -1026,7 +1026,7 @@
         },
         {
           "command": "git.stageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file"
         },
         {
           "command": "git.stageChange",
@@ -1034,7 +1034,7 @@
         },
         {
           "command": "git.revertSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file"
         },
         {
           "command": "git.revertChange",
@@ -1054,7 +1054,7 @@
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && resourceScheme == git"
         },
         {
           "command": "git.clean",
@@ -2068,17 +2068,17 @@
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.stashApplyEditor",
@@ -2096,17 +2096,17 @@
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "isInDiffRightEditor && !isEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "isInDiffRightEditor && !isEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "isInDiffRightEditor && !isEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
         }
       ],
       "editor/content": [
@@ -3471,7 +3471,7 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.2.0",
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@vscode/extension-telemetry": "^0.9.8",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",

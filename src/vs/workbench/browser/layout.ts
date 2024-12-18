@@ -116,12 +116,18 @@ interface IInitialEditorsState {
 	readonly layout?: EditorGroupLayout;
 }
 
+const COMMAND_CENTER_SETTINGS = [
+	'chat.commandCenter.enabled',
+	'workbench.navigationControl.enabled',
+	'workbench.experimental.share.enabled',
+];
+
 export const TITLE_BAR_SETTINGS = [
 	LayoutSettings.ACTIVITY_BAR_LOCATION,
 	LayoutSettings.COMMAND_CENTER,
+	...COMMAND_CENTER_SETTINGS,
 	LayoutSettings.EDITOR_ACTIONS_LOCATION,
 	LayoutSettings.LAYOUT_ACTIONS,
-	'workbench.navigationControl.enabled',
 	'window.menuBarVisibility',
 	TitleBarSetting.TITLE_BAR_STYLE,
 	TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
@@ -355,18 +361,31 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
 			].some(setting => e.affectsConfiguration(setting))) {
-				// Show Custom TitleBar if actions moved to the titlebar
-				const editorActionsMovedToTitlebar = e.affectsConfiguration(LayoutSettings.EDITOR_ACTIONS_LOCATION) && this.configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION) === EditorActionsLocation.TITLEBAR;
+				// Show Command Center if command center actions enabled
+				const shareEnabled = e.affectsConfiguration('workbench.experimental.share.enabled') && this.configurationService.getValue<boolean>('workbench.experimental.share.enabled');
+				const navigationControlEnabled = e.affectsConfiguration('workbench.navigationControl.enabled') && this.configurationService.getValue<boolean>('workbench.navigationControl.enabled');
 
-				let activityBarMovedToTopOrBottom = false;
-				if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
-					const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-					activityBarMovedToTopOrBottom = activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM;
+				// Currently not supported for "chat.commandCenter.enabled" as we
+				// programatically set this during setup and could lead to unwanted titlebar appearing
+				// const chatControlsEnabled = e.affectsConfiguration('chat.commandCenter.enabled') && this.configurationService.getValue<boolean>('chat.commandCenter.enabled');
+
+				if (shareEnabled || navigationControlEnabled) {
+					if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === false) {
+						this.configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
+						return; // onDidChangeConfiguration will be triggered again
+					}
 				}
 
-				if (activityBarMovedToTopOrBottom || editorActionsMovedToTitlebar) {
+				// Show Custom TitleBar if actions enabled in (or moved to) the titlebar
+				const editorActionsMovedToTitlebar = e.affectsConfiguration(LayoutSettings.EDITOR_ACTIONS_LOCATION) && this.configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION) === EditorActionsLocation.TITLEBAR;
+				const commandCenterEnabled = e.affectsConfiguration(LayoutSettings.COMMAND_CENTER) && this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER);
+				const layoutControlsEnabled = e.affectsConfiguration(LayoutSettings.LAYOUT_ACTIONS) && this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS);
+				const activityBarMovedToTopOrBottom = e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) && [ActivityBarPosition.TOP, ActivityBarPosition.BOTTOM].includes(this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION));
+
+				if (activityBarMovedToTopOrBottom || editorActionsMovedToTitlebar || commandCenterEnabled || layoutControlsEnabled) {
 					if (this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) === CustomTitleBarVisibility.NEVER) {
 						this.configurationService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
+						return; // onDidChangeConfiguration will be triggered again
 					}
 				}
 

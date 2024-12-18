@@ -1526,8 +1526,8 @@ class TestItemRenderer extends Disposable
 	/**
 	 * @inheritdoc
 	 */
-	public renderTemplate(container: HTMLElement): ITestElementTemplateData {
-		const wrapper = dom.append(container, dom.$('.test-item'));
+	public renderTemplate(wrapper: HTMLElement): ITestElementTemplateData {
+		wrapper.classList.add('testing-stdtree-container');
 
 		const icon = dom.append(wrapper, dom.$('.computed-state'));
 		const label = dom.append(wrapper, dom.$('.label'));

@@ -11,7 +11,7 @@ import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
-import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption, IEditorStickyScrollOptions } from '../../../../editor/common/config/editorOptions.js';
 import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
@@ -164,25 +164,30 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		let actualReadonly: boolean | undefined;
 		let actualDeco: 'off' | 'editable' | 'on' | undefined;
+		let actualStickyScroll: IEditorStickyScrollOptions | undefined;
 
 		this._register(autorun(r => {
 			const value = shouldBeReadOnly.read(r);
 			if (value) {
 				actualReadonly ??= this._editor.getOption(EditorOption.readOnly);
 				actualDeco ??= this._editor.getOption(EditorOption.renderValidationDecorations);
+				actualStickyScroll ??= this._editor.getOption(EditorOption.stickyScroll);
 
 				this._editor.updateOptions({
 					readOnly: true,
-					renderValidationDecorations: 'off'
+					renderValidationDecorations: 'off',
+					stickyScroll: { enabled: false }
 				});
 			} else {
-				if (actualReadonly !== undefined && actualDeco !== undefined) {
+				if (actualReadonly !== undefined && actualDeco !== undefined && actualStickyScroll !== undefined) {
 					this._editor.updateOptions({
 						readOnly: actualReadonly,
-						renderValidationDecorations: actualDeco
+						renderValidationDecorations: actualDeco,
+						stickyScroll: actualStickyScroll
 					});
 					actualReadonly = undefined;
 					actualDeco = undefined;
+					actualStickyScroll = undefined;
 				}
 			}
 		}));

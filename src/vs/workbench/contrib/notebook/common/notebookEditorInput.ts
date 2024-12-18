@@ -91,8 +91,8 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 
 			const reason = e.auto
-				? localize('vetoAutoExtHostRestart', "One of the opened editors is a notebook editor.")
-				: localize('vetoExtHostRestart', "Notebook '{0}' could not be saved.", this.resource.path);
+				? localize('vetoAutoExtHostRestart', "An extension provided notebook for '{0}' is still open that would close otherwise.", this.getName())
+				: localize('vetoExtHostRestart', "An extension provided notebook for '{0}' could not be saved.", this.getName());
 
 			e.veto((async () => {
 				const editors = editorService.findEditors(this);

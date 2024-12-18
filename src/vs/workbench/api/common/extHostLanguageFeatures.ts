@@ -130,6 +130,12 @@ class CodeLensAdapter {
 			lenses: [],
 		};
 		for (let i = 0; i < lenses.length; i++) {
+
+			if (!Range.isRange(lenses[i].range)) {
+				console.warn('INVALID code lens, range is not defined', this._extension.identifier.value);
+				continue;
+			}
+
 			result.lenses.push({
 				cacheId: [cacheId, i],
 				range: typeConvert.Range.from(lenses[i].range),
