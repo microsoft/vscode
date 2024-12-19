@@ -47,6 +47,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 				computeMoves: false,
 				ignoreTrimWhitespace: false,
 				maxComputationTimeMs: 1000,
+				extendToSubwords: true,
 			}, CancellationToken.None);
 			return result;
 		});
