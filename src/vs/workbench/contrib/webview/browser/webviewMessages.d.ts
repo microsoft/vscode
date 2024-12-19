@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import type { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
+import type { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.ts';
+import type { WebviewStyles } from './webview.ts';
 
 type KeyEvent = {
 	key: string;
