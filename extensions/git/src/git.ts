@@ -315,7 +315,7 @@ export interface IGitOptions {
 	gitPath: string;
 	userAgent: string;
 	version: string;
-	env?: any;
+	env?: { [key: string]: string };
 }
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -369,7 +369,8 @@ export class Git {
 	readonly path: string;
 	readonly userAgent: string;
 	readonly version: string;
-	private env: any;
+	readonly env: { [key: string]: string };
+
 	private commandsToLog: string[] = [];
 
 	private _onOutput = new EventEmitter();
