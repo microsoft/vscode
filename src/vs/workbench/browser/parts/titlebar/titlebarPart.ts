@@ -54,6 +54,7 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
+import { TitleBarVisibleContext } from '../../../common/contextkeys.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -119,11 +120,12 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 					title: localize2('focusTitleBar', 'Focus Title Bar'),
 					category: Categories.View,
 					f1: true,
+					precondition: TitleBarVisibleContext
 				});
 			}
 
 			run(): void {
-				that.getPartByDocument(getActiveDocument()).focus();
+				that.getPartByDocument(getActiveDocument())?.focus();
 			}
 		}));
 	}
