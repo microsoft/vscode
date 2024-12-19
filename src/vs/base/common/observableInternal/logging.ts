@@ -361,7 +361,7 @@ function formatObject(value: object, availableLen: number): string {
 		if (val.length <= availableLen) {
 			return val;
 		}
-		return val.substr(0, availableLen - 3) + '...';
+		return val.substring(0, availableLen - 3) + '...';
 	}
 
 	let result = '{ ';
