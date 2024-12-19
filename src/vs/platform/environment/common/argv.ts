@@ -36,6 +36,7 @@ export interface NativeParsedArgs {
 	diff?: boolean;
 	merge?: boolean;
 	add?: boolean;
+	remove?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
 	'reuse-window'?: boolean;
