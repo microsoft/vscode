@@ -60,7 +60,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import Severity from '../../../../base/common/severity.js';
-import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner';
+import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
