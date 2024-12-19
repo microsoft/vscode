@@ -1507,21 +1507,21 @@ export class LoggingObservableValue<T, TChange = void>
 	implements ISettableObservable<T, TChange> {
 	private value: T;
 
-	constructor(public readonly debugName: string, initialValue: T, private readonly log: Log) {
+	constructor(public readonly debugName: string, initialValue: T, private readonly logger: Log) {
 		super();
 		this.value = initialValue;
 	}
 
 	protected override onFirstObserverAdded(): void {
-		this.log.log(`${this.debugName}.firstObserverAdded`);
+		this.logger.log(`${this.debugName}.firstObserverAdded`);
 	}
 
 	protected override onLastObserverRemoved(): void {
-		this.log.log(`${this.debugName}.lastObserverRemoved`);
+		this.logger.log(`${this.debugName}.lastObserverRemoved`);
 	}
 
 	public get(): T {
-		this.log.log(`${this.debugName}.get`);
+		this.logger.log(`${this.debugName}.get`);
 		return this.value;
 	}
 
@@ -1537,7 +1537,7 @@ export class LoggingObservableValue<T, TChange = void>
 			return;
 		}
 
-		this.log.log(`${this.debugName}.set (value ${value})`);
+		this.logger.log(`${this.debugName}.set (value ${value})`);
 
 		this.value = value;
 

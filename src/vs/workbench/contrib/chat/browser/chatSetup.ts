@@ -26,7 +26,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -44,7 +43,6 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../common/v
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
@@ -60,6 +58,8 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import Severity from '../../../../base/common/severity.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -108,11 +108,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
-		if (!this.productService.defaultChatAgent) {
+		if (
+			!this.productService.defaultChatAgent ||			// needs product config
+			(isWeb && !this.environmentService.remoteAuthority)	// only enabled locally or a remote backend
+		) {
 			return;
 		}
 
@@ -1019,10 +1023,9 @@ class ChatSetupContext extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
 
@@ -1031,25 +1034,19 @@ class ChatSetupContext extends Disposable {
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
-		this._register(this.extensionService.onDidChangeExtensions(result => {
-			for (const extension of result.removed) {
-				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.update({ installed: false });
-					break;
-				}
+
+		// Await extensions to be ready to be queries
+		await this.extensionsWorkbenchService.queryLocal();
+
+		// Listen to change and process extensions once
+		this._register(Event.runAndSubscribe(this.extensionsWorkbenchService.onChange, (e) => {
+			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.extensionId)) {
+				return; // unrelated event
 			}
 
-			for (const extension of result.added) {
-				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.update({ installed: true });
-					break;
-				}
-			}
+			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
+			this.update({ installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local) });
 		}));
-
-		const extensions = await this.extensionManagementService.getInstalled();
-		const defaultChatExtension = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-		this.update({ installed: !!defaultChatExtension && this.extensionEnablementService.isEnabled(defaultChatExtension) });
 	}
 
 	update(context: { installed: boolean }): Promise<void>;

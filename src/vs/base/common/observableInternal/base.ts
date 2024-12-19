@@ -6,7 +6,7 @@
 import { DebugNameData, DebugOwner, getFunctionName } from './debugName.js';
 import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from './commonFacade/deps.js';
 import type { derivedOpts } from './derived.js';
-import { getLogger } from './logging.js';
+import { getLogger, logObservable } from './logging.js';
 import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';
 
 /**
@@ -66,6 +66,12 @@ export interface IObservable<T, TChange = unknown> {
 	map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 
 	flatten<TNew>(this: IObservable<IObservable<TNew>>): IObservable<TNew>;
+
+	/**
+	 * ONLY FOR DEBUGGING!
+	 * Logs computations of this derived.
+	*/
+	log(): IObservable<T, TChange>;
 
 	/**
 	 * Makes sure this value is computed eagerly.
@@ -231,6 +237,11 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 			},
 			(reader) => fn(this.read(reader), reader),
 		);
+	}
+
+	public log(): IObservable<T, TChange> {
+		logObservable(this);
+		return this;
 	}
 
 	/**

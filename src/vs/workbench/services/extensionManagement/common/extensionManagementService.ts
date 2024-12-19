@@ -466,7 +466,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			installOptions = { ...(installOptions || {}), isMachineScoped };
 		}
 
-		if (installOptions.installEverywhere || (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled())) {
+		if (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled()) {
 			if (this.extensionManagementServerService.localExtensionManagementServer
 				&& !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)
 				&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery) === true) {
@@ -597,7 +597,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 	}
 
-	private async validateAndGetExtensionManagementServersToInstall(gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<IExtensionManagementServer[]> {
+	private async validateAndGetExtensionManagementServersToInstall(gallery: IGalleryExtension, installOptions?: IWorkbenchInstallOptions): Promise<IExtensionManagementServer[]> {
 
 		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
 		if (!manifest) {
@@ -606,8 +606,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		const servers: IExtensionManagementServer[] = [];
 
-		// Install Language pack on local and remote servers
-		if (isLanguagePackExtension(manifest)) {
+		// Install everywhere if asked to install everywhere or if the extension is a language pack
+		if (installOptions?.installEverywhere || isLanguagePackExtension(manifest)) {
 			servers.push(...this.servers.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer));
 		} else {
 			const server = this.getExtensionManagementServerToInstall(manifest);

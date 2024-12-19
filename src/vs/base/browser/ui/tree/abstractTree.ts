@@ -1177,7 +1177,7 @@ export class FindController<T, TFilterData> extends AbstractFindController<T, TF
 		this.tree.refilter();
 
 		if (pattern) {
-			this.tree.focusNext(0, true, undefined, (node) => this.shouldAllowFocus(node));
+			this.tree.focusNext(0, true, undefined, (node) => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
 		}
 
 		const focus = this.tree.getFocus();

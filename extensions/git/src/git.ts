@@ -1658,9 +1658,9 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async stage(path: string, data: string): Promise<void> {
+	async stage(path: string, data: string, encoding: string): Promise<void> {
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
-		child.stdin!.end(data, 'utf8');
+		child.stdin!.end(iconv.encode(data, encoding));
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
