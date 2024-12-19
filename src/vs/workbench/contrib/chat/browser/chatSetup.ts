@@ -60,6 +60,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import Severity from '../../../../base/common/severity.js';
+import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -1022,6 +1023,7 @@ class ChatSetupContext extends Disposable {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -1047,6 +1049,7 @@ class ChatSetupContext extends Disposable {
 			}
 		}));
 
+		await this.remoteExtensionsScannerService.whenExtensionsReady();
 		const extensions = await this.extensionManagementService.getInstalled();
 		const defaultChatExtension = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
 		this.update({ installed: !!defaultChatExtension && this.extensionEnablementService.isEnabled(defaultChatExtension) });
