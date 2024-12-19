@@ -22,6 +22,7 @@ import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
 import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -235,14 +236,14 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		if (!this._editor.hasModel()) {
+		if (!this._contentWidget) {
 			return;
 		}
 		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(e);
 		if (isPotentialKeyboardShortcut) {
 			return;
 		}
-		if (this._contentWidget.isFocused && event.keyCode === KeyCode.Tab) {
+		if (this._contentWidget.isFocused && e.keyCode === KeyCode.Tab) {
 			return;
 		}
 		this.hideContentHover();
