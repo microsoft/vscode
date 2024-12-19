@@ -147,19 +147,25 @@ class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink |
 	public accept(token: TSimpleToken): TParseResult<PartialMarkdownLink | MarkdownLink> {
 		// the `)` character ends the reference part of a markdown link
 		if (token instanceof RightParenthesis) {
-			const { startLineNumber } = this.captionTokens[0].range;
+			const { startLineNumber, startColumn } = this.captionTokens[0].range;
 
 			const caption = this.captionTokens
 				.map((token) => { return token.text; })
 				.join('');
 
+			this.currentTokens.push(token);
 			const reference = this.currentTokens
 				.map((token) => { return token.text; }).join('');
 
 			return {
 				result: 'success',
 				wasTokenConsumed: true,
-				nextParser: new MarkdownLink(startLineNumber, caption, reference),
+				nextParser: new MarkdownLink(
+					startLineNumber,
+					startColumn,
+					caption,
+					reference,
+				),
 			};
 		}
 

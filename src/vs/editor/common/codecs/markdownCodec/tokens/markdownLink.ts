@@ -16,6 +16,7 @@ export class MarkdownLink extends BaseToken {
 		// the line index
 		// Note! 1-based indexing
 		lineNumber: number,
+		columnNumber: number,
 		private readonly caption: string,
 		private readonly reference: string,
 	) {
@@ -29,12 +30,17 @@ export class MarkdownLink extends BaseToken {
 			`The line number must be >= 1, got "${lineNumber}".`,
 		);
 
+		assert(
+			columnNumber > 0,
+			`The column number must be >= 1, got "${columnNumber}".`,
+		);
+
 		super(
 			new Range(
 				lineNumber,
-				1,
+				columnNumber,
 				lineNumber,
-				caption.length + reference.length + 1, // throw new Error('TODO: @legomushroom');
+				columnNumber + caption.length + reference.length + 1, // TODO: @legomushroom
 			),
 		);
 	}
@@ -43,6 +49,29 @@ export class MarkdownLink extends BaseToken {
 		return `${this.caption}${this.reference}`;
 	}
 
+	/**
+	 * Returns the `reference` part of the link without enclosing parentheses.
+	 */
+	public get path(): string {
+		return this.reference.slice(1, this.reference.length - 1);
+	}
+
+	/**
+	 * Check if this token is equal to another one.
+	 */
+	public override equals<T extends BaseToken>(other: T): boolean {
+		if (!super.sameRange(other.range)) {
+			return false;
+		}
+
+		if (!(other instanceof MarkdownLink)) {
+			return false;
+		}
+
+		return this.text === other.text;
+	}
+
+	// TODO: @legomushroom - remove or implement?
 	// public static newOnLine(
 	// 	line: Line,
 	// 	atColumnNumber: number,
@@ -63,6 +92,6 @@ export class MarkdownLink extends BaseToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `md-link${this.range}`;
+		return `md-link("${this.text}")${this.range}`;
 	}
 }
