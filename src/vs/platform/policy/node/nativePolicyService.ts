@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { Throttler } from '../../../base/common/async.js';
 import type { PolicyUpdate, Watcher } from '@vscode/policy-watcher';
 import { MutableDisposable } from '../../../base/common/lifecycle.js';
-import { ILogService } from '../../log/common/log.js';
+import { ILogService } from '#vs/platform/log/common/log.js';
 
 export class NativePolicyService extends AbstractPolicyService implements IPolicyService {
 

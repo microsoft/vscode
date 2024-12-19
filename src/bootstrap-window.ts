@@ -32,7 +32,7 @@
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
 
 		// Dev only: CSS import map tricks
-		setupCSSImportMaps<T>(configuration, baseUrl);
+		setupDevImportMaps<T>(configuration, baseUrl);
 
 		// ESM Import
 		try {
@@ -181,13 +181,18 @@
 		return uri.replace(/#/g, '%23');
 	}
 
-	function setupCSSImportMaps<T extends ISandboxConfiguration>(configuration: T, baseUrl: URL) {
+	function setupDevImportMaps<T extends ISandboxConfiguration>(configuration: T, baseUrl: URL) {
 
 		// DEV ---------------------------------------------------------------------------------------
 		// DEV: This is for development and enables loading CSS via import-statements via import-maps.
 		// DEV: For each CSS modules that we have we defined an entry in the import map that maps to
 		// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
 		// DEV ---------------------------------------------------------------------------------------
+		const importMap: { imports: Record<string, string> } = {
+			imports: {
+				'#vs/': baseUrl.href + '/vs/'
+			}
+		};
 
 		if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
 			performance.mark('code/willAddCssLoader');
@@ -202,25 +207,24 @@
 				style.textContent += `@import url(${url});\n`;
 			};
 
-			const importMap: { imports: Record<string, string> } = { imports: {} };
 			for (const cssModule of configuration.cssModules) {
 				const cssUrl = new URL(cssModule, baseUrl).href;
 				const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
 				const blob = new Blob([jsSrc], { type: 'application/javascript' });
 				importMap.imports[cssUrl] = URL.createObjectURL(blob);
 			}
-
-			const ttp = window.trustedTypes?.createPolicy('vscode-bootstrapImportMap', { createScript(value) { return value; }, });
-			const importMapSrc = JSON.stringify(importMap, undefined, 2);
-			const importMapScript = document.createElement('script');
-			importMapScript.type = 'importmap';
-			importMapScript.setAttribute('nonce', '0c6a828f1297');
-			// @ts-ignore
-			importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
-			document.head.appendChild(importMapScript);
-
-			performance.mark('code/didAddCssLoader');
 		}
+
+		const ttp = window.trustedTypes?.createPolicy('vscode-bootstrapImportMap', { createScript(value) { return value; }, });
+		const importMapSrc = JSON.stringify(importMap, undefined, 2);
+		const importMapScript = document.createElement('script');
+		importMapScript.type = 'importmap';
+		importMapScript.setAttribute('nonce', '0c6a828f1297');
+		// @ts-ignore
+		importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
+		document.head.appendChild(importMapScript);
+
+		performance.mark('code/didAddCssLoader');
 	}
 
 	(globalThis as any).MonacoBootstrapWindow = { load };
