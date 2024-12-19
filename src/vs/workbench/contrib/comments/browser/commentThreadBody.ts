@@ -41,7 +41,6 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return this._commentElements.filter(node => node.isEditing)[0];
 	}
 
-
 	constructor(
 		private readonly _parentEditor: LayoutableEditor,
 		readonly owner: string,
@@ -75,6 +74,10 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			}
 		}
 		this._commentsElement.focus();
+	}
+
+	hasCommentsInEditMode() {
+		return this._commentElements.some(commentNode => commentNode.isEditing);
 	}
 
 	ensureFocusIntoNewEditingComment() {
