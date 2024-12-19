@@ -266,10 +266,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this.show(this._lastProvider);
 	}
 
-	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: IPosition, wasShowingSymbols?: boolean): void {
-		if (wasShowingSymbols) {
-			this._inQuickPick = false;
-		}
+	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: IPosition): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
@@ -499,7 +496,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (lineNumber === undefined) {
 			return;
 		}
-		this.show(provider, undefined, undefined, { lineNumber, column: 1 }, true);
+		this._inQuickPick = false;
+		this.show(provider, undefined, undefined, { lineNumber, column: 1 });
 		this._updateContextKeys(provider, true);
 	}
 
@@ -962,7 +960,7 @@ class AccessibleViewSymbolQuickPick {
 		disposables.add(quickPick.onDidHide(() => {
 			if (quickPick.selectedItems.length === 0) {
 				// this was escaped, so refocus the accessible view
-				this._accessibleView.show(provider, undefined, undefined, undefined, true);
+				this._accessibleView.show(provider, undefined, undefined, undefined);
 			}
 			disposables.dispose();
 		}));
