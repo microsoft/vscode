@@ -202,7 +202,7 @@ export class CodeApplication extends Disposable {
 		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeManagedRemoteResource, 'devtools']);
 
 		// But allow them if they are made from inside an webview
-		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
+		const isSafeFrame = (requestFrame: WebFrameMain | null | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
 					return true;
