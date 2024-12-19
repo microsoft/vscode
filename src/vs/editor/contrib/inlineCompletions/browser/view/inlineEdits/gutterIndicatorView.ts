@@ -40,21 +40,36 @@ export const inlineEditIndicatorBackground = registerColor(
 
 
 export class InlineEditsGutterIndicator extends Disposable {
-	private readonly _state = derived(reader => {
-		const range = mapOutFalsy(this._originalRange).read(reader);
-		if (!range) {
-			return undefined;
-		}
+	constructor(
+		private readonly _editorObs: ObservableCodeEditor,
+		private readonly _originalRange: IObservable<LineRange | undefined>,
+		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
+	) {
+		super();
 
+		this._register(this._editorObs.createOverlayWidget({
+			domNode: this._indicator.element,
+			position: constObservable(null),
+			allowEditorOverflow: false,
+			minContentWidthInPx: constObservable(0),
+		}));
+	}
+
+	private readonly _originalRangeObs = mapOutFalsy(this._originalRange);
+
+	private readonly _state = derived(reader => {
+		const range = this._originalRangeObs.read(reader);
+		if (!range) { return undefined; }
 		return {
 			range,
 			lineOffsetRange: this._editorObs.observeLineOffsetRange(range, this._store),
 		};
 	});
 
-	private _stickyScrollController = StickyScrollController.get(this._editorObs.editor);
-	private readonly _stickyScrollHeight = this._stickyScrollController ? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight) : constObservable(0);
-
+	private readonly _stickyScrollController = StickyScrollController.get(this._editorObs.editor);
+	private readonly _stickyScrollHeight = this._stickyScrollController
+		? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight)
+		: constObservable(0);
 
 	private readonly _layout = derived(reader => {
 		const s = this._state.read(reader);
@@ -85,13 +100,13 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return {
 			rect,
 			iconRect,
-			mode: (iconRect.top === targetRect.top ? 'right' as const
+			arrowDirection: (iconRect.top === targetRect.top ? 'right' as const
 				: iconRect.top > targetRect.top ? 'top' as const : 'bottom' as const),
 			docked: rect.containsRect(iconRect) && viewPortWithStickyScroll.containsRect(iconRect),
 		};
 	});
 
-	private readonly _mode = derived(this, reader => {
+	private readonly _tabAction = derived(this, reader => {
 		const m = this._model.read(reader);
 		if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return 'accept' as const; }
 		if (m && m.tabShouldJumpToInlineEdit.read(reader)) { return 'jump' as const; }
@@ -135,16 +150,20 @@ export class InlineEditsGutterIndicator extends Disposable {
 				cursor: 'pointer',
 				zIndex: '1000',
 				position: 'absolute',
-				backgroundColor: this._mode.map(v => ({
-					inactive: 'var(--vscode-inlineEdit-gutterIndicator-secondaryBackground)',
-					jump: 'var(--vscode-inlineEdit-gutterIndicator-primaryBackground)',
-					accept: 'var(--vscode-inlineEdit-gutterIndicator-successfulBackground)',
-				}[v])),
-				'--vscodeIconForeground': this._mode.map(v => ({
-					inactive: 'var(--vscode-inlineEdit-gutterIndicator-secondaryForeground)',
-					jump: 'var(--vscode-inlineEdit-gutterIndicator-primaryForeground)',
-					accept: 'var(--vscode-inlineEdit-gutterIndicator-successfulForeground)',
-				}[v])),
+				backgroundColor: this._tabAction.map(v => {
+					switch (v) {
+						case 'inactive': return 'var(--vscode-inlineEdit-gutterIndicator-secondaryBackground)';
+						case 'jump': return 'var(--vscode-inlineEdit-gutterIndicator-primaryBackground)';
+						case 'accept': return 'var(--vscode-inlineEdit-gutterIndicator-successfulBackground)';
+					}
+				}),
+				'--vscodeIconForeground': this._tabAction.map(v => {
+					switch (v) {
+						case 'inactive': return 'var(--vscode-inlineEdit-gutterIndicator-secondaryForeground)';
+						case 'jump': return 'var(--vscode-inlineEdit-gutterIndicator-primaryForeground)';
+						case 'accept': return 'var(--vscode-inlineEdit-gutterIndicator-successfulForeground)';
+					}
+				}),
 				borderRadius: '4px',
 				display: 'flex',
 				justifyContent: 'center',
@@ -154,7 +173,13 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}, [
 			n.div({
 				style: {
-					rotate: l.map(l => ({ right: '0deg', bottom: '90deg', top: '-90deg' }[l.mode])),
+					rotate: l.map(l => {
+						switch (l.arrowDirection) {
+							case 'right': return '0deg';
+							case 'bottom': return '90deg';
+							case 'top': return '-90deg';
+						}
+					}),
 					transition: 'rotate 0.2s ease-in-out',
 				}
 			}, [
@@ -162,21 +187,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 			])
 		]),
 	])).keepUpdated(this._store);
-
-	constructor(
-		private readonly _editorObs: ObservableCodeEditor,
-		private readonly _originalRange: IObservable<LineRange | undefined>,
-		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
-	) {
-		super();
-
-		this._register(this._editorObs.createOverlayWidget({
-			domNode: this._indicator.element,
-			position: constObservable(null),
-			allowEditorOverflow: false,
-			minContentWidthInPx: constObservable(0),
-		}));
-	}
 }
 
 function rectToProps(fn: (reader: IReader) => Rect): any {

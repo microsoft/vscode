@@ -423,20 +423,23 @@ type ElementAttributeKeys<T> = Partial<{
 	? never
 	: T[K] extends object
 	? ElementAttributeKeys<T[K]>
-	: Value<T[K] | undefined | null>
+	: Value<number | T[K] | undefined | null>
 }>;
 
-export function mapOutFalsy<T>(obs: IObservable<T | undefined | null | false>): IObservable<IObservable<T> | undefined | null | false> {
+type RemoveFalsy<T> = T extends false | undefined | null ? never : T;
+type Falsy<T> = T extends false | undefined | null ? T : never;
+
+export function mapOutFalsy<T>(obs: IObservable<T>): IObservable<IObservable<RemoveFalsy<T>> | Falsy<T>> {
 	const nonUndefinedObs = derivedObservableWithCache<T | undefined | null | false>(undefined, (reader, lastValue) => obs.read(reader) || lastValue);
 
 	return derived(reader => {
 		nonUndefinedObs.read(reader);
 		const val = obs.read(reader);
 		if (!val) {
-			return undefined;
+			return undefined as Falsy<T>;
 		}
 
-		return nonUndefinedObs as IObservable<T>;
+		return nonUndefinedObs as IObservable<RemoveFalsy<T>>;
 	});
 }
 
