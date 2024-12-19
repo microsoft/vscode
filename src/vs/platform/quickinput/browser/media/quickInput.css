@@ -156,8 +156,6 @@
 
 .quick-input-list {
 	line-height: 22px;
-	/* TODO@lszomoru - understand why this is needed */
-	height: calc(100% - 35px - 6px);
 }
 
 .quick-input-widget.hidden-input .quick-input-list {

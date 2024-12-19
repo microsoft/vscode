@@ -73,6 +73,7 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
+	private visibilities: Visibilities | undefined;
 	private viewState: QuickInputViewState | undefined;
 	private readonly resizableContainer: ResizableHTMLElement;
 	private dndController: QuickInputDragAndDropController | undefined;
@@ -679,6 +680,8 @@ export class QuickInputController extends Disposable {
 	}
 
 	private setVisibilities(visibilities: Visibilities) {
+		this.visibilities = visibilities;
+
 		const ui = this.getUI();
 		ui.title.style.display = visibilities.title ? '' : 'none';
 		ui.description1.style.display = visibilities.description && (visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
@@ -798,8 +801,17 @@ export class QuickInputController extends Disposable {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
 
+			// TODO - find a better way to do this
+			const titleBarHeight = this.visibilities?.title ? 24 : 0;
+			const inputHeight = this.visibilities?.inputBox ? 35 : 4;
+			const progressBarHeight = this.visibilities?.progressBar ? 2 : 0;
+			const headerHeight = titleBarHeight + inputHeight + progressBarHeight;
+
 			// Size
-			const heigth = this.viewState?.size?.height ?? Math.floor(Math.floor(this.dimension!.height * 0.3) / 44) * 44 + 16 /* buffer */ + 35 /* header */ + 2 /* progress */;
+			const defaultListHeight = Math.floor(this.dimension!.height * 0.4);
+			const defaultListHeightRounded = Math.floor(defaultListHeight / 44) * 44 - 6 /* hide part of the last element */;
+
+			const heigth = this.viewState?.size?.height ?? Math.min(defaultListHeightRounded + headerHeight, QuickInputController.MAX_HEIGHT);
 			const width = this.viewState?.size?.width ?? Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 
 			// Position
@@ -807,7 +819,7 @@ export class QuickInputController extends Disposable {
 			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout();
+			this.ui.list.layout(heigth - headerHeight);
 			this.resizableContainer.layout(heigth, width);
 		}
 	}

@@ -1355,13 +1355,9 @@ export class QuickInputTree extends Disposable {
 		this._tree.domFocus();
 	}
 
-	layout(maxHeight?: number): void {
-		this._tree.getHTMLElement().style.maxHeight = maxHeight ? `${
-			// Make sure height aligns with list item heights
-			Math.floor(maxHeight / 44) * 44
-			// Add some extra height so that it's clear there's more to scroll
-			+ 6
-			}px` : '';
+	layout(height?: number): void {
+		this._container.style.height = height ? `${height}px` : '';
+		this._tree.getHTMLElement().style.height = height ? `${height - 5 /* padding */}px` : '';
 		this._tree.layout();
 	}
 
