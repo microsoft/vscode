@@ -151,6 +151,10 @@
 	margin-top: 14px;
 }
 
+.settings-editor > .settings-body > .monaco-split-view2.separator-border .split-view-view:not(:first-child):before {
+	z-index: 16; /* Above sticky scroll */
+}
+
 .settings-editor > .settings-body .settings-toc-container,
 .settings-editor > .settings-body .settings-tree-container {
 	height: 100%;

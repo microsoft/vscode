@@ -46,7 +46,7 @@ export class ChatConfirmationWidget extends Disposable {
 			dom.h('.chat-confirmation-buttons-container@buttonsContainer'),
 		]);
 		this._domNode = elements.root;
-		const renderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
+		const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		const renderedTitle = this._register(renderer.render(new MarkdownString(title)));
 		elements.title.appendChild(renderedTitle.element);

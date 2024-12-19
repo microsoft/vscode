@@ -29,7 +29,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IExpression, WATCH_VIEW_ID } from '../common/debug.js';
+import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IDebugViewWithVariables, IExpression, WATCH_VIEW_ID } from '../common/debug.js';
 import { Expression, Variable, VisualizedExpression } from '../common/debugModel.js';
 import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
 import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
@@ -40,7 +40,7 @@ const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreViewUpdates = false;
 let useCachedEvaluation = false;
 
-export class WatchExpressionsView extends ViewPane {
+export class WatchExpressionsView extends ViewPane implements IDebugViewWithVariables {
 
 	private watchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh = false;
@@ -50,6 +50,10 @@ export class WatchExpressionsView extends ViewPane {
 	private variableReadonly: IContextKey<boolean>;
 	private menu: IMenu;
 	private expressionRenderer: DebugExpressionRenderer;
+
+	public get treeSelection() {
+		return this.tree.getSelection();
+	}
 
 	constructor(
 		options: IViewletViewOptions,

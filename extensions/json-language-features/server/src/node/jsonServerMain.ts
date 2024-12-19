@@ -8,8 +8,8 @@ import { formatError } from '../utils/runner';
 import { RequestService, RuntimeEnvironment, startServer } from '../jsonServer';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
-import { URI as Uri } from 'vscode-uri';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
+import * as l10n from '@vscode/l10n';
 
 // Create a connection for the server.
 const connection: Connection = createConnection();
@@ -36,16 +36,17 @@ function getHTTPRequestService(): RequestService {
 
 function getFileRequestService(): RequestService {
 	return {
-		getContent(location: string, encoding?: BufferEncoding) {
-			return new Promise((c, e) => {
-				const uri = Uri.parse(location);
-				fs.readFile(uri.fsPath, encoding, (err, buf) => {
-					if (err) {
-						return e(err);
-					}
-					c(buf.toString());
-				});
-			});
+		async getContent(location: string, encoding?: BufferEncoding) {
+			try {
+				return (await fs.readFile(location, encoding)).toString();
+			} catch (e) {
+				if (e.code === 'ENOENT') {
+					throw new Error(l10n.t('Schema not found: {0}', location));
+				} else if (e.code === 'EISDIR') {
+					throw new Error(l10n.t('{0} is a directory, not a file', location));
+				}
+				throw e;
+			}
 		}
 	};
 }
