@@ -112,6 +112,7 @@ export interface InstallExtensionOptions extends IWorkbenchInstallOptions {
 	version?: string;
 	justification?: string | { reason: string; action: string };
 	enable?: boolean;
+	installEverywhere?: boolean;
 }
 
 export interface IExtensionsNotification {
