@@ -1033,7 +1033,11 @@ class ChatSetupContext extends Disposable {
 		await this.extensionsWorkbenchService.queryLocal();
 
 		// Listen to change and process extensions once
-		this._register(Event.runAndSubscribe(this.extensionsWorkbenchService.onChange, () => {
+		this._register(Event.runAndSubscribe(this.extensionsWorkbenchService.onChange, (e) => {
+			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.extensionId)) {
+				return; // unrelated event
+			}
+
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
 			this.update({ installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local) });
 		}));
