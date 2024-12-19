@@ -22,7 +22,7 @@ import {
 	IAllowedExtensionsService,
 	AllowedExtensionsConfigKey
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, IWorkbenchInstallOptions } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -2368,8 +2368,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (extension?.isMalicious) {
 				throw new Error(nls.localize('malicious', "This extension is reported to be problematic."));
 			}
+			// TODO: @sandy081 - Install the extension only on servers where it is not installed
 			// Do not install if requested to enable and extension is already installed
-			if (!(installOptions.enable && extension?.local)) {
+			if (installOptions.installEverywhere || !(installOptions.enable && extension?.local)) {
 				if (!installable) {
 					if (!gallery) {
 						const id = isString(arg) ? arg : (<IExtension>arg).identifier.id;
@@ -2730,10 +2731,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.extensionManagementService.installVSIX(vsix, manifest, installOptions);
 	}
 
-	private installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	private installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: IWorkbenchInstallOptions): Promise<ILocalExtension> {
 		installOptions = installOptions ?? {};
 		installOptions.pinned = extension.local?.pinned || !this.shouldAutoUpdateExtension(extension);
-		if (extension.local) {
+		// TODO: @sandy081 - Install the extension only on servers where it is not installed
+		if (!installOptions.installEverywhere && extension.local) {
 			installOptions.productVersion = this.getProductVersion();
 			installOptions.operation = InstallOperation.Update;
 			return this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);
