@@ -140,6 +140,12 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
+		this._register(runOnChange(this._editorObs.onDidPaste, (_value, _changes) => {
+			if (this._enabled.get()) {
+				this.model.get()?.trigger();
+			}
+		}));
+
 		this._register(this._commandService.onDidExecuteCommand((e) => {
 			// These commands don't trigger onDidType.
 			const commands = new Set([
