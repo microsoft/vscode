@@ -90,12 +90,15 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			return this.preferredHome(schemeFilter);
 		}
 
-		const startParent = this.configurationService.getValue<'current' | 'parent'>('files.dialog.openFolderStartLocation') !== 'current';
-		if (startParent) {
-			return resources.dirname(candidate);
-		} else {
-			return (await this.fileService.stat(candidate)).isDirectory ? candidate : resources.dirname(candidate);
+		const startParent = this.configurationService.getValue<boolean>('files.dialog.useParentPathForOpenFolder') !== false;
+		if (!startParent) {
+			try {
+				return (await this.fileService.stat(candidate)).isDirectory ? candidate : resources.dirname(candidate);
+			} catch {
+				// fall back to parent.
+			}
 		}
+		return resources.dirname(candidate);
 	}
 
 	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
