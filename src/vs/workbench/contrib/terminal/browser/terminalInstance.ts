@@ -521,6 +521,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 
+			// Resolve the shell type ahead of time to allow features that depend upon it to work
+			// before the process is actually created (like terminal suggest manual request)
+			if (path.basename(this.shellLaunchConfig.executable ?? '').match(/^pwsh(-preview)?|powershell$/)) {
+				this.setShellType(GeneralShellType.PowerShell);
+			}
+
 			await this._createProcess();
 
 			// Re-establish the title after reconnect
