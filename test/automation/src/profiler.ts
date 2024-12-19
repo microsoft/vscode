@@ -55,13 +55,23 @@ export class Profiler {
 	}
 }
 
-function generateUuid() {
+function generateUuid(): string {
+	// use `randomUUID` if possible
+	if (typeof crypto === 'object' && typeof crypto.randomUUID === 'function') {
+		return crypto.randomUUID.bind(crypto).toString();
+	}
+
 	// use `randomValues` if possible
-	function getRandomValues(bucket: Uint8Array): Uint8Array {
-		for (let i = 0; i < bucket.length; i++) {
-			bucket[i] = Math.floor(Math.random() * 256);
-		}
-		return bucket;
+	let getRandomValues: (bucket: Uint8Array) => Uint8Array;
+	if (typeof crypto === 'object' && typeof crypto.getRandomValues === 'function') {
+		getRandomValues = crypto.getRandomValues.bind(crypto);
+	} else {
+		getRandomValues = function (bucket: Uint8Array): Uint8Array {
+			for (let i = 0; i < bucket.length; i++) {
+				bucket[i] = Math.floor(Math.random() * 256);
+			}
+			return bucket;
+		};
 	}
 
 	// prep-work
