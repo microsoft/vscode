@@ -10157,6 +10157,13 @@ declare module 'vscode' {
 		 *
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
+		 * * Example usage:
+		 * ```typescript
+		 * resolveCustomEditor(document, webviewPanel, token) {
+		 *   webviewPanel.webview.html = '<html><body><h1>Hello, Custom Editor!</h1></body></html>';
+		 *   return Promise.resolve();
+		 * }
+		 * ```
 		 * @returns Optional thenable indicating that the custom editor has been resolved.
 		 */
 		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
