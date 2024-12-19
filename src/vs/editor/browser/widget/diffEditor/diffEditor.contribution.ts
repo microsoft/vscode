@@ -47,7 +47,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 registerAction2(RevertHunkOrSelection);
 
 for (const ctx of [
-	{ icon: Codicon.arrowRight, key: EditorContextKeys.diffEditorInlineMode.toNegated() },
+	{ icon: Codicon.arrowLeft, key: EditorContextKeys.diffEditorInlineMode.toNegated() },
 	{ icon: Codicon.discard, key: EditorContextKeys.diffEditorInlineMode }
 ]) {
 	MenuRegistry.appendMenuItem(MenuId.DiffEditorHunkToolbar, {
