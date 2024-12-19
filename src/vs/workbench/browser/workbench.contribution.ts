@@ -490,6 +490,20 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
 				'default': false
 			},
+			'workbench.quickOpen.experimental.maximumWidth': {
+				'type': 'number',
+				'description': localize('workbench.quickOpen.maxWidth', "Limits the maximum width of Quick Open to the specified number of pixels."),
+				'default': 600,
+				'minimum': 200,
+				'maximum': 2000
+			},
+			'workbench.quickOpen.experimental.relativeWidth': {
+				'type': 'number',
+				'description': localize('workbench.quickOpen.relativeWidth', "Controls the width of Quick Open relative to the total window width."),
+				'default': 0.62,
+				'minimum': 0.5,
+				'maximum': 0.9
+			},
 			'workbench.settings.openDefaultSettings': {
 				'type': 'boolean',
 				'description': localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
