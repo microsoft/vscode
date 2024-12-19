@@ -102,8 +102,18 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			);
 			if (fiveMinutesBefore < new Date()) {
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
-				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent({ ...request, forceRefresh: true }));
+				const newRequest = this._isBrokerAvailable
+					// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
+					? { ...request, claims: '{ "id_token": {}}' }
+					: { ...request, forceRefresh: true };
+				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got refreshed result`);
+			}
+			const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
+			if (newIdTokenExpirationInSecs) {
+				if (new Date(newIdTokenExpirationInSecs * 1000) < new Date()) {
+					this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is still expired.`);
+				}
 			}
 		}
 
