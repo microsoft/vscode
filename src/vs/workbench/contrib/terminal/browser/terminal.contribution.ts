@@ -133,20 +133,9 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 // Register actions
 registerTerminalActions();
 
-const enum Constants {
+export const enum Constants {
 	/** The text representation of `^<letter>` is `'A'.charCodeAt(0) + 1`. */
 	CtrlLetterOffset = 64
-}
-
-// An extra Windows-only ctrl+v keybinding is used for pwsh that sends ctrl+v directly to the
-// shell, this gets handled by PSReadLine which properly handles multi-line pastes. This is
-// disabled in accessibility mode as PowerShell does not run PSReadLine when it detects a screen
-// reader. This works even when clipboard.readText is not supported.
-if (isWindows) {
-	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset), { // ctrl+v
-		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-		primary: KeyMod.CtrlCmd | KeyCode.KeyV
-	});
 }
 
 // Map certain keybindings in pwsh to unused keys which get handled by PSReadLine handlers in the
