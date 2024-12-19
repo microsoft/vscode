@@ -6,7 +6,7 @@
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, constObservable, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { IObservable, constObservable, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -16,7 +16,7 @@ import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { mapOutFalsy, n } from './utils.js';
+import { mapOutFalsy, n, rectToProps } from './utils.js';
 
 export const inlineEditIndicatorPrimaryForeground = registerColor('inlineEdit.gutterIndicator.primaryForeground', buttonForeground, 'Foreground color for the primary inline edit gutter indicator.');
 export const inlineEditIndicatorPrimaryBackground = registerColor('inlineEdit.gutterIndicator.primaryBackground', buttonBackground, 'Background color for the primary inline edit gutter indicator.');
@@ -157,7 +157,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 						case 'accept': return 'var(--vscode-inlineEdit-gutterIndicator-successfulBackground)';
 					}
 				}),
-				'--vscodeIconForeground': this._tabAction.map(v => {
+				['--vscodeIconForeground' as any]: this._tabAction.map(v => {
 					switch (v) {
 						case 'inactive': return 'var(--vscode-inlineEdit-gutterIndicator-secondaryForeground)';
 						case 'jump': return 'var(--vscode-inlineEdit-gutterIndicator-primaryForeground)';
@@ -187,13 +187,4 @@ export class InlineEditsGutterIndicator extends Disposable {
 			])
 		]),
 	])).keepUpdated(this._store);
-}
-
-function rectToProps(fn: (reader: IReader) => Rect): any {
-	return {
-		left: derived(reader => fn(reader).left),
-		top: derived(reader => fn(reader).top),
-		width: derived(reader => fn(reader).right - fn(reader).left),
-		height: derived(reader => fn(reader).bottom - fn(reader).top),
-	};
 }

@@ -16,6 +16,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
+import { Rect } from '../../../../../browser/rect.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
@@ -173,9 +174,13 @@ type SVGElementTagNameMap2 = {
 		width: number;
 		height: number;
 		transform: string;
+		viewBox: string;
+		fill: string;
 	};
 	path: SVGElement & {
 		d: string;
+		stroke: string;
+		fill: string;
 	};
 	linearGradient: SVGElement & {
 		id: string;
@@ -463,5 +468,14 @@ export function observeElementPosition(element: HTMLElement, store: DisposableSt
 	return {
 		top,
 		left
+	};
+}
+
+export function rectToProps(fn: (reader: IReader) => Rect) {
+	return {
+		left: derived(reader => fn(reader).left),
+		top: derived(reader => fn(reader).top),
+		width: derived(reader => fn(reader).right - fn(reader).left),
+		height: derived(reader => fn(reader).bottom - fn(reader).top),
 	};
 }
