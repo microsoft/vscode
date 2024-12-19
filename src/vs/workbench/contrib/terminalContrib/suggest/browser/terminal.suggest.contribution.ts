@@ -12,7 +12,7 @@ import { DisposableStore, MutableDisposable, toDisposable } from '../../../../..
 import { isWindows } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { GeneralShellType, TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
@@ -42,8 +42,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
-	private _terminalSuggestWidgetContextKeys: IReadableSet<string> = new Set(TerminalContextKeys.suggestWidgetVisible.key);
-	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
+	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
 	get pwshAddon(): PwshCompletionProviderAddon | undefined { return this._pwshAddon.value; }
@@ -87,23 +86,19 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		if (!enabled) {
 			return;
 		}
+		this.add(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(TerminalSettingId.SendKeybindingsToShell)) {
+				this._loadAddons(xterm.raw);
+			}
+		}));
 		this.add(Event.runAndSubscribe(this._ctx.instance.onDidChangeShellType, async () => {
-			this._loadAddons(xterm.raw);
-		}));
-		this.add(this._contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(this._terminalSuggestWidgetContextKeys)) {
-				this._loadAddons(xterm.raw);
-			}
-		}));
-		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.SendKeybindingsToShell)) {
-				this._loadAddons(xterm.raw);
-			}
+			this._refreshAddons();
 		}));
 	}
 
 	private _loadPwshCompletionAddon(xterm: RawXtermTerminal): void {
 		if (this._ctx.instance.shellType !== GeneralShellType.PowerShell) {
+			this._pwshAddon.clear();
 			return;
 		}
 		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
@@ -140,40 +135,52 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private _loadAddons(xterm: RawXtermTerminal): void {
 		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
-		if (sendingKeybindingsToShell || !this._ctx.instance.shellType) {
+		if (sendingKeybindingsToShell) {
 			this._addon.clear();
 			this._pwshAddon.clear();
 			return;
 		}
-		if (this._terminalSuggestWidgetVisibleContextKey) {
-			const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
-			xterm.loadAddon(addon);
-			this._loadPwshCompletionAddon(xterm);
-			if (this._ctx.instance.target === TerminalLocation.Editor) {
-				addon.setContainerWithOverflow(xterm.element!);
-			} else {
-				addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
-			}
-			addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-			this.add(this._ctx.instance.onDidBlur(() => addon.hideSuggestWidget()));
-			this.add(addon.onAcceptedCompletion(async text => {
-				this._ctx.instance.focus();
-				this._ctx.instance.sendText(text, false);
-			}));
-			const clipboardContrib = TerminalClipboardContribution.get(this._ctx.instance)!;
-			this.add(clipboardContrib.onWillPaste(() => addon.isPasting = true));
-			this.add(clipboardContrib.onDidPaste(() => {
-				// Delay this slightly as synchronizing the prompt input is debounced
-				setTimeout(() => addon.isPasting = false, 100);
-			}));
-			if (!isWindows) {
-				let barrier: AutoOpenBarrier | undefined;
-				this.add(addon.onDidReceiveCompletions(() => {
-					barrier?.open();
-					barrier = undefined;
-				}));
-			}
+
+		// Don't re-create the addon
+		if (this._addon.value) {
+			return;
 		}
+
+		const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
+		xterm.loadAddon(addon);
+		this._loadPwshCompletionAddon(xterm);
+		if (this._ctx.instance.target === TerminalLocation.Editor) {
+			addon.setContainerWithOverflow(xterm.element!);
+		} else {
+			addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
+		}
+		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
+		this.add(this._ctx.instance.onDidBlur(() => addon.hideSuggestWidget()));
+		this.add(addon.onAcceptedCompletion(async text => {
+			this._ctx.instance.focus();
+			this._ctx.instance.sendText(text, false);
+		}));
+		const clipboardContrib = TerminalClipboardContribution.get(this._ctx.instance)!;
+		this.add(clipboardContrib.onWillPaste(() => addon.isPasting = true));
+		this.add(clipboardContrib.onDidPaste(() => {
+			// Delay this slightly as synchronizing the prompt input is debounced
+			setTimeout(() => addon.isPasting = false, 100);
+		}));
+		if (!isWindows) {
+			let barrier: AutoOpenBarrier | undefined;
+			this.add(addon.onDidReceiveCompletions(() => {
+				barrier?.open();
+				barrier = undefined;
+			}));
+		}
+	}
+
+	private _refreshAddons(): void {
+		const addon = this._addon.value;
+		if (!addon) {
+			return;
+		}
+		addon.shellType = this._ctx.instance.shellType;
 	}
 }
 

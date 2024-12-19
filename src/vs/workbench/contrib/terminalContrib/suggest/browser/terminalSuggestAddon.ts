@@ -73,6 +73,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 
 	isPasting: boolean = false;
+	shellType: TerminalShellType | undefined;
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -92,7 +93,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _shouldSyncWhenReady: boolean = false;
 
 	constructor(
-		private readonly _shellType: TerminalShellType | undefined,
+		shellType: TerminalShellType | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
@@ -102,6 +103,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		super();
+
+		this.shellType = shellType;
 
 		this._register(Event.runAndSubscribe(Event.any(
 			this._capabilities.onDidAddCapabilityType,
@@ -146,7 +149,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		if (!this._shellType) {
+		if (!this.shellType) {
 			return;
 		}
 
@@ -162,7 +165,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.prefix, this._promptInputModel.cursorIndex, this._shellType, token, doNotRequestExtensionCompletions);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.prefix, this._promptInputModel.cursorIndex, this.shellType, token, doNotRequestExtensionCompletions);
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
 		}
