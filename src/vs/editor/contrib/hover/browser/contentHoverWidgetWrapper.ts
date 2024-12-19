@@ -27,7 +27,6 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 	private _currentResult: ContentHoverResult | null = null;
 	private _renderedContentHover: RenderedContentHover | undefined;
-	private _temporarilySticky: boolean = false;
 
 	private readonly _contentHoverWidget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
@@ -163,25 +162,11 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		if (currentHoverResultIsEmpty) {
 			currentHoverResult = null;
 		}
-		const hoverVisible = this._contentHoverWidget.isVisible;
-		if (!hoverVisible) {
-			this._renderResult(currentHoverResult);
-		} else {
-			if (this._temporarilySticky) {
-				return;
-			} else {
-				this._renderResult(currentHoverResult);
-			}
-		}
-	}
-
-	private _renderResult(currentHoverResult: ContentHoverResult | null): void {
 		this._currentResult = currentHoverResult;
 		if (this._currentResult) {
 			this._showHover(this._currentResult);
 		} else {
-			this._contentHoverWidget.hide();
-			this._participants.forEach(participant => participant.handleHide?.());
+			this._hideHover();
 		}
 	}
 
@@ -228,6 +213,11 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		} else {
 			this._renderedContentHover.dispose();
 		}
+	}
+
+	private _hideHover(): void {
+		this._contentHoverWidget.hide();
+		this._participants.forEach(participant => participant.handleHide?.());
 	}
 
 	private _getHoverContext(): IEditorHoverContext {
@@ -301,10 +291,6 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		if (isMousePositionOutsideOfEditor) {
 			this.hide();
 		}
-	}
-
-	public set temporarilySticky(value: boolean) {
-		this._temporarilySticky = value;
 	}
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
