@@ -127,3 +127,5 @@ export function throttle<T>(delay: number, reducer?: IDebounceReducer<T>, initia
 		};
 	});
 }
+
+export { cancelPreviousCalls } from './decorators/cancelPreviousCalls.js';

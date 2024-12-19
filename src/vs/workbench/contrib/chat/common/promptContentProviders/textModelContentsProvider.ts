@@ -15,6 +15,9 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
  * Prompt contents provider for a {@linkcode ITextModel} instance.
  */
 export class TextModelContentsProvider extends PromptContentsProviderBase<IModelContentChangedEvent> {
+	/**
+	 * URI component of the prompt associated with this contents provider.
+	 */
 	public readonly uri = this.model.uri;
 
 	constructor(

@@ -9,6 +9,7 @@ import { Range } from '../../../common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { newWriteableStream } from '../../../../base/common/stream.js';
 import { Line } from '../../../common/codecs/linesCodec/tokens/line.js';
+import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
 import { CarriageReturn } from '../../../common/codecs/linesCodec/tokens/carriageReturn.js';
 import { LinesDecoder, TLineToken } from '../../../common/codecs/linesCodec/linesDecoder.js';
@@ -157,6 +158,11 @@ suite('LinesDecoder', () => {
 			assert(
 				transformed instanceof LinesDecoder,
 				"Must return an instance of the original decoder.",
+			);
+
+			assert(
+				transformed instanceof BaseDecoder,
+				"Must return an instance of the base decoder.",
 			);
 
 			setTimeout(() => {

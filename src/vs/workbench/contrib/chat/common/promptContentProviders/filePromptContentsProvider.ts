@@ -34,7 +34,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 				}
 
 				// if file was deleted, forward the event to
-				// the `getContentsStream` produce an error
+				// the `getContentsStream()` produce an error
 				if (event.contains(this.uri, FileChangeType.DELETED)) {
 					return this.onChangeEmitter.fire(event);
 				}
