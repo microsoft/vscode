@@ -73,7 +73,7 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
-	private viewState: QuickInputViewState = {};
+	private viewState: QuickInputViewState | undefined;
 	private readonly resizableContainer: ResizableHTMLElement;
 	private dndController: QuickInputDragAndDropController | undefined;
 
@@ -103,6 +103,8 @@ export class QuickInputController extends Disposable {
 				this.layout(this.layoutService.mainContainerDimension, this.layoutService.mainContainerOffset.quickPickTop);
 			}
 		}));
+
+		this.viewState = this.loadViewState();
 
 		this.resizableContainer = this._register(new ResizableHTMLElement());
 		this.resizableContainer.minSize = new dom.Dimension(QuickInputController.MIN_WIDTH, QuickInputController.MIN_HEIGHT);
@@ -360,11 +362,16 @@ export class QuickInputController extends Disposable {
 				return;
 			}
 
-			this.viewState = {
-				...this.viewState,
-				top: dndViewState.top,
-				left: dndViewState.left
-			};
+			if (dndViewState.top !== undefined && dndViewState.left !== undefined) {
+				this.viewState = {
+					...this.viewState,
+					top: dndViewState.top,
+					left: dndViewState.left
+				};
+			} else {
+				// Reset position/size
+				this.viewState = undefined;
+			}
 
 			this.updateLayout();
 
@@ -792,12 +799,12 @@ export class QuickInputController extends Disposable {
 			const style = this.ui.container.style;
 
 			// Size
-			const heigth = this.viewState.size?.height ?? Math.floor(Math.floor(this.dimension!.height * 0.4) / 44) * 44 + 35 /* header */ + 2 /* progress */;
-			const width = this.viewState.size?.width ?? Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+			const heigth = this.viewState?.size?.height ?? Math.floor(Math.floor(this.dimension!.height * 0.3) / 44) * 44 + 16 /* buffer */ + 35 /* header */ + 2 /* progress */;
+			const width = this.viewState?.size?.width ?? Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 
 			// Position
-			style.top = `${this.viewState.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * (this.viewState.left ?? 0.5 /* center */)) - (width / 2))}px`;
+			style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout();
@@ -865,19 +872,18 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	// private loadViewState(): QuickInputViewState | undefined {
-	// 	// try {
-	// 	// 	const data = JSON.parse(this.storageService.get(STATE_STORAGE_KEY, StorageScope.WORKSPACE, '{}'));
-	// 	// 	if (data.top !== undefined && data.left !== undefined && data.width !== undefined && data.size !== undefined) {
-	// 	// 		return data;
-	// 	// 	}
-	// 	// } catch { }
+	private loadViewState(): QuickInputViewState | undefined {
+		try {
+			const data = JSON.parse(this.storageService.get(VIEWSTATE_STORAGE_KEY, StorageScope.APPLICATION, '{}'));
+			if (data.top !== undefined || data.left !== undefined || data.size !== undefined) {
+				return data;
+			}
+		} catch { }
 
-	// 	// return {};
-	// 	return undefined;
-	// }
+		return undefined;
+	}
 
-	private saveViewState(viewState: QuickInputViewState): void {
+	private saveViewState(viewState: QuickInputViewState | undefined): void {
 		const isMainWindow = this.layoutService.activeContainer === this.layoutService.mainContainer;
 		if (!isMainWindow) {
 			return;
@@ -886,28 +892,14 @@ export class QuickInputController extends Disposable {
 		if (viewState !== undefined) {
 			this.storageService.store(VIEWSTATE_STORAGE_KEY, JSON.stringify(viewState), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		} else {
-			this.storageService.remove(VIEWSTATE_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(VIEWSTATE_STORAGE_KEY, StorageScope.APPLICATION);
 		}
 	}
-
-	// private loadViewState() {
-	// 	// try {
-	// 	// 	const data = JSON.parse(this.storageService.get(POSITION_STORAGE_KEY, StorageScope.APPLICATION, ''));
-	// 	// 	if (data.top !== undefined && data.left !== undefined) {
-	// 	// 		return [data.top, data.left];
-	// 	// 	}
-	// 	// } catch { }
-
-	// 	// return [undefined, undefined];
-	// }
 }
 
 export interface IQuickInputControllerHost extends ILayoutService { }
 
 class QuickInputDragAndDropController extends Disposable {
-	// readonly onDidDropSignal = observableSignal(this);
-	// readonly dragTopRatio = observableValue<number | undefined>(this, undefined);
-	// readonly dragLeftRatio = observableValue<number | undefined>(this, undefined);
 	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean } | undefined>(this, undefined);
 
 	private readonly _snapThreshold = 20;
@@ -932,6 +924,9 @@ class QuickInputDragAndDropController extends Disposable {
 	}
 
 	private registerMouseListeners() {
+		let top: number | undefined;
+		let left: number | undefined;
+
 		// Double click
 		this._register(dom.addDisposableGenericMouseUpListener(this._quickInputDragArea, (event: MouseEvent) => {
 			const originEvent = new StandardMouseEvent(dom.getWindow(this._quickInputDragArea), event);
@@ -942,11 +937,10 @@ class QuickInputDragAndDropController extends Disposable {
 			}
 
 			if (originEvent.detail === 2) {
-				this.dndViewState.set({
-					top: undefined,
-					left: undefined,
-					done: true
-				}, undefined);
+				top = undefined;
+				left = undefined;
+
+				this.dndViewState.set({ top, left, done: true }, undefined);
 			}
 		}));
 
@@ -969,20 +963,6 @@ class QuickInputDragAndDropController extends Disposable {
 			const snapCoordinateY = Math.round(this._container.clientHeight * this._snapLineHorizontalRatio);
 			const snapCoordinateX = Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
 
-			// Top ratio calculation
-			const computeTopRatio = (e: MouseEvent) => {
-				let top = e.clientY - dragOffsetY;
-				top = Math.abs(top - snapCoordinateY) < this._snapThreshold ? snapCoordinateY : top;
-				return top / this._container.clientHeight;
-			};
-
-			// Left ration calculation
-			const computeLeftRatio = (e: MouseEvent) => {
-				let left = e.clientX - dragOffsetX;
-				left = Math.abs(left - snapCoordinateX) < this._snapThreshold ? snapCoordinateX : left;
-				return (left + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth;
-			};
-
 			// Mouse move
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(activeWindow, e);
@@ -993,11 +973,15 @@ class QuickInputDragAndDropController extends Disposable {
 					snapLinesVisible = true;
 				}
 
-				this.dndViewState.set({
-					top: computeTopRatio(e),
-					left: computeLeftRatio(e),
-					done: false
-				}, undefined);
+				let topCoordinate = e.clientY - dragOffsetY;
+				topCoordinate = Math.abs(topCoordinate - snapCoordinateY) < this._snapThreshold ? snapCoordinateY : topCoordinate;
+				top = topCoordinate / this._container.clientHeight;
+
+				let leftCoordinate = e.clientX - dragOffsetX;
+				leftCoordinate = Math.abs(leftCoordinate - snapCoordinateX) < this._snapThreshold ? snapCoordinateX : leftCoordinate;
+				left = (leftCoordinate + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth;
+
+				this.dndViewState.set({ top, left, done: false }, undefined);
 			});
 
 			// Mouse up
@@ -1006,11 +990,7 @@ class QuickInputDragAndDropController extends Disposable {
 				this._hideSnapLines();
 
 				// Save position
-				this.dndViewState.set({
-					top: computeTopRatio(e),
-					left: computeLeftRatio(e),
-					done: true
-				}, undefined);
+				this.dndViewState.set({ top, left, done: true }, undefined);
 
 				// Dispose listeners
 				mouseMoveListener.dispose();
