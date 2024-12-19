@@ -7,6 +7,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
+import * as iconv from '@vscode/iconv-lite-umd';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
@@ -24,6 +25,7 @@ import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
+import { detectEncoding } from './encoding';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -1215,7 +1217,17 @@ export class Repository implements Disposable {
 	async stage(resource: Uri, contents: string): Promise<void> {
 		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, async () => {
-			await this.repository.stage(path, contents);
+			const configFiles = workspace.getConfiguration('files', Uri.file(resource.fsPath));
+			let encoding = configFiles.get<string>('encoding') ?? 'utf8';
+			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding') === true;
+			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings') ?? [];
+
+			if (autoGuessEncoding) {
+				encoding = detectEncoding(Buffer.from(contents), candidateGuessEncodings) ?? encoding;
+			}
+
+			encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+			await this.repository.stage(path, contents, encoding);
 
 			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
