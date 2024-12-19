@@ -108,8 +108,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _tabAction = derived(this, reader => {
 		const m = this._model.read(reader);
-		if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return 'accept' as const; }
 		if (m && m.tabShouldJumpToInlineEdit.read(reader)) { return 'jump' as const; }
+		if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return 'accept' as const; }
 		return 'inactive' as const;
 	});
 
