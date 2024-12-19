@@ -43,7 +43,6 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../common/v
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
@@ -1018,7 +1017,6 @@ class ChatSetupContext extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1030,25 +1028,19 @@ class ChatSetupContext extends Disposable {
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
-		this._register(this.extensionService.onDidChangeExtensions(result => {
-			for (const extension of result.removed) {
-				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.update({ installed: false });
-					break;
-				}
+
+		// Await extensions to be ready to be queries
+		await this.extensionsWorkbenchService.queryLocal();
+
+		// Listen to change and process extensions once
+		this._register(Event.runAndSubscribe(this.extensionsWorkbenchService.onChange, (e) => {
+			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.extensionId)) {
+				return; // unrelated event
 			}
 
-			for (const extension of result.added) {
-				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.update({ installed: true });
-					break;
-				}
-			}
+			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
+			this.update({ installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local) });
 		}));
-
-		const extensions = await this.extensionsWorkbenchService.queryLocal();
-		const defaultChatExtension = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-		this.update({ installed: !!defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local) });
 	}
 
 	update(context: { installed: boolean }): Promise<void>;
