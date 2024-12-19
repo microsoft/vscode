@@ -138,6 +138,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			description: nls.localize('collapseOnResolve', "Controls whether the comment thread should collapse when the thread is resolved.")
+		},
+		'comments.thread.confirmOnCollapse': {
+			type: 'string',
+			enum: ['whenHasUnsubmittedComments', 'never'],
+			default: 'never',
+			description: nls.localize('confirmOnCollapse', "Controls whether a confirmation dialog is shown when collapsing a comment thread with unsubmitted comments.")
 		}
 	}
 });
