@@ -362,6 +362,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
+		this.scopeOverridesIndicator.disposables.clear();
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
 		this.scopeOverridesIndicator.focusElement = this.scopeOverridesIndicator.element;
@@ -409,7 +410,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// just to click into the one override there is.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.remove('setting-indicator');
-				this.scopeOverridesIndicator.disposables.clear();
 
 				const prefaceText = element.isConfigured ?
 					localize('alsoConfiguredIn', "Also modified in") :
