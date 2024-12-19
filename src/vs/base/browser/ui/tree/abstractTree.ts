@@ -3080,17 +3080,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		const root = this.model.getNode();
-		const queue = [root];
+		const stack = [root];
 
-		let index = 0;
-		while (index < queue.length) {
-			const node = queue[index++];
+		while (stack.length > 0) {
+			const node = stack.pop()!;
 
 			if (node !== root && node.collapsible) {
 				state.expanded[getId(node.element)] = node.collapsed ? 0 : 1;
 			}
 
-			insertInto(queue, queue.length, node.children);
+			insertInto(stack, stack.length, node.children);
 		}
 
 		return state;
