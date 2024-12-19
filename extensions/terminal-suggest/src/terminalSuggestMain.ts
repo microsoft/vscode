@@ -12,14 +12,14 @@ import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
 
 let cachedAvailableCommands: Set<string> | undefined;
-let cachedBuiltinCommands: Map<string, string[]> | undefined;
+const cachedBuiltinCommands: Map<string, string[] | undefined> = new Map();
 
 export const availableSpecs = [codeCompletionSpec, codeInsidersCompletionSpec, cdSpec];
 
 function getBuiltinCommands(shell: string): string[] | undefined {
 	try {
 		const shellType = path.basename(shell, path.extname(shell));
-		const cachedCommands = cachedBuiltinCommands?.get(shellType);
+		const cachedCommands = cachedBuiltinCommands.get(shellType);
 		if (cachedCommands) {
 			return cachedCommands;
 		}
@@ -38,14 +38,14 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 				break;
 			}
 			case 'fish': {
-				// TODO: ghost text in the command line prevents
-				// completions from working ATM for fish
+				// TODO: Ghost text in the command line prevents completions from working ATM for fish
 				const fishOutput = execSync('functions -n', options);
 				commands = fishOutput.split(', ').filter(filter);
 				break;
 			}
 			case 'pwsh': {
-				const output = execSync('Get-Command | Select-Object Name, CommandType, DisplayName | ConvertTo-Json', options);
+				// TODO: Select `CommandType, DisplayName` and map to a rich type with kind and detail
+				const output = execSync('Get-Command -All | Select-Object Name | ConvertTo-Json', options);
 				let json: any;
 				try {
 					json = JSON.parse(output);
@@ -53,17 +53,12 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 					console.error('Error parsing pwsh output:', e);
 					return [];
 				}
-				// TODO: Return a rich type with kind and detail
 				commands = (json as any[]).map(e => e.Name);
 				break;
 			}
 		}
-		// TODO: Cache failure results too
-		if (commands?.length) {
-			cachedBuiltinCommands?.set(shellType, commands);
-			return commands;
-		}
-		return;
+		cachedBuiltinCommands.set(shellType, commands);
+		return commands;
 
 	} catch (error) {
 		console.error('Error fetching builtin commands:', error);
