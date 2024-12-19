@@ -8,12 +8,13 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { darken, lighten, registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
@@ -108,7 +109,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			originalDisplayRange: LineRange;
 		} | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -266,6 +268,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			},
 			readOnly: true,
 			wordWrap: 'off',
+			wordWrapOverride1: 'off',
+			wordWrapOverride2: 'off',
 		},
 		{ contributions: [], },
 		this._editor
@@ -335,6 +339,22 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
 	private readonly _originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
 
+	private readonly _originalDisplayRange = this._uiState.map(s => s?.originalDisplayRange);
+	private readonly _editorMaxContentWidthInRange = derived(this, reader => {
+		const originalDisplayRange = this._originalDisplayRange.read(reader);
+		if (!originalDisplayRange) {
+			return constObservable(0);
+		}
+		this._editorObs.versionId.read(reader);
+
+		// Take the max value that we observed.
+		// Reset when either the edit changes or the editor text version.
+		return derivedObservableWithCache<number>(this, (reader, lastValue) => {
+			const maxWidth = maxContentWidthInRange(this._editorObs, originalDisplayRange, reader);
+			return Math.max(maxWidth, lastValue ?? 0);
+		});
+	}).map((v, r) => v.read(r));
+
 	/**
 	 * ![test](./layout.dio.svg)
 	*/
@@ -352,7 +372,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 
-		const editorContentMaxWidthInRange = maxContentWidthInRange(this._editorObs, state.originalDisplayRange, reader);
+		const editorContentMaxWidthInRange = this._editorMaxContentWidthInRange.read(reader);
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const previewContentWidth = this._previewEditorWidth.read(reader);
 		const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
@@ -389,7 +409,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		} else {
 			desiredPreviewEditorScrollLeft = horizontalScrollOffset - previewEditorLeftInTextArea;
 			left = editorLayout.contentLeft;
-
 		}
 
 		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
@@ -472,19 +491,33 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		return extendedModifiedPathBuilder.build();
 	});
 
+	private readonly _originalBackgroundColor = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => {
+		return this._themeService.getColorTheme().getColor(originalBackgroundColor) ?? Color.transparent;
+	});
+
 	private readonly _backgroundSvg = n.svg({
 		transform: 'translate(-0.5 -0.5)',
 		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
 	}, [
 		n.svgElem('path', {
 			class: 'rightOfModifiedBackgroundCoverUp',
-			d: this._previewEditorLayoutInfo.map(layoutInfo => layoutInfo && new PathBuilder()
-				.moveTo(layoutInfo.code1)
-				.lineTo(layoutInfo.code1.deltaX(1000))
-				.lineTo(layoutInfo.code2.deltaX(1000))
-				.lineTo(layoutInfo.code2)
-				.build()
-			),
+			d: derived(reader => {
+				const layoutInfo = this._previewEditorLayoutInfo.read(reader);
+				if (!layoutInfo) {
+					return undefined;
+				}
+				const originalBackgroundColor = this._originalBackgroundColor.read(reader);
+				if (originalBackgroundColor.isTransparent()) {
+					return undefined;
+				}
+
+				return new PathBuilder()
+					.moveTo(layoutInfo.code1)
+					.lineTo(layoutInfo.code1.deltaX(1000))
+					.lineTo(layoutInfo.code2.deltaX(1000))
+					.lineTo(layoutInfo.code2)
+					.build();
+			}),
 			style: {
 				fill: 'var(--vscode-editor-background, transparent)',
 			}
@@ -601,7 +634,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		class: 'inline-edits-view',
 		style: {
 			overflow: 'visible',
-			zIndex: '10',
+			zIndex: '20',
 			display: this._display,
 		},
 	}, [

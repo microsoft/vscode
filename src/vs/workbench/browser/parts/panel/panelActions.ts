@@ -46,6 +46,9 @@ export class TogglePanelAction extends Action2 {
 			icon: closeIcon, // Ensures no flickering when using toggled.icon
 			f1: true,
 			category: Categories.View,
+			metadata: {
+				description: localize('openAndClosePanel', 'Open/Show and Close/Hide Panel'),
+			},
 			keybinding: { primary: KeyMod.CtrlCmd | KeyCode.KeyJ, weight: KeybindingWeight.WorkbenchContrib },
 			menu: [
 				{
@@ -72,6 +75,21 @@ export class TogglePanelAction extends Action2 {
 }
 
 registerAction2(TogglePanelAction);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.closePanel',
+			title: localize2('closePanel', 'Hide Panel'),
+			category: Categories.View,
+			precondition: PanelVisibleContext,
+			f1: true,
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.PANEL_PART);
+	}
+});
 
 registerAction2(class extends Action2 {
 

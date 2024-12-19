@@ -366,7 +366,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'never'
 		},
 		[TerminalSettingId.ConfirmOnKill]: {
-			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as changed when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell."),
+			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as changed when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell. Background terminals like those launched by some extensions will not trigger the confirmation."),
 			type: 'string',
 			enum: ['never', 'editor', 'panel', 'always'],
 			enumDescriptions: [

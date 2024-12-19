@@ -789,7 +789,7 @@ export class SettingsEditor2 extends EditorPane {
 	private async openSettingsFile(options?: ISettingsEditorOptions): Promise<IEditorPane | undefined> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
-		const openOptions: IOpenSettingsOptions = { jsonEditor: true, ...options };
+		const openOptions: IOpenSettingsOptions = { jsonEditor: true, groupId: this.group.id, ...options };
 		if (currentSettingsTarget === ConfigurationTarget.USER_LOCAL) {
 			if (options?.revealSetting) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();

@@ -9,13 +9,15 @@ import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { derived, derivedObservableWithCache, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
+import { Rect } from '../../../../../browser/rect.js';
+import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -34,7 +36,13 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
 		const column = model.getLineMaxColumn(i);
-		const lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		let lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		if (lineContentWidth === -1) {
+			// approximation
+			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+			const approximation = column * typicalHalfwidthCharacterWidth;
+			lineContentWidth = approximation;
+		}
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
 	}
 	const lines = range.mapToLineArray(l => model.getLineContent(l));
@@ -166,9 +174,13 @@ type SVGElementTagNameMap2 = {
 		width: number;
 		height: number;
 		transform: string;
+		viewBox: string;
+		fill: string;
 	};
 	path: SVGElement & {
 		d: string;
+		stroke: string;
+		fill: string;
 	};
 	linearGradient: SVGElement & {
 		id: string;
@@ -322,6 +334,8 @@ export abstract class ObserverNode<T extends Element = Element> extends Disposab
 				} else {
 					this._element.tabIndex = value;
 				}
+			} else if (key.startsWith('on')) {
+				(this._element as any)[key] = value;
 			} else {
 				if (isObservable(value)) {
 					this._deriveds.push(derived(this, reader => {
@@ -414,16 +428,23 @@ type ElementAttributeKeys<T> = Partial<{
 	? never
 	: T[K] extends object
 	? ElementAttributeKeys<T[K]>
-	: Value<T[K] | undefined | null>
+	: Value<number | T[K] | undefined | null>
 }>;
 
-export function mapOutFalsy<T>(obs: IObservable<T | undefined | null | false>): IObservable<IObservable<T> | undefined | null | false> {
+type RemoveFalsy<T> = T extends false | undefined | null ? never : T;
+type Falsy<T> = T extends false | undefined | null ? T : never;
+
+export function mapOutFalsy<T>(obs: IObservable<T>): IObservable<IObservable<RemoveFalsy<T>> | Falsy<T>> {
+	const nonUndefinedObs = derivedObservableWithCache<T | undefined | null | false>(undefined, (reader, lastValue) => obs.read(reader) || lastValue);
+
 	return derived(reader => {
+		nonUndefinedObs.read(reader);
 		const val = obs.read(reader);
 		if (!val) {
-			return undefined;
+			return undefined as Falsy<T>;
 		}
-		return obs as IObservable<T>;
+
+		return nonUndefinedObs as IObservable<RemoveFalsy<T>>;
 	});
 }
 
@@ -447,5 +468,14 @@ export function observeElementPosition(element: HTMLElement, store: DisposableSt
 	return {
 		top,
 		left
+	};
+}
+
+export function rectToProps(fn: (reader: IReader) => Rect) {
+	return {
+		left: derived(reader => fn(reader).left),
+		top: derived(reader => fn(reader).top),
+		width: derived(reader => fn(reader).right - fn(reader).left),
+		height: derived(reader => fn(reader).bottom - fn(reader).top),
 	};
 }

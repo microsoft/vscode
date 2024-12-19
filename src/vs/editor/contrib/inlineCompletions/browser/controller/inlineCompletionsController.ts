@@ -38,6 +38,8 @@ import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsView } from '../view/inlineCompletionsView.js';
 
 export class InlineCompletionsController extends Disposable {
+	private static readonly _instances = new Set<InlineCompletionsController>();
+
 	public static hot = createHotClass(InlineCompletionsController);
 	public static ID = 'editor.contrib.inlineCompletionsController';
 
@@ -116,7 +118,29 @@ export class InlineCompletionsController extends Disposable {
 	) {
 		super();
 
+		InlineCompletionsController._instances.add(this);
+		this._register(toDisposable(() => InlineCompletionsController._instances.delete(this)));
+
+		this._register(autorun(reader => {
+			// Cancel all other inline completions when a new one starts
+			const model = this.model.read(reader);
+			if (!model) { return; }
+			if (model.state.read(reader) !== undefined) {
+				for (const ctrl of InlineCompletionsController._instances) {
+					if (ctrl !== this) {
+						ctrl.reject();
+					}
+				}
+			}
+		}));
+
 		this._register(runOnChange(this._editorObs.onDidType, (_value, _changes) => {
+			if (this._enabled.get()) {
+				this.model.get()?.trigger();
+			}
+		}));
+
+		this._register(runOnChange(this._editorObs.onDidPaste, (_value, _changes) => {
 			if (this._enabled.get()) {
 				this.model.get()?.trigger();
 			}
@@ -163,14 +187,16 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
-			if (this.model.get()?.inlineEditAvailable.get()) {
-				// dont hide inline edits on blur
+			const model = this.model.get();
+			if (!model) { return; }
+			if (model.state.get()?.inlineCompletion?.request.isExplicitRequest && model.inlineEditAvailable.get()) {
+				// dont hide inline edits on blur when requested explicitly
 				return;
 			}
 
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidBlurEditorWidget */
-				this.model.get()?.stop('automatic', tx);
+				model.stop('automatic', tx);
 			});
 		}));
 

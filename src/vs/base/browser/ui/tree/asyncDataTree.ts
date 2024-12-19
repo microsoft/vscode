@@ -24,7 +24,7 @@ import { isIterable } from '../../../common/types.js';
 import { CancellationToken, CancellationTokenSource } from '../../../common/cancellation.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { FuzzyScore } from '../../../common/filters.js';
-import { splice } from '../../../common/arrays.js';
+import { insertInto, splice } from '../../../common/arrays.js';
 import { localize } from '../../../../nls.js';
 
 interface IAsyncDataTreeNode<TInput, T> {
@@ -1350,7 +1350,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				expanded.push(getId(node.element!.element as T));
 			}
 
-			stack.push(...node.children);
+			insertInto(stack, stack.length, node.children);
 		}
 
 		return { focus, selection, expanded, scrollTop: this.scrollTop };

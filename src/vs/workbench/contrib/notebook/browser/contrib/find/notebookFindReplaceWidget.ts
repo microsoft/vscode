@@ -20,6 +20,7 @@ import { Widget } from '../../../../../../base/browser/ui/widget.js';
 import { Action, ActionRunner, IAction, IActionRunner, Separator } from '../../../../../../base/common/actions.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isSafari } from '../../../../../../base/common/platform.js';
@@ -345,6 +346,17 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
+
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(NotebookSetting.globalToolbar)) {
+				if (this._notebookEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+					this._domNode.style.top = '26px';
+				} else {
+					this._domNode.style.top = '0px';
+				}
+			}
+		}));
+
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
 

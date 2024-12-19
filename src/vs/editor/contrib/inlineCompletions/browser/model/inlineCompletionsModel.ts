@@ -227,6 +227,7 @@ export class InlineCompletionsModel extends Disposable {
 				this._onlyRequestInlineEditsSignal.trigger(tx);
 			}
 			this._isActive.set(true, tx);
+			this._inAcceptFlow.set(true, tx);
 			this._forceUpdateExplicitlySignal.trigger(tx);
 		});
 		await this._fetchInlineCompletionsPromise.get();
@@ -480,6 +481,10 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	private readonly _tabShouldIndent = derived(this, reader => {
+		if (this._inAcceptFlow.read(reader)) {
+			return false;
+		}
+
 		function isMultiLine(range: Range): boolean {
 			return range.startLineNumber !== range.endLineNumber;
 		}
@@ -544,7 +549,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
-	public async accept(editor: ICodeEditor): Promise<void> {
+	public async accept(editor: ICodeEditor = this._editor): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}

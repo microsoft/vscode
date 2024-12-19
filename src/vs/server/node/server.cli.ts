@@ -337,6 +337,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			diffMode: parsedArgs.diff,
 			mergeMode: parsedArgs.merge,
 			addMode: parsedArgs.add,
+			removeMode: parsedArgs.remove,
 			gotoLineMode: parsedArgs.goto,
 			forceReuseWindow: parsedArgs['reuse-window'],
 			forceNewWindow: parsedArgs['new-window'],

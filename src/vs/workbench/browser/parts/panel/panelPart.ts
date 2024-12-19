@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { TogglePanelAction } from './panelActions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../common/theme.js';
-import { badgeBackground, badgeForeground, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -130,13 +130,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
-		const showIcons = this.configurationService.getValue('workbench.panel.showLabels') === false;
 		return {
 			partContainerClass: 'panel',
 			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
 			placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
 			viewContainersWorkspaceStateKey: 'workbench.panel.viewContainersWorkspaceState',
-			icon: showIcons,
+			icon: this.configurationService.getValue('workbench.panel.showLabels') === false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
@@ -153,8 +152,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
 				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
-				badgeBackground: theme.getColor(showIcons ? ACTIVITY_BAR_BADGE_BACKGROUND : badgeBackground),
-				badgeForeground: theme.getColor(showIcons ? ACTIVITY_BAR_BADGE_FOREGROUND : badgeForeground),
+				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
+				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
 				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
 			})
 		};

@@ -140,14 +140,32 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 
 		model.tokenization.forceTokenization(position.lineNumber);
 		const tokens = model.tokenization.getLineTokens(position.lineNumber);
-		const tokenIndex = tokens.findTokenIndexAtOffset(position.column - 1);
-		const tokenType = tokens.getStandardTokenType(tokenIndex);
 
-		if (tokenType === StandardTokenType.Comment) {
+		let totalLength = 0;
+		let specialLength = 0;
+		let lastTokenType: StandardTokenType | undefined;
+
+		tokens.forEach(idx => {
+			const tokenType = tokens.getStandardTokenType(idx);
+			const startOffset = tokens.getStartOffset(idx);
+			const endOffset = tokens.getEndOffset(idx);
+			totalLength += endOffset - startOffset;
+
+			if (tokenType !== StandardTokenType.Other) {
+				specialLength += endOffset - startOffset;
+			}
+			lastTokenType = tokenType;
+		});
+
+		if (specialLength / totalLength > 0.25) {
 			ctrl.hide();
-		} else {
-			ctrl.show();
+			return;
 		}
+		if (lastTokenType === StandardTokenType.Comment) {
+			ctrl.hide();
+			return;
+		}
+		ctrl.show();
 	}
 }
 

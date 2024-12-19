@@ -806,14 +806,13 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 				},
 				[AccessibilityVoiceSettingId.AutoSynthesize]: {
 					'type': 'string',
-					'enum': ['on', 'off', 'auto'],
+					'enum': ['on', 'off'],
 					'enumDescriptions': [
 						localize('accessibility.voice.autoSynthesize.on', "Enable the feature. When a screen reader is enabled, note that this will disable aria updates."),
 						localize('accessibility.voice.autoSynthesize.off', "Disable the feature."),
-						localize('accessibility.voice.autoSynthesize.auto', "When a screen reader is detected, disable the feature. Otherwise, enable the feature.")
 					],
 					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
-					'default': this.productService.quality !== 'stable' ? 'auto' : 'off',
+					'default': this.productService.quality !== 'stable' ? 'on' : 'off',
 					'tags': ['accessibility']
 				}
 			}

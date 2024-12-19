@@ -127,6 +127,8 @@ export class TerminalChatWidget extends Disposable {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 					options: {
 						buttonConfigProvider: action => ({
+							showLabel: action.id !== TerminalChatCommandId.RerunRequest,
+							showIcon: action.id === TerminalChatCommandId.RerunRequest,
 							isSecondary: action.id !== TerminalChatCommandId.RunCommand && action.id !== TerminalChatCommandId.RunFirstCommand
 						})
 					}
