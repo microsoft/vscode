@@ -38,6 +38,8 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -312,9 +314,11 @@ CommandsRegistry.registerCommand({
 		const clipboardService = accessor.get(IClipboardService);
 		const debugService = accessor.get(IDebugService);
 		const frame = getFrame(debugService, context);
+		const labelService = accessor.get(ILabelService);
+		const labelFormatter = (x: URI) => labelService.getUriLabel(x);
 		if (frame) {
 			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
-			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
+			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString(labelFormatter)).join(eol));
 		}
 	}
 });
