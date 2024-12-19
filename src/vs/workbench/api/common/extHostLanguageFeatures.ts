@@ -1588,6 +1588,9 @@ class InlineEditAdapter {
 
 	disposeEdit(pid: number) {
 		const data = this._references.disposeReferenceId(pid);
+		if (data) {
+			this._provider.freeInlineEdit(data.item);
+		}
 		data?.dispose();
 	}
 
