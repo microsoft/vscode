@@ -1053,6 +1053,17 @@ class ChatSetupContext extends Disposable {
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
+		this._register(this.extensionService.onDidChangeExtensionsStatus(async (result) => {
+			for (const identifier of result) {
+				if (ExtensionIdentifier.equals(defaultChat.extensionId, identifier)) {
+					const extensions = await this.extensionManagementService.getInstalled();
+					const defaultChatExtension = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
+					this.update({ installed: !!defaultChatExtension && this.extensionEnablementService.isEnabled(defaultChatExtension) });
+					break;
+				}
+			}
+		}));
+
 		this._register(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.removed) {
 				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
