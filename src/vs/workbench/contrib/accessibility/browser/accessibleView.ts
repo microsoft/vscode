@@ -78,7 +78,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	private _hasAssignedKeybindings: IContextKey<boolean>;
 
 	private _codeBlocks?: ICodeBlock[];
-	private _inQuickPick: boolean = false;
+	private _isInQuickPick: boolean = false;
 
 	get editorWidget() { return this._editorWidget; }
 	private _container: HTMLElement;
@@ -352,7 +352,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!this._currentProvider) {
 			return;
 		}
-		this._inQuickPick = true;
+		this._isInQuickPick = true;
 		this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this).show(this._currentProvider);
 	}
 
@@ -417,7 +417,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	configureKeybindings(unassigned: boolean): void {
-		this._inQuickPick = true;
+		this._isInQuickPick = true;
 		const provider = this._updateLastProvider();
 		const items = unassigned ? provider?.options?.configureKeybindingItems : provider?.options?.configuredKeybindingItems;
 		if (!items) {
@@ -441,7 +441,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				this.show(provider);
 			}
 			disposables.dispose();
-			this._inQuickPick = false;
+			this._isInQuickPick = false;
 		}));
 	}
 
@@ -496,7 +496,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (lineNumber === undefined) {
 			return;
 		}
-		this._inQuickPick = false;
+		this._isInQuickPick = false;
 		this.show(provider, undefined, undefined, { lineNumber, column: 1 });
 		this._updateContextKeys(provider, true);
 	}
@@ -611,12 +611,12 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
 
 		const hide = (e?: KeyboardEvent | IKeyboardEvent): void => {
-			if (!this._inQuickPick) {
+			if (!this._isInQuickPick) {
 				provider.onClose();
 			}
 			e?.stopPropagation();
 			this._contextViewService.hideContextView();
-			if (this._inQuickPick) {
+			if (this._isInQuickPick) {
 				return;
 			}
 			this._updateContextKeys(provider, false);
@@ -960,7 +960,7 @@ class AccessibleViewSymbolQuickPick {
 		disposables.add(quickPick.onDidHide(() => {
 			if (quickPick.selectedItems.length === 0) {
 				// this was escaped, so refocus the accessible view
-				this._accessibleView.show(provider, undefined, undefined, undefined);
+				this._accessibleView.show(provider);
 			}
 			disposables.dispose();
 		}));
