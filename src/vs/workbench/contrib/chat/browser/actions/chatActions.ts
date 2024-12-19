@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -531,7 +531,10 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatCommandCenter,
 	title: localize('title4', "Chat"),
 	icon: Codicon.copilot,
-	when: ContextKeyExpr.has('config.chat.commandCenter.enabled'),
+	when: ContextKeyExpr.and(
+		ChatContextKeys.supported,
+		ContextKeyExpr.has('config.chat.commandCenter.enabled')
+	),
 	order: 10001,
 });
 
@@ -541,7 +544,10 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 			'chat.commandCenter.enabled',
 			localize('toggle.chatControl', 'Copilot Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 4, false,
-			ContextKeyExpr.has('config.window.commandCenter')
+			ContextKeyExpr.and(
+				ChatContextKeys.supported,
+				ContextKeyExpr.has('config.window.commandCenter')
+			)
 		);
 	}
 });
@@ -561,7 +567,7 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 
 		const contextKeySet = new Set([ChatContextKeys.Setup.signedOut.key]);
 
-		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
+		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
@@ -607,6 +613,9 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 			agentService.onDidChangeAgents,
 			chatQuotasService.onDidChangeQuotas,
 			Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(contextKeySet))
-		)));
+		));
+
+		// Reduces flicker a bit on reload/restart
+		markAsSingleton(disposable);
 	}
 }

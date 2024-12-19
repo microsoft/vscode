@@ -58,6 +58,8 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import Severity from '../../../../base/common/severity.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -106,11 +108,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
-		if (!this.productService.defaultChatAgent) {
+		if (
+			!this.productService.defaultChatAgent ||			// needs product config
+			(isWeb && !this.environmentService.remoteAuthority)	// only enabled locally or a remote backend
+		) {
 			return;
 		}
 
