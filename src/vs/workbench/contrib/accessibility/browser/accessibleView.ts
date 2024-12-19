@@ -266,7 +266,10 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this.show(this._lastProvider);
 	}
 
-	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: IPosition): void {
+	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: IPosition, wasShowingSymbols?: boolean): void {
+		if (wasShowingSymbols) {
+			this._inQuickPick = false;
+		}
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
@@ -352,6 +355,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!this._currentProvider) {
 			return;
 		}
+		this._inQuickPick = true;
 		this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this).show(this._currentProvider);
 	}
 
@@ -388,11 +392,11 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	getSymbols(): IAccessibleViewSymbol[] | undefined {
-		const provider = this._currentProvider instanceof AccessibleContentProvider ? this._currentProvider : undefined;
+		const provider = this._currentProvider ? this._currentProvider : undefined;
 		if (!this._currentContent || !provider) {
 			return;
 		}
-		const symbols: IAccessibleViewSymbol[] = provider.getSymbols?.() || [];
+		const symbols: IAccessibleViewSymbol[] = 'getSymbols' in provider ? provider.getSymbols?.() || [] : [];
 		if (symbols?.length) {
 			return symbols;
 		}
@@ -495,7 +499,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (lineNumber === undefined) {
 			return;
 		}
-		this.show(provider, undefined, undefined, { lineNumber, column: 1 });
+		this.show(provider, undefined, undefined, { lineNumber, column: 1 }, true);
 		this._updateContextKeys(provider, true);
 	}
 
@@ -614,6 +618,9 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			}
 			e?.stopPropagation();
 			this._contextViewService.hideContextView();
+			if (this._inQuickPick) {
+				return;
+			}
 			this._updateContextKeys(provider, false);
 			this._lastProvider = undefined;
 			this._currentContent = undefined;
@@ -938,11 +945,15 @@ class AccessibleViewSymbolQuickPick {
 		for (const symbol of symbols) {
 			picks.push({
 				label: symbol.label,
-				ariaLabel: symbol.ariaLabel
+				ariaLabel: symbol.ariaLabel,
+				firstListItem: symbol.firstListItem,
+				lineNumber: symbol.lineNumber,
+				endLineNumber: symbol.endLineNumber,
+				markdownToParse: symbol.markdownToParse
 			});
 		}
 		quickPick.canSelectMany = false;
-		quickPick.items = symbols;
+		quickPick.items = picks;
 		quickPick.show();
 		disposables.add(quickPick.onDidAccept(() => {
 			this._accessibleView.showSymbol(provider, quickPick.selectedItems[0]);
@@ -951,7 +962,7 @@ class AccessibleViewSymbolQuickPick {
 		disposables.add(quickPick.onDidHide(() => {
 			if (quickPick.selectedItems.length === 0) {
 				// this was escaped, so refocus the accessible view
-				this._accessibleView.show(provider);
+				this._accessibleView.show(provider, undefined, undefined, undefined, true);
 			}
 			disposables.dispose();
 		}));
