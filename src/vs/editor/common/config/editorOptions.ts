@@ -3491,12 +3491,14 @@ export interface IQuickSuggestionsOptions {
 	other?: boolean | QuickSuggestionsValue;
 	comments?: boolean | QuickSuggestionsValue;
 	strings?: boolean | QuickSuggestionsValue;
+	regex?: boolean | QuickSuggestionsValue;
 }
 
 export interface InternalQuickSuggestionsOptions {
 	readonly other: QuickSuggestionsValue;
 	readonly comments: QuickSuggestionsValue;
 	readonly strings: QuickSuggestionsValue;
+	readonly regex: QuickSuggestionsValue;
 }
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | IQuickSuggestionsOptions, InternalQuickSuggestionsOptions> {
@@ -3507,7 +3509,8 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		const defaults: InternalQuickSuggestionsOptions = {
 			other: 'on',
 			comments: 'off',
-			strings: 'off'
+			strings: 'off',
+			regex: 'off'
 		};
 		const types: IJSONSchema[] = [
 			{ type: 'boolean' },
@@ -3534,11 +3537,16 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				other: {
 					anyOf: types,
 					default: defaults.other,
-					description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+					description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings, comments and regular expressions.")
+				},
+				regex: {
+					anyOf: types,
+					default: defaults.regex,
+					description: nls.localize('quickSuggestions.regex', "Enable quick suggestions inside regular expressions.")
 				},
 			},
 			default: defaults,
-			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", '`#editor.suggestOnTriggerCharacters#`')
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, regular expressions and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", '`#editor.suggestOnTriggerCharacters#`')
 		});
 		this.defaultValue = defaults;
 	}
@@ -3547,18 +3555,19 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		if (typeof input === 'boolean') {
 			// boolean -> all on/off
 			const value = input ? 'on' : 'off';
-			return { comments: value, strings: value, other: value };
+			return { comments: value, strings: value, regex: value, other: value };
 		}
 		if (!input || typeof input !== 'object') {
 			// invalid object
 			return this.defaultValue;
 		}
 
-		const { other, comments, strings } = (<IQuickSuggestionsOptions>input);
+		const { other, comments, strings, regex } = (<IQuickSuggestionsOptions>input);
 		const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off'];
 		let validatedOther: QuickSuggestionsValue;
 		let validatedComments: QuickSuggestionsValue;
 		let validatedStrings: QuickSuggestionsValue;
+		let validatedRegex: QuickSuggestionsValue;
 
 		if (typeof other === 'boolean') {
 			validatedOther = other ? 'on' : 'off';
@@ -3575,10 +3584,16 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		} else {
 			validatedStrings = stringSet(strings, this.defaultValue.strings, allowedValues);
 		}
+		if (typeof regex === 'boolean') {
+			validatedRegex = regex ? 'on' : 'off';
+		} else {
+			validatedRegex = stringSet(regex, this.defaultValue.regex, allowedValues);
+		}
 		return {
 			other: validatedOther,
 			comments: validatedComments,
-			strings: validatedStrings
+			strings: validatedStrings,
+			regex: validatedRegex
 		};
 	}
 }
