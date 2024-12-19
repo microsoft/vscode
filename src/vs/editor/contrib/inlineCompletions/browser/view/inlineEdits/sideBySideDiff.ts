@@ -268,6 +268,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			},
 			readOnly: true,
 			wordWrap: 'off',
+			wordWrapOverride1: 'off',
+			wordWrapOverride2: 'off',
 		},
 		{ contributions: [], },
 		this._editor
