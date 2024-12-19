@@ -224,9 +224,16 @@ export class CharacterMapping {
 	}
 
 	public getHorizontalOffset(column: number): number {
-		if (this._horizontalOffset.length === 0) {
+		const line_len = this._horizontalOffset.length;
+		if (line_len === 0) {
 			// No characters on this line
-			return 0;
+			// Note: Column numbers start at 1. However, when line_len === 0, we may get column === 0,
+			// which is technically incorrect, but we need to handle it
+			return Math.max(0, column - 1);
+		}
+		if (column > line_len) {
+			const leftoverVisibleColumns = column - line_len;
+			return this._horizontalOffset[line_len - 1] + leftoverVisibleColumns;
 		}
 		return this._horizontalOffset[column - 1];
 	}

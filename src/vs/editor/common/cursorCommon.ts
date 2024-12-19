@@ -6,6 +6,7 @@
 import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from './config/editorOptions.js';
 import { LineTokens } from './tokens/lineTokens.js';
 import { Position } from './core/position.js';
+import { PositionTripple } from './virtualSpaceSupport.js';
 import { Range } from './core/range.js';
 import { ISelection, Selection } from './core/selection.js';
 import { ICommand } from './editorCommon.js';
@@ -56,6 +57,7 @@ export class CursorConfiguration {
 	public readonly indentSize: number;
 	public readonly insertSpaces: boolean;
 	public readonly stickyTabStops: boolean;
+	public readonly virtualSpace: boolean;
 	public readonly pageSize: number;
 	public readonly lineHeight: number;
 	public readonly typicalHalfwidthCharacterWidth: number;
@@ -122,6 +124,7 @@ export class CursorConfiguration {
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
+		this.virtualSpace = modelOptions.virtualSpace;
 		this.lineHeight = fontInfo.lineHeight;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
@@ -235,9 +238,11 @@ export class CursorConfiguration {
 			return minColumn;
 		}
 
-		const maxColumn = model.getLineMaxColumn(lineNumber);
-		if (result > maxColumn) {
-			return maxColumn;
+		if (!this.virtualSpace) {
+			const maxColumn = model.getLineMaxColumn(lineNumber);
+			if (result > maxColumn) {
+				return maxColumn;
+			}
 		}
 
 		return result;
@@ -276,20 +281,21 @@ export class CursorState {
 		return new PartialViewCursorState(viewState);
 	}
 
-	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
-		const selection = Selection.liftSelection(modelSelection);
+	public static fromModelSelection(model: ICursorSimpleModel, modelSelection: ISelection): PartialModelCursorState {
+		const start = PositionTripple.fromModelPosition(model, new Position(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn));
+		const pos = PositionTripple.fromModelPosition(model, new Position(modelSelection.positionLineNumber, modelSelection.positionColumn));
 		const modelState = new SingleCursorState(
-			Range.fromPositions(selection.getSelectionStart()),
-			SelectionStartKind.Simple, 0,
-			selection.getPosition(), 0
+			Range.fromPositions(start.validPosition),
+			SelectionStartKind.Simple, start.leftoverVisibleColumns,
+			pos.validPosition, pos.leftoverVisibleColumns, null,
 		);
 		return CursorState.fromModelState(modelState);
 	}
 
-	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
+	public static fromModelSelections(model: ICursorSimpleModel, modelSelections: readonly ISelection[]): PartialModelCursorState[] {
 		const states: PartialModelCursorState[] = [];
 		for (let i = 0, len = modelSelections.length; i < len; i++) {
-			states[i] = this.fromModelSelection(modelSelections[i]);
+			states[i] = this.fromModelSelection(model, modelSelections[i]);
 		}
 		return states;
 	}
@@ -341,12 +347,30 @@ export class SingleCursorState {
 
 	public readonly selection: Selection;
 
+	// For view model, all positions are the way the user sees them. So if virtual space is turned on,
+	// column might be in virtual space.
+	//
+	// For model, positions are clipped at line length and any excess columns are stored in leftoverVisibleColumns.
+	// So code that hasn't been updated for virtual space will never see virtual space model positions.
+	//
+	// Code that's ready for virtual space can use positionInVirtualSpace() and selectionInVirtualSpace()
+	// to get model positions in virtual space.
+	//
+	// columnHint is used to preserve column during vertical movements.
+	// Without virtual space, it helps to recover from short lines.
+	// With virtual space, it helps when going through inlay hints.
+	//
+	// When converting between model and view model, we convert positions in virtual space
+	// to leftoverVisibleColumns and back.
+	// Column hint is not easy to convert, so it is dropped during conversions.
+
 	constructor(
 		public readonly selectionStart: Range,
 		public readonly selectionStartKind: SelectionStartKind,
 		public readonly selectionStartLeftoverVisibleColumns: number,
 		public readonly position: Position,
 		public readonly leftoverVisibleColumns: number,
+		public readonly columnHint: number | null,
 	) {
 		this.selection = SingleCursorState._computeSelection(this.selectionStart, this.position);
 	}
@@ -355,6 +379,7 @@ export class SingleCursorState {
 		return (
 			this.selectionStartLeftoverVisibleColumns === other.selectionStartLeftoverVisibleColumns
 			&& this.leftoverVisibleColumns === other.leftoverVisibleColumns
+			&& this.columnHint === other.columnHint
 			&& this.selectionStartKind === other.selectionStartKind
 			&& this.position.equals(other.position)
 			&& this.selectionStart.equalsRange(other.selectionStart)
@@ -365,7 +390,7 @@ export class SingleCursorState {
 		return (!this.selection.isEmpty() || !this.selectionStart.isEmpty());
 	}
 
-	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number): SingleCursorState {
+	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number, columnHint: number | null): SingleCursorState {
 		if (inSelectionMode) {
 			// move just position
 			return new SingleCursorState(
@@ -373,7 +398,8 @@ export class SingleCursorState {
 				this.selectionStartKind,
 				this.selectionStartLeftoverVisibleColumns,
 				new Position(lineNumber, column),
-				leftoverVisibleColumns
+				leftoverVisibleColumns,
+				columnHint,
 			);
 		} else {
 			// move everything
@@ -382,9 +408,28 @@ export class SingleCursorState {
 				SelectionStartKind.Simple,
 				leftoverVisibleColumns,
 				new Position(lineNumber, column),
-				leftoverVisibleColumns
+				leftoverVisibleColumns,
+				columnHint,
 			);
 		}
+	}
+
+	public selectionStartInVirtualSpace(): Position {
+		return new Position(
+			this.selection.selectionStartLineNumber,
+			this.selection.selectionStartColumn + this.selectionStartLeftoverVisibleColumns,
+		);
+	}
+
+	public positionInVirtualSpace(): Position {
+		return new Position(
+			this.position.lineNumber,
+			this.position.column + this.leftoverVisibleColumns,
+		);
+	}
+
+	public selectionInVirtualSpace(): Selection {
+		return Selection.fromPositions(this.selectionStartInVirtualSpace(), this.positionInVirtualSpace());
 	}
 
 	private static _computeSelection(selectionStart: Range, position: Position): Selection {

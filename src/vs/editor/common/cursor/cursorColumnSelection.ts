@@ -19,6 +19,7 @@ export class ColumnSelection {
 
 		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
 
+		const virtualSpace = config.virtualSpace;
 		for (let i = 0; i < lineCount; i++) {
 			const lineNumber = fromLineNumber + (reversed ? -i : i);
 
@@ -29,7 +30,7 @@ export class ColumnSelection {
 
 			// console.log(`lineNumber: ${lineNumber}: visibleStartColumn: ${visibleStartColumn}, visibleEndColumn: ${visibleEndColumn}`);
 
-			if (isLTR) {
+			if (!virtualSpace && isLTR) {
 				if (visibleStartColumn > toVisibleColumn) {
 					continue;
 				}
@@ -38,7 +39,7 @@ export class ColumnSelection {
 				}
 			}
 
-			if (isRTL) {
+			if (!virtualSpace && isRTL) {
 				if (visibleEndColumn > fromVisibleColumn) {
 					continue;
 				}
@@ -47,9 +48,12 @@ export class ColumnSelection {
 				}
 			}
 
+			const selectionStartLeftoverVisibleColumns = fromVisibleColumn - visibleStartColumn;
+			const leftoverVisibleColumns = toVisibleColumn - visibleEndColumn;
+
 			result.push(new SingleCursorState(
-				new Range(lineNumber, startColumn, lineNumber, startColumn), SelectionStartKind.Simple, 0,
-				new Position(lineNumber, endColumn), 0
+				new Range(lineNumber, startColumn, lineNumber, startColumn), SelectionStartKind.Simple, selectionStartLeftoverVisibleColumns,
+				new Position(lineNumber, endColumn), leftoverVisibleColumns, null,
 			));
 		}
 
@@ -61,7 +65,7 @@ export class ColumnSelection {
 
 				result.push(new SingleCursorState(
 					new Range(lineNumber, maxColumn, lineNumber, maxColumn), SelectionStartKind.Simple, 0,
-					new Position(lineNumber, maxColumn), 0
+					new Position(lineNumber, maxColumn), 0, null
 				));
 			}
 		}

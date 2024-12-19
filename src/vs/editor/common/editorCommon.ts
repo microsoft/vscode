@@ -373,6 +373,16 @@ export interface IEditor {
 	getSelections(): Selection[] | null;
 
 	/**
+	 * Returns the primary selection of the editor. The column position may be in virtual space.
+	 */
+	getSelectionInVirtualSpace(): Selection | null;
+
+	/**
+	 * Returns all the selections of the editor. The column position may be in virtual space.
+	 */
+	getSelectionsInVirtualSpace(): Selection[] | null;
+
+	/**
 	 * Set the primary selection of the editor. This will remove any secondary cursors.
 	 * @param selection The new selection
 	 * @param source Source of the call that caused the selection
