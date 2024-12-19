@@ -356,6 +356,14 @@ function formatArray(value: unknown[], availableLen: number): string {
 }
 
 function formatObject(value: object, availableLen: number): string {
+	if (typeof value.toString === 'function' && value.toString !== Object.prototype.toString) {
+		const val = value.toString();
+		if (val.length <= availableLen) {
+			return val;
+		}
+		return val.substring(0, availableLen - 3) + '...';
+	}
+
 	let result = '{ ';
 	let first = true;
 	for (const [key, val] of Object.entries(value)) {
