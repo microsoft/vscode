@@ -25,7 +25,11 @@ const previewStrings = {
 
 	cspAlertMessageTitle: vscode.l10n.t("Potentially unsafe or insecure content has been disabled in the Markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts"),
 
-	cspAlertMessageLabel: vscode.l10n.t("Content Disabled Security Warning")
+	cspAlertMessageLabel: vscode.l10n.t("Content Disabled Security Warning"),
+
+	codeBlockCopyAction: vscode.l10n.t("Copy Code"),
+
+	codeBlockRunAction: vscode.l10n.t("Run in Terminal")
 };
 
 export interface MarkdownContentProviderOutput {
@@ -76,6 +80,7 @@ export class MdDocumentRenderer {
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
 			disableSecurityWarnings: this._cspArbiter.shouldDisableSecurityWarnings(),
+			allowScriptExecution: this._cspArbiter.shouldAllowScriptExecutionForResource(sourceUri),
 			webviewResourceRoot: resourceProvider.asWebviewUri(markdownDocument.uri).toString(),
 		};
 
