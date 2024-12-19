@@ -667,6 +667,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider,
+				userSelection: true,
 				mouseSupport: false,
 				findWidgetEnabled: true,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e.toString(true) },
