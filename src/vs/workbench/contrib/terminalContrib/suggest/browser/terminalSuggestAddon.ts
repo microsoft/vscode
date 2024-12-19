@@ -231,6 +231,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._screen = screen;
 	}
 
+	resetWidgetSize(): void {
+		this._suggestWidget?.resetWidgetSize();
+	}
+
 	async requestCompletions(explicitlyInvoked?: boolean): Promise<void> {
 		if (!this._promptInputModel) {
 			return;
