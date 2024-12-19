@@ -50,7 +50,7 @@ export class DiffEditorGutter extends Disposable {
 		private readonly _editors: DiffEditorEditors,
 		private readonly _options: DiffEditorOptions,
 		private readonly _sashLayout: SashLayout,
-		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined, void>,
+		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,

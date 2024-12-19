@@ -13,12 +13,19 @@ import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';
  * Represents an observable value.
  *
  * @template T The type of the values the observable can hold.
+ */
+export interface IObservable<T> extends IObservableWithChange<T, unknown> { }
+
+/**
+ * Represents an observable value.
+ *
+ * @template T The type of the values the observable can hold.
  * @template TChange The type used to describe value changes
  * (usually `void` and only used in advanced scenarios).
  * While observers can miss temporary values of an observable,
  * they will receive all change values (as long as they are subscribed)!
  */
-export interface IObservable<T, TChange = unknown> {
+export interface IObservableWithChange<T, TChange = unknown> {
 	/**
 	 * Returns the current value.
 	 *
@@ -71,7 +78,7 @@ export interface IObservable<T, TChange = unknown> {
 	 * ONLY FOR DEBUGGING!
 	 * Logs computations of this derived.
 	*/
-	log(): IObservable<T, TChange>;
+	log(): IObservableWithChange<T, TChange>;
 
 	/**
 	 * Makes sure this value is computed eagerly.
@@ -98,7 +105,7 @@ export interface IReader {
 	/**
 	 * Reads the value of an observable and subscribes to it.
 	 */
-	readObservable<T>(observable: IObservable<T, any>): T;
+	readObservable<T>(observable: IObservableWithChange<T, any>): T;
 }
 
 /**
@@ -143,7 +150,7 @@ export interface IObserver {
 	 *
 	 * @param change Indicates how or why the value changed.
 	 */
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void;
+	handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void;
 }
 
 export interface ISettable<T, TChange = void> {
@@ -162,7 +169,7 @@ export interface ITransaction {
 	 * Calls {@link Observer.beginUpdate} immediately
 	 * and {@link Observer.endUpdate} when the transaction ends.
 	 */
-	updateObserver(observer: IObserver, observable: IObservable<any, any>): void;
+	updateObserver(observer: IObserver, observable: IObservableWithChange<any, any>): void;
 }
 
 let _recomputeInitiallyAndOnChange: typeof recomputeInitiallyAndOnChange;
@@ -185,7 +192,7 @@ export function _setDerivedOpts(derived: typeof _derived) {
 	_derived = derived;
 }
 
-export abstract class ConvenientObservable<T, TChange> implements IObservable<T, TChange> {
+export abstract class ConvenientObservable<T, TChange> implements IObservableWithChange<T, TChange> {
 	get TChange(): TChange { return null!; }
 
 	public abstract get(): T;
@@ -239,7 +246,7 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 		);
 	}
 
-	public log(): IObservable<T, TChange> {
+	public log(): IObservableWithChange<T, TChange> {
 		logObservable(this);
 		return this;
 	}
@@ -248,7 +255,7 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	 * @sealed
 	 * Converts an observable of an observable value into a direct observable of the value.
 	*/
-	public flatten<TNew>(this: IObservable<IObservable<TNew, any>>): IObservable<TNew, unknown> {
+	public flatten<TNew>(this: IObservable<IObservableWithChange<TNew, any>>): IObservable<TNew> {
 		return _derived(
 			{
 				owner: undefined,
@@ -390,7 +397,7 @@ export class TransactionImpl implements ITransaction {
 /**
  * A settable observable.
  */
-export interface ISettableObservable<T, TChange = void> extends IObservable<T, TChange>, ISettable<T, TChange> {
+export interface ISettableObservable<T, TChange = void> extends IObservableWithChange<T, TChange>, ISettable<T, TChange> {
 }
 
 /**
@@ -505,11 +512,11 @@ export interface IChangeTracker {
 }
 
 export interface IChangeContext {
-	readonly changedObservable: IObservable<any, any>;
+	readonly changedObservable: IObservableWithChange<any, any>;
 	readonly change: unknown;
 
 	/**
 	 * Returns if the given observable caused the change.
 	 */
-	didChange<T, TChange>(observable: IObservable<T, TChange>): this is { change: TChange };
+	didChange<T, TChange>(observable: IObservableWithChange<T, TChange>): this is { change: TChange };
 }

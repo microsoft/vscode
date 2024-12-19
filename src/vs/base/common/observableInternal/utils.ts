@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { autorun, autorunOpts, autorunWithStoreHandleChanges } from './autorun.js';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from './base.js';
+import { BaseObservable, ConvenientObservable, IObservable, IObservableWithChange, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from './base.js';
 import { DebugNameData, DebugOwner, IDebugNameData, getDebugName, } from './debugName.js';
 import { BugIndicatingError, DisposableStore, EqualityComparer, Event, IDisposable, IValueWithChangeEvent, strictEquals, toDisposable } from './commonFacade/deps.js';
 import { derived, derivedOpts } from './derived.js';
@@ -259,7 +259,7 @@ export function observableSignal<TDelta = void>(debugNameOrOwner: string | objec
 	}
 }
 
-export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
+export interface IObservableSignal<TChange> extends IObservableWithChange<void, TChange> {
 	trigger(tx: ITransaction | undefined, change: TChange): void;
 }
 
@@ -434,11 +434,11 @@ export class KeepAliveObserver implements IObserver {
 		private readonly _handleValue: ((value: any) => void) | undefined,
 	) { }
 
-	beginUpdate<T>(observable: IObservable<T, void>): void {
+	beginUpdate<T>(observable: IObservable<T>): void {
 		this._counter++;
 	}
 
-	endUpdate<T>(observable: IObservable<T, void>): void {
+	endUpdate<T>(observable: IObservable<T>): void {
 		this._counter--;
 		if (this._counter === 0 && this._forceRecompute) {
 			if (this._handleValue) {
@@ -449,11 +449,11 @@ export class KeepAliveObserver implements IObserver {
 		}
 	}
 
-	handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
+	handlePossibleChange<T>(observable: IObservable<T>): void {
 		// NO OP
 	}
 
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
 		// NO OP
 	}
 }
@@ -625,7 +625,7 @@ export function derivedConstOnceDefined<T>(owner: DebugOwner, fn: (reader: IRead
 
 type RemoveUndefined<T> = T extends undefined ? never : T;
 
-export function runOnChange<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
+export function runOnChange<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
 	let _previousValue: T | undefined;
 	return autorunWithStoreHandleChanges({
 		createEmptyChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
@@ -649,7 +649,7 @@ export function runOnChange<T, TChange>(observable: IObservable<T, TChange>, cb:
 	});
 }
 
-export function runOnChangeWithStore<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
+export function runOnChangeWithStore<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
 	const store = new DisposableStore();
 	const disposable = runOnChange(observable, (value, previousValue: undefined | T, deltas) => {
 		store.clear();

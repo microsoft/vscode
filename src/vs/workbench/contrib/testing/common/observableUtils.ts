@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IObserver } from '../../../../base/common/observable.js';
+import { IObservableWithChange, IObserver } from '../../../../base/common/observable.js';
 
-export function onObservableChange<T>(observable: IObservable<unknown, T>, callback: (value: T) => void): IDisposable {
+export function onObservableChange<T>(observable: IObservableWithChange<unknown, T>, callback: (value: T) => void): IDisposable {
 	const o: IObserver = {
 		beginUpdate() { },
 		endUpdate() { },
 		handlePossibleChange(observable) {
 			observable.reportChanges();
 		},
-		handleChange<T2, TChange>(_observable: IObservable<T2, TChange>, change: TChange) {
+		handleChange<T2, TChange>(_observable: IObservableWithChange<T2, TChange>, change: TChange) {
 			callback(change as any as T);
 		}
 	};

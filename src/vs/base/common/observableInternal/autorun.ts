@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChangeContext, IObservable, IObserver, IReader } from './base.js';
+import { IChangeContext, IObservable, IObservableWithChange, IObserver, IReader } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
 import { assertFn, BugIndicatingError, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
@@ -286,7 +286,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		}
 	}
 
-	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	public handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
 		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			try {
 				const shouldReact = this._handleChange ? this._handleChange({
