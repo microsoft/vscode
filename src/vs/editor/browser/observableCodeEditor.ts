@@ -14,7 +14,7 @@ import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
 import { Point } from './point.js';
 
 /**
@@ -89,6 +89,16 @@ export class ObservableCodeEditor extends Disposable {
 			try {
 				this._forceUpdate();
 				this.onDidType.trigger(this._currentTransaction, e);
+			} finally {
+				this._endUpdate();
+			}
+		}));
+
+		this._register(this.editor.onDidPaste((e) => {
+			this._beginUpdate();
+			try {
+				this._forceUpdate();
+				this.onDidPaste.trigger(this._currentTransaction, e);
 			} finally {
 				this._endUpdate();
 			}
@@ -213,6 +223,7 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly cursorLineNumber = derived<number | null>(this, reader => this.cursorPosition.read(reader)?.lineNumber ?? null);
 
 	public readonly onDidType = observableSignal<string>(this);
+	public readonly onDidPaste = observableSignal<IPasteEvent>(this);
 
 	public readonly scrollTop = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollTop());
 	public readonly scrollLeft = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollLeft());
