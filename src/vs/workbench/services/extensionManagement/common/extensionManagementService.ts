@@ -554,6 +554,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 	}
 
+	async getInstallableServers(gallery: IGalleryExtension): Promise<IExtensionManagementServer[]> {
+		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
+		if (!manifest) {
+			return Promise.reject(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
+		}
+		return this.getInstallableExtensionManagementServers(manifest);
+	}
+
 	private async uninstallExtensionFromWorkspace(extension: ILocalExtension): Promise<void> {
 		if (!extension.isWorkspaceScoped) {
 			throw new Error('The extension is not a workspace extension');
@@ -606,11 +614,25 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		const servers: IExtensionManagementServer[] = [];
 
-		// Install everywhere if asked to install everywhere or if the extension is a language pack
-		if (installOptions?.installEverywhere || isLanguagePackExtension(manifest)) {
+		if (installOptions?.servers?.length) {
+			const installableServers = this.getInstallableExtensionManagementServers(manifest);
+			servers.push(...installOptions.servers);
+			for (const server of servers) {
+				if (!installableServers.includes(server)) {
+					const error = new Error(localize('cannot be installed in server', "Cannot install the '{0}' extension because it is not available in the '{1}' setup.", gallery.displayName || gallery.name, server.label));
+					error.name = ExtensionManagementErrorCode.Unsupported;
+					throw error;
+				}
+			}
+		}
+
+		// Language packs should be installed on both local and remote servers
+		else if (isLanguagePackExtension(manifest)) {
 			servers.push(...this.servers.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer));
-		} else {
-			const server = this.getExtensionManagementServerToInstall(manifest);
+		}
+
+		else {
+			const [server] = this.getInstallableExtensionManagementServers(manifest);
 			if (server) {
 				servers.push(server);
 			}
@@ -633,27 +655,33 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return servers;
 	}
 
-	private getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null {
+	private getInstallableExtensionManagementServers(manifest: IExtensionManifest): IExtensionManagementServer[] {
 		// Only local server
 		if (this.servers.length === 1 && this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer;
+			return [this.extensionManagementServerService.localExtensionManagementServer];
 		}
+
+		const servers: IExtensionManagementServer[] = [];
 
 		const extensionKind = this.extensionManifestPropertiesService.getExtensionKind(manifest);
 		for (const kind of extensionKind) {
 			if (kind === 'ui' && this.extensionManagementServerService.localExtensionManagementServer) {
-				return this.extensionManagementServerService.localExtensionManagementServer;
+				servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 			}
 			if (kind === 'workspace' && this.extensionManagementServerService.remoteExtensionManagementServer) {
-				return this.extensionManagementServerService.remoteExtensionManagementServer;
+				servers.push(this.extensionManagementServerService.remoteExtensionManagementServer);
 			}
 			if (kind === 'web' && this.extensionManagementServerService.webExtensionManagementServer) {
-				return this.extensionManagementServerService.webExtensionManagementServer;
+				servers.push(this.extensionManagementServerService.webExtensionManagementServer);
 			}
 		}
 
-		// Local server can accept any extension. So return local server if not compatible server found.
-		return this.extensionManagementServerService.localExtensionManagementServer;
+		// Local server can accept any extension.
+		if (this.extensionManagementServerService.localExtensionManagementServer && !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)) {
+			servers.push(this.extensionManagementServerService.localExtensionManagementServer);
+		}
+
+		return servers;
 	}
 
 	private isExtensionsSyncEnabled(): boolean {

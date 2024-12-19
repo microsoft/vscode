@@ -2342,35 +2342,69 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		} else {
 			let installableInfo: IExtensionInfo | undefined;
 			let gallery: IGalleryExtension | undefined;
+
+			// Install by id
 			if (isString(arg)) {
 				extension = this.local.find(e => areSameExtensions(e.identifier, { id: arg }));
 				if (!extension?.isBuiltin) {
 					installableInfo = { id: arg, version: installOptions.version, preRelease: installOptions.installPreReleaseVersion ?? this.preferPreReleases };
 				}
-			} else if (arg.gallery) {
+			}
+			// Install by gallery
+			else if (arg.gallery) {
 				extension = arg;
 				gallery = arg.gallery;
 				if (installOptions.version && installOptions.version !== gallery?.version) {
 					installableInfo = { id: extension.identifier.id, version: installOptions.version };
 				}
-			} else if (arg.resourceExtension) {
+			}
+			// Install by resource
+			else if (arg.resourceExtension) {
 				extension = arg;
 				installable = arg.resourceExtension;
 			}
+
 			if (installableInfo) {
 				const targetPlatform = extension?.server ? await extension.server.extensionManagementService.getTargetPlatform() : undefined;
 				gallery = (await this.galleryService.getExtensions([installableInfo], { targetPlatform }, CancellationToken.None)).at(0);
 			}
+
 			if (!extension && gallery) {
 				extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
 				(<Extension>extension).setExtensionsControlManifest(await this.extensionManagementService.getExtensionsControlManifest());
 			}
+
 			if (extension?.isMalicious) {
 				throw new Error(nls.localize('malicious', "This extension is reported to be problematic."));
 			}
-			// TODO: @sandy081 - Install the extension only on servers where it is not installed
-			// Do not install if requested to enable and extension is already installed
-			if (installOptions.installEverywhere || !(installOptions.enable && extension?.local)) {
+
+			if (gallery) {
+				// If requested to install everywhere
+				// then install the extension in all the servers where it is not installed
+				if (installOptions.installEverywhere) {
+					installOptions.servers = [];
+					const installableServers = await this.extensionManagementService.getInstallableServers(gallery);
+					for (const extensionsServer of this.extensionsServers) {
+						if (installableServers.includes(extensionsServer.server) && !extensionsServer.local.find(e => areSameExtensions(e.identifier, gallery.identifier))) {
+							installOptions.servers.push(extensionsServer.server);
+						}
+					}
+				}
+				// If requested to enable and extension is already installed
+				// Check if the extension is disabled because of extension kind
+				// If so, install the extension in the server that is compatible.
+				else if (installOptions.enable && extension?.local) {
+					installOptions.servers = [];
+					if (extension.enablementState === EnablementState.DisabledByExtensionKind) {
+						const [installableServer] = await this.extensionManagementService.getInstallableServers(gallery);
+						if (installableServer) {
+							installOptions.servers.push(installableServer);
+						}
+					}
+				}
+			}
+
+			if (!installOptions.servers || installOptions.servers.length) {
 				if (!installable) {
 					if (!gallery) {
 						const id = isString(arg) ? arg : (<IExtension>arg).identifier.id;
@@ -2734,8 +2768,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallExtensionOptions): Promise<ILocalExtension> {
 		installOptions = installOptions ?? {};
 		installOptions.pinned = extension.local?.pinned || !this.shouldAutoUpdateExtension(extension);
-		// TODO: @sandy081 - Install the extension only on servers where it is not installed
-		if (!installOptions.installEverywhere && extension.local) {
+		if (extension.local && !installOptions.servers) {
 			installOptions.productVersion = this.getProductVersion();
 			installOptions.operation = InstallOperation.Update;
 			return this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);
