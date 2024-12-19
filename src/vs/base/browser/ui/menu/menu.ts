@@ -324,7 +324,7 @@ export class Menu extends ActionBar {
 		const borderRadius = '5px';
 		const shadow = style.shadowColor ? `0 2px 8px ${style.shadowColor}` : '';
 
-		scrollElement.style.outline = border;
+		scrollElement.style.border = border;
 		scrollElement.style.borderRadius = borderRadius;
 		scrollElement.style.color = fgColor;
 		scrollElement.style.backgroundColor = bgColor;
