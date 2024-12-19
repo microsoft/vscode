@@ -19,7 +19,8 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -476,7 +477,7 @@ registerAction2(class AddToChatAction extends Action2 {
 				id: MenuId.ChatAttachmentsContext,
 				group: 'chat',
 				order: 1,
-				when: ExplorerFolderContext.negate(),
+				when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext.negate()),
 			}]
 		});
 	}
@@ -495,6 +496,31 @@ registerAction2(class AddToChatAction extends Action2 {
 		}
 
 		variablesService.attachContext('file', resource, widget.location);
+	}
+});
+
+registerAction2(class OpenChatReferenceLinkAction extends Action2 {
+
+	static readonly id = 'workbench.action.chat.copyLink';
+
+	constructor() {
+		super({
+			id: OpenChatReferenceLinkAction.id,
+			title: {
+				...localize2('copyLink', "Copy Link"),
+			},
+			f1: false,
+			menu: [{
+				id: MenuId.ChatAttachmentsContext,
+				group: 'chat',
+				order: 0,
+				when: ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.http), ResourceContextKey.Scheme.isEqualTo(Schemas.https)),
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
+		await accessor.get(IClipboardService).writeResources([resource]);
 	}
 });
 

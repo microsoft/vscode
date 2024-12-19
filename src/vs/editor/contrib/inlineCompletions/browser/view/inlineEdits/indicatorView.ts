@@ -19,11 +19,9 @@ export interface IInlineEditsIndicatorState {
 	showAlways: boolean;
 }
 
-// editorHoverForeground
+
 export const inlineEditIndicatorForeground = registerColor('inlineEdit.indicator.foreground', buttonForeground, '');
-// editorHoverBackground
 export const inlineEditIndicatorBackground = registerColor('inlineEdit.indicator.background', buttonBackground, '');
-// editorHoverBorder
 export const inlineEditIndicatorBorder = registerColor('inlineEdit.indicator.border', buttonSeparator, '');
 
 export class InlineEditsIndicator extends Disposable {

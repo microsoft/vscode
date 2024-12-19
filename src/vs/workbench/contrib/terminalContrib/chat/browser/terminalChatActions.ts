@@ -224,7 +224,8 @@ registerActiveXtermAction({
 	),
 	keybinding: {
 		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.KeyR
+		primary: KeyMod.CtrlCmd | KeyCode.KeyR,
+		when: TerminalChatContextKeys.focused
 	},
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,

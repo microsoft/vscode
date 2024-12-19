@@ -129,7 +129,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, triggerCharacter?: boolean): Promise<void> {
+	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
 		// Nothing to handle if the terminal is not attached
 		if (!terminal?.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -156,7 +156,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.prefix, this._promptInputModel.cursorIndex, this._shellType, token, triggerCharacter, doNotRequestExtensionCompletions);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.prefix, this._promptInputModel.cursorIndex, this._shellType, token, doNotRequestExtensionCompletions);
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
 		}
@@ -220,7 +220,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (token.isCancellationRequested) {
 			return;
 		}
-		this._showCompletions(model);
+		this._showCompletions(model, explicitlyInvoked);
 	}
 
 	setContainerWithOverflow(container: HTMLElement): void {
@@ -231,7 +231,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._screen = screen;
 	}
 
-	async requestCompletions(triggerCharacter?: boolean): Promise<void> {
+	async requestCompletions(explicitlyInvoked?: boolean): Promise<void> {
 		if (!this._promptInputModel) {
 			return;
 		}
@@ -245,7 +245,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const token = this._cancellationTokenSource.token;
-		await this._handleCompletionProviders(this._terminal, token, triggerCharacter);
+		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
@@ -292,7 +292,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						}
 						for (const char of provider.triggerCharacters) {
 							if (prefix?.endsWith(char)) {
-								this.requestCompletions(true);
+								this.requestCompletions();
 								sent = true;
 								break;
 							}
@@ -359,13 +359,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 	}
 
-	private _showCompletions(model: SimpleCompletionModel): void {
+	private _showCompletions(model: SimpleCompletionModel, explicitlyInvoked?: boolean): void {
 		if (!this._terminal?.element) {
 			return;
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		suggestWidget.setCompletionModel(model);
-		if (!this._promptInputModel) {
+		if (!this._promptInputModel || !explicitlyInvoked && model.items.length === 0) {
 			return;
 		}
 		this._model = model;

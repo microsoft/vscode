@@ -11,7 +11,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { memoize } from '../../../../base/common/decorators.js';
@@ -71,6 +71,7 @@ import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL,
 import { Variable } from '../common/debugModel.js';
 import { ReplEvaluationResult, ReplGroup } from '../common/replModel.js';
 import { FocusSessionActionViewItem } from './debugActionViewItems.js';
+import { DEBUG_COMMAND_CATEGORY, FOCUS_REPL_ID } from './debugCommands.js';
 import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from './debugIcons.js';
 import './media/repl.css';
@@ -108,7 +109,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private replInput!: CodeEditorWidget;
 	private replInputContainer!: HTMLElement;
 	private bodyContentDimension: dom.Dimension | undefined;
-	private replInputLineCount = 1;
 	private model: ITextModel | undefined;
 	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
 	private scopedInstantiationService!: IInstantiationService;
@@ -474,9 +474,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			revealLastElement(this.tree!);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
-			const shouldRelayout = this.replInputLineCount > 1;
-			this.replInputLineCount = 1;
-			if (shouldRelayout && this.bodyContentDimension) {
+			if (this.bodyContentDimension) {
 				// Trigger a layout to shrink a potential multi line input
 				this.layoutBodyContent(this.bodyContentDimension.height, this.bodyContentDimension.width);
 			}
@@ -553,9 +551,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.tree?.domFocus();
 	}
 
-	override focus(): void {
+	override async focus(): Promise<void> {
 		super.focus();
-		setTimeout(() => this.replInput.focus(), 0);
+		await timeout(0); // wait a task for the repl to get attached to the DOM, #83387
+		this.replInput.focus();
 	}
 
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -667,6 +666,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider,
+				userSelection: true,
 				mouseSupport: false,
 				findWidgetEnabled: true,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e.toString(true) },
@@ -734,12 +734,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
+		let lastContentHeight = -1;
 		this._register(this.replInput.onDidChangeModelContent(() => {
 			const model = this.replInput.getModel();
 			this.setHistoryNavigationEnablement(!!model && model.getValue() === '');
-			const lineCount = model ? Math.min(10, model.getLineCount()) : 1;
-			if (lineCount !== this.replInputLineCount) {
-				this.replInputLineCount = lineCount;
+
+			const contentHeight = this.replInput.getContentHeight();
+			if (contentHeight !== lastContentHeight) {
+				lastContentHeight = contentHeight;
 				if (this.bodyContentDimension) {
 					this.layoutBodyContent(this.bodyContentDimension.height, this.bodyContentDimension.width);
 				}
@@ -1206,5 +1208,21 @@ registerAction2(class extends Action2 {
 		} catch (e) {
 			return;
 		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_REPL_ID,
+			category: DEBUG_COMMAND_CATEGORY,
+			title: localize2({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, "Focus on Debug Console View"),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const repl = await viewsService.openView<Repl>(REPL_VIEW_ID);
+		await repl?.focus();
 	}
 });
