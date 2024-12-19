@@ -190,7 +190,7 @@ registerActiveInstanceAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
+		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions(true)
 });
