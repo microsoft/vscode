@@ -43,7 +43,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementServerService, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -60,7 +60,6 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import Severity from '../../../../base/common/severity.js';
-import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -1046,7 +1045,7 @@ class ChatSetupContext extends Disposable {
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly logService: ILogService,
-		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 	) {
 		super();
 
@@ -1071,8 +1070,9 @@ class ChatSetupContext extends Disposable {
 			}
 		}));
 
-		await this.remoteExtensionsScannerService.whenExtensionsReady();
-		const extensions = await this.extensionManagementService.getInstalled();
+		const extensions = this.extensionManagementServerService.remoteExtensionManagementServer ?
+			await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled() :
+			await this.extensionManagementService.getInstalled();
 		const defaultChatExtension = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
 		this.update({ installed: !!defaultChatExtension && this.extensionEnablementService.isEnabled(defaultChatExtension) });
 	}
