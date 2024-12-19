@@ -3082,8 +3082,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const root = this.model.getNode();
 		const queue = [root];
 
-		while (queue.length > 0) {
-			const node = queue.shift()!;
+		let index = 0;
+		while (index < queue.length) {
+			const node = queue[index++];
 
 			if (node !== root && node.collapsible) {
 				state.expanded[getId(node.element)] = node.collapsed ? 0 : 1;
