@@ -38,8 +38,6 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { isSCMRepository } from './util.js';
 import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
-import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { RemoteNameContext } from '../../../common/contextkeys.js';
 import { QuickDiffModelService, IQuickDiffModelService } from './quickDiffModel.js';
 import { QuickDiffEditorController } from './quickDiffWidget.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
@@ -137,14 +135,8 @@ viewsRegistry.registerViews([{
 	weight: 40,
 	order: 2,
 	when: ContextKeyExpr.and(
-		// Repository Count
-		ContextKeyExpr.and(
-			ContextKeyExpr.has('scm.providerCount'),
-			ContextKeyExpr.notEquals('scm.providerCount', 0)),
-		// Not Serverless
-		ContextKeyExpr.and(
-			IsWebContext,
-			RemoteNameContext.isEqualTo(''))?.negate()
+		ContextKeyExpr.has('scm.historyProviderCount'),
+		ContextKeyExpr.notEquals('scm.historyProviderCount', 0),
 	),
 	containerIcon: sourceControlViewIcon
 }], viewContainer);
