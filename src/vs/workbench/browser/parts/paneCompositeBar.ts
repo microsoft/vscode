@@ -99,7 +99,7 @@ export class PaneCompositeBar extends Disposable {
 
 	constructor(
 		protected readonly options: IPaneCompositeBarOptions,
-		private readonly part: Parts,
+		protected readonly part: Parts,
 		private readonly paneCompositePart: IPaneCompositePart,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
