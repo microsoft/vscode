@@ -171,6 +171,7 @@ export class CodeApplication extends Disposable {
 
 		const allowedPermissionsInCore = new Set([
 			'media',
+			'font-access',
 			'local-fonts',
 		]);
 
