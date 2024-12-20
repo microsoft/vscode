@@ -201,6 +201,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			}
 
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
 			const result = await tool.impl.invoke(dto, countTokens, token);
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
 				'languageModelToolInvoked',
