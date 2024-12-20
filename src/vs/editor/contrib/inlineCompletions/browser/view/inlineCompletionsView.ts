@@ -48,7 +48,7 @@ export class InlineCompletionsView extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
