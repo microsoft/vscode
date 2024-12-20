@@ -220,6 +220,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		 */
 		this.state = DerivedState.initial;
 		this.value = undefined;
+		getLogger()?.handleDerivedCleared(this);
 		for (const d of this.dependencies) {
 			d.removeObserver(this);
 		}
