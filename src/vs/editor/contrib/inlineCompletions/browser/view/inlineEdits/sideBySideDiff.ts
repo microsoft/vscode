@@ -180,12 +180,14 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _editorContainerTopLeft = observableValue<IObservable<Point | undefined> | undefined>(this, undefined);
 
 	private readonly _editorContainer = n.div({
-		class: 'editorContainer',
+		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.experimental.useGutterIndicator && 'showHover')],
 		style: { position: 'absolute' },
 	}, [
 		n.div({ class: 'preview', style: {}, ref: this.previewRef }),
 		n.div({ class: 'toolbar', style: {}, ref: this.toolbarRef }),
 	]).keepUpdated(this._store);
+
+	public readonly isHovered = this._editorContainer.getIsHovered(this._store);
 
 	protected readonly _toolbar = this._register(this._instantiationService.createInstance(CustomizedMenuWorkbenchToolBar, this.toolbarRef.element, MenuId.InlineEditsActions, {
 		menuOptions: { renderShortTitle: true },

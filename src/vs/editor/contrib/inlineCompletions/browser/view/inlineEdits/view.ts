@@ -137,10 +137,12 @@ export class InlineEditsView extends Disposable {
 
 	protected readonly _indicator = this._register(autorunWithStore((reader, store) => {
 		if (this._useGutterIndicator.read(reader)) {
-			store.add(new InlineEditsGutterIndicator(
+			store.add(this._instantiationService.createInstance(
+				InlineEditsGutterIndicator,
 				this._editorObs,
 				this._uiState.map(s => s && s.originalDisplayRange),
 				this._model,
+				this._sideBySide.isHovered,
 			));
 		} else {
 			store.add(new InlineEditsIndicator(

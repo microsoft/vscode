@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDomNodePagePosition, h, isSVGElement } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, getDomNodePagePosition, h, isSVGElement } from '../../../../../../base/browser/dom.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, derivedObservableWithCache, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
@@ -164,7 +164,7 @@ export class PathBuilder {
 }
 
 type Value<T> = T | IObservable<T>;
-type ValueOrList<T> = Value<T> | Value<T>[];
+type ValueOrList<T> = Value<T> | ValueOrList<T>[];
 type ValueOrList2<T> = ValueOrList<T> | ValueOrList<ValueOrList<T>>;
 
 type Element = HTMLElement | SVGElement;
@@ -203,15 +203,17 @@ type SVGElementTagNameMap2 = {
 type DomTagCreateFn<TMap extends Record<string, any>> =
 	<TTag extends keyof TMap>(
 		tag: TTag,
-		attributes: ElementAttributeKeys<TMap[TTag]> & { class?: Value<string | string[]>; ref?: IRef<TMap[TTag]> },
-		children?: ValueOrList2<Element | string | ObserverNode | undefined>,
+		attributes: ElementAttributeKeys<TMap[TTag]> & { class?: ValueOrList<string | false | undefined>; ref?: IRef<TMap[TTag]> },
+		children?: ChildNode,
 	) => ObserverNode<TMap[TTag]>;
 
 type DomCreateFn<TAttributes, TResult extends Element> =
 	(
-		attributes: ElementAttributeKeys<TAttributes> & { class?: Value<string | string[]>; ref?: IRef<TResult> },
-		children?: ValueOrList2<Element | string | ObserverNode | undefined>,
+		attributes: ElementAttributeKeys<TAttributes> & { class?: ValueOrList<string | false | undefined>; ref?: IRef<TResult> },
+		children?: ChildNode,
 	) => ObserverNode<TResult>;
+
+export type ChildNode = ValueOrList2<Element | string | ObserverNode | undefined>;
 
 export namespace n {
 	function nodeNs<TMap extends Record<string, any>>(elementNs: string | undefined = undefined): DomTagCreateFn<TMap> {
@@ -233,35 +235,37 @@ export namespace n {
 	}
 
 	export const div: DomCreateFn<HTMLDivElement, HTMLDivElement> = node<HTMLElementTagNameMap, 'div'>('div');
+
+	export const elem = nodeNs<HTMLElementTagNameMap>(undefined);
+
 	export const svg: DomCreateFn<SVGElementTagNameMap2['svg'], SVGElement> = node<SVGElementTagNameMap2, 'svg'>('svg', 'http://www.w3.org/2000/svg');
 
 	export const svgElem = nodeNs<SVGElementTagNameMap2>('http://www.w3.org/2000/svg');
 
-	export function ref<T = Element>(): Ref<T> {
-		return new Ref<T>();
+	export function ref<T = Element>(): IRefWithVal<T> {
+		let value: T | undefined = undefined;
+		const result: IRef<T> = function (val: T) {
+			value = val;
+		};
+		Object.defineProperty(result, 'element', {
+			get() {
+				if (!value) {
+					throw new BugIndicatingError('Make sure the ref is set before accessing the element. Maybe wrong initialization order?');
+				}
+				return value;
+			}
+		});
+		return result as any;
 	}
 }
 
-export interface IRef<T> {
-	setValue(value: T): void;
+export type IRef<T> = (value: T) => void;
+
+export interface IRefWithVal<T> extends IRef<T> {
+	readonly element: T;
 }
 
-export class Ref<T> implements IRef<T> {
-	private _value: T | undefined = undefined;
-
-	public setValue(value: T): void {
-		this._value = value;
-	}
-
-	public get element(): T {
-		if (!this._value) {
-			throw new BugIndicatingError('Make sure the ref is set before accessing the element. Maybe wrong initialization order?');
-		}
-		return this._value;
-	}
-}
-
-export abstract class ObserverNode<T extends Element = Element> extends Disposable {
+export abstract class ObserverNode<T extends Element = Element> {
 	private readonly _deriveds: (IObservable<any>)[] = [];
 
 	protected readonly _element: T;
@@ -270,48 +274,23 @@ export abstract class ObserverNode<T extends Element = Element> extends Disposab
 		tag: string,
 		ref: IRef<T> | undefined,
 		ns: string | undefined,
-		className: Value<string | string[]> | undefined,
+		className: ValueOrList<string | undefined | false> | undefined,
 		attributes: ElementAttributeKeys<T>,
-		children: ValueOrList2<Element | string | ObserverNode | undefined> | undefined,
+		children: ChildNode,
 	) {
-		super();
-
 		this._element = (ns ? document.createElementNS(ns, tag) : document.createElement(tag)) as unknown as T;
 		if (ref) {
-			ref.setValue(this._element);
-		}
-
-		function setClassName(domNode: Element, className: string | string[]) {
-			if (isSVGElement(domNode)) {
-				if (Array.isArray(className)) {
-					domNode.setAttribute('class', className.join(' '));
-				} else {
-					domNode.setAttribute('class', className);
-				}
-			} else {
-				if (Array.isArray(className)) {
-					domNode.className = className.join(' ');
-				} else {
-					domNode.className = className;
-				}
-			}
+			ref(this._element);
 		}
 
 		if (className) {
-			if (isObservable(className)) {
+			if (hasObservable(className)) {
 				this._deriveds.push(derived(this, reader => {
-					setClassName(this._element, className.read(reader));
+					setClassName(this._element, getClassName(className, reader));
 				}));
 			} else {
-				setClassName(this._element, className);
+				setClassName(this._element, getClassName(className, undefined));
 			}
-		}
-
-		function convertCssValue(value: any): string {
-			if (typeof value === 'number') {
-				return value + 'px';
-			}
-			return value;
 		}
 
 		for (const [key, value] of Object.entries(attributes)) {
@@ -347,36 +326,26 @@ export abstract class ObserverNode<T extends Element = Element> extends Disposab
 			}
 		}
 
-		function getChildren(reader: IReader | undefined, children: ValueOrList2<Element | string | ObserverNode | undefined>): (Element | string)[] {
-			if (isObservable(children)) {
-				return getChildren(reader, children.read(reader));
-			}
-			if (Array.isArray(children)) {
-				return children.flatMap(c => getChildren(reader, c));
-			}
-			if (children instanceof ObserverNode) {
-				if (reader) {
-					children.readEffect(reader);
-				}
-				return [children._element];
-			}
-			if (children) {
-				return [children];
-			}
-			return [];
-		}
-
-		function childrenIsObservable(children: ValueOrList2<Element | string | ObserverNode | undefined>): boolean {
-			if (isObservable(children)) {
-				return true;
-			}
-			if (Array.isArray(children)) {
-				return children.some(c => childrenIsObservable(c));
-			}
-			return false;
-		}
-
 		if (children) {
+			function getChildren(reader: IReader | undefined, children: ValueOrList2<Element | string | ObserverNode | undefined>): (Element | string)[] {
+				if (isObservable(children)) {
+					return getChildren(reader, children.read(reader));
+				}
+				if (Array.isArray(children)) {
+					return children.flatMap(c => getChildren(reader, c));
+				}
+				if (children instanceof ObserverNode) {
+					if (reader) {
+						children.readEffect(reader);
+					}
+					return [children._element];
+				}
+				if (children) {
+					return [children];
+				}
+				return [];
+			}
+
 			const d = derived(this, reader => {
 				this._element.replaceChildren(...getChildren(reader, children));
 			});
@@ -399,11 +368,101 @@ export abstract class ObserverNode<T extends Element = Element> extends Disposab
 		}).recomputeInitiallyAndOnChange(store);
 		return this as unknown as ObserverNodeWithElement<T>;
 	}
+
+	/**
+	 * Creates a live element that will keep the element updated as long as the returned object is not disposed.
+	*/
+	toDisposableLiveElement() {
+		const store = new DisposableStore();
+		this.keepUpdated(store);
+		return new LiveElement(this._element, store);
+	}
+}
+
+
+
+function setClassName(domNode: Element, className: string) {
+	if (isSVGElement(domNode)) {
+		domNode.setAttribute('class', className);
+	} else {
+		domNode.className = className;
+	}
+}
+
+function resolve<T>(value: ValueOrList<T>, reader: IReader | undefined, cb: (val: T) => void): void {
+	if (isObservable(value)) {
+		cb(value.read(reader));
+	}
+	if (Array.isArray(value)) {
+		for (const v of value) {
+			resolve(v, reader, cb);
+		}
+	}
+	cb(value as any);
+}
+
+function getClassName(className: ValueOrList<string | undefined | false> | undefined, reader: IReader | undefined): string {
+	let result = '';
+	resolve(className, reader, val => {
+		if (val) {
+			if (result.length === 0) {
+				result = val;
+			} else {
+				result += ' ' + val;
+			}
+		}
+	});
+	return result;
+}
+
+function hasObservable(value: ValueOrList<unknown>): boolean {
+	if (isObservable(value)) {
+		return true;
+	}
+	if (Array.isArray(value)) {
+		return value.some(v => hasObservable(v));
+	}
+	return false;
+}
+function convertCssValue(value: any): string {
+	if (typeof value === 'number') {
+		return value + 'px';
+	}
+	return value;
+}
+
+
+function childrenIsObservable(children: ValueOrList2<Element | string | ObserverNode | undefined>): boolean {
+	if (isObservable(children)) {
+		return true;
+	}
+	if (Array.isArray(children)) {
+		return children.some(c => childrenIsObservable(c));
+	}
+	return false;
+}
+
+export class LiveElement<T extends Element = HTMLElement> {
+	constructor(
+		public readonly element: T,
+		private readonly _disposable: IDisposable,
+	) { }
+
+	dispose() {
+		this._disposable.dispose();
+	}
 }
 
 export class ObserverNodeWithElement<T extends Element = Element> extends ObserverNode<T> {
 	public get element() {
 		return this._element;
+	}
+
+	public getIsHovered(store: DisposableStore): IObservable<boolean> {
+		const hovered = observableValue<boolean>('hovered', false);
+		store.add(addDisposableListener(this._element, 'mouseenter', () => hovered.set(true, undefined)));
+		store.add(addDisposableListener(this._element, 'mouseleave', () => hovered.set(false, undefined)));
+		return hovered;
 	}
 }
 
@@ -479,3 +538,5 @@ export function rectToProps(fn: (reader: IReader) => Rect) {
 		height: derived(reader => fn(reader).bottom - fn(reader).top),
 	};
 }
+
+export type FirstFnArg<T> = T extends (arg: infer U) => any ? U : never;
