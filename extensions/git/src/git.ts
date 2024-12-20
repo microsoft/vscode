@@ -1166,11 +1166,11 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
-	async config(scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
-		const args = ['config'];
+	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
+		const args = ['config', command];
 
 		if (scope) {
-			args.push('--' + scope);
+			args.push(`--${scope}`);
 		}
 
 		args.push(key);
