@@ -1812,7 +1812,7 @@ class InnerMinimap extends Disposable {
 		canvasContext.letterSpacing = sectionHeaderLetterSpacing + 'px';
 		canvasContext.font = '500 ' + sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
 		canvasContext.strokeStyle = separatorStroke;
-		canvasContext.lineWidth = 0.2;
+		canvasContext.lineWidth = 0.4;
 
 		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
 		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
