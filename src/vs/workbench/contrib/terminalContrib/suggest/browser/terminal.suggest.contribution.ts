@@ -86,11 +86,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		if (!enabled) {
 			return;
 		}
-		this.add(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
-			if (!e || e.affectsConfiguration(TerminalSettingId.SendKeybindingsToShell)) {
-				this._loadAddons(xterm.raw);
-			}
-		}));
+		this._loadAddons(xterm.raw);
 		this.add(Event.runAndSubscribe(this._ctx.instance.onDidChangeShellType, async () => {
 			this._refreshAddons();
 		}));
@@ -134,13 +130,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private _loadAddons(xterm: RawXtermTerminal): void {
-		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
-		if (sendingKeybindingsToShell) {
-			this._addon.clear();
-			this._pwshAddon.clear();
-			return;
-		}
-
 		// Don't re-create the addon
 		if (this._addon.value) {
 			return;
