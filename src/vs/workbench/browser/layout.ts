@@ -23,14 +23,14 @@ import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, Titl
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
-import { EditorGroupLayout, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { Part } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { isCodeEditor } from '../../editor/browser/editorBrowser.js';
 import { coalesce } from '../../base/common/arrays.js';
-import { assertIsDefined } from '../../base/common/types.js';
+import { assertIsDefined, isDefined } from '../../base/common/types.js';
 import { INotificationService, NotificationsFilter } from '../../platform/notification/common/notification.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
@@ -1610,19 +1610,28 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	centerMainEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED, active);
 
-		const activeMainEditor = this.mainPartEditorService.activeEditor;
+		const mainVisibleEditors = this.editorGroupService.mainPart.groups.map(g => g.activeEditor).filter(isDefined);
+		const isEditorComplex = mainVisibleEditors.some(editor => {
+			if (editor instanceof DiffEditorInput) {
+				return this.configurationService.getValue('diffEditor.renderSideBySide');
+			} else if (editor?.hasCapability(EditorInputCapabilities.MultipleEditors)) {
+				return true;
+			}
+			return false;
+		});
 
-		let isEditorComplex = false;
-		if (activeMainEditor instanceof DiffEditorInput) {
-			isEditorComplex = this.configurationService.getValue('diffEditor.renderSideBySide');
-		} else if (activeMainEditor?.hasCapability(EditorInputCapabilities.MultipleEditors)) {
-			isEditorComplex = true;
+		const layout = this.editorGroupService.getLayout();
+		let hasMoreThanOneColumn = false;
+		if (layout.orientation === GroupOrientation.HORIZONTAL) {
+			hasMoreThanOneColumn = layout.groups.length > 1;
+		} else {
+			hasMoreThanOneColumn = layout.groups.some(g => g.groups && g.groups.length > 1);
 		}
 
 		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
 		if (
 			isCenteredLayoutAutoResizing &&
-			((this.editorGroupService.mainPart.groups.length > 1 && !this.editorGroupService.mainPart.hasMaximizedGroup()) || isEditorComplex)
+			((hasMoreThanOneColumn && !this.editorGroupService.mainPart.hasMaximizedGroup()) || isEditorComplex)
 		) {
 			active = false; // disable centered layout for complex editors or when there is more than one group
 		}
@@ -1774,9 +1783,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
 			if (viewletToOpen) {
-				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar);
+				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar, true);
 				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar);
+					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar, true);
 				}
 			}
 		}
@@ -1922,7 +1931,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (panelToOpen) {
-				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel);
+				const focus = !skipLayout;
+				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel, focus);
 			}
 		}
 
@@ -2021,7 +2031,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (panelToOpen) {
-				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.AuxiliaryBar);
+				const focus = !skipLayout;
+				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.AuxiliaryBar, focus);
 			}
 		}
 

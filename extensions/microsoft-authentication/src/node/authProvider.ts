@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AccountInfo, AuthenticationResult, ServerError } from '@azure/msal-node';
+import { AccountInfo, AuthenticationResult, ClientAuthError, ClientAuthErrorCodes, ServerError } from '@azure/msal-node';
 import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
@@ -225,6 +225,12 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			// failing to open a port or something local that would require us to try the
 			// URL handler loopback client.
 			if (e instanceof ServerError) {
+				this._telemetryReporter.sendLoginFailedEvent();
+				throw e;
+			}
+
+			// The user closed the modal window
+			if ((e as ClientAuthError).errorCode === ClientAuthErrorCodes.userCanceled) {
 				this._telemetryReporter.sendLoginFailedEvent();
 				throw e;
 			}

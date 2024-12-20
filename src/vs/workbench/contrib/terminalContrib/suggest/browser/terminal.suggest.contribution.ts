@@ -192,7 +192,13 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1,
 		when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
 	},
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions()
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions(true)
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ResetWidgetSize,
+	title: localize2('workbench.action.terminal.resetSuggestWidgetSize', 'Reset Suggest Widget Size'),
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.resetWidgetSize()
 });
 
 registerActiveInstanceAction({

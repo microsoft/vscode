@@ -748,9 +748,9 @@ export class ExtensionsScanner extends Disposable {
 
 	async deleteExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
 		if (this.uriIdentityService.extUri.isEqualOrParent(extension.location, this.extensionsScannerService.userExtensionsLocation)) {
-			return this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
+			await this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
+			await this.unsetExtensionsForRemoval(ExtensionKey.create(extension));
 		}
-		await this.unsetExtensionsForRemoval(ExtensionKey.create(extension));
 	}
 
 	async copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
@@ -813,7 +813,13 @@ export class ExtensionsScanner extends Disposable {
 				if (Object.keys(removed).length) {
 					await this.fileService.writeFile(this.obsoletedResource, VSBuffer.fromString(JSON.stringify(removed)));
 				} else {
-					await this.fileService.del(this.obsoletedResource);
+					try {
+						await this.fileService.del(this.obsoletedResource);
+					} catch (error) {
+						if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+							throw error;
+						}
+					}
 				}
 			}
 

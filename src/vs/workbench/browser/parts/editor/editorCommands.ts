@@ -28,7 +28,7 @@ import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAc
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
 import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
-import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
+import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
@@ -108,13 +108,13 @@ export const EDITOR_CORE_NAVIGATION_COMMANDS = [
 	TOGGLE_MAXIMIZE_EDITOR_GROUP
 ];
 
-export interface ActiveEditorMoveCopyArguments {
+export interface SelectedEditorsMoveCopyArguments {
 	to?: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
 	by?: 'tab' | 'group';
 	value?: number;
 }
 
-const isActiveEditorMoveCopyArg = function (arg: ActiveEditorMoveCopyArguments): boolean {
+const isSelectedEditorsMoveCopyArg = function (arg: SelectedEditorsMoveCopyArguments): boolean {
 	if (!isObject(arg)) {
 		return false;
 	}
@@ -159,14 +159,14 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopyActiveEditor(true, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(true, args, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [
 				{
 					name: localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
 					description: localize('editorCommand.activeEditorMove.arg.description', "Argument Properties:\n\t* 'to': String value providing where to move.\n\t* 'by': String value providing the unit for move (by tab or by group).\n\t* 'value': Number value providing how many positions or an absolute position to move."),
-					constraint: isActiveEditorMoveCopyArg,
+					constraint: isSelectedEditorsMoveCopyArg,
 					schema: moveCopyJSONSchema
 				}
 			]
@@ -178,42 +178,55 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopyActiveEditor(false, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(false, args, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorCopy.description', "Copy the active editor by groups"),
 			args: [
 				{
 					name: localize('editorCommand.activeEditorCopy.arg.name', "Active editor copy argument"),
 					description: localize('editorCommand.activeEditorCopy.arg.description', "Argument Properties:\n\t* 'to': String value providing where to copy.\n\t* 'value': Number value providing how many positions or an absolute position to copy."),
-					constraint: isActiveEditorMoveCopyArg,
+					constraint: isSelectedEditorsMoveCopyArg,
 					schema: moveCopyJSONSchema
 				}
 			]
 		}
 	});
 
-	function moveCopyActiveEditor(isMove: boolean, args: ActiveEditorMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
+	function moveCopySelectedEditors(isMove: boolean, args: SelectedEditorsMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
 		args.to = args.to || 'right';
 		args.by = args.by || 'tab';
 		args.value = typeof args.value === 'number' ? args.value : 1;
 
-		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-		if (activeEditorPane) {
+		const activeGroup = accessor.get(IEditorGroupsService).activeGroup;
+		const selectedEditors = activeGroup.selectedEditors;
+		if (selectedEditors.length > 0) {
 			switch (args.by) {
 				case 'tab':
 					if (isMove) {
-						return moveActiveTab(args, activeEditorPane);
+						return moveTabs(args, activeGroup, selectedEditors);
 					}
 					break;
 				case 'group':
-					return moveCopyActiveEditorToGroup(isMove, args, activeEditorPane, accessor);
+					return moveCopyActiveEditorToGroup(isMove, args, activeGroup, selectedEditors, accessor);
 			}
 		}
 	}
 
-	function moveActiveTab(args: ActiveEditorMoveCopyArguments, control: IVisibleEditorPane): void {
-		const group = control.group;
-		let index = group.getIndexOfEditor(control.input);
+	function moveTabs(args: SelectedEditorsMoveCopyArguments, group: IEditorGroup, editors: EditorInput[]): void {
+		const to = args.to;
+		if (to === 'first' || to === 'right') {
+			editors = [...editors].reverse();
+		} else if (to === 'position' && (args.value ?? 1) < group.getIndexOfEditor(editors[0])) {
+			editors = [...editors].reverse();
+		}
+
+		for (const editor of editors) {
+			moveTab(args, group, editor);
+		}
+	}
+
+	function moveTab(args: SelectedEditorsMoveCopyArguments, group: IEditorGroup, editor: EditorInput): void {
+		let index = group.getIndexOfEditor(editor);
 		switch (args.to) {
 			case 'first':
 				index = 0;
@@ -236,14 +249,13 @@ function registerActiveEditorMoveCopyCommand(): void {
 		}
 
 		index = index < 0 ? 0 : index >= group.count ? group.count - 1 : index;
-		group.moveEditor(control.input, group, { index });
+		group.moveEditor(editor, group, { index });
 	}
 
-	function moveCopyActiveEditorToGroup(isMove: boolean, args: ActiveEditorMoveCopyArguments, control: IVisibleEditorPane, accessor: ServicesAccessor): void {
+	function moveCopyActiveEditorToGroup(isMove: boolean, args: SelectedEditorsMoveCopyArguments, sourceGroup: IEditorGroup, editors: EditorInput[], accessor: ServicesAccessor): void {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const sourceGroup = control.group;
 		let targetGroup: IEditorGroup | undefined;
 
 		switch (args.to) {
@@ -296,9 +308,9 @@ function registerActiveEditorMoveCopyCommand(): void {
 
 		if (targetGroup) {
 			if (isMove) {
-				sourceGroup.moveEditor(control.input, targetGroup);
+				sourceGroup.moveEditors(editors.map(editor => ({ editor })), targetGroup);
 			} else if (sourceGroup.id !== targetGroup.id) {
-				sourceGroup.copyEditor(control.input, targetGroup);
+				sourceGroup.copyEditors(editors.map(editor => ({ editor })), targetGroup);
 			}
 			targetGroup.focus();
 		}
