@@ -5,6 +5,8 @@
 
 import * as nls from '../../../../nls.js';
 import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
+import * as cssJs from '../../../../base/browser/cssValue.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -31,7 +33,7 @@ import { TerminalTabbedView } from './terminalTabbedView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getColorForSeverity } from './terminalStatusList.js';
-import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -186,7 +188,7 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
-		dom.createStyleSheet(this._parentDomElement);
+		domStylesheetsJs.createStyleSheet(this._parentDomElement);
 		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
@@ -267,8 +269,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
-					const actions: IAction[] = [];
-					createAndFillInContextMenuActions(this._singleTabMenu, { shouldForwardArgs: true }, actions);
+					const actions = getFlatContextMenuActions(this._singleTabMenu.getActions({ shouldForwardArgs: true }));
 					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
 			}
@@ -276,7 +277,7 @@ export class TerminalViewPane extends ViewPane {
 				if (action instanceof MenuItemAction) {
 					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
 					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
-					this._newDropdown.value = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate }, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
+					this._newDropdown.value = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate }, this._contextMenuService, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
 					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 					return this._newDropdown.value;
 				}
@@ -584,7 +585,7 @@ class TerminalThemeIconStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = dom.createStyleSheet(container);
+		this._styleElement = domStylesheetsJs.createStyleSheet(container);
 		this._register(toDisposable(() => this._styleElement.remove()));
 		this.updateStyles();
 	}
@@ -618,7 +619,7 @@ class TerminalThemeIconStyle extends Themable {
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
 					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon` +
-					`{background-image: ${dom.asCSSUrl(uri)};}`
+					`{background-image: ${cssJs.asCSSUrl(uri)};}`
 				);
 			}
 		}

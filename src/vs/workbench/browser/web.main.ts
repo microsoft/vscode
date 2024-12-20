@@ -341,6 +341,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 
 		const currentProfile = await this.getCurrentProfile(workspace, userDataProfilesService, environmentService);
+		await userDataProfilesService.setProfileForWorkspace(workspace, currentProfile);
 		const userDataProfileService = new UserDataProfileService(currentProfile);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 

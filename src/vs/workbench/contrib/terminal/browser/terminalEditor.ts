@@ -168,7 +168,7 @@ export class TerminalEditor extends EditorPane {
 					const location = { viewColumn: ACTIVE_GROUP };
 					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
 					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
-					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate });
+					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
 					return button;
 				}
 			}

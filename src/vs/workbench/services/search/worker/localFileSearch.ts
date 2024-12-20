@@ -312,7 +312,12 @@ function createSearchRegExp(options: IPatternInfo): RegExp {
 }
 
 function reviveFolderQuery(folderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return revive(folderQuery);
+	// @todo: andrea - try to see why we can't just call 'revive' here
+	return revive({
+		...revive(folderQuery),
+		excludePattern: folderQuery.excludePattern?.map(ep => ({ folder: URI.revive(ep.folder), pattern: ep.pattern })),
+		folder: URI.revive(folderQuery.folder),
+	});
 }
 
 function reviveQueryProps(queryProps: ICommonQueryProps<UriComponents>): ICommonQueryProps<URI> {

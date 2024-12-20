@@ -66,7 +66,12 @@ registerAction2(class extends Action2 {
 
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
-			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.category + '#' + walkthroughID.step;
+			let selectedStep: string | undefined;
+			if (typeof walkthroughID === 'object' && 'category' in walkthroughID && 'step' in walkthroughID) {
+				selectedStep = `${walkthroughID.category}#${walkthroughID.step}`;
+			} else {
+				selectedStep = undefined;
+			}
 
 			// We're trying to open the welcome page from the Help menu
 			if (!selectedCategory && !selectedStep) {
@@ -80,6 +85,8 @@ registerAction2(class extends Action2 {
 			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
 			for (const group of editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
+					const activeEditor = group.activeEditor as GettingStartedInput;
+					activeEditor.showWelcome = false;
 					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 					return;
 				}
@@ -93,6 +100,7 @@ registerAction2(class extends Action2 {
 					if (!editor.selectedCategory && group) {
 						editor.selectedCategory = selectedCategory;
 						editor.selectedStep = selectedStep;
+						editor.showWelcome = false;
 						group.openEditor(editor, { revealIfOpened: true });
 						return;
 					}
@@ -102,6 +110,7 @@ registerAction2(class extends Action2 {
 			const activeEditor = editorService.activeEditor;
 			// If the walkthrough is already open just reveal the step
 			if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
+				activeEditor.showWelcome = false;
 				commandService.executeCommand('walkthroughs.selectStep', selectedStep);
 				return;
 			}
@@ -111,11 +120,11 @@ registerAction2(class extends Action2 {
 				const activeGroup = editorGroupsService.activeGroup;
 				activeGroup.replaceEditors([{
 					editor: activeEditor,
-					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep })
+					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false })
 				}]);
 			} else {
 				// else open respecting toSide
-				const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, preserveFocus: toSide ?? false };
+				const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false };
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options

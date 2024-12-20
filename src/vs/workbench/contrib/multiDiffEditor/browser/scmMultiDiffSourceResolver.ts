@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableFromEvent, waitForState } from '../../../../base/common/observable.js';
-import { ValueWithChangeEventFromObservable } from '../../../../base/common/observableInternal/utils.js';
+import { observableFromEvent, ValueWithChangeEventFromObservable, waitForState } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
-import { ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
+import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 
 export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 	private static readonly _scheme = 'scm-multi-diff-source';

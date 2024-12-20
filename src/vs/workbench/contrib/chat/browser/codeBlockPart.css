@@ -31,6 +31,7 @@
 }
 
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
+	border-radius: 3px;
 	right: 10px;
 }
 

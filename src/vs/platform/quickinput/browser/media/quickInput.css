@@ -26,8 +26,14 @@
 	flex: 1;
 }
 
-.quick-input-inline-action-bar {
-	margin: 2px 0 0 5px;
+/* give some space between input and action bar */
+.quick-input-inline-action-bar > .actions-container > .action-item:first-child {
+	margin-left: 5px;
+}
+
+/* center horizontally */
+.quick-input-inline-action-bar > .actions-container > .action-item {
+	margin-top: 2px;
 }
 
 .quick-input-title {

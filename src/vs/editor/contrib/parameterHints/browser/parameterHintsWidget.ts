@@ -67,7 +67,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	) {
 		super();
 
-		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
+		this.markdownRenderer = new MarkdownRenderer({ editor }, languageService, openerService);
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);

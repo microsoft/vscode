@@ -117,6 +117,12 @@ const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInforma
 	}
 });
 
+export enum PortsEnablement {
+	Disabled = 0,
+	ViewOnly = 1,
+	AdditionalFeatures = 2
+}
+
 export interface IRemoteExplorerService {
 	readonly _serviceBrand: undefined;
 	onDidChangeTargetType: Event<string[]>;
@@ -133,9 +139,9 @@ export interface IRemoteExplorerService {
 	setCandidateFilter(filter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined): IDisposable;
 	onFoundNewCandidates(candidates: CandidatePort[]): void;
 	restore(): Promise<void>;
-	enablePortsFeatures(): void;
+	enablePortsFeatures(viewOnly: boolean): void;
 	onEnabledPortsFeatures: Event<void>;
-	portsFeaturesEnabled: boolean;
+	portsFeaturesEnabled: PortsEnablement;
 	readonly namedProcesses: Map<number, string>;
 }
 
@@ -153,7 +159,7 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	public readonly onDidChangeEditable: Event<{ tunnel: ITunnelItem; editId: TunnelEditId } | undefined> = this._onDidChangeEditable.event;
 	private readonly _onEnabledPortsFeatures: Emitter<void> = new Emitter();
 	public readonly onEnabledPortsFeatures: Event<void> = this._onEnabledPortsFeatures.event;
-	private _portsFeaturesEnabled: boolean = false;
+	private _portsFeaturesEnabled: PortsEnablement = PortsEnablement.Disabled;
 	public readonly namedProcesses = new Map<number, string>();
 
 	constructor(
@@ -246,12 +252,12 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		return this.tunnelModel.restoreForwarded();
 	}
 
-	enablePortsFeatures(): void {
-		this._portsFeaturesEnabled = true;
+	enablePortsFeatures(viewOnly: boolean): void {
+		this._portsFeaturesEnabled = viewOnly ? PortsEnablement.ViewOnly : PortsEnablement.AdditionalFeatures;
 		this._onEnabledPortsFeatures.fire();
 	}
 
-	get portsFeaturesEnabled(): boolean {
+	get portsFeaturesEnabled(): PortsEnablement {
 		return this._portsFeaturesEnabled;
 	}
 }

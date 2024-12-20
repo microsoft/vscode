@@ -29,10 +29,14 @@ import { StickyRange } from './stickyScrollElement.js';
 import { IMouseEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { FoldingController } from '../../folding/browser/folding.js';
 import { FoldingModel, toggleCollapseState } from '../../folding/browser/foldingModel.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
 	get stickyScrollWidgetState(): StickyScrollWidgetState;
+	readonly stickyScrollWidgetHeight: number;
+	isFocused(): boolean;
 	focus(): void;
 	focusNext(): void;
 	focusPrevious(): void;
@@ -40,6 +44,7 @@ export interface IStickyScrollController {
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 	selectEditor(): void;
+	onDidChangeStickyScrollHeight: Event<{ height: number }>;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -69,6 +74,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _endLineNumbers: number[] = [];
 	private _showEndForLine: number | undefined;
 	private _minRebuildFromLine: number | undefined;
+	private _mouseTarget: EventTarget | null = null;
+
+	private readonly _onDidChangeStickyScrollHeight = this._register(new Emitter<{ height: number }>());
+	public readonly onDidChangeStickyScrollHeight = this._onDidChangeStickyScrollHeight.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -86,8 +95,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(this._stickyLineCandidateProvider);
 
 		this._widgetState = StickyScrollWidgetState.Empty;
-		this._onDidResize();
-		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			this._readConfigurationChange(e);
@@ -119,6 +126,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.MOUSE_DOWN, (e) => {
 			this._onMouseDown = true;
 		}));
+		this._register(this._stickyScrollWidget.onDidChangeStickyScrollHeight((e) => {
+			this._onDidChangeStickyScrollHeight.fire(e);
+		}));
+		this._onDidResize();
+		this._readConfiguration();
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
@@ -127,6 +139,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	get stickyScrollWidgetState(): StickyScrollWidgetState {
 		return this._widgetState;
+	}
+
+	get stickyScrollWidgetHeight(): number {
+		return this._stickyScrollWidget.height;
 	}
 
 	public static get(editor: ICodeEditor): IStickyScrollController | null {
@@ -139,6 +155,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._focused = false;
 		this._positionRevealed = false;
 		this._onMouseDown = false;
+	}
+
+	public isFocused(): boolean {
+		return this._focused;
 	}
 
 	public focus(): void {
@@ -282,26 +302,26 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			this._revealPosition(position);
 		}));
-		this._register(dom.addStandardDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_MOVE, (mouseEvent: IMouseEvent) => {
-			if (mouseEvent.shiftKey) {
-				const currentEndForLineIndex = this._stickyScrollWidget.getLineIndexFromChildDomNode(mouseEvent.target);
-				if (currentEndForLineIndex === null || this._showEndForLine !== null && this._showEndForLine === currentEndForLineIndex) {
-					return;
-				}
-				this._showEndForLine = currentEndForLineIndex;
-				this._renderStickyScroll();
-				return;
-			}
+		const mouseMoveListener = (mouseEvent: MouseEvent) => {
+			this._mouseTarget = mouseEvent.target;
+			this._onMouseMoveOrKeyDown(mouseEvent);
+		};
+		const keyDownListener = (mouseEvent: KeyboardEvent) => {
+			this._onMouseMoveOrKeyDown(mouseEvent);
+		};
+		const keyUpListener = (e: KeyboardEvent) => {
 			if (this._showEndForLine !== undefined) {
 				this._showEndForLine = undefined;
 				this._renderStickyScroll();
 			}
-		}));
-		this._register(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_LEAVE, (e) => {
-			if (this._showEndForLine !== undefined) {
-				this._showEndForLine = undefined;
-				this._renderStickyScroll();
-			}
+		};
+		mainWindow.addEventListener(dom.EventType.MOUSE_MOVE, mouseMoveListener);
+		mainWindow.addEventListener(dom.EventType.KEY_DOWN, keyDownListener);
+		mainWindow.addEventListener(dom.EventType.KEY_UP, keyUpListener);
+		this._register(toDisposable(() => {
+			mainWindow.removeEventListener(dom.EventType.MOUSE_MOVE, mouseMoveListener);
+			mainWindow.removeEventListener(dom.EventType.KEY_DOWN, keyDownListener);
+			mainWindow.removeEventListener(dom.EventType.KEY_UP, keyUpListener);
 		}));
 
 		this._register(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
@@ -385,6 +405,21 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		});
 	}
 
+	private _onMouseMoveOrKeyDown(mouseEvent: KeyboardEvent | MouseEvent): void {
+		if (!mouseEvent.shiftKey) {
+			return;
+		}
+		if (!this._mouseTarget || !dom.isHTMLElement(this._mouseTarget)) {
+			return;
+		}
+		const currentEndForLineIndex = this._stickyScrollWidget.getLineIndexFromChildDomNode(this._mouseTarget);
+		if (currentEndForLineIndex === null || this._showEndForLine === currentEndForLineIndex) {
+			return;
+		}
+		this._showEndForLine = currentEndForLineIndex;
+		this._renderStickyScroll();
+	}
+
 	private _toggleFoldingRegionForLine(line: number | null) {
 		if (!this._foldingModel || line === null) {
 			return;
@@ -394,7 +429,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (!foldingIcon) {
 			return;
 		}
-		toggleCollapseState(this._foldingModel, Number.MAX_VALUE, [line]);
+		toggleCollapseState(this._foldingModel, 1, [line]);
 		foldingIcon.isCollapsed = !foldingIcon.isCollapsed;
 		const scrollTop = (foldingIcon.isCollapsed ?
 			this._editor.getTopForLineNumber(foldingIcon.foldingEndLine)
@@ -408,6 +443,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
+			this._resetState();
 			this._sessionStore.clear();
 			this._enabled = false;
 			return;
@@ -449,7 +485,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._readConfiguration();
 		}
 
-		if (event.hasChanged(EditorOption.lineNumbers)) {
+		if (event.hasChanged(EditorOption.lineNumbers) || event.hasChanged(EditorOption.folding) || event.hasChanged(EditorOption.showFoldingControls)) {
 			this._renderStickyScroll(0);
 		}
 	}
@@ -478,6 +514,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		// Make sure sticky scroll doesn't take up more than 25% of the editor
 		const theoreticalLines = layoutInfo.height / this._editor.getOption(EditorOption.lineHeight);
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
+		this._renderStickyScroll(0);
 	}
 
 	private async _renderStickyScroll(rebuildFromLine?: number): Promise<void> {
@@ -572,7 +609,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
 						startLineNumbers.push(start);
 						endLineNumbers.push(end + 1);
-						lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
+						if (topOfElementAtDepth > bottomOfEndLine - lineHeight) {
+							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
+						}
 						break;
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {

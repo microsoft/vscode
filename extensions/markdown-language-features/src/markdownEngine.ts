@@ -129,7 +129,7 @@ export class MarkdownItEngine implements IMdParser {
 		if (!this._md) {
 			this._md = (async () => {
 				const markdownIt = await import('markdown-it');
-				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
+				let md: MarkdownIt = markdownIt.default(await getMarkdownOptions(() => md));
 				md.linkify.set({ fuzzyLink: false });
 
 				for (const plugin of this._contributionProvider.contributions.markdownItPlugins.values()) {
@@ -143,7 +143,7 @@ export class MarkdownItEngine implements IMdParser {
 				const frontMatterPlugin = await import('markdown-it-front-matter');
 				// Extract rules from front matter plugin and apply at a lower precedence
 				let fontMatterRule: any;
-				frontMatterPlugin({
+				frontMatterPlugin.default(<any>{
 					block: {
 						ruler: {
 							before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }

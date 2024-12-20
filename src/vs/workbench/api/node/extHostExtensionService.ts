@@ -18,10 +18,8 @@ import { CLIServer } from './extHostCLIServer.js';
 import { realpathSync } from '../../../base/node/extpath.js';
 import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
 import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
-// ESM-uncomment-begin
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-// ESM-uncomment-end
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -101,7 +99,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// Do this when extension service exists, but extensions are not being activated yet.
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData);
+		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData, this._store);
 		performance.mark('code/extHost/didInitProxyResolver');
 	}
 
@@ -125,7 +123,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			if (extensionId) {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
-			r = <T>(require.__$__nodeRequire ?? require /* TODO@esm drop the first */)(module.fsPath);
+			r = <T>(require)(module.fsPath);
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);

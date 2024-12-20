@@ -237,6 +237,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _onDidChangeTaskProviders = this._register(new Emitter<void>());
 	public onDidChangeTaskProviders = this._onDidChangeTaskProviders.event;
 
+	private _activatedTaskProviders: Set<string> = new Set();
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMarkerService protected readonly _markerService: IMarkerService,
@@ -617,12 +619,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		this._log('Activating task providers ' + (type ?? 'all'));
-		await raceTimeout(
+		const hasLoggedActivation = this._activatedTaskProviders.has(type ?? 'all');
+		if (!hasLoggedActivation) {
+			this._log('Activating task providers ' + (type ?? 'all'));
+		}
+		const result = await raceTimeout(
 			Promise.all(this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))),
 			5000,
 			() => console.warn('Timed out activating extensions for task providers')
 		);
+		if (result) {
+			this._activatedTaskProviders.add(type ?? 'all');
+		}
 	}
 
 	private _updateSetup(setup?: [IWorkspaceFolder[], IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion, IWorkspace | undefined]): void {

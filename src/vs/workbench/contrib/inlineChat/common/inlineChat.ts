@@ -17,9 +17,10 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
-	ZoneToolbar = 'inlineChat.experimental.enableZoneToolbar',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
-	AccessibleDiffView = 'inlineChat.accessibleDiffView'
+	AccessibleDiffView = 'inlineChat.accessibleDiffView',
+	LineEmptyHint = 'inlineChat.lineEmptyHint',
+	LineNLHint = 'inlineChat.lineNaturalLanguageHint'
 }
 
 export const enum EditMode {
@@ -38,17 +39,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			markdownEnumDescriptions: [
 				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
 				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
-			],
-			tags: ['experimental']
+			]
 		},
 		[InlineChatConfigKeys.FinishOnType]: {
 			description: localize('finishOnType', "Whether to finish an inline chat session when typing outside of changed regions."),
 			default: false,
-			type: 'boolean'
-		},
-		[InlineChatConfigKeys.AcceptedOrDiscardBeforeSave]: {
-			description: localize('acceptedOrDiscardBeforeSave', "Whether pending inline chat sessions prevent saving."),
-			default: true,
 			type: 'boolean'
 		},
 		[InlineChatConfigKeys.HoldToSpeech]: {
@@ -67,11 +62,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
 		},
-		[InlineChatConfigKeys.ZoneToolbar]: {
-			description: localize('zoneToolbar', "Whether to show a toolbar to accept or reject changes in the inline chat changes view."),
+		[InlineChatConfigKeys.LineEmptyHint]: {
+			description: localize('emptyLineHint', "Whether empty lines show a hint to generate code with inline chat."),
 			default: false,
 			type: 'boolean',
-			tags: ['experimental']
+			tags: ['experimental'],
+		},
+		[InlineChatConfigKeys.LineNLHint]: {
+			markdownDescription: localize('lineSuffixHint', "Whether lines that are dominated by natural language or pseudo code show a hint to continue with inline chat. For instance, `class Person with name and hobbies` would show a hint to continue with chat."),
+			default: true,
+			type: 'boolean',
+			tags: ['experimental'],
 		},
 	}
 });
@@ -88,6 +89,7 @@ export const enum InlineChatResponseType {
 	MessagesAndEdits = 'messagesAndEdits'
 }
 
+export const CTX_INLINE_CHAT_POSSIBLE = new RawContextKey<boolean>('inlineChatPossible', false, localize('inlineChatHasPossible', "Whether a provider for inline chat exists and whether an editor for inline chat is open"));
 export const CTX_INLINE_CHAT_HAS_AGENT = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_VISIBLE = new RawContextKey<boolean>('inlineChatVisible', false, localize('inlineChatVisible', "Whether the interactive editor input is visible"));
 export const CTX_INLINE_CHAT_FOCUSED = new RawContextKey<boolean>('inlineChatFocused', false, localize('inlineChatFocused', "Whether the interactive editor input is focused"));
@@ -110,6 +112,7 @@ export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatRespons
 
 // --- (selected) action identifier
 
+export const ACTION_START = 'inlineChat.start';
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
 export const ACTION_DISCARD_CHANGES = 'inlineChat.discardHunkChange';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';

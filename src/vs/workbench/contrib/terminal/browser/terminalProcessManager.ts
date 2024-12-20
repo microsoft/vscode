@@ -41,10 +41,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { getActiveWindow, runWhenWindowIdle } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
-
-// HACK: This file should not depend on terminalContrib
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalSuggestSettingId } from '../../terminalContrib/suggest/common/terminalSuggestConfiguration.js';
+import { TerminalContribSettingId } from '../terminalContribExports.js';
 
 const enum ProcessConstants {
 	/**
@@ -289,7 +286,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					const options: ITerminalProcessOptions = {
 						shellIntegration: {
 							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-							suggestEnabled: this._configurationService.getValue(TerminalSuggestSettingId.Enabled),
+							suggestEnabled: this._configurationService.getValue(TerminalContribSettingId.SuggestEnabled),
 							nonce: this.shellIntegrationNonce
 						},
 						windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,
@@ -490,7 +487,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const options: ITerminalProcessOptions = {
 			shellIntegration: {
 				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-				suggestEnabled: this._configurationService.getValue(TerminalSuggestSettingId.Enabled),
+				suggestEnabled: this._configurationService.getValue(TerminalContribSettingId.SuggestEnabled),
 				nonce: this.shellIntegrationNonce
 			},
 			windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,

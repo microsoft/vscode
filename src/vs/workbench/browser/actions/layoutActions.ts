@@ -53,25 +53,6 @@ const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('
 const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
 const zenModeIcon = registerIcon('zenMode', Codicon.target, localize('zenModeIcon', "Represents zen mode"));
 
-
-// --- Close Side Bar
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.closeSidebar',
-			title: localize2('closeSidebar', 'Close Primary Side Bar'),
-			category: Categories.View,
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.SIDEBAR_PART);
-	}
-});
-
 export const ToggleActivityBarVisibilityActionId = 'workbench.action.toggleActivityBarVisibility';
 
 // --- Toggle Centered Layout
@@ -323,6 +304,9 @@ class ToggleSidebarVisibilityAction extends Action2 {
 				title: localize('primary sidebar', "Primary Side Bar"),
 				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
 			},
+			metadata: {
+				description: localize('openAndCloseSidebar', 'Open/Show and Close/Hide Sidebar'),
+			},
 			category: Categories.View,
 			f1: true,
 			keybinding: {
@@ -379,7 +363,7 @@ MenuRegistry.appendMenuItems([
 	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '0_workbench_toggles',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
@@ -392,7 +376,7 @@ MenuRegistry.appendMenuItems([
 	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '0_workbench_toggles',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
@@ -1434,7 +1418,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				{
 					id: MenuId.LayoutControlMenu,
 					when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
-					group: 'z_end'
+					group: '1_layout'
 				}
 			]
 		});

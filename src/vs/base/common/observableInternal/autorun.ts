@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn } from '../assert.js';
-import { onBugIndicatingError } from '../errors.js';
-import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from '../lifecycle.js';
 import { IChangeContext, IObservable, IObserver, IReader } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
+import { assertFn, BugIndicatingError, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
 
 /**
@@ -127,6 +125,35 @@ export function autorunDelta<T>(
 	});
 }
 
+export function autorunIterableDelta<T>(
+	getValue: (reader: IReader) => Iterable<T>,
+	handler: (args: { addedValues: T[]; removedValues: T[] }) => void,
+	getUniqueIdentifier: (value: T) => unknown = v => v,
+) {
+	const lastValues = new Map<unknown, T>();
+	return autorunOpts({ debugReferenceFn: getValue }, (reader) => {
+		const newValues = new Map();
+		const removedValues = new Map(lastValues);
+		for (const value of getValue(reader)) {
+			const id = getUniqueIdentifier(value);
+			if (lastValues.has(id)) {
+				removedValues.delete(id);
+			} else {
+				newValues.set(id, value);
+				lastValues.set(id, value);
+			}
+		}
+		for (const id of removedValues.keys()) {
+			lastValues.delete(id);
+		}
+
+		if (newValues.size || removedValues.size) {
+			handler({ addedValues: [...newValues.values()], removedValues: [...removedValues.values()] });
+		}
+	});
+}
+
+
 
 const enum AutorunState {
 	/**
@@ -195,9 +222,12 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 				const changeSummary = this.changeSummary!;
 				try {
 					this.changeSummary = this.createChangeSummary?.();
+					this._isReaderValid = true;
 					this._runFn(this, changeSummary);
 				} catch (e) {
 					onBugIndicatingError(e);
+				} finally {
+					this._isReaderValid = false;
 				}
 			}
 		} finally {
@@ -274,7 +304,11 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	// IReader implementation
+	private _isReaderValid = false;
+
 	public readObservable<T>(observable: IObservable<T>): T {
+		if (!this._isReaderValid) { throw new BugIndicatingError('The reader object cannot be used outside its compute function!'); }
+
 		// In case the run action disposes the autorun
 		if (this.disposed) {
 			return observable.get();

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isEditableElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isEditableElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
+import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { IKeyboardEvent, StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { Gesture } from '../../touch.js';
@@ -1054,6 +1056,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
+	readonly userSelection?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
 	readonly transformOptimization?: boolean;

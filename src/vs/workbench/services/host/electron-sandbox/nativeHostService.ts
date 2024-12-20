@@ -17,7 +17,7 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
-import { webUtils } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -130,7 +130,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: Verbosity.LONG });
 		}
 
-		return this.labelService.getUriLabel(openable.fileUri);
+		return this.labelService.getUriLabel(openable.fileUri, { appendWorkspaceSuffix: true });
 	}
 
 	private doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
@@ -187,14 +187,25 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#endregion
 
-	//#region File
+	//#region Screenshots
 
-	getPathForFile(file: File): string {
-		return webUtils.getPathForFile(file);
+	getScreenshot(): Promise<ArrayBufferLike | undefined> {
+		return this.nativeHostService.getScreenshot();
 	}
 
 	//#endregion
 
+	//#region Native Handle
+
+	private _nativeWindowHandleCache = new Map<number, Promise<VSBuffer | undefined>>();
+	async getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> {
+		if (!this._nativeWindowHandleCache.has(windowId)) {
+			this._nativeWindowHandleCache.set(windowId, this.nativeHostService.getNativeWindowHandle(windowId));
+		}
+		return this._nativeWindowHandleCache.get(windowId)!;
+	}
+
+	//#endregion
 }
 
 registerSingleton(IHostService, WorkbenchHostService, InstantiationType.Delayed);

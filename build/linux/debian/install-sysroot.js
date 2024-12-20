@@ -14,7 +14,7 @@ const path = require("path");
 const crypto_1 = require("crypto");
 const ansiColors = require("ansi-colors");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://msftelectron.blob.core.windows.net';
+const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
 const REPO_ROOT = path.dirname(path.dirname(path.dirname(__dirname)));
 const ghApiHeaders = {
@@ -35,8 +35,7 @@ function getElectronVersion() {
     return { electronVersion, msBuildId };
 }
 function getSha(filename) {
-    // CodeQL [SM04514] Hash logic cannot be changed due to external dependency, also the code is only used during build.
-    const hash = (0, crypto_1.createHash)('sha1');
+    const hash = (0, crypto_1.createHash)('sha256');
     // Read file 1 MB at a time
     const fd = fs.openSync(filename, 'r');
     const buffer = Buffer.alloc(1024 * 1024);
@@ -168,9 +167,9 @@ async function getChromiumSysroot(arch) {
     const sysrootArch = `bullseye_${arch}`;
     const sysrootDict = sysrootInfo[sysrootArch];
     const tarballFilename = sysrootDict['Tarball'];
-    const tarballSha = sysrootDict['Sha1Sum'];
+    const tarballSha = sysrootDict['Sha256Sum'];
     const sysroot = path.join((0, os_1.tmpdir)(), sysrootDict['SysrootDir']);
-    const url = [URL_PREFIX, URL_PATH, tarballSha, tarballFilename].join('/');
+    const url = [URL_PREFIX, URL_PATH, tarballSha].join('/');
     const stamp = path.join(sysroot, '.stamp');
     if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === url) {
         return sysroot;

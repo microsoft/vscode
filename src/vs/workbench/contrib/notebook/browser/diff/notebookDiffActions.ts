@@ -10,8 +10,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from './diffElementViewModel.js';
-import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS, NOTEBOOK_DIFF_ITEM_DIFF_STATE, NOTEBOOK_DIFF_ITEM_KIND, NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN } from './notebookDiffEditorBrowser.js';
+import { DiffElementCellViewModelBase, NotebookDocumentMetadataViewModel, SideBySideDiffElementViewModel } from './diffElementViewModel.js';
+import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS, NOTEBOOK_DIFF_ITEM_DIFF_STATE, NOTEBOOK_DIFF_ITEM_KIND, NOTEBOOK_DIFF_METADATA, NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN } from './notebookDiffEditorBrowser.js';
 import { NotebookTextDiffEditor } from './notebookDiffEditor.js';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
 import { nextChangeIcon, openAsTextIcon, previousChangeIcon, renderOutputIcon, revertIcon, toggleWhitespace } from '../notebookIcons.js';
@@ -60,6 +60,30 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.diff.cell.toggleCollapseUnchangedRegions',
+			title: localize2('notebook.diff.cell.toggleCollapseUnchangedRegions', 'Toggle Collapse Unchanged Regions'),
+			icon: Codicon.map,
+			toggled: ContextKeyExpr.has('config.diffEditor.hideUnchangedRegions.enabled'),
+			precondition: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
+		configurationService.updateValue('diffEditor.hideUnchangedRegions.enabled', newValue);
+	}
+});
+
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -184,6 +208,42 @@ registerAction2(class GoToFileAction extends Action2 {
 				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
 			} satisfies ITextEditorOptions,
 		});
+	}
+});
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.revertMetadata',
+				title: localize('notebook.diff.revertMetadata', "Revert Notebook Metadata"),
+				icon: revertIcon,
+				f1: false,
+				menu: {
+					id: MenuId.NotebookDiffDocumentMetadata,
+					when: NOTEBOOK_DIFF_METADATA,
+				},
+				precondition: NOTEBOOK_DIFF_METADATA
+
+			}
+		);
+	}
+	run(accessor: ServicesAccessor, context?: NotebookDocumentMetadataViewModel) {
+		if (!context) {
+			return;
+		}
+
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!(activeEditorPane instanceof NotebookTextDiffEditor)) {
+			return;
+		}
+
+		context.modifiedDocumentTextModel.applyEdits([{
+			editType: CellEditType.DocumentMetadata,
+			metadata: context.originalMetadata.metadata,
+		}], true, undefined, () => undefined, undefined, true);
 	}
 });
 
@@ -332,29 +392,29 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
 		if (!context) {
 			return;
 		}
 
-		if (!(context.cell instanceof SideBySideDiffElementViewModel)) {
+		if (!(context instanceof SideBySideDiffElementViewModel)) {
 			return;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
+		const original = context.original;
+		const modified = context.modified;
 
-		const modifiedCellIndex = context.cell.mainDocumentTextModel.cells.indexOf(modified.textModel);
+		const modifiedCellIndex = context.mainDocumentTextModel.cells.indexOf(modified.textModel);
 		if (modifiedCellIndex === -1) {
 			return;
 		}
 
 		const rawEdits: ICellEditOperation[] = [{ editType: CellEditType.Metadata, index: modifiedCellIndex, metadata: original.metadata }];
-		if (context.cell.original.language && context.cell.modified.language !== context.cell.original.language) {
-			rawEdits.push({ editType: CellEditType.CellLanguage, index: modifiedCellIndex, language: context.cell.original.language });
+		if (context.original.language && context.modified.language !== context.original.language) {
+			rawEdits.push({ editType: CellEditType.CellLanguage, index: modifiedCellIndex, language: context.original.language });
 		}
 
-		context.cell.modifiedDocument.applyEdits(rawEdits, true, undefined, () => undefined, undefined, true);
+		context.modifiedDocument.applyEdits(rawEdits, true, undefined, () => undefined, undefined, true);
 	}
 });
 
@@ -372,12 +432,12 @@ registerAction2(class extends Action2 {
 // 			}
 // 		);
 // 	}
-// 	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+// 	run(accessor: ServicesAccessor, context?: DiffElementViewModelBase) {
 // 		if (!context) {
 // 			return;
 // 		}
 
-// 		context.cell.renderOutput = true;
+// 		context.renderOutput = true;
 // 	}
 // });
 
@@ -397,12 +457,12 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
 		if (!context) {
 			return;
 		}
 
-		context.cell.renderOutput = !context.cell.renderOutput;
+		context.renderOutput = !context.renderOutput;
 	}
 });
 
@@ -422,24 +482,24 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
 		if (!context) {
 			return;
 		}
 
-		if (!(context.cell instanceof SideBySideDiffElementViewModel)) {
+		if (!(context instanceof SideBySideDiffElementViewModel)) {
 			return;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
+		const original = context.original;
+		const modified = context.modified;
 
-		const modifiedCellIndex = context.cell.mainDocumentTextModel.cells.indexOf(modified.textModel);
+		const modifiedCellIndex = context.mainDocumentTextModel.cells.indexOf(modified.textModel);
 		if (modifiedCellIndex === -1) {
 			return;
 		}
 
-		context.cell.mainDocumentTextModel.applyEdits([{
+		context.mainDocumentTextModel.applyEdits([{
 			editType: CellEditType.Output, index: modifiedCellIndex, outputs: original.outputs
 		}], true, undefined, () => undefined, undefined, true);
 	}
@@ -464,8 +524,8 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
-		const cell = context?.cell;
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
+		const cell = context;
 		if (!cell?.modified) {
 			return;
 		}
@@ -495,13 +555,13 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
 		if (!context) {
 			return;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
+		const original = context.original;
+		const modified = context.modified;
 
 		if (!original || !modified) {
 			return;

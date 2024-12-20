@@ -153,7 +153,7 @@ fn print_and_exit<E>(err: E) -> !
 where
 	E: std::fmt::Display,
 {
-	log::emit(log::Level::Error, "", &format!("{}", err));
+	log::emit(log::Level::Error, "", &format!("{err}"));
 	std::process::exit(1);
 }
 

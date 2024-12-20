@@ -184,7 +184,7 @@ export interface InitOptions {
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
-	readonly pattern?: string;
+	readonly pattern?: string | string[];
 	readonly sort?: 'alphabetically' | 'committerdate';
 }
 
@@ -266,6 +266,10 @@ export interface Repository {
 	commit(message: string, opts?: CommitOptions): Promise<void>;
 	merge(ref: string): Promise<void>;
 	mergeAbort(): Promise<void>;
+
+	applyStash(index?: number): Promise<void>;
+	popStash(index?: number): Promise<void>;
+	dropStash(index?: number): Promise<void>;
 }
 
 export interface RemoteSource {
@@ -409,5 +413,7 @@ export const enum GitErrorCodes {
 	EmptyCommitMessage = 'EmptyCommitMessage',
 	BranchFastForwardRejected = 'BranchFastForwardRejected',
 	BranchNotYetBorn = 'BranchNotYetBorn',
-	TagConflict = 'TagConflict'
+	TagConflict = 'TagConflict',
+	CherryPickEmpty = 'CherryPickEmpty',
+	CherryPickConflict = 'CherryPickConflict'
 }

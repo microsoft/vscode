@@ -12,7 +12,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -34,6 +34,7 @@ import { checkGlobFileExists } from '../../../services/extensions/common/workspa
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -59,6 +60,7 @@ export interface IWalkthrough {
 	icon:
 	| { type: 'icon'; icon: ThemeIcon }
 	| { type: 'image'; path: string };
+	walkthroughPageTitle: string;
 }
 
 export type IWalkthroughLoose = Omit<IWalkthrough, 'steps'> & { steps: (Omit<IWalkthroughStep, 'description'> & { description: string })[] };
@@ -153,7 +155,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService
+		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -200,13 +203,11 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 									? {
 										type: 'svg',
 										altText: step.media.altText,
-										// built-in interactive media are in modules in the common/media folder
-										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: '../common/media/' + step.media.path + '.js' }) })
+										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) })
 									}
 									: {
 										type: 'markdown',
-										// built-in interactive media are in modules in the common/media folder
-										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: '../common/media/' + step.media.path + '.js' }) }),
+										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) }),
 										base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
 										root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
 									},
@@ -229,6 +230,15 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		});
 
 		this._register(this.extensionManagementService.onDidInstallExtensions((result) => {
+
+			if (result.some(e => ExtensionIdentifier.equals(this.productService.defaultChatAgent?.extensionId, e.identifier.id) && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT])) {
+				result.forEach(e => {
+					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
+					this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
+				});
+				return;
+			}
+
 			for (const e of result) {
 				const skipWalkthrough = e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT] || e?.context?.[EXTENSION_INSTALL_DEP_PACK_CONTEXT];
 				// If the window had last focus and the install didn't specify to skip the walkthrough
@@ -392,6 +402,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				isFeatured,
 				source: extension.displayName ?? extension.name,
 				order: 0,
+				walkthroughPageTitle: extension.displayName ?? extension.name,
 				steps,
 				icon: {
 					type: 'image',
@@ -424,7 +435,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				id: string;
 			};
 			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
-			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen, true);
+			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
 		}
 	}
 

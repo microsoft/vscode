@@ -49,10 +49,10 @@ export class MdLinkOpener {
 					}
 				}
 
-				return vscode.commands.executeCommand('vscode.open', uri, <vscode.TextDocumentShowOptions>{
+				return vscode.commands.executeCommand('vscode.open', uri, {
 					selection: resolved.position ? new vscode.Range(resolved.position.line, resolved.position.character, resolved.position.line, resolved.position.character) : undefined,
 					viewColumn: viewColumn ?? getViewColumn(fromResource),
-				});
+				} satisfies vscode.TextDocumentShowOptions);
 			}
 		}
 	}

@@ -221,7 +221,12 @@ declare module DebugProtocol {
 				etc.
 			*/
 			category?: 'console' | 'important' | 'stdout' | 'stderr' | 'telemetry' | string;
-			/** The output to report. */
+			/** The output to report.
+
+				ANSI escape sequences may be used to inflience text color and styling if `supportsANSIStyling` is present in both the adapter's `Capabilities` and the client's `InitializeRequestArguments`. A client may strip any unrecognized ANSI sequences.
+
+				If the `supportsANSIStyling` capabilities are not both true, then the client should display the output literally.
+			*/
 			output: string;
 			/** Support for keeping an output log organized by grouping related messages.
 				'start': Start a new group in expanded mode. Subsequent output events are members of the group and should be shown indented.
@@ -530,6 +535,8 @@ declare module DebugProtocol {
 		supportsArgsCanBeInterpretedByShell?: boolean;
 		/** Client supports the `startDebugging` request. */
 		supportsStartDebuggingRequest?: boolean;
+		/** The client will interpret ANSI escape sequences in the display of `OutputEvent.output` and `Variable.value` fields when `Capabilities.supportsANSIStyling` is also enabled. */
+		supportsANSIStyling?: boolean;
 	}
 
 	/** Response to `initialize` request. */
@@ -1840,6 +1847,8 @@ declare module DebugProtocol {
 			Clients may present the first applicable mode in this array as the 'default' mode in gestures that set breakpoints.
 		*/
 		breakpointModes?: BreakpointMode[];
+		/** The debug adapter supports ANSI escape sequences in styling of `OutputEvent.output` and `Variable.value` fields. */
+		supportsANSIStyling?: boolean;
 	}
 
 	/** An `ExceptionBreakpointsFilter` is shown in the UI as an filter option for configuring how exceptions are dealt with. */

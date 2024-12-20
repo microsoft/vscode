@@ -179,6 +179,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	private _isDisposed = false;
+	private _isReadonly = false;
 
 	constructor(
 		readonly viewType: string,
@@ -228,7 +229,14 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 
-	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
+	updateOptions(e: NotebookOptionsChangeEvent): void {
+		if (this._textEditor && typeof e.readonly === 'boolean') {
+			this._textEditor.updateOptions({ readOnly: e.readonly });
+		}
+		if (typeof e.readonly === 'boolean') {
+			this._isReadonly = e.readonly;
+		}
+	}
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
 	abstract layoutChange(change: CellLayoutChangeEvent, source?: string): void;
@@ -262,7 +270,9 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
-
+		if (this._isReadonly) {
+			editor.updateOptions({ readOnly: this._isReadonly });
+		}
 		if (this._editorViewStates) {
 			this._restoreViewState(this._editorViewStates);
 		} else {

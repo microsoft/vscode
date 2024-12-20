@@ -19,11 +19,11 @@ const util = require("./util");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const os = require("os");
-const ts = require("typescript");
 const File = require("vinyl");
 const task = require("./task");
 const index_1 = require("./mangle/index");
 const postcss_1 = require("./postcss");
+const ts = require("typescript");
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
@@ -52,7 +52,7 @@ function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }
     const compilation = tsb.create(projectPath, overrideOptions, {
         verbose: false,
         transpileOnly: Boolean(transpileOnly),
-        transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+        transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
     }, err => reporter(err));
     function pipeline(token) {
         const bom = require('gulp-bom');
@@ -88,9 +88,9 @@ function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }
     pipeline.projectPath = projectPath;
     return pipeline;
 }
-function transpileTask(src, out, swc) {
+function transpileTask(src, out, esbuild) {
     const task = () => {
-        const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { swc }, preserveEnglish: false });
+        const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild }, preserveEnglish: false });
         const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         return srcPipe
             .pipe(transpile())

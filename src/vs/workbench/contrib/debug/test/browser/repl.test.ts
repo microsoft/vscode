@@ -201,7 +201,7 @@ suite('Debug - REPL', () => {
 		const repl = new ReplModel(configurationService);
 
 		repl.appendToRepl(session, { output: 'first global line', sev: severity.Info });
-		repl.startGroup('group_1', true);
+		repl.startGroup(session, 'group_1', true);
 		repl.appendToRepl(session, { output: 'first line in group', sev: severity.Info });
 		repl.appendToRepl(session, { output: 'second line in group', sev: severity.Info });
 		const elements = repl.getReplElements();
@@ -212,7 +212,7 @@ suite('Debug - REPL', () => {
 		assert.strictEqual(group.hasChildren, true);
 		assert.strictEqual(group.hasEnded, false);
 
-		repl.startGroup('group_2', false);
+		repl.startGroup(session, 'group_2', false);
 		repl.appendToRepl(session, { output: 'first line in subgroup', sev: severity.Info });
 		repl.appendToRepl(session, { output: 'second line in subgroup', sev: severity.Info });
 		const children = group.getChildren();

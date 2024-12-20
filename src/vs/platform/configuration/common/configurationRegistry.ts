@@ -182,7 +182,8 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	/**
 	 * List of tags associated to the property.
 	 *  - A tag can be used for filtering
-	 *  - Use `experimental` tag for marking the setting as experimental. **Note:** Defaults of experimental settings can be changed by the running experiments.
+	 *  - Use `experimental` tag for marking the setting as experimental.
+	 *  - Use `onExP` tag for marking that the default of the setting can be changed by running experiments.
 	 */
 	tags?: string[];
 
@@ -863,7 +864,7 @@ export function keyFromOverrideIdentifiers(overrideIdentifiers: string[]): strin
 	return overrideIdentifiers.reduce((result, overrideIdentifier) => `${result}[${overrideIdentifier}]`, '');
 }
 
-export function getDefaultValue(type: string | string[] | undefined): any {
+export function getDefaultValue(type: string | string[] | undefined) {
 	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
 	switch (t) {
 		case 'boolean':

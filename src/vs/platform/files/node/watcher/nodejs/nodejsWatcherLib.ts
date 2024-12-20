@@ -51,7 +51,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
-	private readonly filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
+	private readonly filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
 
 	private readonly cts = new CancellationTokenSource();
 
@@ -147,10 +147,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	private doWatchWithExistingWatcher(realPath: string, isDirectory: boolean, disposables: DisposableStore): boolean {
 		if (isDirectory) {
-			// TODO@bpasero recursive watcher re-use is currently not enabled
-			// for when folders are watched. this is because the dispatching
-			// in the recursive watcher for non-recurive requests is optimized
-			// for file changes  where we really only match on the exact path
+			// Recursive watcher re-use is currently not enabled for when
+			// folders are watched. this is because the dispatching in the
+			// recursive watcher for non-recurive requests is optimized for
+			// file changes  where we really only match on the exact path
 			// and not child paths.
 			return false;
 		}

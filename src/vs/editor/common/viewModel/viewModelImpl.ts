@@ -476,10 +476,15 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public setHiddenAreas(ranges: Range[], source?: unknown): void {
+	/**
+	 * @param forceUpdate If true, the hidden areas will be updated even if the new ranges are the same as the previous ranges.
+	 * This is because the model might have changed, which resets the hidden areas, but not the last cached value.
+	 * This needs a better fix in the future.
+	*/
+	public setHiddenAreas(ranges: Range[], source?: unknown, forceUpdate?: boolean): void {
 		this.hiddenAreasModel.setHiddenAreas(source, ranges);
 		const mergedRanges = this.hiddenAreasModel.getMergedRanges();
-		if (mergedRanges === this.previousHiddenAreas) {
+		if (mergedRanges === this.previousHiddenAreas && !forceUpdate) {
 			return;
 		}
 

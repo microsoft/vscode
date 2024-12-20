@@ -63,6 +63,7 @@ export interface ICommentController {
 	options?: CommentOptions;
 	contextValue?: string;
 	owner: string;
+	activeComment: { thread: CommentThread; comment?: Comment } | undefined;
 	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined, editorId?: string): Promise<void>;
 	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void>;
 	deleteCommentThreadMain(commentThreadId: string): void;
@@ -91,6 +92,7 @@ export interface ICommentService {
 	readonly onDidChangeCommentingEnabled: Event<boolean>;
 	readonly isCommentingEnabled: boolean;
 	readonly commentsModel: ICommentsModel;
+	readonly lastActiveCommentcontroller: ICommentController | undefined;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(uniqueOwner: string, commentsByResource: CommentThread<IRange | ICellRange>[]): void;
 	removeWorkspaceComments(uniqueOwner: string): void;
@@ -293,6 +295,10 @@ export class CommentService extends Disposable implements ICommentService {
 	 */
 	setActiveEditingCommentThread(commentThread: CommentThread | null) {
 		this._onDidChangeActiveEditingCommentThread.fire(commentThread);
+	}
+
+	get lastActiveCommentcontroller() {
+		return this._lastActiveCommentController;
 	}
 
 	private _lastActiveCommentController: ICommentController | undefined;

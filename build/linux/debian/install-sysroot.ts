@@ -13,7 +13,7 @@ import { DebianArchString } from './types';
 import * as ansiColors from 'ansi-colors';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://msftelectron.blob.core.windows.net';
+const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
 const REPO_ROOT = path.dirname(path.dirname(path.dirname(__dirname)));
 
@@ -45,8 +45,7 @@ function getElectronVersion(): Record<string, string> {
 }
 
 function getSha(filename: fs.PathLike): string {
-	// CodeQL [SM04514] Hash logic cannot be changed due to external dependency, also the code is only used during build.
-	const hash = createHash('sha1');
+	const hash = createHash('sha256');
 	// Read file 1 MB at a time
 	const fd = fs.openSync(filename, 'r');
 	const buffer = Buffer.alloc(1024 * 1024);
@@ -129,7 +128,7 @@ async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000)
 }
 
 type SysrootDictEntry = {
-	Sha1Sum: string;
+	Sha256Sum: string;
 	SysrootDir: string;
 	Tarball: string;
 };
@@ -186,9 +185,9 @@ export async function getChromiumSysroot(arch: DebianArchString): Promise<string
 	const sysrootArch = `bullseye_${arch}`;
 	const sysrootDict: SysrootDictEntry = sysrootInfo[sysrootArch];
 	const tarballFilename = sysrootDict['Tarball'];
-	const tarballSha = sysrootDict['Sha1Sum'];
+	const tarballSha = sysrootDict['Sha256Sum'];
 	const sysroot = path.join(tmpdir(), sysrootDict['SysrootDir']);
-	const url = [URL_PREFIX, URL_PATH, tarballSha, tarballFilename].join('/');
+	const url = [URL_PREFIX, URL_PATH, tarballSha].join('/');
 	const stamp = path.join(sysroot, '.stamp');
 	if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === url) {
 		return sysroot;
