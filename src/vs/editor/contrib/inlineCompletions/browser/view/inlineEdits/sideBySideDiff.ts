@@ -28,10 +28,10 @@ import { Range } from '../../../../../common/core/range.js';
 import { Command } from '../../../../../common/languages.js';
 import { ITextModel } from '../../../../../common/model.js';
 import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
+import { InlineCompletionContextKeys } from '../../controller/inlineCompletionContextKeys.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { PathBuilder, StatusBarViewItem, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
-
 
 export const originalBackgroundColor = registerColor(
 	'inlineEdit.originalBackground',
@@ -271,7 +271,12 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			wordWrapOverride1: 'off',
 			wordWrapOverride2: 'off',
 		},
-		{ contributions: [], },
+		{
+			contextKeyValues: {
+				[InlineCompletionContextKeys.inInlineEditsPreviewEditor.key]: true,
+			},
+			contributions: [],
+		},
 		this._editor
 	));
 
