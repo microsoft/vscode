@@ -174,7 +174,11 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.onDidFocusSession(this.debugService.getViewModel().focusedSession);
 		}
 
-		this._register(this.debugService.getViewModel().onDidFocusSession(async session => this.onDidFocusSession(session)));
+		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
+			if (this.isVisible()) {
+				this.onDidFocusSession(session);
+			}
+		}));
 		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable && this.tree?.hasNode(e)) {
 				await this.tree.updateChildren(e, false, true);
@@ -201,20 +205,27 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible) {
-				if (!this.model) {
-					this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
-				}
-				this.setMode();
-				this.replInput.setModel(this.model);
-				this.updateInputDecoration();
-				this.refreshReplElements(true);
-				if (this.styleChangedWhenInvisible) {
-					this.styleChangedWhenInvisible = false;
-					this.tree?.updateChildren(undefined, true, false);
-					this.onDidStyleChange();
-				}
-				this.focus();
+			if (!visible) {
+				return;
+			}
+			if (!this.model) {
+				this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
+			}
+
+			const focusedSession = this.debugService.getViewModel().focusedSession;
+			if (this.tree && this.tree.getInput() !== focusedSession) {
+				this.onDidFocusSession(focusedSession);
+			}
+
+			this.setMode();
+			this.replInput.setModel(this.model);
+			this.updateInputDecoration();
+			this.refreshReplElements(true);
+
+			if (this.styleChangedWhenInvisible) {
+				this.styleChangedWhenInvisible = false;
+				this.tree?.updateChildren(undefined, true, false);
+				this.onDidStyleChange();
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

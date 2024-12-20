@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from '../../base/common/errors.js';
 import { OffsetRange } from '../common/core/offsetRange.js';
 import { Point } from './point.js';
 
@@ -49,7 +50,7 @@ export class Rect {
 		public readonly bottom: number,
 	) {
 		if (left > right || top > bottom) {
-			throw new Error('Invalid arguments');
+			throw new BugIndicatingError('Invalid arguments');
 		}
 	}
 

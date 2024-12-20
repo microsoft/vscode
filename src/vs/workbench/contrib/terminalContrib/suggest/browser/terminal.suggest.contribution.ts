@@ -196,6 +196,12 @@ registerActiveInstanceAction({
 });
 
 registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ResetWidgetSize,
+	title: localize2('workbench.action.terminal.resetSuggestWidgetSize', 'Reset Suggest Widget Size'),
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.resetWidgetSize()
+});
+
+registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.SelectPrevSuggestion,
 	title: localize2('workbench.action.terminal.selectPrevSuggestion', 'Select the Previous Suggestion'),
 	f1: false,

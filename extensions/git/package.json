@@ -3372,22 +3372,22 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.missing%",
-        "when": "config.git.enabled && git.missing"
+        "when": "config.git.enabled && git.missing && remoteName != ''"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.missing.mac%",
-        "when": "config.git.enabled && git.missing && isMac"
+        "when": "config.git.enabled && git.missing && remoteName == '' && isMac"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.missing.windows%",
-        "when": "config.git.enabled && git.missing && isWindows"
+        "when": "config.git.enabled && git.missing && remoteName == '' && isWindows"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.missing.linux%",
-        "when": "config.git.enabled && git.missing && isLinux"
+        "when": "config.git.enabled && git.missing && remoteName == '' && isLinux"
       },
       {
         "view": "scm",

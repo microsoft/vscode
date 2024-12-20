@@ -364,6 +364,10 @@ export class Range {
 		return new Range(this.startLineNumber + lineCount, this.startColumn, this.endLineNumber + lineCount, this.endColumn);
 	}
 
+	public isSingleLine(): boolean {
+		return this.startLineNumber === this.endLineNumber;
+	}
+
 	// ---
 
 	public static fromPositions(start: IPosition, end: IPosition = start): Range {
