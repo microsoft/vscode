@@ -65,7 +65,6 @@ suite('Edit session sync', () => {
 	const disposables = new DisposableStore();
 
 	suiteSetup(() => {
-		ensureNoDisposablesAreLeakedInTestSuite();
 
 		sandbox = sinon.createSandbox();
 
@@ -176,6 +175,10 @@ suite('Edit session sync', () => {
 		disposables.clear();
 	});
 
+	suiteTeardown(() => {
+		disposables.dispose();
+	});
+
 	test('Can apply edit session', async function () {
 		const fileUri = joinPath(folderUri, 'dir1', 'README.md');
 		const fileContents = '# readme';
@@ -222,4 +225,6 @@ suite('Edit session sync', () => {
 		// Verify that we did not attempt to write the edit session
 		assert.equal(writeStub.called, false);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
