@@ -35,6 +35,6 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = editorAPI.editor;
 	a = editorAPI.languages;
 
-	const o: IObservable<number, number> = null!;
+	const o: IObservable<number> = null!;
 	o.TChange;
 })();
