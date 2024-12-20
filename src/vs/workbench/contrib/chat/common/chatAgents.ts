@@ -239,6 +239,8 @@ export interface IChatAgentService {
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
 
+const ChatToolsAgentModeStorageKey = 'chat.toolsAgentMode';
+
 export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	public static readonly AGENT_LEADER = '@';
@@ -260,6 +262,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this._hasDefaultAgent = ChatContextKeys.enabled.bindTo(this.contextKeyService);
@@ -270,7 +273,12 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 				this._updateContextKeys();
 			}
 		}));
+
 		this._agentModeContextKey = ChatContextKeys.Editing.agentMode.bindTo(contextKeyService);
+		this._agentModeContextKey.set(
+			this.storageService.getBoolean(ChatToolsAgentModeStorageKey, StorageScope.WORKSPACE, false));
+		this._register(
+			this.storageService.onWillSaveState(() => this.storageService.store(ChatToolsAgentModeStorageKey, this._agentModeContextKey.get(), StorageScope.WORKSPACE, StorageTarget.USER)));
 	}
 
 	registerAgent(id: string, data: IChatAgentData): IDisposable {
