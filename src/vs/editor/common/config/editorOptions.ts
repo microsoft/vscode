@@ -5833,15 +5833,14 @@ export const EditorOptions = {
 		EditorOption.experimentalGpuAcceleration, 'experimentalGpuAcceleration',
 		'off' as 'off' | 'on',
 		['off', 'on'] as const,
-		undefined
-		// TODO: Uncomment when we want to expose the setting to VS Code users
-		// {
-		// 	enumDescriptions: [
-		// 		nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
-		// 		nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
-		// 	],
-		// 	description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the (very) experimental GPU acceleration to render the editor.")
-		// }
+		{
+			included: false, // Hide the setting from users while it's unstable
+			enumDescriptions: [
+				nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
+				nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
+			],
+			description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the (very) experimental GPU acceleration to render the editor.")
+		}
 	)),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
 		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
