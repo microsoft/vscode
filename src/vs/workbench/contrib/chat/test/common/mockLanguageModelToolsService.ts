@@ -14,7 +14,6 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	constructor() { }
 
 	cancelToolCallsForRequest(requestId: string): void {
-		throw new Error('Method not implemented.');
 	}
 
 	onDidChangeTools: Event<void> = Event.None;
