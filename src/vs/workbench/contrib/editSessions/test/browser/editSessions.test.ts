@@ -50,11 +50,13 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkspaceIdentityService, WorkspaceIdentityService } from '../../../../services/workspaces/common/workspaceIdentityService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
 
 suite('Edit session sync', () => {
+
 	let instantiationService: TestInstantiationService;
 	let editSessionsContribution: EditSessionsContribution;
 	let fileService: FileService;
@@ -63,6 +65,8 @@ suite('Edit session sync', () => {
 	const disposables = new DisposableStore();
 
 	suiteSetup(() => {
+		ensureNoDisposablesAreLeakedInTestSuite();
+
 		sandbox = sinon.createSandbox();
 
 		instantiationService = new TestInstantiationService();
