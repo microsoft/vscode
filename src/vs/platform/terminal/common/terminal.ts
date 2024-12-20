@@ -928,6 +928,7 @@ export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSourc
 export interface IShellIntegration {
 	readonly capabilities: ITerminalCapabilityStore;
 	readonly status: ShellIntegrationStatus;
+	updateCwd(newCwd: string): void;
 
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
 

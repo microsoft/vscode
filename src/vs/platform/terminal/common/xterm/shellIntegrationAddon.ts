@@ -439,7 +439,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'Cwd': {
-						this._updateCwd(value);
+						this.updateCwd(value);
 						return true;
 					}
 					case 'IsWindows': {
@@ -487,7 +487,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 	}
 
-	private _updateCwd(value: string) {
+	updateCwd(value: string) {
 		value = sanitizeCwd(value);
 		this._createOrGetCwdDetection().updateCwd(value);
 		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
@@ -518,7 +518,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				switch (key) {
 					case ITermOscPt.CurrentDir:
 						// Encountered: `OSC 1337 ; CurrentDir=<Cwd> ST`
-						this._updateCwd(value);
+						this.updateCwd(value);
 						return true;
 				}
 			}
@@ -538,7 +538,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case '9':
 				// Encountered `OSC 9 ; 9 ; <cwd> ST`
 				if (args.length) {
-					this._updateCwd(args[0]);
+					this.updateCwd(args[0]);
 				}
 				return true;
 		}
@@ -560,7 +560,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (command.match(/^file:\/\/.*\//)) {
 			const uri = URI.parse(command);
 			if (uri.path && uri.path.length > 0) {
-				this._updateCwd(uri.path);
+				this.updateCwd(uri.path);
 				return true;
 			}
 		}

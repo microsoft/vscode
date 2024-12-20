@@ -873,6 +873,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return xterm;
 	}
 
+	private _setCwdForShellIntegration(): void {
+		if (this.shellLaunchConfig.attachPersistentProcess?.cwd) {
+			this.xterm?.shellIntegration.updateCwd(this.shellLaunchConfig.attachPersistentProcess?.cwd);
+		}
+	}
+
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 
@@ -884,6 +890,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					store.add(this.capabilities.onDidAddCapabilityType(e => {
 						if (e === TerminalCapability.CommandDetection) {
 							commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+							this._setCwdForShellIntegration();
 							r();
 						}
 					}));
@@ -892,6 +899,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			]);
 			store.dispose();
 		}
+		this._setCwdForShellIntegration();
 
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
@@ -980,6 +988,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._register(xterm.shellIntegration.onDidChangeStatus(() => {
+			this._setCwdForShellIntegration();
 			if (this.hasFocus) {
 				this._setShellIntegrationContextKey();
 			} else {
@@ -1395,7 +1404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				case ProcessPropertyType.InitialCwd:
 					this._initialCwd = value;
-					this._cwd = this._initialCwd;
+					this._cwd = this._cwd ?? this._initialCwd;
 					this._setTitle(this.title, TitleEventSource.Config);
 					this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 					this._onIconChanged.fire({ instance: this, userInitiated: false });
