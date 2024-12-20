@@ -24,7 +24,7 @@ import { navigationBearingFakeActionId } from '../../../../chat/browser/chatEdit
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
-		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		cellDiffInfo: IObservable<CellDiffInfo[] | undefined>,
 		deletedCellDecorator: INotebookDeletedCellDecorator,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -60,7 +60,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		entry: IModifiedFileEntry,
-		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		cellDiffInfo: IObservable<CellDiffInfo[] | undefined>,
 		nextEntry: IModifiedFileEntry,
 		previousEntry: IModifiedFileEntry,
 		deletedCellDecorator: INotebookDeletedCellDecorator,
@@ -196,7 +196,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 class NextPreviousChangeActionRunner extends ActionRunner {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
-		private readonly cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		private readonly cellDiffInfo: IObservable<CellDiffInfo[] | undefined>,
 		private readonly entry: IModifiedFileEntry,
 		private readonly next: IModifiedFileEntry,
 		private readonly direction: 'next' | 'previous',
