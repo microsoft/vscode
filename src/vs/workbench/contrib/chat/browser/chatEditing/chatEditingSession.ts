@@ -265,8 +265,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 			if (existingTransientEntries.has(uri)) {
 				existingTransientEntries.delete(uri);
-			} else if (!this._workingSet.has(uri) && !this._removedTransientEntries.has(uri)) {
-				// Don't add as a transient entry if it's already part of the working set
+			} else if ((!this._workingSet.has(uri) || this._workingSet.get(uri)?.state === WorkingSetEntryState.Suggested) && !this._removedTransientEntries.has(uri)) {
+				// Don't add as a transient entry if it's already a confirmed part of the working set
 				// or if the user has intentionally removed it from the working set
 				activeEditors.add(uri);
 			}
