@@ -104,6 +104,7 @@ export class ToggleAgentModeAction extends Action2 {
 				{
 					id: MenuId.ChatExecute,
 					order: 1,
+					when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 					group: 'navigation',
 				},
 			]

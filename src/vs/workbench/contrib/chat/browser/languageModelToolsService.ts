@@ -127,7 +127,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
-		this._logService.info(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
+		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
 
 		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
 		let tool = this._tools.get(dto.toolId);
@@ -169,11 +169,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const source = new CancellationTokenSource();
 				store.add(toDisposable(() => {
-					toolInvocation!.confirmed.complete(false);
 					source.dispose(true);
 				}));
 				store.add(token.onCancellationRequested(() => {
+					toolInvocation?.confirmed.complete(false);
 					source.cancel();
+				}));
+				store.add(source.token.onCancellationRequested(() => {
+					toolInvocation?.confirmed.complete(false);
 				}));
 				token = source.token;
 
