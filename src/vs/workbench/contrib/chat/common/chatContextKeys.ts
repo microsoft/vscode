@@ -76,4 +76,8 @@ export namespace ChatContextKeys {
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
+
+	export const Editing = {
+		agentMode: new RawContextKey<boolean>('chatEditingAgentMode', false, { type: 'boolean', description: localize('chatEditingAgentMode', "True when edits is in agent mode.") }),
+	};
 }

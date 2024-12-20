@@ -65,6 +65,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	private readonly _onDidChangeEditingSession = this._register(new Emitter<void>());
 	public readonly onDidChangeEditingSession = this._onDidChangeEditingSession.event;
 
+	private readonly _onDidChangeAgentMode = this._register(new Emitter<void>());
+	readonly onDidChangeAgentMode = this._onDidChangeAgentMode.event;
+
 	private _editingSessionFileLimitPromise: Promise<number>;
 	private _editingSessionFileLimit: number | undefined;
 	get editingSessionFileLimit() {
