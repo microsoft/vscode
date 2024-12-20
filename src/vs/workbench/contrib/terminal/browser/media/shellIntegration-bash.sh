@@ -10,6 +10,9 @@ fi
 
 VSCODE_SHELL_INTEGRATION=1
 
+# Checking if NixOS shell or the file name exists or NIX Path if yes does unset to the LD_LIBRARY_PATH for fixing the pearai terminal 
+[[ -n "$IN_NIX_SHELL" || -e "/etc/NIXOS" || -n "$NIX_PATH" ]] && unset LD_LIBRARY_PATH
+
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
 	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
