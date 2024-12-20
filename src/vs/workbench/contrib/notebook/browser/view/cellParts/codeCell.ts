@@ -48,7 +48,7 @@ export class CodeCell extends Disposable {
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
 		private readonly viewCell: CodeCellViewModel,
-		private readonly templateData: CodeCellRenderTemplate,
+		private readonly templateData: Readonly<CodeCellRenderTemplate>,
 		private readonly editorPool: NotebookCellEditorPool,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -149,10 +149,12 @@ export class CodeCell extends Disposable {
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
 			if (this._isDisposed) {
+				model?.dispose();
 				return;
 			}
 
 			if (model) {
+				this._register(model);
 				model.updateOptions({
 					indentSize: this._cellEditorOptions.indentSize,
 					tabSize: this._cellEditorOptions.tabSize,
@@ -202,8 +204,14 @@ export class CodeCell extends Disposable {
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
 			if (this._isDisposed) {
+				model?.dispose();
 				return;
 			}
+
+			if (model) {
+				this._register(model);
+			}
+
 
 			if (model && this.templateData.editor) {
 				this._reigsterModelListeners(model);
