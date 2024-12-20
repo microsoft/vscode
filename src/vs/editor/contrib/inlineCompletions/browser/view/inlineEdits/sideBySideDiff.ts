@@ -32,48 +32,48 @@ import { InlineCompletionContextKeys } from '../../controller/inlineCompletionCo
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { PathBuilder, StatusBarViewItem, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
+import { localize } from '../../../../../../nls.js';
 
 export const originalBackgroundColor = registerColor(
 	'inlineEdit.originalBackground',
 	Color.transparent,
-	'',
+	localize('inlineEdit.originalBackground', 'Background color for the original text in inline edits.'),
 	true
 );
 export const modifiedBackgroundColor = registerColor(
 	'inlineEdit.modifiedBackground',
 	Color.transparent,
-	'',
+	localize('inlineEdit.modifiedBackground', 'Background color for the modified text in inline edits.'),
 	true
 );
 
 export const originalChangedLineBackgroundColor = registerColor(
 	'inlineEdit.originalChangedLineBackground',
 	Color.transparent,
-	'',
+	localize('inlineEdit.originalChangedLineBackground', 'Background color for the changed lines in the original text of inline edits.'),
 	true
 );
 
 export const originalChangedTextOverlayColor = registerColor(
 	'inlineEdit.originalChangedTextBackground',
 	diffRemoved,
-	'',
+	localize('inlineEdit.originalChangedTextBackground', 'Overlay color for the changed text in the original text of inline edits.'),
 	true
 );
 
 export const modifiedChangedLineBackgroundColor = registerColor(
 	'inlineEdit.modifiedChangedLineBackground',
 	Color.transparent,
-	'',
+	localize('inlineEdit.modifiedChangedLineBackground', 'Background color for the changed lines in the modified text of inline edits.'),
 	true
 );
 
 export const modifiedChangedTextOverlayColor = registerColor(
 	'inlineEdit.modifiedChangedTextBackground',
 	diffInserted,
-	'',
+	localize('inlineEdit.modifiedChangedTextBackground', 'Overlay color for the changed text in the modified text of inline edits.'),
 	true
 );
-
 export const originalBorder = registerColor(
 	'inlineEdit.originalBorder',
 	{
@@ -82,7 +82,7 @@ export const originalBorder = registerColor(
 		hcDark: editorLineHighlightBorder,
 		hcLight: editorLineHighlightBorder
 	},
-	''
+	localize('inlineEdit.originalBorder', 'Border color for the original text in inline edits.')
 );
 
 export const modifiedBorder = registerColor(
@@ -93,7 +93,7 @@ export const modifiedBorder = registerColor(
 		hcDark: editorLineHighlightBorder,
 		hcLight: editorLineHighlightBorder
 	},
-	''
+	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
 );
 
 export class InlineEditsSideBySideDiff extends Disposable {
