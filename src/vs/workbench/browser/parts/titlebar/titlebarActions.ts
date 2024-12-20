@@ -64,6 +64,12 @@ registerAction2(class ToggleNavigationControl extends ToggleTitleBarConfigAction
 	}
 });
 
+registerAction2(class ToggleShareControl extends ToggleTitleBarConfigAction {
+	constructor() {
+		super('workbench.experimental.share.enabled', localize('toggle.share', 'Share'), localize('toggle.shareDescription', "Toggle visibility of the Share action in title bar"), 2, false, ContextKeyExpr.has('config.window.commandCenter'));
+	}
+});
+
 registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 3, true);
