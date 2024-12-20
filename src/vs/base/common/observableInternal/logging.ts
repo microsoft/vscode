@@ -48,6 +48,7 @@ export interface IObservableLogger {
 
 	handleDerivedCreated(observable: Derived<any>): void;
 	handleDerivedRecomputed(observable: Derived<any>, info: IChangeInformation): void;
+	handleDerivedCleared(observable: Derived<any>): void;
 
 	handleBeginTransaction(transaction: TransactionImpl): void;
 	handleEndTransaction(): void;
@@ -168,6 +169,15 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			{ data: [{ fn: derived._debugNameData.referenceFn ?? derived._computeFn }] }
 		]));
 		changedObservables.clear();
+	}
+
+	handleDerivedCleared(derived: Derived<unknown>): void {
+		if (!this._isIncluded(derived)) { return; }
+
+		console.log(...this.textToConsoleArgs([
+			formatKind('derived cleared'),
+			styled(derived.debugName, { color: 'BlueViolet' }),
+		]));
 	}
 
 	handleFromEventObservableTriggered(observable: FromEventObservable<any, any>, info: IChangeInformation): void {
