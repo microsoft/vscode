@@ -17,15 +17,39 @@ import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { mapOutFalsy, n, rectToProps } from './utils.js';
+import { localize } from '../../../../../../nls.js';
+export const inlineEditIndicatorPrimaryForeground = registerColor(
+	'inlineEdit.gutterIndicator.primaryForeground',
+	buttonForeground,
+	localize('inlineEdit.gutterIndicator.primaryForeground', 'Foreground color for the primary inline edit gutter indicator.')
+);
+export const inlineEditIndicatorPrimaryBackground = registerColor(
+	'inlineEdit.gutterIndicator.primaryBackground',
+	buttonBackground,
+	localize('inlineEdit.gutterIndicator.primaryBackground', 'Background color for the primary inline edit gutter indicator.')
+);
 
-export const inlineEditIndicatorPrimaryForeground = registerColor('inlineEdit.gutterIndicator.primaryForeground', buttonForeground, 'Foreground color for the primary inline edit gutter indicator.');
-export const inlineEditIndicatorPrimaryBackground = registerColor('inlineEdit.gutterIndicator.primaryBackground', buttonBackground, 'Background color for the primary inline edit gutter indicator.');
+export const inlineEditIndicatorSecondaryForeground = registerColor(
+	'inlineEdit.gutterIndicator.secondaryForeground',
+	buttonSecondaryForeground,
+	localize('inlineEdit.gutterIndicator.secondaryForeground', 'Foreground color for the secondary inline edit gutter indicator.')
+);
+export const inlineEditIndicatorSecondaryBackground = registerColor(
+	'inlineEdit.gutterIndicator.secondaryBackground',
+	buttonSecondaryBackground,
+	localize('inlineEdit.gutterIndicator.secondaryBackground', 'Background color for the secondary inline edit gutter indicator.')
+);
 
-export const inlineEditIndicatorSecondaryForeground = registerColor('inlineEdit.gutterIndicator.secondaryForeground', buttonSecondaryForeground, 'Foreground color for the secondary inline edit gutter indicator.');
-export const inlineEditIndicatorSecondaryBackground = registerColor('inlineEdit.gutterIndicator.secondaryBackground', buttonSecondaryBackground, 'Background color for the secondary inline edit gutter indicator.');
-
-export const inlineEditIndicatorsuccessfulForeground = registerColor('inlineEdit.gutterIndicator.successfulForeground', buttonForeground, 'Foreground color for the successful inline edit gutter indicator.');
-export const inlineEditIndicatorsuccessfulBackground = registerColor('inlineEdit.gutterIndicator.successfulBackground', { light: '#2e825c', dark: '#2e825c', hcLight: '#2e825c', hcDark: '#2e825c' }, 'Background color for the successful inline edit gutter indicator.');
+export const inlineEditIndicatorsuccessfulForeground = registerColor(
+	'inlineEdit.gutterIndicator.successfulForeground',
+	buttonForeground,
+	localize('inlineEdit.gutterIndicator.successfulForeground', 'Foreground color for the successful inline edit gutter indicator.')
+);
+export const inlineEditIndicatorsuccessfulBackground = registerColor(
+	'inlineEdit.gutterIndicator.successfulBackground',
+	{ light: '#2e825c', dark: '#2e825c', hcLight: '#2e825c', hcDark: '#2e825c' },
+	localize('inlineEdit.gutterIndicator.successfulBackground', 'Background color for the successful inline edit gutter indicator.')
+);
 
 export const inlineEditIndicatorBackground = registerColor(
 	'inlineEdit.gutterIndicator.background',
@@ -35,7 +59,7 @@ export const inlineEditIndicatorBackground = registerColor(
 		dark: transparent('tab.inactiveBackground', 0.5),
 		light: '#5f5f5f18',
 	},
-	'Background color for the inline edit gutter indicator.'
+	localize('inlineEdit.gutterIndicator.background', 'Background color for the inline edit gutter indicator.')
 );
 
 
