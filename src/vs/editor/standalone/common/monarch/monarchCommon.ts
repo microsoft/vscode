@@ -183,7 +183,7 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
 export function substituteMatchesRe(lexer: ILexerMin, str: string, state: string): string {
 	const re = /\$[sS](\d\d?)/g;
 	let stateMatches: string[] | null = null;
-	return str.replace(re, function (full, s) {
+	str = str.replace(re, function (full, s) {
 		if (stateMatches === null) { // split state on demand
 			stateMatches = state.split('.');
 			stateMatches.unshift(state);
@@ -193,6 +193,8 @@ export function substituteMatchesRe(lexer: ILexerMin, str: string, state: string
 		}
 		return '';
 	});
+
+	return str.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
 /**
