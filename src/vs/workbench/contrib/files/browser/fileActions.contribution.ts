@@ -148,7 +148,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'filesExplorer.copySameExp',
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerFolderContext.toNegated()),
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
 	handler: copyPasteFileSameLocation,
 });
 
