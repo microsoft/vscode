@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
@@ -128,6 +129,15 @@ export interface IHostService {
 	 * Captures a screenshot.
 	 */
 	getScreenshot(): Promise<ArrayBufferLike | undefined>;
+
+	//#endregion
+
+	//#region Native Handle
+
+	/**
+	 * Get the native handle of the window.
+	 */
+	getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined>;
 
 	//#endregion
 }

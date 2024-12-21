@@ -6,7 +6,8 @@
 import './media/processExplorer.css';
 import '../../../base/browser/ui/codicons/codiconStyles.js'; // make sure codicon css is loaded
 import { localize } from '../../../nls.js';
-import { $, append, createStyleSheet } from '../../../base/browser/dom.js';
+import { $, append } from '../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../base/browser/domStylesheets.js';
 import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { DataTree } from '../../../base/browser/ui/tree/dataTree.js';
 import { IDataSource, ITreeNode, ITreeRenderer } from '../../../base/browser/ui/tree/tree.js';

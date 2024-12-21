@@ -60,7 +60,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 			showSymbolIcons: true,
 			showDecorationColors: false,
 			widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
-			showPlaceholder: false
+			showPlaceholder: false,
+			dragEditor: true,
 		}));
 		this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));

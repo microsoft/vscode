@@ -26,6 +26,7 @@ import { IProgress, Progress } from '../../../../platform/progress/common/progre
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const quickFixCommandId = 'editor.action.quickFix';
@@ -265,6 +266,7 @@ export async function applyCodeAction(
 	const commandService = accessor.get(ICommandService);
 	const telemetryService = accessor.get(ITelemetryService);
 	const notificationService = accessor.get(INotificationService);
+	const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 
 	type ApplyCodeActionEvent = {
 		codeActionTitle: string;
@@ -287,7 +289,7 @@ export async function applyCodeAction(
 		codeActionIsPreferred: !!item.action.isPreferred,
 		reason: codeActionReason,
 	});
-
+	accessibilitySignalService.playSignal(AccessibilitySignal.codeActionTriggered);
 	await item.resolve(token);
 	if (token.isCancellationRequested) {
 		return;
@@ -319,6 +321,8 @@ export async function applyCodeAction(
 					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
 		}
 	}
+	// ensure the start sound and end sound do not overlap
+	setTimeout(() => accessibilitySignalService.playSignal(AccessibilitySignal.codeActionApplied), 100);
 }
 
 function asMessage(err: any): string | undefined {

@@ -524,7 +524,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
 			this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
 
-			if (this._revealFirst && typeof e.firstChangeIndex === 'number' && e.firstChangeIndex < this._list.length) {
+			if (this._revealFirst && typeof e.firstChangeIndex === 'number' && e.firstChangeIndex > -1 && e.firstChangeIndex < this._list.length) {
 				this._revealFirst = false;
 				this._list.setFocus([e.firstChangeIndex]);
 				this._list.reveal(e.firstChangeIndex, 0.3);

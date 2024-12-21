@@ -46,8 +46,9 @@ const quickFixClasses = [
 ];
 
 export interface ITerminalQuickFixAddon {
+	readonly onDidRequestRerunCommand: Event<{ command: string; shouldExecute?: boolean }>;
+	readonly onDidUpdateQuickFixes: Event<{ command: ITerminalCommand; actions: ITerminalAction[] | undefined }>;
 	showMenu(): void;
-	onDidRequestRerunCommand: Event<{ command: string; shouldExecute?: boolean }>;
 	/**
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression and provides a callback to be executed for commands that match.
@@ -56,8 +57,6 @@ export interface ITerminalQuickFixAddon {
 }
 
 export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon, ITerminalQuickFixAddon {
-	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; shouldExecute?: boolean }>();
-	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
 
 	private _terminal: Terminal | undefined;
 
@@ -75,6 +74,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	private readonly _registeredSelectors: Set<string> = new Set();
 
 	private _didRun: boolean = false;
+
+	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; shouldExecute?: boolean }>();
+	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
+	private readonly _onDidUpdateQuickFixes = new Emitter<{ command: ITerminalCommand; actions: ITerminalAction[] | undefined }>();
+	readonly onDidUpdateQuickFixes = this._onDidUpdateQuickFixes.event;
 
 	constructor(
 		private readonly _aliases: string[][] | undefined,
@@ -186,7 +190,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 		if (command.command !== '' && this._lastQuickFixId) {
-			this._disposeQuickFix(this._lastQuickFixId);
+			this._disposeQuickFix(command, this._lastQuickFixId);
 		}
 
 		const resolver = async (selector: ITerminalQuickFixOptions, lines?: string[]) => {
@@ -212,9 +216,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._quickFixes = result;
 		this._lastQuickFixId = this._quickFixes[0].id;
 		this._registerQuickFixDecoration();
+		this._onDidUpdateQuickFixes.fire({ command, actions: this._quickFixes });
+		this._quickFixes = undefined;
 	}
 
-	private _disposeQuickFix(id: string): void {
+	private _disposeQuickFix(command: ITerminalCommand, id: string): void {
 		type QuickFixResultTelemetryEvent = {
 			quickFixId: string;
 			ranQuickFix: boolean;
@@ -231,6 +237,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		});
 		this._decoration.clear();
 		this._decorationDisposables.clear();
+		this._onDidUpdateQuickFixes.fire({ command, actions: this._quickFixes });
 		this._quickFixes = undefined;
 		this._lastQuickFixId = undefined;
 		this._didRun = false;
@@ -295,7 +302,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => this.showMenu()));
 		}));
 		store.add(decoration.onDispose(() => this._currentRenderContext = undefined));
-		this._quickFixes = undefined;
 	}
 }
 

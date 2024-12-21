@@ -251,6 +251,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	private readonly _defaultAgentRegistered: IContextKey<boolean>;
 	private readonly _editingAgentRegistered: IContextKey<boolean>;
 
+	private _chatParticipantDetectionProviders = new Map<number, IChatParticipantDetectionProvider>();
+
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
@@ -481,7 +483,6 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return data.impl.provideChatTitle(history, token);
 	}
 
-	private _chatParticipantDetectionProviders = new Map<number, IChatParticipantDetectionProvider>();
 	registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider) {
 		this._chatParticipantDetectionProviders.set(handle, provider);
 		return toDisposable(() => {
@@ -501,9 +502,11 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		}
 
 		const participants = this.getAgents().reduce<IChatParticipantMetadata[]>((acc, a) => {
-			acc.push({ participant: a.id, disambiguation: a.disambiguation ?? [] });
-			for (const command of a.slashCommands) {
-				acc.push({ participant: a.id, command: command.name, disambiguation: command.disambiguation ?? [] });
+			if (a.locations.includes(options.location)) {
+				acc.push({ participant: a.id, disambiguation: a.disambiguation ?? [] });
+				for (const command of a.slashCommands) {
+					acc.push({ participant: a.id, command: command.name, disambiguation: command.disambiguation ?? [] });
+				}
 			}
 			return acc;
 		}, []);

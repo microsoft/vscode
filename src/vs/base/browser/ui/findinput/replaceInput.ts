@@ -108,7 +108,7 @@ export class ReplaceInput extends Widget {
 			validationOptions: {
 				validation: this.validation
 			},
-			history,
+			history: new Set(history),
 			showHistoryHint: options.showHistoryHint,
 			flexibleHeight,
 			flexibleWidth,

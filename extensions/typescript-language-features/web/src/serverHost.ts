@@ -344,8 +344,13 @@ function createServerHost(
 			return path;
 		}
 
-		const isNm = looksLikeNodeModules(path) && !path.startsWith('/vscode-global-typings/');
-		// skip paths without .. or ./ or /. And things that look like node_modules
+		const isNm = looksLikeNodeModules(path)
+			&& !path.startsWith('/vscode-global-typings/')
+			// Handle the case where a local folder has been opened in VS Code
+			// In these cases we do not want to use the mapped node_module
+			&& !path.startsWith('/file/');
+
+		// skip paths without .. or ./ or /
 		if (!isNm && !path.match(/\.\.|\/\.|\.\//)) {
 			return path;
 		}

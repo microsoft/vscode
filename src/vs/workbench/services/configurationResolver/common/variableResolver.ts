@@ -27,6 +27,7 @@ interface IVariableResolveContext {
 	getWorkspaceFolderPathForFile?(): string | undefined;
 	getSelectedText(): string | undefined;
 	getLineNumber(): string | undefined;
+	getColumnNumber(): string | undefined;
 	getExtension(id: string): Promise<{ readonly extensionLocation: uri } | undefined>;
 }
 
@@ -306,6 +307,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 							return lineNumber;
 						}
 						throw new VariableError(VariableKind.LineNumber, localize('canNotResolveLineNumber', "Variable {0} can not be resolved. Make sure to have a line selected in the active editor.", match));
+					}
+					case 'columnNumber': {
+						const columnNumber = this._context.getColumnNumber();
+						if (columnNumber) {
+							return columnNumber;
+						}
+						throw new Error(localize('canNotResolveColumnNumber', "Variable {0} can not be resolved. Make sure to have a column selected in the active editor.", match));
 					}
 					case 'selectedText': {
 						const selectedText = this._context.getSelectedText();
