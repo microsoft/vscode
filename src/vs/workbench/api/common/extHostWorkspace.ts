@@ -479,7 +479,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 
-	findFiles2(filePatterns: vscode.GlobPattern[],
+	findFiles2(filePatterns: readonly vscode.GlobPattern[],
 		options: vscode.FindFiles2Options = {},
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
@@ -490,7 +490,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private async _findFilesImpl(
 		// the old `findFiles` used `include` to query, but the new `findFiles2` uses `filePattern` to query.
 		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
-		query: { type: 'include'; value: vscode.GlobPattern | undefined } | { type: 'filePatterns'; value: vscode.GlobPattern[] },
+		query: { readonly type: 'include'; readonly value: vscode.GlobPattern | undefined } | { readonly type: 'filePatterns'; readonly value: readonly vscode.GlobPattern[] },
 		options: vscode.FindFiles2Options,
 		token: vscode.CancellationToken
 	): Promise<vscode.Uri[]> {
@@ -500,7 +500,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		const filePatternsToUse = query.type === 'include' ? [query.value] : query.value ?? [];
 		if (!Array.isArray(filePatternsToUse)) {
-			throw new Error(`Invalid file pattern provided ${filePatternsToUse}`);
+			console.error('Invalid file pattern provided', filePatternsToUse);
+			throw new Error(`Invalid file pattern provided ${JSON.stringify(filePatternsToUse)}`);
 		}
 
 		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
