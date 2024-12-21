@@ -342,6 +342,11 @@ export interface IEditorOptions {
 	 */
 	wrappingStrategy?: 'simple' | 'advanced';
 	/**
+	 * Create a softwrap on every quoted "\n" literal.
+	 * Defaults to false.
+	 */
+	wrapOnEscapedLineFeeds?: boolean;
+	/**
 	 * Configure word wrapping characters. A break will be introduced before these characters.
 	 */
 	wordWrapBreakBeforeCharacters?: string;
@@ -5549,6 +5554,7 @@ export const enum EditorOption {
 	wrappingStrategy,
 	showDeprecated,
 	inlayHints,
+	wrapOnEscapedLineFeeds,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -6363,6 +6369,10 @@ export const EditorOptions = {
 		EditorOption.wordWrapOverride2, 'wordWrapOverride2',
 		'inherit' as 'off' | 'on' | 'inherit',
 		['off', 'on', 'inherit'] as const
+	)),
+	wrapOnEscapedLineFeeds: register(new EditorBooleanOption(
+		EditorOption.wrapOnEscapedLineFeeds, 'wrapOnEscapedLineFeeds', false,
+		{ markdownDescription: nls.localize('wrapOnEscapedLineFeeds', "Controls whether literal `\\n` shall trigger a wordWrap.\nfor example\n```c\nchar* str=\"hello\\nworld\"\n```\nwill be displayed as\n```c\nchar* str=\"hello\\n\n           world\"\n```") }
 	)),
 
 	// Leave these at the end (because they have dependencies!)
