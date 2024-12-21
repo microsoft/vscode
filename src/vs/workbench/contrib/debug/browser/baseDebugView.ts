@@ -51,7 +51,7 @@ export interface IVariableTemplateData {
 
 export function renderViewTree(container: HTMLElement): HTMLElement {
 	const treeContainer = $('.');
-	treeContainer.classList.add('debug-view-content');
+	treeContainer.classList.add('debug-view-content', 'file-icon-themable-tree');
 	container.appendChild(treeContainer);
 	return treeContainer;
 }
