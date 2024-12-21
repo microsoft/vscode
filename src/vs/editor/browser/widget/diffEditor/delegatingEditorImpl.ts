@@ -90,8 +90,16 @@ export abstract class DelegatingEditor extends Disposable implements IEditor {
 		return this._targetEditor.getSelection();
 	}
 
+	public getSelectionInVirtualSpace(): Selection | null {
+		return this._targetEditor.getSelectionInVirtualSpace();
+	}
+
 	public getSelections(): Selection[] | null {
 		return this._targetEditor.getSelections();
+	}
+
+	public getSelectionsInVirtualSpace(): Selection[] | null {
+		return this._targetEditor.getSelectionsInVirtualSpace();
 	}
 
 	public setSelection(range: IRange, source?: string): void;

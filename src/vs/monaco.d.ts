@@ -1943,6 +1943,7 @@ declare namespace monaco.editor {
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
 		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+		readonly virtualSpace: boolean;
 		get originalIndentSize(): number | 'tabSize';
 	}
 
@@ -1957,6 +1958,7 @@ declare namespace monaco.editor {
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
 		bracketColorizationOptions?: BracketPairColorizationOptions;
+		virtualSpace?: boolean;
 	}
 
 	export class FindMatch {
@@ -2707,6 +2709,14 @@ declare namespace monaco.editor {
 		 */
 		getSelections(): Selection[] | null;
 		/**
+		 * Returns the primary selection of the editor. The column position may be in virtual space.
+		 */
+		getSelectionInVirtualSpace(): Selection | null;
+		/**
+		 * Returns all the selections of the editor. The column position may be in virtual space.
+		 */
+		getSelectionsInVirtualSpace(): Selection[] | null;
+		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
 		 * @param source Source of the call that caused the selection
@@ -3011,9 +3021,17 @@ declare namespace monaco.editor {
 		 */
 		readonly position: Position;
 		/**
+		 * Primary cursor's position. Column may be in virtual space.
+		 */
+		readonly positionInVirtualSpace: Position;
+		/**
 		 * Secondary cursors' position.
 		 */
 		readonly secondaryPositions: Position[];
+		/**
+		 * Secondary cursors' position. Column may be in virtual space.
+		 */
+		readonly secondaryPositionsInVirtualSpace: Position[];
 		/**
 		 * Reason.
 		 */
@@ -5611,6 +5629,14 @@ declare namespace monaco.editor {
 		 * The 'approximate' editor position
 		 */
 		readonly position: Position | null;
+		/**
+		 * If position is in virtual space, this will contain how far beyond the end of the line the position is.
+		 * Note that for view model, `position` is not clipped to line length, so there is no need
+		 * to add `leftoverVisibleColumns` to `position.column`.
+		 * When converting to model target, `position` will be clipped and `leftoverVisibleColumns`
+		 * can be used to recover the virtual space position.
+		 */
+		readonly leftoverVisibleColumns: number;
 		/**
 		 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 		 */
