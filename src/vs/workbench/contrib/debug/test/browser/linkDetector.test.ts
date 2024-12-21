@@ -197,7 +197,7 @@ suite('Debug - Link Detector', () => {
 	test('highlightOverlappingLinkStart', () => {
 		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
 		const highlights: IHighlight[] = [{ start: 0, end: 10 }];
-		const expectedOutput = isWindows ? '<span><a tabindex="0"><span class="highlight">C:\\foo\\bar</span>.js:12:34</a></span>' : '<span><a tabindex="0"><span class="highlight">/Users/foo/</span>bar.js:12:34</a></span>';
+		const expectedOutput = isWindows ? '<span><a tabindex="0"><span class="highlight">C:\\foo\\bar</span>.js:12:34</a></span>' : '<span><a tabindex="0"><span class="highlight">/Users/foo</span>/bar.js:12:34</a></span>';
 		const output = linkDetector.linkify(input, false, undefined, false, undefined, highlights);
 
 		assert.strictEqual(1, output.children.length);
@@ -210,7 +210,7 @@ suite('Debug - Link Detector', () => {
 	test('highlightOverlappingLinkEnd', () => {
 		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
 		const highlights: IHighlight[] = [{ start: 10, end: 20 }];
-		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar<span class="highlight">.js:12:34</span></a></span>' : '<span><a tabindex="0">/Users/foo/<span class="highlight">bar.js:12:34</span></a></span>';
+		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar<span class="highlight">.js:12:34</span></a></span>' : '<span><a tabindex="0">/Users/foo<span class="highlight">/bar.js:12</span>:34</a></span>';
 		const output = linkDetector.linkify(input, false, undefined, false, undefined, highlights);
 
 		assert.strictEqual(1, output.children.length);
