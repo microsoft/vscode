@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange, Range } from '../../../editor/common/core/range.js';
+import { IRange, Range } from '#vs/editor/common/core/range.js';
 
 /**
  * Base class for all tokens with a `range` that
