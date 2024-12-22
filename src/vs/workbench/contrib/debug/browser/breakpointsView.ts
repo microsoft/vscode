@@ -59,10 +59,12 @@ import { DisassemblyView } from './disassemblyView.js';
 
 const $ = dom.$;
 
+let checkboxId = 0;
 function createCheckbox(disposables: DisposableStore): HTMLInputElement {
 	const checkbox = <HTMLInputElement>$('input');
 	checkbox.type = 'checkbox';
 	checkbox.tabIndex = -1;
+	checkbox.id = `breakpoint-checkbox-${checkboxId++}`;
 	disposables.add(Gesture.ignoreTarget(checkbox));
 
 	return checkbox;
@@ -427,7 +429,7 @@ class BreakpointsDelegate implements IListVirtualDelegate<BreakpointItem> {
 
 interface IBaseBreakpointTemplateData {
 	breakpoint: HTMLElement;
-	name: HTMLElement;
+	name: HTMLLabelElement;
 	checkbox: HTMLInputElement;
 	context: BreakpointItem;
 	actionBar: ActionBar;
@@ -530,7 +532,8 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		dom.append(data.breakpoint, data.icon);
 		dom.append(data.breakpoint, data.checkbox);
 
-		data.name = dom.append(data.breakpoint, $('span.name'));
+		data.name = dom.append(data.breakpoint, $('label.name'));
+		data.name.htmlFor = data.checkbox.id;
 
 		data.filePath = dom.append(data.breakpoint, $('span.file-path'));
 		data.actionBar = new ActionBar(data.breakpoint);
@@ -620,7 +623,8 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 
 		dom.append(data.breakpoint, data.checkbox);
 
-		data.name = dom.append(data.breakpoint, $('span.name'));
+		data.name = dom.append(data.breakpoint, $('label.name'));
+		data.name.htmlFor = data.checkbox.id;
 		data.condition = dom.append(data.breakpoint, $('span.condition'));
 		data.breakpoint.classList.add('exception');
 
@@ -702,7 +706,8 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		dom.append(data.breakpoint, data.icon);
 		dom.append(data.breakpoint, data.checkbox);
 
-		data.name = dom.append(data.breakpoint, $('span.name'));
+		data.name = dom.append(data.breakpoint, $('label.name'));
+		data.name.htmlFor = data.checkbox.id;
 		data.condition = dom.append(data.breakpoint, $('span.condition'));
 
 		data.actionBar = new ActionBar(data.breakpoint);
@@ -795,7 +800,8 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 		dom.append(data.breakpoint, data.icon);
 		dom.append(data.breakpoint, data.checkbox);
 
-		data.name = dom.append(data.breakpoint, $('span.name'));
+		data.name = dom.append(data.breakpoint, $('label.name'));
+		data.name.htmlFor = data.checkbox.id;
 		data.accessType = dom.append(data.breakpoint, $('span.access-type'));
 		data.condition = dom.append(data.breakpoint, $('span.condition'));
 
@@ -893,7 +899,8 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		dom.append(data.breakpoint, data.icon);
 		dom.append(data.breakpoint, data.checkbox);
 
-		data.name = dom.append(data.breakpoint, $('span.name'));
+		data.name = dom.append(data.breakpoint, $('label.name'));
+		data.name.htmlFor = data.checkbox.id;
 
 		data.address = dom.append(data.breakpoint, $('span.file-path'));
 		data.actionBar = new ActionBar(data.breakpoint);
