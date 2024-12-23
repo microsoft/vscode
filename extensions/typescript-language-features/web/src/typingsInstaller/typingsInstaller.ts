@@ -70,6 +70,8 @@ export class WebTypingsInstallerClient implements ts.server.ITypingsInstaller {
 				break;
 			case 'event::beginInstallTypes':
 			case 'event::endInstallTypes':
+			// TODO(@zkat): maybe do something with this?
+			case 'action::watchTypingLocations':
 				// Don't care.
 				break;
 			default:
