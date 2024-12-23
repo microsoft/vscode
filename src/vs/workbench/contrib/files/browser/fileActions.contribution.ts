@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { ToggleAutoSaveAction, FocusFilesExplorer, GlobalCompareResourcesAction, ShowActiveFileInExplorer, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL, OpenActiveFileInEmptyWorkspace, UPLOAD_COMMAND_ID, UPLOAD_LABEL, CompareNewUntitledTextFilesAction, SetActiveEditorReadonlyInSession, SetActiveEditorWriteableInSession, ToggleActiveEditorReadonlyInSession, ResetActiveEditorReadonlyInSession } from 'vs/workbench/contrib/files/browser/fileActions';
+// MEMBRANE: rm FocusFilesExplorer, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL imports
+import { ToggleAutoSaveAction, GlobalCompareResourcesAction, ShowActiveFileInExplorer, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL, OpenActiveFileInEmptyWorkspace, UPLOAD_COMMAND_ID, UPLOAD_LABEL, CompareNewUntitledTextFilesAction, SetActiveEditorReadonlyInSession, SetActiveEditorWriteableInSession, ToggleActiveEditorReadonlyInSession, ResetActiveEditorReadonlyInSession } from 'vs/workbench/contrib/files/browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandAction } from 'vs/platform/action/common/action';
@@ -15,7 +16,7 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerResourceAvailableEditorIdsContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
-// Membrane
+// MEMBRANE
 // import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, REOPEN_WITH_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { AutoSaveAfterShortDelayContext } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -32,8 +33,9 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 // Contribute Global Actions
 
 registerAction2(GlobalCompareResourcesAction);
-registerAction2(FocusFilesExplorer);
-registerAction2(ShowActiveFileInExplorer);
+// MEMBRANE: do not expose command to open the explorer viewlet
+// registerAction2(FocusFilesExplorer);
+registerAction2(ShowActiveFileInExplorer); // MEMBRANE: keep this because we open the Navigator instead
 registerAction2(CompareWithClipboardAction);
 registerAction2(CompareNewUntitledTextFilesAction);
 registerAction2(ToggleAutoSaveAction);
@@ -262,12 +264,13 @@ appendToCommandPalette({
 	category: Categories.File
 }, WorkspaceFolderCountContext.notEqualsTo('0'));
 
-appendToCommandPalette({
-	id: NEW_FOLDER_COMMAND_ID,
-	title: { value: NEW_FOLDER_LABEL, original: 'New Folder' },
-	category: Categories.File,
-	metadata: { description: nls.localize2('newFolderDescription', "Create a new folder or directory") }
-}, WorkspaceFolderCountContext.notEqualsTo('0'));
+// MEMBRANE: we don't register new folder action
+// appendToCommandPalette({
+// 	id: NEW_FOLDER_COMMAND_ID,
+// 	title: { value: NEW_FOLDER_LABEL, original: 'New Folder' },
+// 	category: Categories.File,
+// 	metadata: { description: nls.localize2('newFolderDescription', "Create a new folder or directory") }
+// }, WorkspaceFolderCountContext.notEqualsTo('0'));
 
 appendToCommandPalette({
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
@@ -464,16 +467,16 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	when: ExplorerFolderContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: 'navigation',
-	order: 6,
-	command: {
-		id: NEW_FOLDER_COMMAND_ID,
-		title: NEW_FOLDER_LABEL,
-		precondition: ExplorerResourceNotReadonlyContext
-	},
-	when: ExplorerFolderContext
-});
+// MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+// 	group: 'navigation',
+// 	order: 6,
+// 	command: {
+// 		id: NEW_FOLDER_COMMAND_ID,
+// 		title: NEW_FOLDER_LABEL,
+// 		precondition: ExplorerResourceNotReadonlyContext
+// 	},
+// 	when: ExplorerFolderContext
+// });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'navigation',

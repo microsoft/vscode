@@ -9,7 +9,8 @@ import * as perf from 'vs/base/common/performance';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
-import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
+// MEMBRANE: rm NEW_FOLDER_COMMAND_ID import
+import { FileCopiedContext, NEW_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
@@ -44,7 +45,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+// MEMBRANE: rm IViewsService import
+// import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -1000,75 +1002,79 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.files.action.createFolderFromExplorer',
-			title: nls.localize('createNewFolder', "New Folder..."),
-			f1: false,
-			icon: Codicon.newFolder,
-			precondition: ExplorerResourceNotReadonlyContext,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VIEW_ID),
-				order: 20
-			}
-		});
-	}
+/**
+ * MEMBRANE: no need to register these explorer/file actions
+ */
 
-	run(accessor: ServicesAccessor): void {
-		const commandService = accessor.get(ICommandService);
-		commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
-	}
-});
+// registerAction2(class extends Action2 {
+// 	constructor() {
+// 		super({
+// 			id: 'workbench.files.action.createFolderFromExplorer',
+// 			title: nls.localize('createNewFolder', "New Folder..."),
+// 			f1: false,
+// 			icon: Codicon.newFolder,
+// 			precondition: ExplorerResourceNotReadonlyContext,
+// 			menu: {
+// 				id: MenuId.ViewTitle,
+// 				group: 'navigation',
+// 				when: ContextKeyExpr.equals('view', VIEW_ID),
+// 				order: 20
+// 			}
+// 		});
+// 	}
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.files.action.refreshFilesExplorer',
-			title: { value: nls.localize('refreshExplorer', "Refresh Explorer"), original: 'Refresh Explorer' },
-			f1: true,
-			icon: Codicon.refresh,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VIEW_ID),
-				order: 30
-			}
-		});
-	}
+// 	run(accessor: ServicesAccessor): void {
+// 		const commandService = accessor.get(ICommandService);
+// 		commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
+// 	}
+// });
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const explorerService = accessor.get(IExplorerService);
-		await viewsService.openView(VIEW_ID);
-		await explorerService.refresh();
-	}
-});
+// registerAction2(class extends Action2 {
+// 	constructor() {
+// 		super({
+// 			id: 'workbench.files.action.refreshFilesExplorer',
+// 			title: { value: nls.localize('refreshExplorer', "Refresh Explorer"), original: 'Refresh Explorer' },
+// 			f1: true,
+// 			icon: Codicon.refresh,
+// 			menu: {
+// 				id: MenuId.ViewTitle,
+// 				group: 'navigation',
+// 				when: ContextKeyExpr.equals('view', VIEW_ID),
+// 				order: 30
+// 			}
+// 		});
+// 	}
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.files.action.collapseExplorerFolders',
-			title: { value: nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer"), original: 'Collapse Folders in Explorer' },
-			f1: true,
-			icon: Codicon.collapseAll,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', VIEW_ID),
-				order: 40
-			}
-		});
-	}
+// 	async run(accessor: ServicesAccessor): Promise<void> {
+// 		const viewsService = accessor.get(IViewsService);
+// 		const explorerService = accessor.get(IExplorerService);
+// 		await viewsService.openView(VIEW_ID);
+// 		await explorerService.refresh();
+// 	}
+// });
 
-	run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId(VIEW_ID);
-		if (view !== null) {
-			const explorerView = view as ExplorerView;
-			explorerView.collapseAll();
-		}
-	}
-});
+// registerAction2(class extends Action2 {
+// 	constructor() {
+// 		super({
+// 			id: 'workbench.files.action.collapseExplorerFolders',
+// 			title: { value: nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer"), original: 'Collapse Folders in Explorer' },
+// 			f1: true,
+// 			icon: Codicon.collapseAll,
+// 			menu: {
+// 				id: MenuId.ViewTitle,
+// 				group: 'navigation',
+// 				when: ContextKeyExpr.equals('view', VIEW_ID),
+// 				order: 40
+// 			}
+// 		});
+// 	}
+
+// 	run(accessor: ServicesAccessor) {
+// 		const viewsService = accessor.get(IViewsService);
+// 		const view = viewsService.getViewWithId(VIEW_ID);
+// 		if (view !== null) {
+// 			const explorerView = view as ExplorerView;
+// 			explorerView.collapseAll();
+// 		}
+// 	}
+// });

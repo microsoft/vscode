@@ -417,13 +417,19 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		containers.forEach(descriptor => {
 			const themeIcon = ThemeIcon.fromString(descriptor.icon);
 
+			// MEMBRANE: make Membrane Navigator the default view container on the left sidebar
+			const options: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean } = {};
+			if (descriptor.id === 'membraneContainer') {
+				options.isDefault = true;
+			}
+
 			// MEMBRANE: move Program Overview to auxiliary bar (right-side bar)
 			const overridenLocation = descriptor.id === 'membraneAuxContainer' ? ViewContainerLocation.AuxiliaryBar : location;
 
 			const icon = themeIcon || resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const title = descriptor.title || id;
-			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, overridenLocation);
+			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, overridenLocation, options);
 
 			// Move those views that belongs to this container
 			if (existingViewContainers.length) {
@@ -441,7 +447,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return order;
 	}
 
-	private registerCustomViewContainer(id: string, title: string, icon: URI | ThemeIcon, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation): ViewContainer {
+	private registerCustomViewContainer(id: string, title: string, icon: URI | ThemeIcon, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation, options: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean }): ViewContainer {
 		let viewContainer = this.viewContainersRegistry.get(id);
 
 		if (!viewContainer) {
@@ -457,7 +463,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				hideIfEmpty: true,
 				order,
 				icon,
-			}, location);
+			}, location, options);
 
 		}
 

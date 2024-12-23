@@ -606,6 +606,7 @@ export class CloseGroupAction extends Action {
 	}
 }
 
+// MEMBRANE: we do not register this action in fileActions.contribution.ts
 export class FocusFilesExplorer extends Action2 {
 
 	static readonly ID = 'workbench.files.action.focusFilesExplorer';
@@ -629,12 +630,14 @@ export class FocusFilesExplorer extends Action2 {
 export class ShowActiveFileInExplorer extends Action2 {
 
 	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Explorer View");
+	// MEMBRANE: override to show file in Navigator instead of Explorer
+	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Navigator");
 
 	constructor() {
 		super({
 			id: ShowActiveFileInExplorer.ID,
-			title: { value: ShowActiveFileInExplorer.LABEL, original: 'Reveal Active File in Explorer View' },
+			// MEMBRANE: override to show file in Navigator instead of Explorer
+			title: { value: ShowActiveFileInExplorer.LABEL, original: 'Reveal Active File in Navigator' },
 			f1: true,
 			category: Categories.File
 		});

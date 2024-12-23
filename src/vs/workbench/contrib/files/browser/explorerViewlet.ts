@@ -51,13 +51,14 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		super();
 
 		progressService.withProgress({ location: ProgressLocation.Explorer }, () => workspaceContextService.getCompleteWorkspace()).finally(() => {
-			this.registerViews();
+			// this.registerViews();
 
-			this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
-			this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
+			// this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
+			// this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
 		});
 	}
 
+	// @ts-expect-error 'registerViews' is declared but its value is never read
 	private registerViews(): void {
 		mark('code/willRegisterExplorerViews');
 
@@ -267,7 +268,8 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
 		order: 0
 	},
-}, ViewContainerLocation.Sidebar, { isDefault: true });
+	// MEMBRANE: the Membrane Navigator is the default view container on the left sidebar
+}, ViewContainerLocation.Sidebar, { isDefault: false, doNotRegisterOpenCommand: true });
 
 const openFolder = localize('openFolder', "Open Folder");
 const addAFolder = localize('addAFolder', "add a folder");
