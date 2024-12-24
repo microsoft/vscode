@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IView } from 'vs/workbench/common/views';
-import { CommentsFilters } from 'vs/workbench/contrib/comments/browser/commentsViewActions';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IView } from '../../../common/views.js';
+import { CommentsFilters } from './commentsViewActions.js';
 
 export const CommentsViewFilterFocusContextKey = new RawContextKey<boolean>('commentsFilterFocus', false);
 

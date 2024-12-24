@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as spdlog from '@vscode/spdlog';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
+import { ByteSize } from '../../files/common/files.js';
+import { AbstractMessageLogger, ILogger, LogLevel } from '../common/log.js';
 
 enum SpdLogLevel {
 	Trace,
@@ -111,9 +111,9 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 
 	override flush(): void {
 		if (this._logger) {
-			this._logger.flush();
+			this.flushLogger();
 		} else {
-			this._loggerCreationPromise.then(() => this.flush());
+			this._loggerCreationPromise.then(() => this.flushLogger());
 		}
 	}
 
@@ -124,6 +124,12 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 			this._loggerCreationPromise.then(() => this.disposeLogger());
 		}
 		super.dispose();
+	}
+
+	private flushLogger(): void {
+		if (this._logger) {
+			this._logger.flush();
+		}
 	}
 
 	private disposeLogger(): void {

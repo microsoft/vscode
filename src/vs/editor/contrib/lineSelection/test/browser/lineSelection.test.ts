@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ExpandLineSelectionAction } from 'vs/editor/contrib/lineSelection/browser/lineSelection';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import type { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorAction } from '../../../../browser/editorExtensions.js';
+import { Position } from '../../../../common/core/position.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { ExpandLineSelectionAction } from '../../browser/lineSelection.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 function executeAction(action: EditorAction, editor: ICodeEditor): void {
 	action.run(null!, editor, undefined);

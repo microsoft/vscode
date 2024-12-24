@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { TestMessageType } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TEST_DATA_SCHEME, TestUriType, parseTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ILanguageSelection, ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../nls.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ITestResultService } from './testResultService.js';
+import { TestMessageType } from './testTypes.js';
+import { TEST_DATA_SCHEME, TestUriType, parseTestUri } from './testingUri.js';
 
 /**
  * A content provider that returns various outputs for tests. This is used

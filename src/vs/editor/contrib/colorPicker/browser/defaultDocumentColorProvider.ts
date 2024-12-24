@@ -3,30 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color, RGBA } from 'vs/base/common/color';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation } from 'vs/editor/common/languages';
-import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { ITextModel } from '../../../common/model.js';
+import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation } from '../../../common/languages.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 
 export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
-	private _editorWorkerClient: EditorWorkerClient;
-
 	constructor(
-		modelService: IModelService,
-		languageConfigurationService: ILanguageConfigurationService,
-	) {
-		this._editorWorkerClient = new EditorWorkerClient(modelService, false, 'editorWorkerService', languageConfigurationService);
-	}
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+	) { }
 
 	async provideDocumentColors(model: ITextModel, _token: CancellationToken): Promise<IColorInformation[] | null> {
-		return this._editorWorkerClient.computeDefaultDocumentColors(model.uri);
+		return this._editorWorkerService.computeDefaultDocumentColors(model.uri);
 	}
 
 	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
@@ -47,15 +39,13 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	}
 }
 
-class DefaultDocumentColorProviderFeature extends Disposable {
+export class DefaultDocumentColorProviderFeature extends Disposable {
 	constructor(
-		@IModelService _modelService: IModelService,
-		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 	) {
 		super();
-		this._register(_languageFeaturesService.colorProvider.register('*', new DefaultDocumentColorProvider(_modelService, _languageConfigurationService)));
+		this._register(_languageFeaturesService.colorProvider.register('*', new DefaultDocumentColorProvider(editorWorkerService)));
 	}
 }
 
-registerEditorFeature(DefaultDocumentColorProviderFeature);

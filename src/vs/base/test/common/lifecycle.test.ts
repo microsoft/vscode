@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from 'vs/base/test/common/utils';
+import { Emitter } from '../../common/event.js';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, toDisposable } from '../../common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from './utils.js';
 
 class Disposable implements IDisposable {
 	isDisposed = false;

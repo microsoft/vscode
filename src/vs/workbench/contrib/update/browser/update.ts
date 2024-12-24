@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import severity from 'vs/base/common/severity';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason } from 'vs/platform/update/common/update';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { ReleaseNotesManager } from 'vs/workbench/contrib/update/browser/releaseNotesEditor';
-import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { Promises } from 'vs/base/common/async';
-import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { Event } from 'vs/base/common/event';
-import { Action } from 'vs/base/common/actions';
+import * as nls from '../../../../nls.js';
+import severity from '../../../../base/common/severity.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IActivityService, NumberBadge, IBadge, ProgressBadge } from '../../../services/activity/common/activity.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason } from '../../../../platform/update/common/update.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { ReleaseNotesManager } from './releaseNotesEditor.js';
+import { isMacintosh, isWeb, isWindows } from '../../../../base/common/platform.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { Promises } from '../../../../base/common/async.js';
+import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
+import { Event } from '../../../../base/common/event.js';
+import { Action } from '../../../../base/common/actions.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
@@ -254,25 +254,21 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		let badge: IBadge | undefined = undefined;
-		let priority: number | undefined = undefined;
 
 		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
 		} else if (state.type === StateType.CheckingForUpdates) {
-			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for Updates..."));
-			priority = 1;
+			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for {0} updates...", this.productService.nameShort));
 		} else if (state.type === StateType.Downloading) {
-			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading..."));
-			priority = 1;
+			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
 		} else if (state.type === StateType.Updating) {
-			badge = new ProgressBadge(() => nls.localize('updating', "Updating..."));
-			priority = 1;
+			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
 		}
 
 		this.badgeDisposable.clear();
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge, priority });
+			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge });
 		}
 
 		this.state = state;
@@ -427,7 +423,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '7_update',
 			command: {
 				id: 'update.checking',
-				title: nls.localize('checkingForUpdates', "Checking for Updates..."),
+				title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
 				precondition: ContextKeyExpr.false()
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)

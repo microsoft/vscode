@@ -4,12 +4,12 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/5d7c2a4e451a932b776f6d9342087be6a1e8c0a1",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/df6ef817c932d24da5cc72927344a547e463cc65",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
 		{
-			"begin": "(?<=^\\s*)((\\\\)iffalse)",
+			"begin": "(?<=^\\s*)((\\\\)iffalse)(?!\\s*[{}]\\s*\\\\fi)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.tex"
@@ -19,7 +19,7 @@
 				}
 			},
 			"contentName": "comment.line.percentage.tex",
-			"end": "(?<=^\\s*)((\\\\)(?:else|fi))",
+			"end": "((\\\\)(?:else|fi))",
 			"endCaptures": {
 				"1": {
 					"name": "keyword.control.tex"
@@ -31,6 +31,9 @@
 			"patterns": [
 				{
 					"include": "#comment"
+				},
+				{
+					"include": "#braces"
 				},
 				{
 					"include": "#conditionals"

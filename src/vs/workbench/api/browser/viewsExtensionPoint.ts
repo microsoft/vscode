@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as resources from 'vs/base/common/resources';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Extensions as ViewletExtensions, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
-import { CustomTreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
-import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
-import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
-import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
-import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesRegistryExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import * as resources from '../../../base/common/resources.js';
+import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription, IExtensionManifest } from '../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { Extensions as ViewletExtensions, PaneCompositeRegistry } from '../../browser/panecomposite.js';
+import { CustomTreeView, TreeViewPane } from '../../browser/parts/views/treeView.js';
+import { ViewPaneContainer } from '../../browser/parts/views/viewPaneContainer.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
+import { Extensions as ViewContainerExtensions, ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../common/views.js';
+import { VIEWLET_ID as DEBUG } from '../../contrib/debug/common/debug.js';
+import { VIEWLET_ID as EXPLORER } from '../../contrib/files/common/files.js';
+import { VIEWLET_ID as REMOTE } from '../../contrib/remote/browser/remoteExplorer.js';
+import { VIEWLET_ID as SCM } from '../../contrib/scm/common/scm.js';
+import { WebviewViewPane } from '../../contrib/webviewView/browser/webviewViewPane.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesRegistryExtensions } from '../../services/extensionManagement/common/extensionFeatures.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;

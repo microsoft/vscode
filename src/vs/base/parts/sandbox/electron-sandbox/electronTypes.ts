@@ -188,3 +188,12 @@ export interface WebUtils {
 	 */
 	getPathForFile(file: File): string;
 }
+
+export interface IDevice {
+	id: string;
+	label: string;
+}
+
+export interface IDeviceAccess {
+	handleDeviceAccess: (callback: (event: IpcRendererEvent, type: string, devices: IDevice[]) => void) => void;
+}

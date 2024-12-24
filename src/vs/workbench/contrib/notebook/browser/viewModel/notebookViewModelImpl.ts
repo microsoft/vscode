@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy } from 'vs/base/common/collections';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { FindMatch, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
-import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IWorkspaceTextEdit } from 'vs/editor/common/languages';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, ICellModelDecorations, ICellModelDeltaDecorations, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { groupBy } from '../../../../../base/common/collections.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../../base/common/numbers.js';
+import * as strings from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import * as editorCommon from '../../../../../editor/common/editorCommon.js';
+import { IWorkspaceTextEdit } from '../../../../../editor/common/languages.js';
+import { FindMatch, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { MultiModelEditStackElement, SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
+import { IntervalNode, IntervalTree } from '../../../../../editor/common/model/intervalTree.js';
+import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { FoldingRegions } from '../../../../../editor/contrib/folding/browser/foldingRanges.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { CellFindMatchModel } from '../contrib/find/findModel.js';
+import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, IModelDecorationsChangeAccessor, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel } from '../notebookBrowser.js';
+import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from '../notebookViewEvents.js';
+import { NotebookCellSelectionCollection } from './cellSelectionCollection.js';
+import { CodeCellViewModel } from './codeCellViewModel.js';
+import { MarkupCellViewModel } from './markupCellViewModel.js';
+import { ViewContext } from './viewContext.js';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CellKind, ICell, INotebookFindOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookFindScopeType, SelectionStateType } from '../../common/notebookCommon.js';
+import { INotebookExecutionStateService, NotebookExecutionType } from '../../common/notebookExecutionStateService.js';
+import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from '../../common/notebookRange.js';
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
@@ -113,10 +113,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._viewCells;
 	}
 
-	set viewCells(_: ICellViewModel[]) {
-		throw new Error('NotebookViewModel.viewCells is readonly');
-	}
-
 	get length(): number {
 		return this._viewCells.length;
 	}
@@ -131,6 +127,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	get metadata() {
 		return this._notebook.metadata;
+	}
+
+	private get isRepl() {
+		return this.viewType === 'repl';
 	}
 
 	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
@@ -199,7 +199,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
@@ -337,9 +337,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			this._onDidChangeSelection.fire(e);
 		}));
 
-		this._viewCells = this._notebook.cells.map(cell => {
-			return createCellViewModel(this._instantiationService, this, cell, this._viewContext);
-		});
+
+		const viewCellCount = this.isRepl ? this._notebook.cells.length - 1 : this._notebook.cells.length;
+		for (let i = 0; i < viewCellCount; i++) {
+			this._viewCells.push(createCellViewModel(this._instantiationService, this, this._notebook.cells[i], this._viewContext));
+		}
+
 
 		this._viewCells.forEach(cell => {
 			this._handleToViewCellMapping.set(cell.handle, cell);
@@ -348,6 +351,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	updateOptions(newOptions: Partial<NotebookViewModelOptions>) {
 		this._options = { ...this._options, ...newOptions };
+		this._viewCells.forEach(cell => cell.updateOptions({ readonly: this._options.isReadOnly }));
 		this._onDidChangeOptions.fire();
 	}
 
@@ -357,6 +361,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	getSelections() {
 		return this._selectionCollection.selections;
+	}
+
+	getMostRecentlyExecutedCell(): ICellViewModel | undefined {
+		const handle = this.notebookExecutionStateService.getLastCompletedCellForNotebook(this._notebook.uri);
+		return handle !== undefined ? this.getCellByHandle(handle) : undefined;
 	}
 
 	setEditorFocus(focused: boolean) {
@@ -908,13 +917,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	//#region Find
-	find(value: string, options: INotebookSearchOptions): CellFindMatchWithIndex[] {
+	find(value: string, options: INotebookFindOptions): CellFindMatchWithIndex[] {
 		const matches: CellFindMatchWithIndex[] = [];
 		let findCells: CellViewModel[] = [];
 
-		const selectedRanges = options.selectedRanges?.map(range => this.validateRange(range)).filter(range => !!range);
-
-		if (options.searchInRanges && selectedRanges) {
+		if (options.findScope && (options.findScope.findScopeType === NotebookFindScopeType.Cells || options.findScope.findScopeType === NotebookFindScopeType.Text)) {
+			const selectedRanges = options.findScope.selectedCellRanges?.map(range => this.validateRange(range)).filter(range => !!range) ?? [];
 			const selectedIndexes = cellRangesToIndexes(selectedRanges);
 			findCells = selectedIndexes.map(index => this._viewCells[index]);
 		} else {

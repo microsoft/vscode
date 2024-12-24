@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { addDisposableListener, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
-import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as types from 'vs/base/common/types';
-import 'vs/css!./actionbar';
-import * as nls from 'vs/nls';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { isFirefox } from '../../browser.js';
+import { DataTransfers } from '../../dnd.js';
+import { addDisposableListener, EventHelper, EventLike, EventType } from '../../dom.js';
+import { EventType as TouchEventType, Gesture } from '../../touch.js';
+import { IActionViewItem } from './actionbar.js';
+import { IContextViewProvider } from '../contextview/contextview.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from '../selectBox/selectBox.js';
+import { IToggleStyles } from '../toggle/toggle.js';
+import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from '../../../common/actions.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import * as platform from '../../../common/platform.js';
+import * as types from '../../../common/types.js';
+import './actionbar.css';
+import * as nls from '../../../../nls.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
 	isMenu?: boolean;
+	isTabList?: boolean;
 	useEventAsContext?: boolean;
 	hoverDelegate?: IHoverDelegate;
 }
@@ -269,6 +270,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string | null;
+	keybindingNotRenderedWithLabel?: boolean;
 	toggleStyles?: IToggleStyles;
 }
 
@@ -299,7 +301,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.label = label;
 		this.element.appendChild(label);
 
-		if (this.options.label && this.options.keybinding) {
+		if (this.options.label && this.options.keybinding && !this.options.keybindingNotRenderedWithLabel) {
 			const kbLabel = document.createElement('span');
 			kbLabel.classList.add('keybinding');
 			kbLabel.textContent = this.options.keybinding;
@@ -313,12 +315,14 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.updateChecked();
 	}
 
-	private getDefaultAriaRole(): 'presentation' | 'menuitem' | 'button' {
+	private getDefaultAriaRole(): 'presentation' | 'menuitem' | 'tab' | 'button' {
 		if (this._action.id === Separator.ID) {
 			return 'presentation'; // A separator is a presentation item
 		} else {
 			if (this.options.isMenu) {
 				return 'menuitem';
+			} else if (this.options.isTabList) {
+				return 'tab';
 			} else {
 				return 'button';
 			}
@@ -362,9 +366,8 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.action.tooltip) {
 			title = this.action.tooltip;
 
-		} else if (!this.options.label && this.action.label && this.options.icon) {
+		} else if (this.action.label) {
 			title = this.action.label;
-
 			if (this.options.keybinding) {
 				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
 			}
@@ -421,11 +424,15 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.action.checked !== undefined) {
 				this.label.classList.toggle('checked', this.action.checked);
-				this.label.setAttribute('aria-checked', this.action.checked ? 'true' : 'false');
-				this.label.setAttribute('role', 'checkbox');
+				if (this.options.isTabList) {
+					this.label.setAttribute('aria-selected', this.action.checked ? 'true' : 'false');
+				} else {
+					this.label.setAttribute('aria-checked', this.action.checked ? 'true' : 'false');
+					this.label.setAttribute('role', 'checkbox');
+				}
 			} else {
 				this.label.classList.remove('checked');
-				this.label.removeAttribute('aria-checked');
+				this.label.removeAttribute(this.options.isTabList ? 'aria-selected' : 'aria-checked');
 				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}

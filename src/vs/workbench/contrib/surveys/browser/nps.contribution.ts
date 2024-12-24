@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { language } from 'vs/base/common/platform';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { platform } from 'vs/base/common/process';
+import * as nls from '../../../../nls.js';
+import { language } from '../../../../base/common/platform.js';
+import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { Severity, INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../base/common/uri.js';
+import { platform } from '../../../../base/common/process.js';
 
 const PROBABILITY = 0.15;
 const SESSION_COUNT_KEY = 'nps/sessionCount';

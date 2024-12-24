@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { matchesScheme } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { matchesScheme } from '../../../../../base/common/network.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from './links.js';
+import { convertLinkRangeToBuffer, getXtermLineContent } from './terminalLinkHelpers.js';
+import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
 import type { IBufferLine, Terminal } from '@xterm/xterm';
 
 const enum Constants {

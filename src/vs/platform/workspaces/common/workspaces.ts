@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { isUNC, toSlashes } from 'vs/base/common/extpath';
-import * as json from 'vs/base/common/json';
-import * as jsonEdit from 'vs/base/common/jsonEdit';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
-import { isAbsolute, posix } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IExtUri, isEqualAuthority } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceBackupInfo, IFolderBackupInfo } from 'vs/platform/backup/common/backup';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Event } from '../../../base/common/event.js';
+import { isUNC, toSlashes } from '../../../base/common/extpath.js';
+import * as json from '../../../base/common/json.js';
+import * as jsonEdit from '../../../base/common/jsonEdit.js';
+import { FormattingOptions } from '../../../base/common/jsonFormatter.js';
+import { normalizeDriveLetter } from '../../../base/common/labels.js';
+import { Schemas } from '../../../base/common/network.js';
+import { isAbsolute, posix } from '../../../base/common/path.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IExtUri, isEqualAuthority } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { IWorkspaceBackupInfo, IFolderBackupInfo } from '../../backup/common/backup.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
+import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder } from '../../workspace/common/workspace.js';
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 

@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { Schemas } from 'vs/base/common/network';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { TestNativeTextFileServiceWithEncodingOverrides, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
-import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
+import { ITextFileService } from '../../common/textfiles.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { TextFileEditorModelManager } from '../../common/textFileEditorModelManager.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNativeTextFileServiceWithEncodingOverrides, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/electron-sandbox/workbenchTestServices.js';
+import { IWorkingCopyFileService, WorkingCopyFileService } from '../../../workingCopy/common/workingCopyFileService.js';
+import { WorkingCopyService } from '../../../workingCopy/common/workingCopyService.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 
 suite('Files - NativeTextFileService', function () {
 	const disposables = new DisposableStore();

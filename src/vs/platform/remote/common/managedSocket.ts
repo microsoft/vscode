@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, encodeBase64 } from 'vs/base/common/buffer';
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ISocket, SocketCloseEvent, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { VSBuffer, encodeBase64 } from '../../../base/common/buffer.js';
+import { Emitter, Event, PauseableEmitter } from '../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { ISocket, SocketCloseEvent, SocketDiagnostics, SocketDiagnosticsEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 
 export const makeRawSocketHeaders = (path: string, query: string, deubgLabel: string) => {
 	// https://tools.ietf.org/html/rfc6455#section-4

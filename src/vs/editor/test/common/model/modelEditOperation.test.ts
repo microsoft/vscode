@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { createTextModel } from '../testTextModel.js';
 
 suite('Editor Model - Model Edit Operation', () => {
 	const LINE1 = 'My First Line';

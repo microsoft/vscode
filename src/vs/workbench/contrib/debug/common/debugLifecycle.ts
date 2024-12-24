@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugConfiguration, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IDebugConfiguration, IDebugService } from './debug.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 
 export class DebugLifecycle implements IWorkbenchContribution {
 	private disposable: IDisposable;

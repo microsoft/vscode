@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isLinuxSnap, platform, Platform, PlatformToString } from 'vs/base/common/platform';
-import { env, platform as nodePlatform } from 'vs/base/common/process';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ICommonProperties } from 'vs/platform/telemetry/common/telemetry';
+import { isLinuxSnap, platform, Platform, PlatformToString } from '../../../base/common/platform.js';
+import { env, platform as nodePlatform } from '../../../base/common/process.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ICommonProperties } from './telemetry.js';
 
 function getPlatformDetail(hostname: string): string | undefined {
 	if (platform === Platform.Linux && /^penguin(\.|$)/i.test(hostname)) {

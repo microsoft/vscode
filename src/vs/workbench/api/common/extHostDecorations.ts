@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { MainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable, FileDecoration } from 'vs/workbench/api/common/extHostTypes';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { asArray, groupBy } from 'vs/base/common/arrays';
-import { compare, count } from 'vs/base/common/strings';
-import { dirname } from 'vs/base/common/path';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { URI } from '../../../base/common/uri.js';
+import { MainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from './extHost.protocol.js';
+import { Disposable, FileDecoration } from './extHostTypes.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { asArray, groupBy } from '../../../base/common/arrays.js';
+import { compare, count } from '../../../base/common/strings.js';
+import { dirname } from '../../../base/common/path.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 interface ProviderData {
 	provider: vscode.FileDecorationProvider;

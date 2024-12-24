@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { autorunOpts, IObservable, IReader, observableFromEvent } from 'vs/base/common/observable';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyValue, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { autorunOpts, IObservable, IReader, observableFromEventOpts } from '../../../base/common/observable.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
 
 /** Creates an observable update when a configuration key updates. */
 export function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
+	return observableFromEventOpts({ debugName: () => `Configuration Key "${key}"`, },
 		(handleChange) => configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(key)) {
 				handleChange(e);

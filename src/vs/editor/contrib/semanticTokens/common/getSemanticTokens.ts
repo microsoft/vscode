@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
-import { IModelService } from 'vs/editor/common/services/model';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { Range } from 'vs/editor/common/core/range';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextModel } from '../../../common/model.js';
+import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend, DocumentRangeSemanticTokensProvider } from '../../../common/languages.js';
+import { IModelService } from '../../../common/services/model.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { assertType } from '../../../../base/common/types.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeSemanticTokensDto } from '../../../common/services/semanticTokensDto.js';
+import { Range } from '../../../common/core/range.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 
 export function isSemanticTokens(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokens {
 	return v && !!((<SemanticTokens>v).data);

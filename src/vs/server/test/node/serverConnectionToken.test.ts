@@ -7,10 +7,10 @@ import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
-import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { getRandomTestPath } from '../../../base/test/node/testUtils.js';
+import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from '../../node/serverConnectionToken.js';
+import { ServerParsedArgs } from '../../node/serverEnvironmentService.js';
 
 suite('parseServerConnectionToken', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

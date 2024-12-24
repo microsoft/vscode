@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry, IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
+import * as nls from '../../../../nls.js';
+import { ExtensionsRegistry, IExtensionPoint } from '../../extensions/common/extensionsRegistry.js';
+import { languagesExtPoint } from '../../language/common/languageService.js';
 
 export interface IEmbeddedLanguagesMap {
 	[scopeName: string]: string;

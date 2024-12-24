@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBufferReadableStream, newWriteableBufferStream, VSBuffer, streamToBuffer, bufferToStream, readableToBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/resources';
-import { consumeReadable, consumeStream, isReadable, isReadableStream } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { VSBufferReadableStream, newWriteableBufferStream, VSBuffer, streamToBuffer, bufferToStream, readableToBuffer, VSBufferReadable } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { consumeReadable, consumeStream, isReadable, isReadableStream } from '../../../../../base/common/stream.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SnapshotContext } from '../../common/fileWorkingCopy.js';
+import { IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from '../../common/untitledFileWorkingCopy.js';
+import { TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 export class TestUntitledFileWorkingCopyModel extends Disposable implements IUntitledFileWorkingCopyModel {
 

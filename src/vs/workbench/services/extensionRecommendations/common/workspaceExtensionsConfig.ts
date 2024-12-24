@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { JSONPath, parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IJSONEditingService, IJSONValue } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { ResourceMap } from 'vs/base/common/map';
+import { distinct } from '../../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { JSONPath, parse } from '../../../../base/common/json.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IJSONEditingService, IJSONValue } from '../../configuration/common/jsonEditing.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 
 export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 

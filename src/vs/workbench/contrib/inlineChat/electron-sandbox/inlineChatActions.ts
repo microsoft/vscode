@@ -2,24 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { AbstractInlineChatAction, setHoldForSpeech } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { disposableTimeout } from 'vs/base/common/async';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StartVoiceChatAction, StopListeningAction, VOICE_KEY_HOLD_THRESHOLD } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
-import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { HasSpeechProvider, ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
-import { localize2 } from 'vs/nls';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { InlineChatController } from '../browser/inlineChatController.js';
+import { AbstractInlineChatAction, setHoldForSpeech } from '../browser/inlineChatActions.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { StartVoiceChatAction, StopListeningAction, VOICE_KEY_HOLD_THRESHOLD } from '../../chat/electron-sandbox/actions/voiceChatActions.js';
+import { IChatExecuteActionContext } from '../../chat/browser/actions/chatExecuteActions.js';
+import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { HasSpeechProvider, ISpeechService } from '../../speech/common/speechService.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class HoldToSpeak extends AbstractInlineChatAction {
 

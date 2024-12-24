@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { UnchangedRegion } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
+import { LineRange } from '../../../common/core/lineRange.js';
+import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
 
 suite('DiffEditorWidget2', () => {
 

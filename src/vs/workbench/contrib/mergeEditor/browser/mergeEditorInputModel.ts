@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn } from 'vs/base/common/assert';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { derived, IObservable, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { basename, isEqual } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { ConfirmResult, IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { conflictMarkers } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
-import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
-import { InputData, MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
-import { StorageCloseWithConflicts } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileEditorModel, ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { assertFn } from '../../../../base/common/assert.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
+import Severity from '../../../../base/common/severity.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../nls.js';
+import { ConfirmResult, IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IRevertOptions, SaveSourceRegistry } from '../../../common/editor.js';
+import { EditorModel } from '../../../common/editor/editorModel.js';
+import { MergeEditorInputData } from './mergeEditorInput.js';
+import { conflictMarkers } from './mergeMarkers/mergeMarkersController.js';
+import { MergeDiffComputer } from './model/diffComputer.js';
+import { InputData, MergeEditorModel } from './model/mergeEditorModel.js';
+import { MergeEditorTelemetry } from './telemetry.js';
+import { StorageCloseWithConflicts } from '../common/mergeEditor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITextFileEditorModel, ITextFileSaveOptions, ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
 export interface MergeEditorArgs {
 	base: URI;
@@ -126,7 +126,7 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 
 class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorInputModel {
 	private readonly savedAltVersionId = observableValue(this, this.model.resultTextModel.getAlternativeVersionId());
-	private readonly altVersionId = observableFromEvent(
+	private readonly altVersionId = observableFromEvent(this,
 		e => this.model.resultTextModel.onDidChangeContent(e),
 		() =>
 			/** @description getAlternativeVersionId */ this.model.resultTextModel.getAlternativeVersionId()
@@ -340,7 +340,7 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 }
 
 class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditorInputModel {
-	public readonly isDirty = observableFromEvent(
+	public readonly isDirty = observableFromEvent(this,
 		Event.any(this.resultTextFileModel.onDidChangeDirty, this.resultTextFileModel.onDidSaveError),
 		() => /** @description isDirty */ this.resultTextFileModel.isDirty()
 	);

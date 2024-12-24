@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
-import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/common/extHostTypes';
-import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { mock } from 'vs/base/test/common/mock';
-import { Emitter, Event } from 'vs/base/common/event';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { DiagnosticCollection, ExtHostDiagnostics } from '../../common/extHostDiagnostics.js';
+import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from '../../common/extHostTypes.js';
+import { MainThreadDiagnosticsShape, IMainContext } from '../../common/extHost.protocol.js';
+import { IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
 import type * as vscode from 'vscode';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtUri, extUri } from 'vs/base/common/resources';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { ExtUri, extUri } from '../../../../base/common/resources.js';
+import { IExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { IExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostDiagnostics', () => {
 

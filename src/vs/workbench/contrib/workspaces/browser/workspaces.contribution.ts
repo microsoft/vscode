@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { hasWorkspaceFileExtension, IWorkspaceContextService, WorkbenchState, WORKSPACE_SUFFIX } from 'vs/platform/workspace/common/workspace';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INeverShowAgainOptions, INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import { URI } from 'vs/base/common/uri';
-import { isEqual, joinPath } from 'vs/base/common/resources';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ActiveEditorContext, ResourceContextKey, TemporaryWorkspaceContext } from 'vs/workbench/common/contextkeys';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
+import { localize, localize2 } from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { hasWorkspaceFileExtension, IWorkspaceContextService, WorkbenchState, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { INeverShowAgainOptions, INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { ActiveEditorContext, ResourceContextKey, TemporaryWorkspaceContext } from '../../../common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 
 /**
  * A workbench contribution that will look for `.code-workspace` files in the root of the

@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as path from 'vs/base/common/path';
-import * as process from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TextDiffTabInput, TextTabInput } from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
+import { Lazy } from '../../../base/common/lazy.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import * as path from '../../../base/common/path.js';
+import * as process from '../../../base/common/process.js';
+import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import { IExtHostEditorTabs } from './extHostEditorTabs.js';
+import { IExtHostExtensionService } from './extHostExtensionService.js';
+import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TextDiffTabInput, TextTabInput } from './extHostTypes.js';
+import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
+import { AbstractVariableResolverService } from '../../services/configurationResolver/common/variableResolver.js';
 import * as vscode from 'vscode';
-import { ExtHostConfigProvider, IExtHostConfiguration } from './extHostConfiguration';
+import { ExtHostConfigProvider, IExtHostConfiguration } from './extHostConfiguration.js';
+import { Schemas } from '../../../base/common/network.js';
 
 export interface IExtHostVariableResolverProvider {
 	readonly _serviceBrand: undefined;
@@ -83,7 +84,11 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 			getFilePath: (): string | undefined => {
 				const activeUri = getActiveUri();
 				if (activeUri) {
-					return path.normalize(activeUri.fsPath);
+					if (activeUri.scheme === Schemas.file) {
+						return path.normalize(activeUri.fsPath);
+					} else {
+						return activeUri.toString();
+					}
 				}
 				return undefined;
 			},
@@ -93,7 +98,11 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 					if (activeUri) {
 						const ws = workspaceService.getWorkspaceFolder(activeUri);
 						if (ws) {
-							return path.normalize(ws.uri.fsPath);
+							if (activeUri.scheme === Schemas.file) {
+								return path.normalize(ws.uri.fsPath);
+							} else {
+								return ws.uri.toString();
+							}
 						}
 					}
 				}
@@ -113,6 +122,15 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 					const activeEditor = editorService.activeEditor();
 					if (activeEditor) {
 						return String(activeEditor.selection.end.line + 1);
+					}
+				}
+				return undefined;
+			},
+			getColumnNumber: (): string | undefined => {
+				if (editorService) {
+					const activeEditor = editorService.activeEditor();
+					if (activeEditor) {
+						return String(activeEditor.selection.end.character + 1);
 					}
 				}
 				return undefined;

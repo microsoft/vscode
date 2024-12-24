@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, nativeTheme } from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStateService } from 'vs/platform/state/node/state';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme } from 'vs/platform/window/common/window';
+import electron from 'electron';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IStateService } from '../../state/node/state.js';
+import { IPartsSplash } from '../common/themeService.js';
+import { IColorScheme } from '../../window/common/window.js';
+import { ThemeTypeSelector } from '../common/theme.js';
 
+// These default colors match our default themes
+// editor background color ("Dark Modern", etc...)
 const DEFAULT_BG_LIGHT = '#FFFFFF';
-const DEFAULT_BG_DARK = '#1E1E1E';
+const DEFAULT_BG_DARK = '#1F1F1F';
 const DEFAULT_BG_HC_BLACK = '#000000';
 const DEFAULT_BG_HC_LIGHT = '#FFFFFF';
 
@@ -24,6 +27,7 @@ const THEME_WINDOW_SPLASH = 'windowSplash';
 
 namespace ThemeSettings {
 	export const DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme';
+	export const DETECT_HC = 'window.autoDetectHighContrast';
 	export const SYSTEM_COLOR_THEME = 'window.systemColorTheme';
 }
 
@@ -64,30 +68,30 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		this.updateSystemColorTheme();
 
 		// Color Scheme changes
-		this._register(Event.fromNodeEventEmitter(nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
+		this._register(Event.fromNodeEventEmitter(electron.nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
 	}
 
 	private updateSystemColorTheme(): void {
 		if (isLinux || this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
 			// only with `system` we can detect the system color scheme
-			nativeTheme.themeSource = 'system';
+			electron.nativeTheme.themeSource = 'system';
 		} else {
 			switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(ThemeSettings.SYSTEM_COLOR_THEME)) {
 				case 'dark':
-					nativeTheme.themeSource = 'dark';
+					electron.nativeTheme.themeSource = 'dark';
 					break;
 				case 'light':
-					nativeTheme.themeSource = 'light';
+					electron.nativeTheme.themeSource = 'light';
 					break;
 				case 'auto':
-					switch (this.getBaseTheme()) {
-						case 'vs': nativeTheme.themeSource = 'light'; break;
-						case 'vs-dark': nativeTheme.themeSource = 'dark'; break;
-						default: nativeTheme.themeSource = 'system';
+					switch (this.getPreferredBaseTheme() ?? this.getStoredBaseTheme()) {
+						case ThemeTypeSelector.VS: electron.nativeTheme.themeSource = 'light'; break;
+						case ThemeTypeSelector.VS_DARK: electron.nativeTheme.themeSource = 'dark'; break;
+						default: electron.nativeTheme.themeSource = 'system';
 					}
 					break;
 				default:
-					nativeTheme.themeSource = 'system';
+					electron.nativeTheme.themeSource = 'system';
 					break;
 			}
 
@@ -96,58 +100,66 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	getColorScheme(): IColorScheme {
 		if (isWindows) {
-			// high contrast is refelected by the shouldUseInvertedColorScheme property
-			if (nativeTheme.shouldUseHighContrastColors) {
+			// high contrast is reflected by the shouldUseInvertedColorScheme property
+			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				// shouldUseInvertedColorScheme is dark, !shouldUseInvertedColorScheme is light
-				return { dark: nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
+				return { dark: electron.nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
 			}
 		} else if (isMacintosh) {
 			// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set, reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
-			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-				return { dark: nativeTheme.shouldUseDarkColors, highContrast: true };
+			if (electron.nativeTheme.shouldUseInvertedColorScheme || electron.nativeTheme.shouldUseHighContrastColors) {
+				return { dark: electron.nativeTheme.shouldUseDarkColors, highContrast: true };
 			}
 		} else if (isLinux) {
 			// ubuntu gnome seems to have 3 states, light dark and high contrast
-			if (nativeTheme.shouldUseHighContrastColors) {
+			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				return { dark: true, highContrast: true };
 			}
 		}
 		return {
-			dark: nativeTheme.shouldUseDarkColors,
+			dark: electron.nativeTheme.shouldUseDarkColors,
 			highContrast: false
 		};
 	}
 
-	getBackgroundColor(): string {
+	getPreferredBaseTheme(): ThemeTypeSelector | undefined {
 		const colorScheme = this.getColorScheme();
-		if (colorScheme.highContrast && this.configurationService.getValue('window.autoDetectHighContrast')) {
-			return colorScheme.dark ? DEFAULT_BG_HC_BLACK : DEFAULT_BG_HC_LIGHT;
+		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && colorScheme.highContrast) {
+			return colorScheme.dark ? ThemeTypeSelector.HC_BLACK : ThemeTypeSelector.HC_LIGHT;
 		}
-
-		let background = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
-		if (!background) {
-			switch (this.getBaseTheme()) {
-				case 'vs': background = DEFAULT_BG_LIGHT; break;
-				case 'hc-black': background = DEFAULT_BG_HC_BLACK; break;
-				case 'hc-light': background = DEFAULT_BG_HC_LIGHT; break;
-				default: background = DEFAULT_BG_DARK;
-			}
+		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			return colorScheme.dark ? ThemeTypeSelector.VS_DARK : ThemeTypeSelector.VS;
 		}
-
-		if (isMacintosh && background.toUpperCase() === DEFAULT_BG_DARK) {
-			background = '#171717'; // https://github.com/electron/electron/issues/5150
-		}
-
-		return background;
+		return undefined;
 	}
 
-	private getBaseTheme(): 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' {
-		const baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
+	getBackgroundColor(): string {
+		const preferred = this.getPreferredBaseTheme();
+		const stored = this.getStoredBaseTheme();
+
+		// If the stored theme has the same base as the preferred, we can return the stored background
+		if (preferred === undefined || preferred === stored) {
+			const storedBackground = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
+			if (storedBackground) {
+				return storedBackground;
+			}
+		}
+		// Otherwise we return the default background for the preferred base theme. If there's no preferred, use the stored one.
+		switch (preferred ?? stored) {
+			case ThemeTypeSelector.VS: return DEFAULT_BG_LIGHT;
+			case ThemeTypeSelector.HC_BLACK: return DEFAULT_BG_HC_BLACK;
+			case ThemeTypeSelector.HC_LIGHT: return DEFAULT_BG_HC_LIGHT;
+			default: return DEFAULT_BG_DARK;
+		}
+	}
+
+	private getStoredBaseTheme(): ThemeTypeSelector {
+		const baseTheme = this.stateService.getItem<ThemeTypeSelector>(THEME_STORAGE_KEY, ThemeTypeSelector.VS_DARK).split(' ')[0];
 		switch (baseTheme) {
-			case 'vs': return 'vs';
-			case 'hc-black': return 'hc-black';
-			case 'hc-light': return 'hc-light';
-			default: return 'vs-dark';
+			case ThemeTypeSelector.VS: return ThemeTypeSelector.VS;
+			case ThemeTypeSelector.HC_BLACK: return ThemeTypeSelector.HC_BLACK;
+			case ThemeTypeSelector.HC_LIGHT: return ThemeTypeSelector.HC_LIGHT;
+			default: return ThemeTypeSelector.VS_DARK;
 		}
 	}
 
@@ -170,7 +182,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
-		for (const window of BrowserWindow.getAllWindows()) {
+		for (const window of electron.BrowserWindow.getAllWindows()) {
 			if (window.id === windowId) {
 				window.setBackgroundColor(splash.colorInfo.background);
 				break;

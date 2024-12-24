@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { MainThreadLanguagesShape, MainContext, ExtHostContext, ExtHostLanguagesShape } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { MainThreadLanguagesShape, MainContext, ExtHostContext, ExtHostLanguagesShape } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IPosition } from '../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../editor/common/core/range.js';
+import { StandardTokenType } from '../../../editor/common/encodedTokenAttributes.js';
+import { ITextModelService } from '../../../editor/common/services/resolverService.js';
+import { ILanguageStatus, ILanguageStatusService } from '../../services/languageStatus/common/languageStatusService.js';
+import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
 export class MainThreadLanguages implements MainThreadLanguagesShape {

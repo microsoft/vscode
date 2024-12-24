@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hookDomPurifyHrefAndSrcSanitizer, basicMarkupHtmlTags } from 'vs/base/browser/dom';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { allowedMarkdownAttr } from 'vs/base/browser/markdownRenderer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { marked } from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { escape } from 'vs/base/common/strings';
-import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
+import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from '../../../../base/browser/dom.js';
+import dompurify from '../../../../base/browser/dompurify/dompurify.js';
+import { allowedMarkdownAttr } from '../../../../base/browser/markdownRenderer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import * as marked from '../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { escape } from '../../../../base/common/strings.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { tokenizeToString } from '../../../../editor/common/languages/textToHtmlTokenizer.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { markedGfmHeadingIdPlugin } from './markedGfmHeadingIdPlugin.js';
 
 export const DEFAULT_MARKDOWN_STYLES = `
 body {
@@ -33,7 +33,7 @@ img {
 }
 
 a {
-	text-decoration: none;
+	text-decoration: var(--text-link-decoration);
 }
 
 a:hover {
@@ -184,6 +184,13 @@ function sanitize(documentContent: string, allowUnknownProtocols: boolean): stri
 	}
 }
 
+interface IRenderMarkdownDocumentOptions {
+	readonly shouldSanitize?: boolean;
+	readonly allowUnknownProtocols?: boolean;
+	readonly markedExtensions?: marked.MarkedExtension[];
+	readonly token?: CancellationToken;
+}
+
 /**
  * Renders a string of markdown as a document.
  *
@@ -193,47 +200,113 @@ export async function renderMarkdownDocument(
 	text: string,
 	extensionService: IExtensionService,
 	languageService: ILanguageService,
-	shouldSanitize: boolean = true,
-	allowUnknownProtocols: boolean = false,
-	token?: CancellationToken,
-	settingRenderer?: SimpleSettingRenderer
+	options?: IRenderMarkdownDocumentOptions
 ): Promise<string> {
+	const m = new marked.Marked(
+		MarkedHighlight.markedHighlight({
+			async: true,
+			async highlight(code: string, lang: string): Promise<string> {
+				if (typeof lang !== 'string') {
+					return escape(code);
+				}
 
-	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
-		if (!callback) {
-			return code;
-		}
+				await extensionService.whenInstalledExtensionsRegistered();
+				if (options?.token?.isCancellationRequested) {
+					return '';
+				}
 
-		if (typeof lang !== 'string') {
-			callback(null, escape(code));
-			return '';
-		}
-
-		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			if (token?.isCancellationRequested) {
-				callback(null, '');
-				return;
+				const languageId = languageService.getLanguageIdByLanguageName(lang) ?? languageService.getLanguageIdByLanguageName(lang.split(/\s+|:|,|(?!^)\{|\?]/, 1)[0]);
+				return tokenizeToString(languageService, code, languageId);
 			}
+		}),
+		markedGfmHeadingIdPlugin(),
+		...(options?.markedExtensions ?? []),
+	);
 
-			const languageId = languageService.getLanguageIdByLanguageName(lang) ?? languageService.getLanguageIdByLanguageName(lang.split(/\s+|:|,|(?!^)\{|\?]/, 1)[0]);
-			const html = await tokenizeToString(languageService, code, languageId);
-			callback(null, html);
-		});
-		return '';
-	};
+	const raw = await m.parse(text, { async: true });
+	if (options?.shouldSanitize ?? true) {
+		return sanitize(raw, options?.allowUnknownProtocols ?? false);
+	} else {
+		return raw;
+	}
+}
 
-	const renderer = new marked.Renderer();
-	if (settingRenderer) {
-		renderer.html = settingRenderer.getHtmlRenderer();
+namespace MarkedHighlight {
+	// Copied from https://github.com/markedjs/marked-highlight/blob/main/src/index.js
+
+	export function markedHighlight(options: marked.MarkedOptions & { highlight: (code: string, lang: string) => string | Promise<string> }): marked.MarkedExtension {
+		if (typeof options === 'function') {
+			options = {
+				highlight: options,
+			};
+		}
+
+		if (!options || typeof options.highlight !== 'function') {
+			throw new Error('Must provide highlight function');
+		}
+
+		return {
+			async: !!options.async,
+			walkTokens(token: marked.Token): Promise<void> | void {
+				if (token.type !== 'code') {
+					return;
+				}
+
+				if (options.async) {
+					return Promise.resolve(options.highlight(token.text, token.lang)).then(updateToken(token));
+				}
+
+				const code = options.highlight(token.text, token.lang);
+				if (code instanceof Promise) {
+					throw new Error('markedHighlight is not set to async but the highlight function is async. Set the async option to true on markedHighlight to await the async highlight function.');
+				}
+				updateToken(token)(code);
+			},
+			renderer: {
+				code({ text, lang, escaped }: marked.Tokens.Code) {
+					const classAttr = lang
+						? ` class="language-${escape(lang)}"`
+						: '';
+					text = text.replace(/\n$/, '');
+					return `<pre><code${classAttr}>${escaped ? text : escape(text, true)}\n</code></pre>`;
+				},
+			},
+		};
 	}
 
-	return new Promise<string>((resolve, reject) => {
-		marked(text, { highlight, renderer }, (err, value) => err ? reject(err) : resolve(value));
-	}).then(raw => {
-		if (shouldSanitize) {
-			return sanitize(raw, allowUnknownProtocols);
+	function updateToken(token: any) {
+		return (code: string) => {
+			if (typeof code === 'string' && code !== token.text) {
+				token.escaped = true;
+				token.text = code;
+			}
+		};
+	}
+
+	// copied from marked helpers
+	const escapeTest = /[&<>"']/;
+	const escapeReplace = new RegExp(escapeTest.source, 'g');
+	const escapeTestNoEncode = /[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/;
+	const escapeReplaceNoEncode = new RegExp(escapeTestNoEncode.source, 'g');
+	const escapeReplacement: Record<string, string> = {
+		'&': '&amp;',
+		'<': '&lt;',
+		'>': '&gt;',
+		'"': '&quot;',
+		[`'`]: '&#39;',
+	};
+	const getEscapeReplacement = (ch: string) => escapeReplacement[ch];
+	function escape(html: string, encode?: boolean) {
+		if (encode) {
+			if (escapeTest.test(html)) {
+				return html.replace(escapeReplace, getEscapeReplacement);
+			}
 		} else {
-			return raw;
+			if (escapeTestNoEncode.test(html)) {
+				return html.replace(escapeReplaceNoEncode, getEscapeReplacement);
+			}
 		}
-	});
+
+		return html;
+	}
 }

@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mapArrayOrNot } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isCancellationError } from 'vs/base/common/errors';
-import { revive } from 'vs/base/common/marshalling';
-import { joinPath } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration.js';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { Range } from 'vs/workbench/api/common/extHostTypes';
-import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
-import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
+import { mapArrayOrNot } from '../../../../base/common/arrays.js';
+import { timeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { revive } from '../../../../base/common/marshalling.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import * as pfs from '../../../../base/node/pfs.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { MainContext, MainThreadSearchShape } from '../../common/extHost.protocol.js';
+import { ExtHostConfigProvider, IExtHostConfiguration } from '../../common/extHostConfiguration.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { Range } from '../../common/extHostTypes.js';
+import { URITransformerService } from '../../common/extHostUriTransformerService.js';
+import { NativeExtHostSearch } from '../../node/extHostSearch.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from '../../../services/search/common/search.js';
+import { TextSearchManager } from '../../../services/search/common/textSearchManager.js';
+import { NativeTextSearchManager } from '../../../services/search/node/textSearchManager.js';
 import type * as vscode from 'vscode';
 
 let rpcProtocol: TestRPCProtocol;
@@ -76,12 +76,12 @@ suite('ExtHostSearch', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function registerTestTextSearchProvider(provider: vscode.TextSearchProvider, scheme = 'file'): Promise<void> {
-		disposables.add(extHostSearch.registerTextSearchProvider(scheme, provider));
+		disposables.add(extHostSearch.registerTextSearchProviderOld(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
 	async function registerTestFileSearchProvider(provider: vscode.FileSearchProvider, scheme = 'file'): Promise<void> {
-		disposables.add(extHostSearch.registerFileSearchProvider(scheme, provider));
+		disposables.add(extHostSearch.registerFileSearchProviderOld(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
@@ -170,7 +170,7 @@ suite('ExtHostSearch', () => {
 				this._pfs = mockPFS as any;
 			}
 
-			protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
+			protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider2): TextSearchManager {
 				return new NativeTextSearchManager(query, provider, this._pfs);
 			}
 		});
@@ -263,6 +263,28 @@ suite('ExtHostSearch', () => {
 			assert(!results.length);
 		});
 
+		test('session cancellation should work', async () => {
+			let numSessionCancelled = 0;
+			const disposables: (vscode.Disposable | undefined)[] = [];
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
+
+					disposables.push(options.session?.onCancellationRequested(() => {
+						numSessionCancelled++;
+					}));
+
+					return Promise.resolve([]);
+				}
+			});
+
+
+			await runFileSearch({ ...getSimpleQuery(), cacheKey: '1' }, true);
+			await runFileSearch({ ...getSimpleQuery(), cacheKey: '2' }, true);
+			extHostSearch.$clearCache('1');
+			assert.strictEqual(numSessionCancelled, 1);
+			disposables.forEach(d => d?.dispose());
+		});
+
 		test('provider returns null', async () => {
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
@@ -338,9 +360,11 @@ suite('ExtHostSearch', () => {
 						includePattern: {
 							'foo': true
 						},
-						excludePattern: {
-							'bar': true
-						}
+						excludePattern: [{
+							pattern: {
+								'bar': true
+							}
+						}]
 					},
 					{ folder: rootFolderB }
 				]
@@ -377,9 +401,11 @@ suite('ExtHostSearch', () => {
 						includePattern: {
 							'*.jsx': true
 						},
-						excludePattern: {
-							'*.js': false
-						}
+						excludePattern: [{
+							pattern: {
+								'*.js': false
+							}
+						}]
 					}
 				]
 			};
@@ -495,17 +521,21 @@ suite('ExtHostSearch', () => {
 				folderQueries: [
 					{
 						folder: rootFolderA,
-						excludePattern: {
-							'folder/*.css': {
-								when: '$(basename).scss'
+						excludePattern: [{
+							pattern: {
+								'folder/*.css': {
+									when: '$(basename).scss'
+								}
 							}
-						}
+						}]
 					},
 					{
 						folder: rootFolderB,
-						excludePattern: {
-							'*.js': false
-						}
+						excludePattern: [{
+							pattern: {
+								'*.js': false
+							}
+						}]
 					}
 				]
 			};
@@ -694,6 +724,24 @@ suite('ExtHostSearch', () => {
 			const { results } = await runFileSearch(query);
 			compareURIs(results, reportedResults);
 		});
+		test('if onlyFileScheme is set, do not call custom schemes', async () => {
+			let fancySchemeCalled = false;
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
+					fancySchemeCalled = true;
+					return Promise.resolve([]);
+				}
+			}, fancyScheme);
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+				filePattern: '',
+				folderQueries: []
+			};
+
+			await runFileSearch(query);
+			assert(!fancySchemeCalled);
+		});
 	});
 
 	suite('Text:', () => {
@@ -738,13 +786,13 @@ suite('ExtHostSearch', () => {
 					if (resultIsMatch(lineResult)) {
 						actualTextSearchResults.push({
 							preview: {
-								text: lineResult.preview.text,
+								text: lineResult.previewText,
 								matches: mapArrayOrNot(
-									lineResult.preview.matches,
+									lineResult.rangeLocations.map(r => r.preview),
 									m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
 							},
 							ranges: mapArrayOrNot(
-								lineResult.ranges,
+								lineResult.rangeLocations.map(r => r.source),
 								r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn),
 							),
 							uri: fileMatch.resource
@@ -876,9 +924,11 @@ suite('ExtHostSearch', () => {
 						includePattern: {
 							'foo': true
 						},
-						excludePattern: {
-							'bar': true
-						}
+						excludePattern: [{
+							pattern: {
+								'bar': true
+							}
+						}]
 					},
 					{ folder: rootFolderB }
 				]
@@ -915,9 +965,11 @@ suite('ExtHostSearch', () => {
 						includePattern: {
 							'*.jsx': true
 						},
-						excludePattern: {
-							'*.js': false
-						}
+						excludePattern: [{
+							pattern: {
+								'*.js': false
+							}
+						}]
 					}
 				]
 			};
@@ -1041,17 +1093,21 @@ suite('ExtHostSearch', () => {
 				folderQueries: [
 					{
 						folder: rootFolderA,
-						excludePattern: {
-							'folder/*.css': {
-								when: '$(basename).scss'
+						excludePattern: [{
+							pattern: {
+								'folder/*.css': {
+									when: '$(basename).scss'
+								}
 							}
-						}
+						}]
 					},
 					{
 						folder: rootFolderB,
-						excludePattern: {
-							'*.js': false
-						}
+						excludePattern: [{
+							pattern: {
+								'*.js': false
+							}
+						}]
 					}
 				]
 			};

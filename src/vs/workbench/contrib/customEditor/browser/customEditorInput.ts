@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from 'vs/base/browser/dom';
-import { CodeWindow } from 'vs/base/browser/window';
-import { toAction } from 'vs/base/common/actions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
-import { dirname, isEqual } from 'vs/base/common/resources';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity, createEditorOpenError } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
-import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { getWindow } from '../../../../base/browser/dom.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { toAction } from '../../../../base/common/actions.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename } from '../../../../base/common/path.js';
+import { dirname, isEqual } from '../../../../base/common/resources.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity, createEditorOpenError } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
+import { ICustomEditorModel, ICustomEditorService } from '../common/customEditor.js';
+import { IOverlayWebview, IWebviewService } from '../../webview/browser/webview.js';
+import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from '../../webviewPanel/browser/webviewWorkbenchService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 
 interface CustomEditorInputInitInfo {
 	readonly resource: URI;

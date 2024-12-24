@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorage } from 'vs/base/parts/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from 'vs/platform/storage/electron-main/storageMain';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Schemas } from 'vs/base/common/network';
+import { URI } from '../../../base/common/uri.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IStorage } from '../../../base/parts/storage/common/storage.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IFileService } from '../../files/common/files.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from '../common/storage.js';
+import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from './storageMain.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
+import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { Schemas } from '../../../base/common/network.js';
 
 //#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
 

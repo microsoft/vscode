@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { IpcRenderer, IpcRendererEvent, ProcessMemoryInfo, WebFrame, WebUtils } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { INodeProcess, IProcessEnvironment } from '../../../common/platform.js';
+import { ISandboxConfiguration } from '../common/sandboxTypes.js';
+import { IpcRenderer, ProcessMemoryInfo, WebFrame, WebUtils, IDeviceAccess } from './electronTypes.js';
 
 /**
  * In Electron renderers we cannot expose all of the `process` global of node.js
@@ -115,15 +115,6 @@ export interface ISandboxContext {
 	resolveConfiguration(): Promise<ISandboxConfiguration>;
 }
 
-export interface IDevice {
-	id: string;
-	label: string;
-}
-
-export interface IDeviceAccess {
-	handleDeviceAccess: (callback: (event: IpcRendererEvent, type: string, devices: IDevice[]) => void) => void;
-}
-
 const vscodeGlobal = (globalThis as any).vscode;
 export const ipcRenderer: IpcRenderer = vscodeGlobal.ipcRenderer;
 export const ipcMessagePort: IpcMessagePort = vscodeGlobal.ipcMessagePort;
@@ -134,11 +125,24 @@ export const webUtils: WebUtils = vscodeGlobal.webUtils;
 export const deviceAccess: IDeviceAccess = vscodeGlobal.deviceAccess;
 
 /**
+ * A set of globals only available to main windows that depend
+ * on `preload.js`.
+ */
+export interface IMainWindowSandboxGlobals {
+	readonly ipcRenderer: IpcRenderer;
+	readonly ipcMessagePort: IpcMessagePort;
+	readonly webFrame: WebFrame;
+	readonly process: ISandboxNodeProcess;
+	readonly context: ISandboxContext;
+	readonly webUtils: WebUtils;
+}
+
+/**
  * A set of globals that are available in all windows that either
  * depend on `preload.js` or `preload-aux.js`.
  */
 export interface ISandboxGlobals {
-	readonly ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send' | 'invoke'>;
-	readonly webFrame: import('vs/base/parts/sandbox/electron-sandbox/electronTypes').WebFrame;
+	readonly ipcRenderer: Pick<import('./electronTypes.js').IpcRenderer, 'send' | 'invoke'>;
+	readonly webFrame: import('./electronTypes.js').WebFrame;
 	readonly deviceAccess: IDeviceAccess;
 }

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import product from 'vs/platform/product/common/product';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { isCancellationError } from 'vs/base/common/errors';
+import { localize, localize2 } from '../../../nls.js';
+import { Action2 } from '../../../platform/actions/common/actions.js';
+import { ILocalizedString } from '../../../platform/action/common/action.js';
+import product from '../../../platform/product/common/product.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { INativeHostService } from '../../../platform/native/common/native.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 
 const shellCommandCategory: ILocalizedString = localize2('shellCommand', 'Shell Command');
 

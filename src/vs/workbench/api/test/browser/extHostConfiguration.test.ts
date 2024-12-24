@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { mock } from 'vs/base/test/common/mock';
-import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { ExtHostWorkspace } from '../../common/extHostWorkspace.js';
+import { ExtHostConfigProvider } from '../../common/extHostConfiguration.js';
+import { MainThreadConfigurationShape, IConfigurationInitData } from '../../common/extHost.protocol.js';
+import { ConfigurationModel, ConfigurationModelParser } from '../../../../platform/configuration/common/configurationModels.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from '../../../../platform/configuration/common/configuration.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { IExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
+import { FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
+import { isLinux } from '../../../../base/common/platform.js';
+import { IURITransformerService } from '../../common/extHostUriTransformerService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostConfiguration', function () {
 

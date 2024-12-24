@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { DomActivityTracker } from 'vs/workbench/services/userActivity/browser/domActivityTracker';
-import { UserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { DomActivityTracker } from '../../browser/domActivityTracker.js';
+import { UserActivityService } from '../../common/userActivityService.js';
 import * as sinon from 'sinon';
 import assert from 'assert';
 

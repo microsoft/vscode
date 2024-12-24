@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { UserDataSyncWorkbenchContribution } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
-import { IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { isWeb } from 'vs/base/common/platform';
-import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
-import { Action } from 'vs/base/common/actions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { SHOW_SYNC_LOG_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { UserDataSyncWorkbenchContribution } from './userDataSync.js';
+import { IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { UserDataSyncTrigger } from './userDataSyncTrigger.js';
+import { Action } from '../../../../base/common/actions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { SHOW_SYNC_LOG_COMMAND_ID } from '../../../services/userDataSync/common/userDataSync.js';
 
 class UserDataSyncReportIssueContribution extends Disposable implements IWorkbenchContribution {
 

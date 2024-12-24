@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as resources from 'vs/base/common/resources';
+import * as resources from '../../../../../base/common/resources.js';
 import assert from 'assert';
-import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { URI } from 'vs/base/common/uri';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TestWorkspace, Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { isWindows } from 'vs/base/common/platform';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { sep } from 'vs/base/common/path';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { LabelService } from '../../common/labelService.js';
+import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { TestWorkspace, Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { Memento } from '../../../../common/memento.js';
+import { ResourceLabelFormatter } from '../../../../../platform/label/common/label.js';
+import { sep } from '../../../../../base/common/path.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('URI Label', () => {
 	let labelService: LabelService;

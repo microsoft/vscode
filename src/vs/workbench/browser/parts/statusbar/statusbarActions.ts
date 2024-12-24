@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { Action } from 'vs/base/common/actions';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
-import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
-import { getActiveWindow } from 'vs/base/browser/dom';
+import { localize, localize2 } from '../../../../nls.js';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Parts, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { StatusbarViewModel } from './statusbarModel.js';
+import { StatusBarFocused } from '../../../common/contextkeys.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 
 export class ToggleStatusbarEntryVisibilityAction extends Action {
 

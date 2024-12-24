@@ -3,35 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { FormattingMode, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileSaveParticipantContext, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import * as strings from '../../../../base/common/strings.js';
+import { IActiveCodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { trimTrailingWhitespace } from '../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { CodeActionProvider, CodeActionTriggerType } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from '../../../../editor/contrib/codeAction/browser/codeAction.js';
+import { CodeActionKind, CodeActionTriggerSource } from '../../../../editor/contrib/codeAction/common/types.js';
+import { FormattingMode, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider } from '../../../../editor/contrib/format/browser/format.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../common/contributions.js';
+import { SaveReason } from '../../../common/editor.js';
+import { getModifiedRanges } from '../../format/browser/formatModified.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileSaveParticipantContext, ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
@@ -267,13 +271,54 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 	}
 }
 
-class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
+class CodeActionOnSaveParticipant extends Disposable implements ITextFileSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-	) { }
+		@IHostService private readonly hostService: IHostService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
+	) {
+		super();
+
+		this._register(this.hostService.onDidChangeFocus(() => { this.triggerCodeActionsCommand(); }));
+		this._register(this.editorService.onDidActiveEditorChange(() => { this.triggerCodeActionsCommand(); }));
+	}
+
+	private async triggerCodeActionsCommand() {
+		if (this.configurationService.getValue<boolean>('editor.codeActions.triggerOnFocusChange') && this.configurationService.getValue<string>('files.autoSave') === 'afterDelay') {
+			const model = this.codeEditorService.getActiveCodeEditor()?.getModel();
+			if (!model) {
+				return undefined;
+			}
+
+			const settingsOverrides = { overrideIdentifier: model.getLanguageId(), resource: model.uri };
+			const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
+
+			if (!setting) {
+				return undefined;
+			}
+
+			if (Array.isArray(setting)) {
+				return undefined;
+			}
+
+			const settingItems: string[] = Object.keys(setting).filter(x => setting[x] && setting[x] === 'always' && CodeActionKind.Source.contains(new HierarchicalKind(x)));
+
+			const cancellationTokenSource = new CancellationTokenSource();
+
+			const codeActionKindList = [];
+			for (const item of settingItems) {
+				codeActionKindList.push(new HierarchicalKind(item));
+			}
+
+			// run code actions based on what is found from setting === 'always', no exclusions.
+			await this.applyOnSaveActions(model, codeActionKindList, [], Progress.None, cancellationTokenSource.token);
+		}
+	}
 
 	async participate(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (!model.textEditorModel) {
@@ -351,7 +396,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 				progress.report({
 					message: localize(
 						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
-						"Getting code actions from '{0}' ([configure]({1})).",
+						"Getting code actions from {0} ([configure]({1})).",
 						[...this._names].map(name => `'${name}'`).join(', '),
 						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
 					)
@@ -366,7 +411,27 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		};
 
 		for (const codeActionKind of codeActionsOnSave) {
+			const sw = new StopWatch();
+
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
+
+			// Telemetry for duration of each code action on save.
+			type CodeActionOnSave = {
+				codeAction: string;
+				duration: number;
+			};
+			type CodeActionOnSaveClassification = {
+				owner: 'justschen';
+				comment: 'Information about the code action that was accepted on save.';
+				codeAction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the code action setting that is run.' };
+				duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration it took for TS to return the action to run for each kind. ' };
+			};
+
+			this.telemetryService.publicLog2<CodeActionOnSave, CodeActionOnSaveClassification>('codeAction.appliedOnSave', {
+				codeAction: codeActionKind.value,
+				duration: sw.elapsed()
+			});
+
 			if (token.isCancellationRequested) {
 				actionsToRun.dispose();
 				return;

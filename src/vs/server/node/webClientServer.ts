@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createReadStream } from 'fs';
-import { Promises } from 'vs/base/node/pfs';
+import { createReadStream, promises } from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 import * as url from 'url';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { getMediaMime } from 'vs/base/common/mime';
-import { isLinux } from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { extname, dirname, join, normalize } from 'vs/base/common/path';
-import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from 'vs/base/common/network';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
-import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
-import { IHeaders } from 'vs/base/parts/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { isString } from 'vs/base/common/types';
-import { CharCode } from 'vs/base/common/charCode';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { isEqualOrParent } from '../../base/common/extpath.js';
+import { getMediaMime } from '../../base/common/mime.js';
+import { isLinux } from '../../base/common/platform.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IServerEnvironmentService } from './serverEnvironmentService.js';
+import { extname, dirname, join, normalize } from '../../base/common/path.js';
+import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from '../../base/common/network.js';
+import { generateUuid } from '../../base/common/uuid.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { ServerConnectionToken, ServerConnectionTokenType } from './serverConnectionToken.js';
+import { asTextOrError, IRequestService } from '../../platform/request/common/request.js';
+import { IHeaders } from '../../base/parts/request/common/request.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
+import { URI } from '../../base/common/uri.js';
+import { streamToBuffer } from '../../base/common/buffer.js';
+import { IProductConfiguration } from '../../base/common/product.js';
+import { isString } from '../../base/common/types.js';
+import { CharCode } from '../../base/common/charCode.js';
+import { IExtensionManifest } from '../../platform/extensions/common/extensions.js';
+import { ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
@@ -55,7 +55,7 @@ export const enum CacheControl {
  */
 export async function serveFile(filePath: string, cacheControl: CacheControl, logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, responseHeaders: Record<string, string>): Promise<void> {
 	try {
-		const stat = await Promises.stat(filePath); // throws an error if file doesn't exist
+		const stat = await promises.stat(filePath); // throws an error if file doesn't exist
 		if (cacheControl === CacheControl.ETAG) {
 
 			// Check if file modified since
@@ -109,6 +109,7 @@ export class WebClientServer {
 		@ILogService private readonly _logService: ILogService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@IProductService private readonly _productService: IProductService,
+		@ICSSDevelopmentService private readonly _cssDevService: ICSSDevelopmentService
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
 
@@ -222,7 +223,7 @@ export class WebClientServer {
 			return serveError(req, res, status, text || `Request failed with status ${status}`);
 		}
 
-		const responseHeaders: Record<string, string> = Object.create(null);
+		const responseHeaders: Record<string, string | string[]> = Object.create(null);
 		const setResponseHeader = (header: string) => {
 			const value = context.res.headers[header];
 			if (value) {
@@ -298,7 +299,7 @@ export class WebClientServer {
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(path.resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
-		const filePath = FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html').fsPath;
+		const filePath = FileAccess.asFileUri(`vs/code/browser/workbench/workbench${this._environmentService.isBuilt ? '' : '-dev'}.html`).fsPath;
 		const authSessionInfo = !this._environmentService.isBuilt && this._environmentService.args['github-auth'] ? {
 			id: generateUuid(),
 			providerId: 'github',
@@ -320,7 +321,7 @@ export class WebClientServer {
 
 		if (!this._environmentService.isBuilt) {
 			try {
-				const productOverrides = JSON.parse((await Promises.readFile(join(APP_ROOT, 'product.overrides.json'))).toString());
+				const productOverrides = JSON.parse((await promises.readFile(join(APP_ROOT, 'product.overrides.json'))).toString());
 				Object.assign(productConfiguration, productOverrides);
 			} catch (err) {/* Ignore Error */ }
 		}
@@ -338,18 +339,39 @@ export class WebClientServer {
 			callbackRoute: this._callbackRoute
 		};
 
-		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
+		const cookies = cookie.parse(req.headers.cookie || '');
+		const locale = cookies['vscode.nls.locale'] || req.headers['accept-language']?.split(',')[0]?.toLowerCase() || 'en';
+		let WORKBENCH_NLS_BASE_URL: string | undefined;
+		let WORKBENCH_NLS_URL: string;
+		if (!locale.startsWith('en') && this._productService.nlsCoreBaseUrl) {
+			WORKBENCH_NLS_BASE_URL = this._productService.nlsCoreBaseUrl;
+			WORKBENCH_NLS_URL = `${WORKBENCH_NLS_BASE_URL}${this._productService.commit}/${this._productService.version}/${locale}/nls.messages.js`;
+		} else {
+			WORKBENCH_NLS_URL = ''; // fallback will apply
+		}
+
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
-			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
+			WORKBENCH_NLS_URL,
+			WORKBENCH_NLS_FALLBACK_URL: `${this._staticRoute}/out/nls.messages.js`
 		};
+
+		// DEV ---------------------------------------------------------------------------------------
+		// DEV: This is for development and enables loading CSS via import-statements via import-maps.
+		// DEV: The server needs to send along all CSS modules so that the client can construct the
+		// DEV: import-map.
+		// DEV ---------------------------------------------------------------------------------------
+		if (this._cssDevService.isEnabled) {
+			const cssModules = await this._cssDevService.getCssModules();
+			values['WORKBENCH_DEV_CSS_MODULES'] = JSON.stringify(cssModules);
+		}
 
 		if (useTestResolver) {
 			const bundledExtensions: { extensionPath: string; packageJSON: IExtensionManifest }[] = [];
 			for (const extensionPath of ['vscode-test-resolver', 'github-authentication']) {
-				const packageJSON = JSON.parse((await Promises.readFile(FileAccess.asFileUri(`${builtinExtensionsPath}/${extensionPath}/package.json`).fsPath)).toString());
+				const packageJSON = JSON.parse((await promises.readFile(FileAccess.asFileUri(`${builtinExtensionsPath}/${extensionPath}/package.json`).fsPath)).toString());
 				bundledExtensions.push({ extensionPath, packageJSON });
 			}
 			values['WORKBENCH_BUILTIN_EXTENSIONS'] = asJSON(bundledExtensions);
@@ -357,20 +379,20 @@ export class WebClientServer {
 
 		let data;
 		try {
-			const workbenchTemplate = (await Promises.readFile(filePath)).toString();
+			const workbenchTemplate = (await promises.readFile(filePath)).toString();
 			data = workbenchTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
 		} catch (e) {
 			res.writeHead(404, { 'Content-Type': 'text/plain' });
 			return void res.end('Not found');
 		}
 
-		const webWorkerExtensionHostIframeScriptSHA = 'sha256-75NYUUvf+5++1WbfCZOV3PSWxBhONpaxwx+mkOFRv/Y=';
+		const webWorkerExtensionHostIframeScriptSHA = 'sha256-2Q+j4hfT09+1+imS46J2YlkCtHWQt0/BE79PXjJ0ZJ8=';
 
 		const cspDirectives = [
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
+			`script-src 'self' 'unsafe-eval' ${WORKBENCH_NLS_BASE_URL ?? ''} blob: 'nonce-1nline-m4p' ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`,  // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
 			'worker-src \'self\' data: blob:;',
@@ -426,7 +448,7 @@ export class WebClientServer {
 	 */
 	private async _handleCallback(res: http.ServerResponse): Promise<void> {
 		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html').fsPath;
-		const data = (await Promises.readFile(filePath)).toString();
+		const data = (await promises.readFile(filePath)).toString();
 		const cspDirectives = [
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',

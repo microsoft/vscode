@@ -3,25 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
-import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { hash } from 'vs/base/common/hash';
-import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { IModelService } from 'vs/editor/common/services/model';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { isDefined } from 'vs/base/common/types';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-
+import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
+import { hash } from '../../../../../base/common/hash.js';
+import { Disposable, dispose, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { filter } from '../../../../../base/common/objects.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { isDefined } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { FindMatch, ITextModel } from '../../../../../editor/common/model.js';
+import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
+import { CellEditType, CellKind, CellUri, diff, ICell, ICellDto2, ICellEditOperation, ICellOutput, INotebookSnapshotOptions, INotebookTextModel, IOutputDto, IOutputItemDto, ISelectionState, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, NullablePartialNotebookCellInternalMetadata, NullablePartialNotebookCellMetadata, TransientOptions } from '../notebookCommon.js';
+import { INotebookExecutionStateService } from '../notebookExecutionStateService.js';
+import { CellMetadataEdit, MoveCellEdit, SpliceCellsEdit } from './cellEdit.js';
+import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
+import { NotebookCellTextModel } from './notebookCellTextModel.js';
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
@@ -215,6 +221,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this._alternativeVersionId;
 	}
 
+	get notebookType() {
+		return this.viewType;
+	}
+
 	constructor(
 		readonly viewType: string,
 		readonly uri: URI,
@@ -224,7 +234,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService
+		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 		this.transientOptions = options;
@@ -322,8 +333,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language' | 'mime') {
-		this._increaseVersionId(e === 'content');
+	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language' | 'mime' | { type: 'model'; event: IModelContentChangedEvent }) {
+		this._increaseVersionId(e === 'content' || (typeof e === 'object' && e.type === 'model'));
 		switch (e) {
 			case 'content':
 				this._pauseableEmitter.fire({
@@ -350,6 +361,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					synchronous: true,
 					endSelectionState: undefined
 				});
+				break;
+
+			default:
+				if (typeof e === 'object' && e.type === 'model') {
+					this._pauseableEmitter.fire({
+						rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellContent, index: this._getCellIndexByHandle(cell.handle), transient: false }],
+						versionId: this.versionId,
+						synchronous: true,
+						endSelectionState: undefined
+					});
+				}
 				break;
 		}
 	}
@@ -405,7 +427,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void {
 		this.transientOptions = transientOptions;
-		const edits = NotebookTextModel.computeEdits(this, cells);
+		const executions = this._notebookExecutionStateService.getCellExecutionsForNotebook(this.uri);
+		const executingCellHandles = executions.filter(exe => exe.state === NotebookCellExecutionState.Executing).map(exe => exe.cellHandle);
+		const edits = NotebookTextModel.computeEdits(this, cells, executingCellHandles);
 
 		this.applyEdits(
 			[
@@ -419,10 +443,53 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		);
 	}
 
-	static computeEdits(model: NotebookTextModel, cells: ICellDto2[]) {
-		const edits: ICellEditOperation[] = [];
+	createSnapshot(options: INotebookSnapshotOptions): NotebookData {
+		const transientOptions = options.transientOptions ?? this.transientOptions;
+		const data: NotebookData = {
+			metadata: filter(this.metadata, key => !transientOptions.transientDocumentMetadata[key]),
+			cells: [],
+		};
 
-		const commonPrefix = this._commonPrefix(model.cells, model.cells.length, 0, cells, cells.length, 0);
+		let outputSize = 0;
+		for (const cell of this.cells) {
+			const cellData: ICellDto2 = {
+				cellKind: cell.cellKind,
+				language: cell.language,
+				mime: cell.mime,
+				source: cell.getValue(),
+				outputs: [],
+				internalMetadata: cell.internalMetadata
+			};
+
+			if (options.context === SnapshotContext.Backup && options.outputSizeLimit > 0) {
+				cell.outputs.forEach(output => {
+					output.outputs.forEach(item => {
+						outputSize += item.data.byteLength;
+					});
+				});
+				if (outputSize > options.outputSizeLimit) {
+					throw new Error('Notebook too large to backup');
+				}
+			}
+
+			cellData.outputs = !transientOptions.transientOutputs ? cell.outputs : [];
+			cellData.metadata = filter(cell.metadata, key => !transientOptions.transientCellMetadata[key]);
+
+			data.cells.push(cellData);
+		}
+
+		return data;
+	}
+
+	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void {
+		this.reset(snapshot.cells, snapshot.metadata, transientOptions ?? this.transientOptions);
+	}
+
+	static computeEdits(model: NotebookTextModel, cells: ICellDto2[], executingHandles: number[] = []): ICellEditOperation[] {
+		const edits: ICellEditOperation[] = [];
+		const isExecuting = (cell: NotebookCellTextModel) => executingHandles.includes(cell.handle);
+
+		const commonPrefix = this._commonPrefix(model.cells, model.cells.length, 0, cells, cells.length, 0, isExecuting);
 
 		if (commonPrefix > 0) {
 			for (let i = 0; i < commonPrefix; i++) {
@@ -441,7 +508,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return edits;
 		}
 
-		const commonSuffix = this._commonSuffix(model.cells, model.cells.length - commonPrefix, commonPrefix, cells, cells.length - commonPrefix, commonPrefix);
+		const commonSuffix = this._commonSuffix(model.cells, model.cells.length - commonPrefix, commonPrefix, cells, cells.length - commonPrefix, commonPrefix, isExecuting);
 
 		if (commonSuffix > 0) {
 			edits.push({ editType: CellEditType.Replace, index: commonPrefix, count: model.cells.length - commonPrefix - commonSuffix, cells: cells.slice(commonPrefix, cells.length - commonSuffix) });
@@ -496,20 +563,20 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 	}
 
-	private static _commonPrefix(a: readonly NotebookCellTextModel[], aLen: number, aDelta: number, b: ICellDto2[], bLen: number, bDelta: number): number {
+	private static _commonPrefix(a: readonly NotebookCellTextModel[], aLen: number, aDelta: number, b: ICellDto2[], bLen: number, bDelta: number, isExecuting: (cell: NotebookCellTextModel) => boolean): number {
 		const maxResult = Math.min(aLen, bLen);
 		let result = 0;
-		for (let i = 0; i < maxResult && a[aDelta + i].fastEqual(b[bDelta + i]); i++) {
+		for (let i = 0; i < maxResult && a[aDelta + i].fastEqual(b[bDelta + i], isExecuting(a[aDelta + i])); i++) {
 			result++;
 		}
 
 		return result;
 	}
 
-	private static _commonSuffix(a: readonly NotebookCellTextModel[], aLen: number, aDelta: number, b: ICellDto2[], bLen: number, bDelta: number): number {
+	private static _commonSuffix(a: readonly NotebookCellTextModel[], aLen: number, aDelta: number, b: ICellDto2[], bLen: number, bDelta: number, isExecuting: (cell: NotebookCellTextModel) => boolean): number {
 		const maxResult = Math.min(aLen, bLen);
 		let result = 0;
-		for (let i = 0; i < maxResult && a[aDelta + aLen - i - 1].fastEqual(b[bDelta + bLen - i - 1]); i++) {
+		for (let i = 0; i < maxResult && a[aDelta + aLen - i - 1].fastEqual(b[bDelta + bLen - i - 1], isExecuting(a[aDelta + aLen - i - 1])); i++) {
 			result++;
 		}
 		return result;
@@ -1169,6 +1236,78 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _indexIsInvalid(index: number): boolean {
 		return index < 0 || index >= this._cells.length;
 	}
+
+	//#region Find
+	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: Position }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, searchEnd?: { cellIndex: number; position: Position }): { cell: NotebookCellTextModel; match: FindMatch } | null {
+		// check if search cell index is valid
+		this._assertIndex(searchStart.cellIndex);
+		const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+		const searchData = searchParams.parseSearchRequest();
+
+		if (!searchData) {
+			return null;
+		}
+
+		let cellIndex = searchStart.cellIndex;
+		let searchStartPosition = searchStart.position;
+
+		let searchEndCell = this._cells.length;
+
+		while (cellIndex < searchEndCell) {
+			const cell = this._cells[cellIndex];
+
+			// if we have wrapped back to the point of the initial search cell, we search from beginning to the provided searchEnd position
+			const wrapFlag = searchEnd && cellIndex === searchEnd.cellIndex && searchStartPosition.isBefore(searchEnd.position);
+			const searchRange = new Range(
+				searchStartPosition.lineNumber,
+				searchStartPosition.column,
+				(wrapFlag) ? searchEnd.position.lineNumber : cell.textBuffer.getLineCount(),
+				(wrapFlag) ? searchEnd.position.column : cell.textBuffer.getLineMaxColumn(cell.textBuffer.getLineCount())
+			);
+
+			const result = cell.textBuffer.findMatchesLineByLine(searchRange, searchData, false, 1);
+			if (result.length > 0) {
+				return { cell, match: result[0] };
+			} else if (wrapFlag) { // this means there are no more valid matches in the notebook
+				break;
+			}
+
+			// Move to the next cell
+			cellIndex++;
+
+			// wrap if a searchEnd is provided and we are past the end of the notebook
+			if (searchEnd && cellIndex >= this._cells.length) {
+				cellIndex = 0;
+				searchEndCell = searchEnd.cellIndex + 1;
+			}
+
+			searchStartPosition = new Position(1, 1); // Reset position to start of the next cell
+		}
+
+		return null;
+	}
+
+	findMatches(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): { cell: NotebookCellTextModel; matches: FindMatch[] }[] {
+		const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+		const searchData = searchParams.parseSearchRequest();
+
+		if (!searchData) {
+			return [];
+		}
+
+		const results: { cell: NotebookCellTextModel; matches: FindMatch[] }[] = [];
+		for (const cell of this._cells) {
+			const searchRange = new Range(1, 1, cell.textBuffer.getLineCount(), cell.textBuffer.getLineMaxColumn(cell.textBuffer.getLineCount()));
+			const matches = cell.textBuffer.findMatchesLineByLine(searchRange, searchData, false, 1000);
+
+			if (matches.length > 0) {
+				results.push({ cell, matches: matches });
+			}
+		}
+
+		return results;
+	}
+	//#endregion
 }
 
 class OutputSequence implements ISequence {
