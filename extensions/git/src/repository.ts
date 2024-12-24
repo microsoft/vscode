@@ -560,13 +560,11 @@ class ResourceCommandResolver {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_RENAME:
 			case Status.TYPE_CHANGED:
 				return { original: toGitUri(resource.original, 'HEAD') };
 
 			case Status.MODIFIED:
-			case Status.UNTRACKED:
 				return { original: toGitUri(resource.resourceUri, '~') };
 
 			case Status.DELETED_BY_US:
