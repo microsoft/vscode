@@ -5,7 +5,7 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { IObservable, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { LineRange } from '../common/core/lineRange.js';
 import { OffsetRange } from '../common/core/offsetRange.js';
@@ -155,13 +155,13 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly isReadonly = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
 
 	private readonly _versionId = observableValueOpts<number | null, IModelContentChangedEvent | undefined>({ owner: this, lazy: true }, this.editor.getModel()?.getVersionId() ?? null);
-	public readonly versionId: IObservable<number | null, IModelContentChangedEvent | undefined> = this._versionId;
+	public readonly versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined> = this._versionId;
 
 	private readonly _selections = observableValueOpts<Selection[] | null, ICursorSelectionChangedEvent | undefined>(
 		{ owner: this, equalsFn: equalsIfDefined(itemsEquals(Selection.selectionsEqual)), lazy: true },
 		this.editor.getSelections() ?? null
 	);
-	public readonly selections: IObservable<Selection[] | null, ICursorSelectionChangedEvent | undefined> = this._selections;
+	public readonly selections: IObservableWithChange<Selection[] | null, ICursorSelectionChangedEvent | undefined> = this._selections;
 
 
 	public readonly positions = derivedOpts<readonly Position[] | null>(

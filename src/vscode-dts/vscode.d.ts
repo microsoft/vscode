@@ -7724,10 +7724,17 @@ declare module 'vscode' {
 		/**
 		 * The exit code reported by the shell.
 		 *
-		 * Note that `undefined` means the shell either did not report an exit  code (ie. the shell
-		 * integration script is misbehaving) or the shell reported a command started before the command
-		 * finished (eg. a sub-shell was opened). Generally this should not happen, depending on the use
-		 * case, it may be best to treat this as a failure.
+		 * When this is `undefined` it can mean several things:
+		 *
+		 * - The shell either did not report an exit  code (ie. the shell integration script is
+		 *   misbehaving)
+		 * - The shell reported a command started before the command finished (eg. a sub-shell was
+		 *   opened).
+		 * - The user canceled the command via ctrl+c.
+		 * - The user pressed enter when there was no input.
+		 *
+		 * Generally this should not happen. Depending on the use case, it may be best to treat this
+		 * as a failure.
 		 *
 		 * @example
 		 * const execution = shellIntegration.executeCommand({
@@ -8668,12 +8675,12 @@ declare module 'vscode' {
 		/**
 		 * The shell command. Is `undefined` if created with a full command line.
 		 */
-		command: string | ShellQuotedString;
+		command: string | ShellQuotedString | undefined;
 
 		/**
 		 * The shell args. Is `undefined` if created with a full command line.
 		 */
-		args: Array<string | ShellQuotedString>;
+		args: Array<string | ShellQuotedString> | undefined;
 
 		/**
 		 * The shell options used when the command line is executed in a shell.

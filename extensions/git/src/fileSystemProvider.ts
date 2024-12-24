@@ -192,7 +192,8 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		try {
 			return await repository.buffer(sanitizeRef(ref, path, repository), path);
 		} catch (err) {
-			// File does not exist in git (ex: git ignored)
+			// File does not exist in git. This could be
+			// because the file is untracked or ignored
 			throw FileSystemError.FileNotFound();
 		}
 	}

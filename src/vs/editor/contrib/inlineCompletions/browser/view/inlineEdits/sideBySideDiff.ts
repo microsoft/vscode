@@ -28,52 +28,52 @@ import { Range } from '../../../../../common/core/range.js';
 import { Command } from '../../../../../common/languages.js';
 import { ITextModel } from '../../../../../common/model.js';
 import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
+import { InlineCompletionContextKeys } from '../../controller/inlineCompletionContextKeys.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { PathBuilder, StatusBarViewItem, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
-
+import { localize } from '../../../../../../nls.js';
 
 export const originalBackgroundColor = registerColor(
 	'inlineEdit.originalBackground',
 	Color.transparent,
-	'',
+	localize('inlineEdit.originalBackground', 'Background color for the original text in inline edits.'),
 	true
 );
 export const modifiedBackgroundColor = registerColor(
 	'inlineEdit.modifiedBackground',
 	Color.transparent,
-	'',
+	localize('inlineEdit.modifiedBackground', 'Background color for the modified text in inline edits.'),
 	true
 );
 
 export const originalChangedLineBackgroundColor = registerColor(
 	'inlineEdit.originalChangedLineBackground',
 	Color.transparent,
-	'',
+	localize('inlineEdit.originalChangedLineBackground', 'Background color for the changed lines in the original text of inline edits.'),
 	true
 );
 
 export const originalChangedTextOverlayColor = registerColor(
 	'inlineEdit.originalChangedTextBackground',
 	diffRemoved,
-	'',
+	localize('inlineEdit.originalChangedTextBackground', 'Overlay color for the changed text in the original text of inline edits.'),
 	true
 );
 
 export const modifiedChangedLineBackgroundColor = registerColor(
 	'inlineEdit.modifiedChangedLineBackground',
 	Color.transparent,
-	'',
+	localize('inlineEdit.modifiedChangedLineBackground', 'Background color for the changed lines in the modified text of inline edits.'),
 	true
 );
 
 export const modifiedChangedTextOverlayColor = registerColor(
 	'inlineEdit.modifiedChangedTextBackground',
 	diffInserted,
-	'',
+	localize('inlineEdit.modifiedChangedTextBackground', 'Overlay color for the changed text in the modified text of inline edits.'),
 	true
 );
-
 export const originalBorder = registerColor(
 	'inlineEdit.originalBorder',
 	{
@@ -82,7 +82,7 @@ export const originalBorder = registerColor(
 		hcDark: editorLineHighlightBorder,
 		hcLight: editorLineHighlightBorder
 	},
-	''
+	localize('inlineEdit.originalBorder', 'Border color for the original text in inline edits.')
 );
 
 export const modifiedBorder = registerColor(
@@ -93,7 +93,7 @@ export const modifiedBorder = registerColor(
 		hcDark: editorLineHighlightBorder,
 		hcLight: editorLineHighlightBorder
 	},
-	''
+	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
 );
 
 export class InlineEditsSideBySideDiff extends Disposable {
@@ -180,12 +180,14 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _editorContainerTopLeft = observableValue<IObservable<Point | undefined> | undefined>(this, undefined);
 
 	private readonly _editorContainer = n.div({
-		class: 'editorContainer',
+		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.experimental.useGutterIndicator && 'showHover')],
 		style: { position: 'absolute' },
 	}, [
 		n.div({ class: 'preview', style: {}, ref: this.previewRef }),
 		n.div({ class: 'toolbar', style: {}, ref: this.toolbarRef }),
 	]).keepUpdated(this._store);
+
+	public readonly isHovered = this._editorContainer.getIsHovered(this._store);
 
 	protected readonly _toolbar = this._register(this._instantiationService.createInstance(CustomizedMenuWorkbenchToolBar, this.toolbarRef.element, MenuId.InlineEditsActions, {
 		menuOptions: { renderShortTitle: true },
@@ -271,7 +273,12 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			wordWrapOverride1: 'off',
 			wordWrapOverride2: 'off',
 		},
-		{ contributions: [], },
+		{
+			contextKeyValues: {
+				[InlineCompletionContextKeys.inInlineEditsPreviewEditor.key]: true,
+			},
+			contributions: [],
+		},
 		this._editor
 	));
 

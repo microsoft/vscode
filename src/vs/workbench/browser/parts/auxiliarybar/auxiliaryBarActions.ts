@@ -149,14 +149,14 @@ MenuRegistry.appendMenuItems([
 			order: 2
 		}
 	}, {
-		id: MenuId.ViewTitleContext,
+		id: MenuId.ViewContainerTitleContext,
 		item: {
 			group: '3_workbench_layout_move',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
 				title: localize2('hideAuxiliaryBar', 'Hide Secondary Side Bar'),
 			},
-			when: ContextKeyExpr.and(AuxiliaryBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+			when: ContextKeyExpr.and(AuxiliaryBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 			order: 2
 		}
 	}

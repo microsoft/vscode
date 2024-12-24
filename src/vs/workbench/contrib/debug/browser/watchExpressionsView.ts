@@ -31,7 +31,7 @@ import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.j
 import { IViewDescriptorService } from '../../../common/views.js';
 import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IDebugViewWithVariables, IExpression, WATCH_VIEW_ID } from '../common/debug.js';
 import { Expression, Variable, VisualizedExpression } from '../common/debugModel.js';
-import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
+import { AbstractExpressionDataSource, AbstractExpressionsRenderer, expressionAndScopeLabelProvider, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
 import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
 import { watchExpressionsAdd, watchExpressionsRemoveAll } from './debugIcons.js';
 import { VariablesRenderer, VisualizedVariableRenderer } from './variablesView.js';
@@ -109,7 +109,7 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 						return undefined;
 					}
 
-					return e.name;
+					return expressionAndScopeLabelProvider.getKeyboardNavigationLabel(e);
 				}
 			},
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),

@@ -96,6 +96,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
 	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
+	private _lastInputEvent: string | undefined;
+	get lastInputEvent(): string | undefined { return this._lastInputEvent; }
 
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
@@ -256,6 +258,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._anyFocusedTerminalHasSelection.set(this.raw.hasSelection());
 			}
 		}));
+		this._register(this.raw.onData(e => this._lastInputEvent = e));
 
 		// Load addons
 		this._updateUnicodeVersion();

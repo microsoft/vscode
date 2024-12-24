@@ -57,6 +57,11 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _isInitialized: boolean = false;
+	/**
+	 * Tracks an active promise of terminal creation requested by this component. This helps prevent
+	 * double creation for example when toggling a terminal's visibility and focusing it.
+	 */
+	private _isTerminalBeingCreated: boolean = false;
 	private readonly _newDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
@@ -164,7 +169,8 @@ export class TerminalViewPane extends ViewPane {
 			if (!wasInitialized) {
 				switch (hideOnStartup) {
 					case 'never':
-						this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+						this._isTerminalBeingCreated = true;
+						this._terminalService.createTerminal({ location: TerminalLocation.Panel }).finally(() => this._isTerminalBeingCreated = false);
 						break;
 					case 'whenEmpty':
 						if (this._terminalService.restoredGroupCount === 0) {
@@ -175,7 +181,10 @@ export class TerminalViewPane extends ViewPane {
 				return;
 			}
 
-			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+			if (!this._isTerminalBeingCreated) {
+				this._isTerminalBeingCreated = true;
+				this._terminalService.createTerminal({ location: TerminalLocation.Panel }).finally(() => this._isTerminalBeingCreated = false);
+			}
 		}
 	}
 
@@ -320,6 +329,10 @@ export class TerminalViewPane extends ViewPane {
 	override focus() {
 		super.focus();
 		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			if (this._terminalGroupService.instances.length === 0 && !this._isTerminalBeingCreated) {
+				this._isTerminalBeingCreated = true;
+				this._terminalService.createTerminal({ location: TerminalLocation.Panel }).finally(() => this._isTerminalBeingCreated = false);
+			}
 			this._terminalGroupService.showPanel(true);
 			return;
 		}

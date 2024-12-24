@@ -567,6 +567,8 @@ export class ListView<T> implements IListView<T> {
 
 		if (this.supportDynamicHeights) {
 			this._rerender(this.lastRenderTop, this.lastRenderHeight);
+		} else {
+			this._onDidChangeContentHeight.fire(this.contentHeight); // otherwise fired in _rerender()
 		}
 	}
 

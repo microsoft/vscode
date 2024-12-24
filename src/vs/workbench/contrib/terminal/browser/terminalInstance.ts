@@ -504,8 +504,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Resolve the executable ahead of time if shell integration is enabled, this should not
 			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
 			// to hang in resolver extensions
+			let os: OperatingSystem | undefined;
 			if (!this.shellLaunchConfig.customPtyImplementation && this._terminalConfigurationService.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
-				const os = await this._processManager.getBackendOS();
+				os = await this._processManager.getBackendOS();
 				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
 				this.shellLaunchConfig.executable = defaultProfile.path;
 				this.shellLaunchConfig.args = defaultProfile.args;
@@ -519,6 +520,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this.shellLaunchConfig.color = defaultProfile.color;
 					this.shellLaunchConfig.env = defaultProfile.env;
 				}
+			}
+
+			// Resolve the shell type ahead of time to allow features that depend upon it to work
+			// before the process is actually created (like terminal suggest manual request)
+			if (os && this.shellLaunchConfig.executable) {
+				this.setShellType(guessShellTypeFromExecutable(os, this.shellLaunchConfig.executable));
 			}
 
 			await this._createProcess();
@@ -1598,7 +1605,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else {
 			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
-				if (failedDuringLaunch || this._terminalConfigurationService.config.showExitAlert) {
+				if (failedDuringLaunch || (this._terminalConfigurationService.config.showExitAlert && this.xterm?.lastInputEvent !== /*Ctrl+D*/'\x04')) {
 					// Always show launch failures
 					this._notificationService.notify({
 						message: exitMessage,
@@ -2655,4 +2662,47 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 		}
 		return theme.getColor(SIDE_BAR_BACKGROUND);
 	}
+}
+
+function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): TerminalShellType | undefined {
+	const exeBasename = path.basename(executable);
+	const generalShellTypeMap: Map<TerminalShellType, RegExp> = new Map([
+		[GeneralShellType.Julia, /^julia$/],
+		[GeneralShellType.NuShell, /^nu$/],
+		[GeneralShellType.PowerShell, /^pwsh(-preview)?|powershell$/],
+		[GeneralShellType.Python, /^py(?:thon)?$/]
+	]);
+	for (const [shellType, pattern] of generalShellTypeMap) {
+		if (exeBasename.match(pattern)) {
+			return shellType;
+		}
+	}
+
+	if (os === OperatingSystem.Windows) {
+		const windowsShellTypeMap: Map<TerminalShellType, RegExp> = new Map([
+			[WindowsShellType.CommandPrompt, /^cmd$/],
+			[WindowsShellType.GitBash, /^bash$/],
+			[WindowsShellType.Wsl, /^wsl$/]
+		]);
+		for (const [shellType, pattern] of windowsShellTypeMap) {
+			if (exeBasename.match(pattern)) {
+				return shellType;
+			}
+		}
+	} else {
+		const posixShellTypes: PosixShellType[] = [
+			PosixShellType.Bash,
+			PosixShellType.Csh,
+			PosixShellType.Fish,
+			PosixShellType.Ksh,
+			PosixShellType.Sh,
+			PosixShellType.Zsh,
+		];
+		for (const type of posixShellTypes) {
+			if (exeBasename === type) {
+				return type;
+			}
+		}
+	}
+	return undefined;
 }

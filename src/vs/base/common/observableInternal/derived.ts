@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
+import { BaseObservable, IChangeContext, IObservable, IObservableWithChange, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
 import { DebugNameData, DebugOwner, IDebugNameData } from './debugName.js';
 import { BugIndicatingError, DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
@@ -220,6 +220,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		 */
 		this.state = DerivedState.initial;
 		this.value = undefined;
+		getLogger()?.handleDerivedCleared(this);
 		for (const d of this.dependencies) {
 			d.removeObserver(this);
 		}
@@ -386,7 +387,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		assertFn(() => this.updateCount >= 0);
 	}
 
-	public handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
+	public handlePossibleChange<T>(observable: IObservable<T>): void {
 		// In all other states, observers already know that we might have changed.
 		if (this.state === DerivedState.upToDate && this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			this.state = DerivedState.dependenciesMightHaveChanged;
@@ -396,7 +397,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		}
 	}
 
-	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	public handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
 		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			let shouldReact = false;
 			try {
@@ -460,7 +461,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		super.removeObserver(observer);
 	}
 
-	public override log(): IObservable<T, void> {
+	public override log(): IObservableWithChange<T, void> {
 		if (!getLogger()) {
 			super.log();
 			getLogger()?.handleDerivedCreated(this);
