@@ -714,36 +714,38 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		this._win.webContents.session.on('select-usb-device', (event, details, callback) => {
 			event.preventDefault();
-			const type = 'select-usb-device';
 			const items = details.deviceList.map(device => ({
 				id: device.deviceId,
 				label: device.productName || device.serialNumber || `${device.vendorId}:${device.productId}`
 			}));
-			Electron.ipcMain.once(type, (_event, value) => callback(value));
-			this._win.webContents.send('device-access', type, items);
+			handleDeviceSelect(items, callback);
 		});
 
 		this._win.webContents.session.on('select-hid-device', (event, details, callback) => {
 			event.preventDefault();
-			const type = 'select-hid-device';
 			const items = details.deviceList.map(device => ({
 				id: device.deviceId,
 				label: device.name
 			}));
-			Electron.ipcMain.once(type, (_event, value) => callback(value));
-			this._win.webContents.send('device-access', type, items);
+			handleDeviceSelect(items, callback);
 		});
 
 		this._win.webContents.session.on('select-serial-port', (event, portList, _webContents, callback) => {
 			event.preventDefault();
-			const type = 'select-serial-port';
 			const items = portList.map(device => ({
 				id: device.portId,
 				label: device.displayName || device.portName
 			}));
-			Electron.ipcMain.once(type, (_event, value) => callback(value));
-			this._win.webContents.send('device-access', type, items);
+			handleDeviceSelect(items, callback);
 		});
+
+		const handleDeviceSelect = (items: { id: string; label: string }[], callback: (id: string) => void) => {
+			// Listen to callback from renderer
+			electron.ipcMain.once('vscode:device-access', (_event, value) => callback(value));
+
+			// Send details of list to be picked from
+			this.send('vscode:device-access', items);
+		};
 	}
 
 	private marketplaceHeadersPromise: Promise<object> | undefined;

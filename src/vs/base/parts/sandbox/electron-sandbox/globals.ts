@@ -5,7 +5,7 @@
 
 import { INodeProcess, IProcessEnvironment } from '../../../common/platform.js';
 import { ISandboxConfiguration } from '../common/sandboxTypes.js';
-import { IpcRenderer, ProcessMemoryInfo, WebFrame, WebUtils, IDeviceAccess } from './electronTypes.js';
+import { IpcRenderer, ProcessMemoryInfo, WebFrame, WebUtils, IpcRendererEvent } from './electronTypes.js';
 
 /**
  * In Electron renderers we cannot expose all of the `process` global of node.js
@@ -115,6 +115,15 @@ export interface ISandboxContext {
 	resolveConfiguration(): Promise<ISandboxConfiguration>;
 }
 
+export interface IDevice {
+	id: string;
+	label: string;
+}
+
+export interface IDeviceAccess {
+	handleDeviceAccess: (callback: (event: IpcRendererEvent, devices: IDevice[]) => void) => void;
+}
+
 const vscodeGlobal = (globalThis as any).vscode;
 export const ipcRenderer: IpcRenderer = vscodeGlobal.ipcRenderer;
 export const ipcMessagePort: IpcMessagePort = vscodeGlobal.ipcMessagePort;
@@ -135,6 +144,7 @@ export interface IMainWindowSandboxGlobals {
 	readonly process: ISandboxNodeProcess;
 	readonly context: ISandboxContext;
 	readonly webUtils: WebUtils;
+	readonly deviceAccess: IDeviceAccess;
 }
 
 /**
