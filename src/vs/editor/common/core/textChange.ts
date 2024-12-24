@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as buffer from 'vs/base/common/buffer';
-import { decodeUTF16LE } from 'vs/editor/common/core/stringBuilder';
+import * as buffer from '../../../base/common/buffer.js';
+import { decodeUTF16LE } from './stringBuilder.js';
 
 function escapeNewLine(str: string): string {
 	return (

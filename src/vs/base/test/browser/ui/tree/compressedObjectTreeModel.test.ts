@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { compress, CompressedObjectTreeModel, decompress, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { Iterable } from 'vs/base/common/iterator';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { compress, CompressedObjectTreeModel, decompress, ICompressedTreeElement, ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
+import { IObjectTreeModelSetChildrenOptions } from '../../../../browser/ui/tree/objectTreeModel.js';
+import { ITreeModel, ITreeNode } from '../../../../browser/ui/tree/tree.js';
+import { Iterable } from '../../../../common/iterator.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { IDisposable } from '../../../../common/lifecycle.js';
 
 interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
 	readonly element: T;
@@ -293,13 +293,10 @@ suite('CompressedObjectTree', function () {
 		});
 	});
 
-	function toList<T>(arr: T[]): IList<T> {
-		return {
-			splice(start: number, deleteCount: number, elements: T[]): void {
-				arr.splice(start, deleteCount, ...elements);
-			},
-			updateElementHeight() { }
-		};
+	function bindListToModel<T>(list: ITreeNode<T>[], model: ITreeModel<T, any, any>): IDisposable {
+		return model.onDidSpliceRenderedNodes(({ start, deleteCount, elements }) => {
+			list.splice(start, deleteCount, ...elements);
+		});
 	}
 
 	function toArray<T>(list: ITreeNode<ICompressedTreeNode<T>>[]): T[][] {
@@ -319,16 +316,15 @@ suite('CompressedObjectTree', function () {
 
 
 		test('ctor', () => {
-			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedObjectTreeModel<number>('test', toList(list));
+			const model = new CompressedObjectTreeModel<number>('test');
 			assert(model);
-			assert.strictEqual(list.length, 0);
 			assert.strictEqual(model.size, 0);
 		});
 
 		test('flat', () => withSmartSplice(options => {
 			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedObjectTreeModel<number>('test', toList(list));
+			const model = new CompressedObjectTreeModel<number>('test');
+			const disposable = bindListToModel(list, model);
 
 			model.setChildren(null, [
 				{ element: 0 },
@@ -351,11 +347,14 @@ suite('CompressedObjectTree', function () {
 			model.setChildren(null, [], options);
 			assert.deepStrictEqual(toArray(list), []);
 			assert.strictEqual(model.size, 0);
+
+			disposable.dispose();
 		}));
 
 		test('nested', () => withSmartSplice(options => {
 			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedObjectTreeModel<number>('test', toList(list));
+			const model = new CompressedObjectTreeModel<number>('test');
+			const disposable = bindListToModel(list, model);
 
 			model.setChildren(null, [
 				{
@@ -387,11 +386,14 @@ suite('CompressedObjectTree', function () {
 			model.setChildren(null, [], options);
 			assert.deepStrictEqual(toArray(list), []);
 			assert.strictEqual(model.size, 0);
+
+			disposable.dispose();
 		}));
 
 		test('compressed', () => withSmartSplice(options => {
 			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
-			const model = new CompressedObjectTreeModel<number>('test', toList(list));
+			const model = new CompressedObjectTreeModel<number>('test');
+			const disposable = bindListToModel(list, model);
 
 			model.setChildren(null, [
 				{
@@ -440,6 +442,8 @@ suite('CompressedObjectTree', function () {
 
 			assert.deepStrictEqual(toArray(list), [[1, 11], [111], [112], [113, 1131], [1132], [1133]]);
 			assert.strictEqual(model.size, 8);
+
+			disposable.dispose();
 		}));
 	});
 });

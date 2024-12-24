@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isAbsolute, join, resolve } from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import * as performance from 'vs/base/common/performance';
-import { Event } from 'vs/base/common/event';
-import { IURITransformer, transformOutgoingURIs } from 'vs/base/common/uriIpc';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterEqualsExpr, ContextKeyGreaterExpr, ContextKeyInExpr, ContextKeyNotEqualsExpr, ContextKeyNotExpr, ContextKeyNotInExpr, ContextKeyRegexExpr, ContextKeySmallerEqualsExpr, ContextKeySmallerExpr, IContextKeyExprMapper } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
-import { IExtensionsScannerService, toExtensionDescription } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { Schemas } from 'vs/base/common/network';
-import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { isAbsolute, join, resolve } from '../../base/common/path.js';
+import * as platform from '../../base/common/platform.js';
+import { cwd } from '../../base/common/process.js';
+import { URI } from '../../base/common/uri.js';
+import * as performance from '../../base/common/performance.js';
+import { Event } from '../../base/common/event.js';
+import { IURITransformer, transformOutgoingURIs } from '../../base/common/uriIpc.js';
+import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
+import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterEqualsExpr, ContextKeyGreaterExpr, ContextKeyInExpr, ContextKeyNotEqualsExpr, ContextKeyNotExpr, ContextKeyNotInExpr, ContextKeyRegexExpr, ContextKeySmallerEqualsExpr, ContextKeySmallerExpr, IContextKeyExprMapper } from '../../platform/contextkey/common/contextkey.js';
+import { IExtensionGalleryService, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
+import { IExtensionsScannerService, toExtensionDescription } from '../../platform/extensionManagement/common/extensionsScannerService.js';
+import { ExtensionType, IExtensionDescription } from '../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
+import { IServerEnvironmentService } from './serverEnvironmentService.js';
+import { dedupExtensions } from '../../workbench/services/extensions/common/extensionsUtil.js';
+import { Schemas } from '../../base/common/network.js';
+import { IRemoteExtensionsScannerService } from '../../platform/remote/common/remoteExtensionsScanner.js';
+import { ILanguagePackService } from '../../platform/languagePacks/common/languagePacks.js';
 
 export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
 

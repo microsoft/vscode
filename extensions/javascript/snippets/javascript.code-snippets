@@ -1,16 +1,79 @@
 {
-	"define module": {
-		"prefix": "define",
+	"Constructor": {
+		"prefix": "ctor",
 		"body": [
-			"define([",
-			"\t'require',",
-			"\t'${1:dependency}'",
-			"], function(require, ${2:factory}) {",
-			"\t'use strict';",
+			"/**",
+			" *",
+			" */",
+			"constructor() {",
+			"\tsuper();",
 			"\t$0",
-			"});"
+			"}"
 		],
-		"description": "define module"
+		"description": "Constructor"
+	},
+	"Class Definition": {
+		"prefix": "class",
+		"isFileTemplate": true,
+		"body": [
+			"class ${1:name} {",
+			"\tconstructor(${2:parameters}) {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "Class Definition"
+	},
+	"Method Definition": {
+		"prefix": "method",
+		"body": [
+			"/**",
+			" * ",
+			" */",
+			"${1:name}() {",
+			"\t$0",
+			"}"
+		],
+		"description": "Method Definition"
+	},
+	"Import Statement": {
+		"prefix": "import",
+		"body": [
+			"import { $0 } from \"${1:module}\";"
+		],
+		"description": "Import external module"
+	},
+	"Log to the console": {
+		"prefix": "log",
+		"body": [
+			"console.log($1);",
+			"$0"
+		],
+		"description": "Log to the console"
+	},
+	"Log warning to console": {
+		"prefix": "warn",
+		"body": [
+			"console.warn($1);",
+			"$0"
+		],
+		"description": "Log warning to the console"
+	},
+	"Log error to console": {
+		"prefix": "error",
+		"body": [
+			"console.error($1);",
+			"$0"
+		],
+		"description": "Log error to the console"
+	},
+	"Throw Exception": {
+		"prefix": "throw",
+		"body": [
+			"throw new Error(\"$1\");",
+			"$0"
+		],
+		"description": "Throw Exception"
 	},
 	"For Loop": {
 		"prefix": "for",
@@ -22,20 +85,20 @@
 		],
 		"description": "For Loop"
 	},
-	"For-Each Loop": {
-		"prefix": "foreach",
+	"For-Each Loop using =>": {
+		"prefix": "foreach =>",
 		"body": [
 			"${1:array}.forEach(${2:element} => {",
 			"\t$TM_SELECTED_TEXT$0",
 			"});"
 		],
-		"description": "For-Each Loop"
+		"description": "For-Each Loop using =>"
 	},
 	"For-In Loop": {
 		"prefix": "forin",
 		"body": [
 			"for (const ${1:key} in ${2:object}) {",
-			"\tif (Object.hasOwnProperty.call(${2:object}, ${1:key})) {",
+			"\tif (Object.prototype.hasOwnProperty.call(${2:object}, ${1:key})) {",
 			"\t\tconst ${3:element} = ${2:object}[${1:key}];",
 			"\t\t$TM_SELECTED_TEXT$0",
 			"\t}",
@@ -46,11 +109,20 @@
 	"For-Of Loop": {
 		"prefix": "forof",
 		"body": [
-			"for (const ${1:iterator} of ${2:object}) {",
+			"for (const ${1:element} of ${2:object}) {",
 			"\t$TM_SELECTED_TEXT$0",
 			"}"
 		],
 		"description": "For-Of Loop"
+	},
+	"For-Await-Of Loop": {
+		"prefix": "forawaitof",
+		"body": [
+			"for await (const ${1:element} of ${2:object}) {",
+			"\t$TM_SELECTED_TEXT$0",
+			"}"
+		],
+		"description": "For-Await-Of Loop"
 	},
 	"Function Statement": {
 		"prefix": "function",
@@ -149,13 +221,6 @@
 		],
 		"description": "Set Interval Function"
 	},
-	"Import Statement": {
-		"prefix": "import",
-		"body": [
-			"import { $0 } from \"${1:module}\";"
-		],
-		"description": "Import external module"
-	},
 	"Region Start": {
 		"prefix": "#region",
 		"body": [
@@ -170,27 +235,6 @@
 		],
 		"description": "Folding Region End"
 	},
-	"Log to the console": {
-		"prefix": "log",
-		"body": [
-			"console.log($1);"
-		],
-		"description": "Log to the console"
-	},
-	"Log warning to console": {
-		"prefix": "warn",
-		"body": [
-			"console.warn($1);"
-		],
-		"description": "Log warning to the console"
-	},
-	"Log error to console": {
-		"prefix": "error",
-		"body": [
-			"console.error($1);"
-		],
-		"description": "Log error to the console"
-	},
 	"new Promise": {
 		"prefix": "newpromise",
 		"body": [
@@ -199,5 +243,23 @@
 			"})"
 		],
 		"description": "Create a new Promise"
+	},
+	"Async Function Statement": {
+		"prefix": "async function",
+		"body": [
+			"async function ${1:name}(${2:params}) {",
+			"\t$TM_SELECTED_TEXT$0",
+			"}"
+		],
+		"description": "Async Function Statement"
+	},
+	"Async Function Expression": {
+		"prefix": "async arrow function",
+		"body": [
+			"async (${1:params}) => {",
+			"\t$TM_SELECTED_TEXT$0",
+			"}"
+		],
+		"description": "Async Function Expression"
 	}
 }

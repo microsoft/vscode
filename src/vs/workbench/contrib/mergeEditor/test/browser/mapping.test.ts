@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextLength } from 'vs/editor/common/core/textLength';
-import { DocumentRangeMap, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { TextLength } from '../../../../../editor/common/core/textLength.js';
+import { DocumentRangeMap, RangeMapping } from '../../browser/model/mapping.js';
 
 suite('merge editor mapping', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

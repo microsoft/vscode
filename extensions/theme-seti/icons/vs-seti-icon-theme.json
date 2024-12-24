@@ -1433,116 +1433,124 @@
 			"fontCharacter": "\\E09B",
 			"fontColor": "#f55385"
 		},
-		"_vue_light": {
+		"_vite_light": {
 			"fontCharacter": "\\E09C",
+			"fontColor": "#b7b73b"
+		},
+		"_vite": {
+			"fontCharacter": "\\E09C",
+			"fontColor": "#cbcb41"
+		},
+		"_vue_light": {
+			"fontCharacter": "\\E09D",
 			"fontColor": "#7fae42"
 		},
 		"_vue": {
-			"fontCharacter": "\\E09C",
+			"fontCharacter": "\\E09D",
 			"fontColor": "#8dc149"
 		},
 		"_wasm_light": {
-			"fontCharacter": "\\E09D",
+			"fontCharacter": "\\E09E",
 			"fontColor": "#9068b0"
 		},
 		"_wasm": {
-			"fontCharacter": "\\E09D",
+			"fontCharacter": "\\E09E",
 			"fontColor": "#a074c4"
 		},
 		"_wat_light": {
-			"fontCharacter": "\\E09E",
+			"fontCharacter": "\\E09F",
 			"fontColor": "#9068b0"
 		},
 		"_wat": {
-			"fontCharacter": "\\E09E",
+			"fontCharacter": "\\E09F",
 			"fontColor": "#a074c4"
 		},
 		"_webpack_light": {
-			"fontCharacter": "\\E09F",
+			"fontCharacter": "\\E0A0",
 			"fontColor": "#498ba7"
 		},
 		"_webpack": {
-			"fontCharacter": "\\E09F",
+			"fontCharacter": "\\E0A0",
 			"fontColor": "#519aba"
 		},
 		"_wgt_light": {
-			"fontCharacter": "\\E0A0",
+			"fontCharacter": "\\E0A1",
 			"fontColor": "#498ba7"
 		},
 		"_wgt": {
-			"fontCharacter": "\\E0A0",
+			"fontCharacter": "\\E0A1",
 			"fontColor": "#519aba"
 		},
 		"_windows_light": {
-			"fontCharacter": "\\E0A1",
+			"fontCharacter": "\\E0A2",
 			"fontColor": "#498ba7"
 		},
 		"_windows": {
-			"fontCharacter": "\\E0A1",
+			"fontCharacter": "\\E0A2",
 			"fontColor": "#519aba"
 		},
 		"_word_light": {
-			"fontCharacter": "\\E0A2",
+			"fontCharacter": "\\E0A3",
 			"fontColor": "#498ba7"
 		},
 		"_word": {
-			"fontCharacter": "\\E0A2",
+			"fontCharacter": "\\E0A3",
 			"fontColor": "#519aba"
 		},
 		"_xls_light": {
-			"fontCharacter": "\\E0A3",
+			"fontCharacter": "\\E0A4",
 			"fontColor": "#7fae42"
 		},
 		"_xls": {
-			"fontCharacter": "\\E0A3",
+			"fontCharacter": "\\E0A4",
 			"fontColor": "#8dc149"
 		},
 		"_xml_light": {
-			"fontCharacter": "\\E0A4",
+			"fontCharacter": "\\E0A5",
 			"fontColor": "#cc6d2e"
 		},
 		"_xml": {
-			"fontCharacter": "\\E0A4",
+			"fontCharacter": "\\E0A5",
 			"fontColor": "#e37933"
 		},
 		"_yarn_light": {
-			"fontCharacter": "\\E0A5",
+			"fontCharacter": "\\E0A6",
 			"fontColor": "#498ba7"
 		},
 		"_yarn": {
-			"fontCharacter": "\\E0A5",
+			"fontCharacter": "\\E0A6",
 			"fontColor": "#519aba"
 		},
 		"_yml_light": {
-			"fontCharacter": "\\E0A6",
+			"fontCharacter": "\\E0A7",
 			"fontColor": "#9068b0"
 		},
 		"_yml": {
-			"fontCharacter": "\\E0A6",
+			"fontCharacter": "\\E0A7",
 			"fontColor": "#a074c4"
 		},
 		"_zig_light": {
-			"fontCharacter": "\\E0A7",
+			"fontCharacter": "\\E0A8",
 			"fontColor": "#cc6d2e"
 		},
 		"_zig": {
-			"fontCharacter": "\\E0A7",
+			"fontCharacter": "\\E0A8",
 			"fontColor": "#e37933"
 		},
 		"_zip_light": {
-			"fontCharacter": "\\E0A8",
+			"fontCharacter": "\\E0A9",
 			"fontColor": "#b8383d"
 		},
 		"_zip": {
-			"fontCharacter": "\\E0A8",
+			"fontCharacter": "\\E0A9",
 			"fontColor": "#cc3e44"
 		},
 		"_zip_1_light": {
-			"fontCharacter": "\\E0A8",
+			"fontCharacter": "\\E0A9",
 			"fontColor": "#627379"
 		},
 		"_zip_1": {
-			"fontCharacter": "\\E0A8",
+			"fontCharacter": "\\E0A9",
 			"fontColor": "#6d8086"
 		}
 	},
@@ -1623,8 +1631,14 @@
 		"class": "_java_1",
 		"classpath": "_java",
 		"js.map": "_javascript",
+		"cjs.map": "_javascript",
+		"mjs.map": "_javascript",
 		"spec.js": "_javascript_1",
+		"spec.cjs": "_javascript_1",
+		"spec.mjs": "_javascript_1",
 		"test.js": "_javascript_1",
+		"test.cjs": "_javascript_1",
+		"test.mjs": "_javascript_1",
 		"es": "_javascript",
 		"es5": "_javascript",
 		"es7": "_javascript",
@@ -1717,6 +1731,7 @@
 		"ttf": "_font",
 		"woff": "_font",
 		"woff2": "_font",
+		"otf": "_font",
 		"avif": "_image",
 		"gif": "_image",
 		"jpg": "_image",
@@ -1784,6 +1799,8 @@
 	"fileNames": {
 		"mix": "_hex",
 		"karma.conf.js": "_karma",
+		"karma.conf.cjs": "_karma",
+		"karma.conf.mjs": "_karma",
 		"karma.conf.coffee": "_karma",
 		"readme.md": "_info",
 		"readme.txt": "_info",
@@ -1800,6 +1817,12 @@
 		"mvnw": "_maven",
 		"pom.xml": "_maven",
 		"tsconfig.json": "_tsconfig",
+		"vite.config.js": "_vite",
+		"vite.config.ts": "_vite",
+		"vite.config.mjs": "_vite",
+		"vite.config.mts": "_vite",
+		"vite.config.cjs": "_vite",
+		"vite.config.cts": "_vite",
 		"swagger.json": "_json_1",
 		"swagger.yml": "_json_1",
 		"swagger.yaml": "_json_1",
@@ -1814,6 +1837,7 @@
 		"workspace.bazel": "_bazel",
 		"bower.json": "_bower",
 		"docker-healthcheck": "_docker_2",
+		"eslint.config.js": "_eslint",
 		"firebase.json": "_firebase",
 		"geckodriver": "_firefox",
 		"gruntfile.js": "_grunt",
@@ -1828,22 +1852,28 @@
 		"sass-lint.yml": "_sass",
 		"stylelint.config.js": "_stylelint",
 		"stylelint.config.cjs": "_stylelint",
+		"stylelint.config.mjs": "_stylelint",
 		"yarn.clean": "_yarn",
 		"yarn.lock": "_yarn",
 		"webpack.config.js": "_webpack",
 		"webpack.config.cjs": "_webpack",
+		"webpack.config.mjs": "_webpack",
 		"webpack.config.ts": "_webpack",
 		"webpack.config.build.js": "_webpack",
 		"webpack.config.build.cjs": "_webpack",
+		"webpack.config.build.mjs": "_webpack",
 		"webpack.config.build.ts": "_webpack",
 		"webpack.common.js": "_webpack",
 		"webpack.common.cjs": "_webpack",
+		"webpack.common.mjs": "_webpack",
 		"webpack.common.ts": "_webpack",
 		"webpack.dev.js": "_webpack",
 		"webpack.dev.cjs": "_webpack",
+		"webpack.dev.mjs": "_webpack",
 		"webpack.dev.ts": "_webpack",
 		"webpack.prod.js": "_webpack",
 		"webpack.prod.cjs": "_webpack",
+		"webpack.prod.mjs": "_webpack",
 		"webpack.prod.ts": "_webpack",
 		"license": "_license",
 		"licence": "_license",
@@ -2027,8 +2057,14 @@
 			"class": "_java_1_light",
 			"classpath": "_java_light",
 			"js.map": "_javascript_light",
+			"cjs.map": "_javascript_light",
+			"mjs.map": "_javascript_light",
 			"spec.js": "_javascript_1_light",
+			"spec.cjs": "_javascript_1_light",
+			"spec.mjs": "_javascript_1_light",
 			"test.js": "_javascript_1_light",
+			"test.cjs": "_javascript_1_light",
+			"test.mjs": "_javascript_1_light",
 			"es": "_javascript_light",
 			"es5": "_javascript_light",
 			"es7": "_javascript_light",
@@ -2121,6 +2157,7 @@
 			"ttf": "_font_light",
 			"woff": "_font_light",
 			"woff2": "_font_light",
+			"otf": "_font_light",
 			"avif": "_image_light",
 			"gif": "_image_light",
 			"jpg": "_image_light",
@@ -2267,6 +2304,8 @@
 		"fileNames": {
 			"mix": "_hex_light",
 			"karma.conf.js": "_karma_light",
+			"karma.conf.cjs": "_karma_light",
+			"karma.conf.mjs": "_karma_light",
 			"karma.conf.coffee": "_karma_light",
 			"readme.md": "_info_light",
 			"readme.txt": "_info_light",
@@ -2283,6 +2322,12 @@
 			"mvnw": "_maven_light",
 			"pom.xml": "_maven_light",
 			"tsconfig.json": "_tsconfig_light",
+			"vite.config.js": "_vite_light",
+			"vite.config.ts": "_vite_light",
+			"vite.config.mjs": "_vite_light",
+			"vite.config.mts": "_vite_light",
+			"vite.config.cjs": "_vite_light",
+			"vite.config.cts": "_vite_light",
 			"swagger.json": "_json_1_light",
 			"swagger.yml": "_json_1_light",
 			"swagger.yaml": "_json_1_light",
@@ -2297,6 +2342,7 @@
 			"workspace.bazel": "_bazel_light",
 			"bower.json": "_bower_light",
 			"docker-healthcheck": "_docker_2_light",
+			"eslint.config.js": "_eslint_light",
 			"firebase.json": "_firebase_light",
 			"geckodriver": "_firefox_light",
 			"gruntfile.js": "_grunt_light",
@@ -2311,22 +2357,28 @@
 			"sass-lint.yml": "_sass_light",
 			"stylelint.config.js": "_stylelint_light",
 			"stylelint.config.cjs": "_stylelint_light",
+			"stylelint.config.mjs": "_stylelint_light",
 			"yarn.clean": "_yarn_light",
 			"yarn.lock": "_yarn_light",
 			"webpack.config.js": "_webpack_light",
 			"webpack.config.cjs": "_webpack_light",
+			"webpack.config.mjs": "_webpack_light",
 			"webpack.config.ts": "_webpack_light",
 			"webpack.config.build.js": "_webpack_light",
 			"webpack.config.build.cjs": "_webpack_light",
+			"webpack.config.build.mjs": "_webpack_light",
 			"webpack.config.build.ts": "_webpack_light",
 			"webpack.common.js": "_webpack_light",
 			"webpack.common.cjs": "_webpack_light",
+			"webpack.common.mjs": "_webpack_light",
 			"webpack.common.ts": "_webpack_light",
 			"webpack.dev.js": "_webpack_light",
 			"webpack.dev.cjs": "_webpack_light",
+			"webpack.dev.mjs": "_webpack_light",
 			"webpack.dev.ts": "_webpack_light",
 			"webpack.prod.js": "_webpack_light",
 			"webpack.prod.cjs": "_webpack_light",
+			"webpack.prod.mjs": "_webpack_light",
 			"webpack.prod.ts": "_webpack_light",
 			"license": "_license_light",
 			"licence": "_license_light",
@@ -2350,5 +2402,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/8eec7f2e37cd8fd91a98c61d129468bb49735a94"
+	"version": "https://github.com/jesseweed/seti-ui/commit/1cac4f30f93cc898103c62dde41823a09b0d7b74"
 }

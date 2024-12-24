@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./media/stickyScroll';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalInstance, TerminalInstanceColorProvider } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalStickyScrollSettingId } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration';
-import { TerminalStickyScrollOverlay } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollOverlay';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { TerminalInstance, TerminalInstanceColorProvider } from '../../../terminal/browser/terminalInstance.js';
+import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollConfiguration.js';
+import './media/stickyScroll.css';
+import { TerminalStickyScrollOverlay } from './terminalStickyScrollOverlay.js';
 
 export class TerminalStickyScrollContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.stickyScroll';
@@ -34,9 +33,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 	private readonly _disableListeners = this._register(new MutableDisposable());
 
 	constructor(
-		private readonly _instance: ITerminalInstance,
-		processManager: ITerminalProcessManager | ITerminalProcessInfo,
-		widgetManager: TerminalWidgetManager,
+		private readonly _ctx: ITerminalContributionContext,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -78,7 +75,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 		if (this._overlay.value) {
 			this._enableListeners.clear();
 			if (!this._disableListeners.value) {
-				this._disableListeners.value = this._instance.capabilities.onDidRemoveCapability(e => {
+				this._disableListeners.value = this._ctx.instance.capabilities.onDidRemoveCapability(e => {
 					if (e.id === TerminalCapability.CommandDetection) {
 						this._refreshState();
 					}
@@ -87,7 +84,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 		} else {
 			this._disableListeners.clear();
 			if (!this._enableListeners.value) {
-				this._enableListeners.value = this._instance.capabilities.onDidAddCapability(e => {
+				this._enableListeners.value = this._ctx.instance.capabilities.onDidAddCapability(e => {
 					if (e.id === TerminalCapability.CommandDetection) {
 						this._refreshState();
 					}
@@ -101,10 +98,10 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 			const xtermCtorEventually = TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
 			this._overlay.value = this._instantiationService.createInstance(
 				TerminalStickyScrollOverlay,
-				this._instance,
+				this._ctx.instance,
 				this._xterm!,
-				this._instantiationService.createInstance(TerminalInstanceColorProvider, this._instance),
-				this._instance.capabilities.get(TerminalCapability.CommandDetection)!,
+				this._instantiationService.createInstance(TerminalInstanceColorProvider, this._ctx.instance.targetRef),
+				this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection)!,
 				xtermCtorEventually
 			);
 		}
@@ -117,7 +114,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 	}
 
 	private _shouldBeEnabled(): boolean {
-		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
+		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
 		return !!(this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled) && capability && this._xterm?.raw?.element);
 	}
 }

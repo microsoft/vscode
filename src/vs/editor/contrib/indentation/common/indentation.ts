@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { normalizeIndentation } from 'vs/editor/common/core/indentation';
-import { Selection } from 'vs/editor/common/core/selection';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
-import { ITextModel } from 'vs/editor/common/model';
+import * as strings from '../../../../base/common/strings.js';
+import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { normalizeIndentation } from '../../../common/core/indentation.js';
+import { Selection } from '../../../common/core/selection.js';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { ProcessedIndentRulesSupport } from '../../../common/languages/supports/indentationLineProcessor.js';
+import { ITextModel } from '../../../common/model.js';
 
 export function getReindentEditOperations(model: ITextModel, languageConfigurationService: ILanguageConfigurationService, startLineNumber: number, endLineNumber: number): ISingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {

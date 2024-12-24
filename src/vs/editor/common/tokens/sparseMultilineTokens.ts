@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
+import { CharCode } from '../../../base/common/charCode.js';
+import { Position } from '../core/position.js';
+import { IRange, Range } from '../core/range.js';
+import { countEOL } from '../core/eolCounter.js';
 
 /**
  * Represents sparse tokens over a contiguous range of lines.

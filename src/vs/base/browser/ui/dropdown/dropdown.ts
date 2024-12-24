@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./dropdown';
+import { IContextMenuProvider } from '../../contextmenu.js';
+import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { EventType as GestureEventType, Gesture } from '../../touch.js';
+import { AnchorAlignment } from '../contextview/contextview.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IMenuOptions } from '../menu/menu.js';
+import { ActionRunner, IAction } from '../../../common/actions.js';
+import { Emitter } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import './dropdown.css';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;

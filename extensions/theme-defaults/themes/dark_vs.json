@@ -17,6 +17,7 @@
 		"menu.foreground": "#CCCCCC",
 		"menu.separatorBackground": "#454545",
 		"menu.border": "#454545",
+		"menu.selectionBackground": "#0078d4",
 		"statusBarItem.remoteForeground": "#FFF",
 		"statusBarItem.remoteBackground": "#16825D",
 		"ports.iconRunningProcessForeground": "#369432",

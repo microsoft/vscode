@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from '../../../../nls.js';
+import { registerColor, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 
 export const multiDiffEditorHeaderBackground = registerColor(
 	'multiDiffEditor.headerBackground',
@@ -14,7 +14,7 @@ export const multiDiffEditorHeaderBackground = registerColor(
 
 export const multiDiffEditorBackground = registerColor(
 	'multiDiffEditor.background',
-	{ dark: 'editorBackground', light: 'editorBackground', hcDark: 'editorBackground', hcLight: 'editorBackground', },
+	editorBackground,
 	localize('multiDiffEditor.background', 'The background color of the multi file diff editor')
 );
 

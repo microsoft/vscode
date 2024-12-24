@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { IBoundarySashes, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { DistributeSizing, ISplitViewStyles, IView as ISplitView, LayoutPriority, Sizing, AutoSizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event, Relay } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { rot } from 'vs/base/common/numbers';
-import { isUndefined } from 'vs/base/common/types';
-import 'vs/css!./gridview';
+import { $ } from '../../dom.js';
+import { IBoundarySashes, Orientation, Sash } from '../sash/sash.js';
+import { DistributeSizing, ISplitViewStyles, IView as ISplitView, LayoutPriority, Sizing, AutoSizing, SplitView } from '../splitview/splitview.js';
+import { equals as arrayEquals, tail2 as tail } from '../../../common/arrays.js';
+import { Color } from '../../../common/color.js';
+import { Emitter, Event, Relay } from '../../../common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { rot } from '../../../common/numbers.js';
+import { isUndefined } from '../../../common/types.js';
+import './gridview.css';
 
-export { Orientation } from 'vs/base/browser/ui/sash/sash';
-export { LayoutPriority, Sizing } from 'vs/base/browser/ui/splitview/splitview';
+export { Orientation } from '../sash/sash.js';
+export { LayoutPriority, Sizing } from '../splitview/splitview.js';
 
 export interface IGridViewStyles extends ISplitViewStyles { }
 

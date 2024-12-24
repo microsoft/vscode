@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { IFileService } from 'vs/platform/files/common/files';
-import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { IDownloadService } from './download.js';
+import { IFileService } from '../../files/common/files.js';
+import { asTextOrError, IRequestService } from '../../request/common/request.js';
 
 export class DownloadService implements IDownloadService {
 

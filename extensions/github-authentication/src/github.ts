@@ -18,7 +18,9 @@ interface SessionData {
 	account?: {
 		label?: string;
 		displayName?: string;
-		id: string;
+		// Unfortunately, for some time the id was a number, so we need to support both.
+		// This can be removed once we are confident that all users have migrated to the new id.
+		id: string | number;
 	};
 	scopes: string[];
 	accessToken: string;
@@ -135,7 +137,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
-			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: false }),
+			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: true }),
 			this.context.secrets.onDidChange(() => this.checkForUpdates())
 		);
 	}
@@ -148,14 +150,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return this._sessionChangeEmitter.event;
 	}
 
-	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
+	async getSessions(scopes: string[] | undefined, options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
 		// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 		const sortedScopes = scopes?.sort() || [];
 		this._logger.info(`Getting sessions for ${sortedScopes.length ? sortedScopes.join(',') : 'all scopes'}...`);
 		const sessions = await this._sessionsPromise;
-		const finalSessions = sortedScopes.length
-			? sessions.filter(session => arrayEquals([...session.scopes].sort(), sortedScopes))
+		const accountFilteredSessions = options?.account
+			? sessions.filter(session => session.account.label === options.account?.label)
 			: sessions;
+		const finalSessions = sortedScopes.length
+			? accountFilteredSessions.filter(session => arrayEquals([...session.scopes].sort(), sortedScopes))
+			: accountFilteredSessions;
 
 		this._logger.info(`Got ${finalSessions.length} sessions for ${sortedScopes?.join(',') ?? 'all scopes'}...`);
 		return finalSessions;
@@ -221,14 +226,16 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return [];
 		}
 
+		// Unfortunately, we were using a number secretly for the account id for some time... this is due to a bad `any`.
+		// AuthenticationSession's account id is a string, so we need to detect when there is a number accountId and re-store
+		// the sessions to migrate away from the bad number usage.
+		// TODO@TylerLeonhardt: Remove this after we are confident that all users have migrated to the new id.
+		let seenNumberAccountId: boolean = false;
 		// TODO: eventually remove this Set because we should only have one session per set of scopes.
 		const scopesSeen = new Set<string>();
-		const sessionPromises = sessionData.map(async (session: SessionData) => {
+		const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession | undefined> => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
-			if (scopesSeen.has(scopesStr)) {
-				return undefined;
-			}
 			let userInfo: { id: string; accountName: string } | undefined;
 			if (!session.account) {
 				try {
@@ -244,13 +251,23 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			this._logger.trace(`Read the following session from the keychain with the following scopes: ${scopesStr}`);
 			scopesSeen.add(scopesStr);
+
+			let accountId: string;
+			if (session.account?.id) {
+				if (typeof session.account.id === 'number') {
+					seenNumberAccountId = true;
+				}
+				accountId = `${session.account.id}`;
+			} else {
+				accountId = userInfo?.id ?? '<unknown>';
+			}
 			return {
 				id: session.id,
 				account: {
 					label: session.account
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
 						: userInfo?.accountName ?? '<unknown>',
-					id: session.account?.id ?? userInfo?.id ?? '<unknown>'
+					id: accountId
 				},
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
@@ -265,7 +282,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			.filter(<T>(p?: T): p is T => Boolean(p));
 
 		this._logger.info(`Got ${verifiedSessions.length} verified sessions.`);
-		if (verifiedSessions.length !== sessionData.length) {
+		if (seenNumberAccountId || verifiedSessions.length !== sessionData.length) {
 			await this.storeSessions(verifiedSessions);
 		}
 
@@ -279,7 +296,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		this._logger.info(`Stored ${sessions.length} sessions!`);
 	}
 
-	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
+	public async createSession(scopes: string[], options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
 		try {
 			// For GitHub scope list, order doesn't matter so we use a sorted scope to determine
 			// if we've got a session already.
@@ -297,15 +314,14 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			});
 
 			const sessions = await this._sessionsPromise;
-
-			const accounts = new Set(sessions.map(session => session.account.label));
-			const existingLogin = accounts.size <= 1 ? sessions[0]?.account.label : await vscode.window.showQuickPick([...accounts], { placeHolder: 'Choose an account that you would like to log in to' });
+			const loginWith = options?.account?.label;
+			this._logger.info(`Logging in with '${loginWith ? loginWith : 'any'}' account...`);
 			const scopeString = sortedScopes.join(' ');
-			const token = await this._githubServer.login(scopeString, existingLogin);
+			const token = await this._githubServer.login(scopeString, loginWith);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
+			const sessionIndex = sessions.findIndex(s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes));
 			const removed = new Array<vscode.AuthenticationSession>();
 			if (sessionIndex > -1) {
 				removed.push(...sessions.splice(sessionIndex, 1, session));

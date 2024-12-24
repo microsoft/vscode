@@ -36,15 +36,18 @@ export function setup(logger: Logger) {
 			await terminal.runCommand(TerminalCommandId.KillAll);
 		});
 
-		setupTerminalEditorsTests();
-		setupTerminalInputTests();
-		setupTerminalPersistenceTests();
-		setupTerminalProfileTests();
-		setupTerminalTabsTests();
-		setupTerminalShellIntegrationTests();
-		setupTerminalStickyScrollTests();
-		if (!process.platform.startsWith('win')) {
-			setupTerminalSplitCwdTests();
-		}
+		// https://github.com/microsoft/vscode/issues/216564
+		// The pty host can crash on Linux in smoke tests for an unknown reason. We need more user
+		// reports to investigate
+		setupTerminalEditorsTests({ skipSuite: process.platform === 'linux' });
+		setupTerminalInputTests({ skipSuite: process.platform === 'linux' });
+		setupTerminalPersistenceTests({ skipSuite: process.platform === 'linux' });
+		setupTerminalProfileTests({ skipSuite: process.platform === 'linux' });
+		setupTerminalTabsTests({ skipSuite: process.platform === 'linux' });
+		setupTerminalShellIntegrationTests({ skipSuite: process.platform === 'linux' });
+		setupTerminalStickyScrollTests({ skipSuite: process.platform === 'linux' });
+		// https://github.com/microsoft/vscode/pull/141974
+		// Windows is skipped here as well as it was never enabled from the start
+		setupTerminalSplitCwdTests({ skipSuite: process.platform === 'linux' || process.platform === 'win32' });
 	});
 }

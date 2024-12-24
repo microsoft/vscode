@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IEditorMouseEvent, IMouseTarget, IMouseTargetViewZoneData, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { Position } from 'vs/editor/common/core/position';
+import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { IEditorMouseEvent, IMouseTarget, IMouseTargetViewZoneData, IPartialEditorMouseEvent, MouseTargetType } from '../editorBrowser.js';
+import { ICoordinatesConverter } from '../../common/viewModel.js';
+import { IMouseWheelEvent } from '../../../base/browser/mouseEvent.js';
+import { Position } from '../../common/core/position.js';
 
 export interface EventCallback<T> {
 	(event: T): void;

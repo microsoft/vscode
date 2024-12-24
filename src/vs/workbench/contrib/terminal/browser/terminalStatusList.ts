@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
-import { mainWindow } from 'vs/base/browser/window';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import Severity from '../../../../base/common/severity.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { listErrorForeground, listWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ITerminalStatus } from '../common/terminal.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
  * The set of _internal_ terminal statuses, other components building on the terminal should put

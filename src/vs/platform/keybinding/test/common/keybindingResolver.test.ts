@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { decodeKeybinding, createSimpleKeybinding, KeyCodeChord } from 'vs/base/common/keybindings';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { OS } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ContextKeyExpr, ContextKeyExpression, IContext } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingResolver, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
+import { decodeKeybinding, createSimpleKeybinding, KeyCodeChord } from '../../../../base/common/keybindings.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { OS } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ContextKeyExpr, ContextKeyExpression, IContext } from '../../../contextkey/common/contextkey.js';
+import { KeybindingResolver, ResultKind } from '../../common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../common/usLayoutResolvedKeybinding.js';
+import { createUSLayoutResolvedKeybinding } from './keybindingsTestUtils.js';
 
 function createContext(ctx: any) {
 	return {

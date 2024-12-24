@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendations, GalleryExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { localize } from 'vs/nls';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IFileContentCondition, IFilePathCondition, IFileLanguageCondition, IFileOpenCondition } from 'vs/base/common/product';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ITextModel } from 'vs/editor/common/model';
-import { Schemas } from 'vs/base/common/network';
-import { basename, extname } from 'vs/base/common/resources';
-import { match } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { distinct } from 'vs/base/common/arrays';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { disposableTimeout } from 'vs/base/common/async';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isEmptyObject } from 'vs/base/common/types';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ExtensionRecommendations, GalleryExtensionRecommendation } from './extensionRecommendations.js';
+import { EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { IExtensionsWorkbenchService, IExtension } from '../common/extensions.js';
+import { localize } from '../../../../nls.js';
+import { StorageScope, IStorageService, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IFileContentCondition, IFilePathCondition, IFileLanguageCondition, IFileOpenCondition } from '../../../../base/common/product.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename, extname } from '../../../../base/common/resources.js';
+import { match } from '../../../../base/common/glob.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from '../../../../platform/extensionRecommendations/common/extensionRecommendations.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { CellUri } from '../../notebook/common/notebookCommon.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { isEmptyObject } from '../../../../base/common/types.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 
 const promptedRecommendationsStorageKey = 'fileBasedRecommendations/promptedRecommendations';
 const recommendationsStorageKey = 'extensionsAssistant/recommendations';

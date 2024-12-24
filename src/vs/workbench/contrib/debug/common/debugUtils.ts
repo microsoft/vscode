@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IDebuggerContribution, IDebugSession, IConfigPresentation } from 'vs/workbench/contrib/debug/common/debug';
-import { URI as uri } from 'vs/base/common/uri';
-import { isAbsolute } from 'vs/base/common/path';
-import { deepClone } from 'vs/base/common/objects';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextModel } from 'vs/editor/common/model';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { coalesce } from 'vs/base/common/arrays';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
+import { IDebuggerContribution, IDebugSession, IConfigPresentation } from './debug.js';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { isAbsolute } from '../../../../base/common/path.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -102,7 +102,7 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	// If there are non-word characters after the cursor, we want to truncate the expression then.
 	// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 	if (matchingExpression) {
-		const subExpression: RegExp = /\w+/g;
+		const subExpression: RegExp = /(\w|\p{L})+/gu;
 		let subExpressionResult: RegExpExecArray | null = null;
 		while (subExpressionResult = subExpression.exec(matchingExpression)) {
 			const subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
@@ -306,6 +306,9 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 							const di = <DebugProtocol.DisassembleResponse>response;
 							di.body?.instructions.forEach(di => fixSourcePath(false, di.location));
 						}
+						break;
+					case 'locations':
+						fixSourcePath(false, (<DebugProtocol.LocationsResponse>response).body?.source);
 						break;
 					default:
 						break;

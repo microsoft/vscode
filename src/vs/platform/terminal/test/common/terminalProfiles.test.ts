@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { Codicon } from 'vs/base/common/codicons';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ITerminalProfile } from '../../common/terminal.js';
+import { createProfileSchemaEnums } from '../../common/terminalProfiles.js';
 
 suite('terminalProfiles', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

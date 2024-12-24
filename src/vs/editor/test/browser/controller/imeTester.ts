@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import * as dom from 'vs/base/browser/dom';
-import * as browser from 'vs/base/browser/browser';
-import * as platform from 'vs/base/common/platform';
-import { mainWindow } from 'vs/base/browser/window';
-import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { EndOfLinePreference } from '../../../common/model.js';
+import * as dom from '../../../../base/browser/dom.js';
+import * as browser from '../../../../base/browser/browser.js';
+import * as platform from '../../../../base/common/platform.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ISimpleModel, PagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
+import { TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
+import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
 
 // To run this test, open imeTester.html
 
@@ -117,7 +118,8 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			return PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
 			return null!;

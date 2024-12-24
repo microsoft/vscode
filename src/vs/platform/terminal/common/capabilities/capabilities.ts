@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import type { IPromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
-import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import type { IPromptInputModel, ISerializedPromptInputModel } from './commandDetection/promptInputModel.js';
+import { ICurrentPartialCommand } from './commandDetection/terminalCommand.js';
+import { ITerminalOutputMatch, ITerminalOutputMatcher } from '../terminal.js';
+import { ReplayEntry } from '../terminalProcess.js';
 
 interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
@@ -167,6 +167,7 @@ export interface ICommandDetectionCapability {
 	/** The command currently being executed, otherwise undefined. */
 	readonly executingCommand: string | undefined;
 	readonly executingCommandObject: ITerminalCommand | undefined;
+	readonly executingCommandConfidence: 'low' | 'medium' | 'high' | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
 	readonly currentCommand: ICurrentPartialCommand | undefined;
@@ -301,6 +302,7 @@ export interface IMarkProperties {
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
 	commands: ISerializedTerminalCommand[];
+	promptInputModel: ISerializedPromptInputModel | undefined;
 }
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];

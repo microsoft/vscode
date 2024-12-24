@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from 'vscode';
+
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
@@ -139,4 +141,120 @@ export class Delayer<T> {
 
 export interface ITask<T> {
 	(): T;
+}
+
+
+/**
+ * Copied from src/vs/base/common/uuid.ts
+ */
+export function generateUuid() {
+	// use `randomValues` if possible
+	function getRandomValues(bucket: Uint8Array): Uint8Array {
+		for (let i = 0; i < bucket.length; i++) {
+			bucket[i] = Math.floor(Math.random() * 256);
+		}
+		return bucket;
+	}
+
+	// prep-work
+	const _data = new Uint8Array(16);
+	const _hex: string[] = [];
+	for (let i = 0; i < 256; i++) {
+		_hex.push(i.toString(16).padStart(2, '0'));
+	}
+
+	// get data
+	getRandomValues(_data);
+
+	// set version bits
+	_data[6] = (_data[6] & 0x0f) | 0x40;
+	_data[8] = (_data[8] & 0x3f) | 0x80;
+
+	// print as string
+	let i = 0;
+	let result = '';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	return result;
+}
+
+export type ValueCallback<T = unknown> = (value: T | Promise<T>) => void;
+
+const enum DeferredOutcome {
+	Resolved,
+	Rejected
+}
+
+
+/**
+ * Creates a promise whose resolution or rejection can be controlled imperatively.
+ */
+export class DeferredPromise<T> {
+
+	private completeCallback!: ValueCallback<T>;
+	private errorCallback!: (err: unknown) => void;
+	private outcome?: { outcome: DeferredOutcome.Rejected; value: any } | { outcome: DeferredOutcome.Resolved; value: T };
+
+	public get isRejected() {
+		return this.outcome?.outcome === DeferredOutcome.Rejected;
+	}
+
+	public get isResolved() {
+		return this.outcome?.outcome === DeferredOutcome.Resolved;
+	}
+
+	public get isSettled() {
+		return !!this.outcome;
+	}
+
+	public get value() {
+		return this.outcome?.outcome === DeferredOutcome.Resolved ? this.outcome?.value : undefined;
+	}
+
+	public readonly p: Promise<T>;
+
+	constructor() {
+		this.p = new Promise<T>((c, e) => {
+			this.completeCallback = c;
+			this.errorCallback = e;
+		});
+	}
+
+	public complete(value: T) {
+		return new Promise<void>(resolve => {
+			this.completeCallback(value);
+			this.outcome = { outcome: DeferredOutcome.Resolved, value };
+			resolve();
+		});
+	}
+
+	public error(err: unknown) {
+		return new Promise<void>(resolve => {
+			this.errorCallback(err);
+			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };
+			resolve();
+		});
+	}
+
+	public cancel() {
+		return this.error(new CancellationError());
+	}
 }
