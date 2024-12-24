@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { listInvalidItemForeground, listDeemphasizedForeground } from 'vs/platform/theme/common/colorRegistry';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { explorerRootErrorEmitter } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { URI } from '../../../../../base/common/uri.js';
+import { Event, Emitter } from '../../../../../base/common/event.js';
+import { localize } from '../../../../../nls.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IDecorationsProvider, IDecorationData } from '../../../../services/decorations/common/decorations.js';
+import { listInvalidItemForeground, listDeemphasizedForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { explorerRootErrorEmitter } from './explorerViewer.js';
+import { ExplorerItem } from '../../common/explorerModel.js';
+import { IExplorerService } from '../files.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 
 export function provideDecorations(fileStat: ExplorerItem): IDecorationData | undefined {
 	if (fileStat.isRoot && fileStat.error) {

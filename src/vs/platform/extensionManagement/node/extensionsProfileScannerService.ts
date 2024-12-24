@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AbstractExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
+import { ILogService } from '../../log/common/log.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { AbstractExtensionsProfileScannerService } from '../common/extensionsProfileScannerService.js';
+import { IFileService } from '../../files/common/files.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { URI } from '../../../base/common/uri.js';
 
 export class ExtensionsProfileScannerService extends AbstractExtensionsProfileScannerService {
 	constructor(

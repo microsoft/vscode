@@ -3,47 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { extname as pathExtname } from 'vs/base/common/path';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Schemas } from 'vs/base/common/network';
-import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IModelService } from 'vs/editor/common/services/model';
-import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { VSBuffer, VSBufferReadable, bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind } from 'vs/workbench/services/textfile/common/encoding';
-import { consumeStream, ReadableStream } from 'vs/base/common/stream';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { Emitter } from 'vs/base/common/event';
-import { Codicon } from 'vs/base/common/codicons';
-import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { firstOrDefault } from 'vs/base/common/arrays';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions, TextFileEditorModelState } from '../common/textfiles.js';
+import { IRevertOptions, SaveSourceRegistry } from '../../../common/editor.js';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
+import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from '../../../../platform/files/common/files.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { extname as pathExtname } from '../../../../base/common/path.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from '../../untitled/common/untitledTextEditorService.js';
+import { UntitledTextEditorModel } from '../../untitled/common/untitledTextEditorModel.js';
+import { TextFileEditorModelManager } from '../common/textFileEditorModelManager.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from '../../../../editor/common/model/textModel.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from '../../../../base/common/resources.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { VSBuffer, VSBufferReadable, bufferToStream, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { ITextSnapshot, ITextModel } from '../../../../editor/common/model.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
+import { IResolvedTextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import { BaseTextEditorModel } from '../../../common/editor/textEditorModel.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from '../../workingCopy/common/workingCopyFileService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, WORKSPACE_EXTENSION } from '../../../../platform/workspace/common/workspace.js';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind } from '../common/encoding.js';
+import { consumeStream, ReadableStream } from '../../../../base/common/stream.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IElevatedFileService } from '../../files/common/elevatedFileService.js';
+import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../decorations/common/decorations.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { listErrorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 
 export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
 
@@ -657,7 +656,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			return untitledName; // preserve extension if it is compatible with the mode
 		}
 
-		const primaryExtension = firstOrDefault(extensions);
+		const primaryExtension = extensions.at(0);
 		if (primaryExtension) {
 			if (untitledExtension) {
 				return `${untitledName.substring(0, untitledName.indexOf(untitledExtension))}${primaryExtension}`;
@@ -671,7 +670,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			return untitledName; // preserve name if it is compatible with the mode
 		}
 
-		return firstOrDefault(filenames) ?? untitledName;
+		return filenames.at(0) ?? untitledName;
 	}
 
 	//#endregion

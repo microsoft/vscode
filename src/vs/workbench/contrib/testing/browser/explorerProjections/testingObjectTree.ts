@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { ISerializedTestTreeCollapseState } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
+import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { TestExplorerTreeElement, TestItemTreeElement } from './index.js';
+import { ISerializedTestTreeCollapseState } from './testingViewState.js';
+import { TestId } from '../../common/testId.js';
 
 
 export class TestingObjectTree<TFilterData = void> extends WorkbenchObjectTree<TestExplorerTreeElement, TFilterData> {

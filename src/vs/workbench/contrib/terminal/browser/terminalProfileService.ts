@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
-import { AutoOpenBarrier } from 'vs/base/common/async';
-import { throttle } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, TerminalSettingId, ITerminalProfileObject, IShellLaunchConfig, ITerminalExecutable } from 'vs/platform/terminal/common/terminal';
-import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { terminalIconsEqual, terminalProfileArgsMatch } from 'vs/platform/terminal/common/terminalProfiles';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { IRegisterContributedProfileArgs, ITerminalProfileProvider, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import * as arrays from '../../../../base/common/arrays.js';
+import * as objects from '../../../../base/common/objects.js';
+import { AutoOpenBarrier } from '../../../../base/common/async.js';
+import { throttle } from '../../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, TerminalSettingId, ITerminalProfileObject, IShellLaunchConfig, ITerminalExecutable } from '../../../../platform/terminal/common/terminal.js';
+import { registerTerminalDefaultProfileConfiguration } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
+import { terminalIconsEqual, terminalProfileArgsMatch } from '../../../../platform/terminal/common/terminalProfiles.js';
+import { ITerminalInstanceService } from './terminal.js';
+import { refreshTerminalActions } from './terminalActions.js';
+import { IRegisterContributedProfileArgs, ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { ITerminalContributionService } from '../common/terminalExtensionPoints.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
 /*
  * Links TerminalService with TerminalProfileResolverService

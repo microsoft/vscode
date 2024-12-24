@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { groupBy } from 'vs/base/common/collections';
-import { SetMap } from './map';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { Iterable } from 'vs/base/common/iterator';
+import { compareBy, numberComparator } from './arrays.js';
+import { groupBy } from './collections.js';
+import { SetMap } from './map.js';
+import { createSingleCallFunction } from './functional.js';
+import { Iterable } from './iterator.js';
 
 // #region Disposable Tracking
 
@@ -42,6 +42,34 @@ export interface IDisposableTracker {
 	 * Indicates that the given object is a singleton which does not need to be disposed.
 	*/
 	markAsSingleton(disposable: IDisposable): void;
+}
+
+export class GCBasedDisposableTracker implements IDisposableTracker {
+
+	private readonly _registry = new FinalizationRegistry<string>(heldValue => {
+		console.warn(`[LEAKED DISPOSABLE] ${heldValue}`);
+	});
+
+	trackDisposable(disposable: IDisposable): void {
+		const stack = new Error('CREATED via:').stack!;
+		this._registry.register(disposable, stack, disposable);
+	}
+
+	setParent(child: IDisposable, parent: IDisposable | null): void {
+		if (parent) {
+			this._registry.unregister(child);
+		} else {
+			this.trackDisposable(child);
+		}
+	}
+
+	markAsDisposed(disposable: IDisposable): void {
+		this._registry.unregister(disposable);
+	}
+
+	markAsSingleton(disposable: IDisposable): void {
+		this._registry.unregister(disposable);
+	}
 }
 
 export interface DisposableInfo {

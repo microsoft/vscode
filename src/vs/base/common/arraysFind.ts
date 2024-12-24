@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Comparator } from './arrays';
+import { Comparator } from './arrays.js';
 
 export function findLast<T>(array: readonly T[], predicate: (item: T) => boolean): T | undefined {
 	const idx = findLastIdx(array, predicate);

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mock } from 'vs/base/test/common/mock';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { expandCellRangesWithHiddenCells, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { FoldingModel, updateFoldingStateAtIndex } from '../../browser/viewModel/foldingModel.js';
+import { expandCellRangesWithHiddenCells, INotebookEditor } from '../../browser/notebookBrowser.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { createNotebookCellList, setupInstantiationService, withTestNotebook } from './testNotebookEditor.js';
+import { ListViewInfoAccessor } from '../../browser/view/notebookCellList.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('ListViewInfoAccessor', () => {
 	let disposables: DisposableStore;

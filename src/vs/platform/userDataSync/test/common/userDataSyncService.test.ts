@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { dirname, joinPath } from 'vs/base/common/resources';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataSyncEnablementService, IUserDataSyncService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
+import { IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { IUserDataSyncEnablementService, IUserDataSyncService, SyncResource, SyncStatus } from '../../common/userDataSync.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
 
 suite('UserDataSyncService', () => {
 

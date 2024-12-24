@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { Queue } from 'vs/base/common/async';
-import { randomPath } from 'vs/base/common/extpath';
-import { Promises } from 'vs/base/node/pfs';
-import { resolveTerminalEncoding } from 'vs/base/node/terminalEncoding';
+import { Queue } from '../../../base/common/async.js';
+import { randomPath } from '../../../base/common/extpath.js';
+import { resolveTerminalEncoding } from '../../../base/node/terminalEncoding.js';
 
 export function hasStdinWithoutTty() {
 	try {
@@ -38,15 +38,20 @@ export function getStdinFilePath(): string {
 	return randomPath(tmpdir(), 'code-stdin', 3);
 }
 
+async function createStdInFile(targetPath: string) {
+	await fs.promises.appendFile(targetPath, '');
+	await fs.promises.chmod(targetPath, 0o600); // Ensure the file is only read/writable by the user: https://github.com/microsoft/vscode-remote-release/issues/9048
+}
+
 export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?: Function): Promise<void> {
 
 	let [encoding, iconv] = await Promise.all([
-		resolveTerminalEncoding(verbose),	// respect terminal encoding when piping into file
-		import('@vscode/iconv-lite-umd'),	// lazy load encoding module for usage
-		Promises.appendFile(targetPath, '') // make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
+		resolveTerminalEncoding(verbose),		// respect terminal encoding when piping into file
+		import('@vscode/iconv-lite-umd'),		// lazy load encoding module for usage
+		createStdInFile(targetPath) 			// make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
 	]);
 
-	if (!iconv.encodingExists(encoding)) {
+	if (!iconv.default.encodingExists(encoding)) {
 		console.log(`Unsupported terminal encoding: ${encoding}, falling back to UTF-8.`);
 		encoding = 'utf8';
 	}
@@ -59,11 +64,11 @@ export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?
 
 	const appendFileQueue = new Queue();
 
-	const decoder = iconv.getDecoder(encoding);
+	const decoder = iconv.default.getDecoder(encoding);
 
 	process.stdin.on('data', chunk => {
 		const chunkStr = decoder.write(chunk);
-		appendFileQueue.queue(() => Promises.appendFile(targetPath, chunkStr));
+		appendFileQueue.queue(() => fs.promises.appendFile(targetPath, chunkStr));
 	});
 
 	process.stdin.on('end', () => {
@@ -72,7 +77,7 @@ export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?
 		appendFileQueue.queue(async () => {
 			try {
 				if (typeof end === 'string') {
-					await Promises.appendFile(targetPath, end);
+					await fs.promises.appendFile(targetPath, end);
 				}
 			} finally {
 				onEnd?.();

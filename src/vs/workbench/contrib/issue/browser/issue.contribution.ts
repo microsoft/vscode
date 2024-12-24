@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { BrowserIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
-import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IIssueMainService } from 'vs/platform/issue/common/issue';
-import { IssueFormService } from 'vs/workbench/contrib/issue/browser/issueFormService';
-import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { IssueFormService } from './issueFormService.js';
+import { BrowserIssueService } from './issueService.js';
+import './issueTroubleshoot.js';
+import { IIssueFormService, IWorkbenchIssueService } from '../common/issue.js';
+import { BaseIssueContribution } from '../common/issue.contribution.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 
 class WebIssueContribution extends BaseIssueContribution {
@@ -38,7 +37,7 @@ class WebIssueContribution extends BaseIssueContribution {
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(WebIssueContribution, LifecyclePhase.Restored);
 
 registerSingleton(IWorkbenchIssueService, BrowserIssueService, InstantiationType.Delayed);
-registerSingleton(IIssueMainService, IssueFormService, InstantiationType.Delayed);
+registerSingleton(IIssueFormService, IssueFormService, InstantiationType.Delayed);
 
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");

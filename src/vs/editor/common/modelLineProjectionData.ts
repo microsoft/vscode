@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from 'vs/base/common/assert';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { Position } from 'vs/editor/common/core/position';
-import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
+import { assertNever } from '../../base/common/assert.js';
+import { WrappingIndent } from './config/editorOptions.js';
+import { FontInfo } from './config/fontInfo.js';
+import { Position } from './core/position.js';
+import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
+import { LineInjectedText } from './textModelEvents.js';
 
 /**
  * *input*:

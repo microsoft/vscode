@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
-import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IExtensionIdentifier, IExtensionManagementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { distinct } from 'vs/base/common/arrays';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { getInstalledExtensions, IExtensionStatus } from '../../../extensions/common/extensionsUtils.js';
+import { INotebookKeymapService } from '../../common/notebookKeymapService.js';
+import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IExtensionIdentifier, IExtensionManagementService, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { Memento, MementoObject } from '../../../../common/memento.js';
+import { distinct } from '../../../../../base/common/arrays.js';
 
 function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);

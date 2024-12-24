@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { DeferredPromise } from 'vs/base/common/async';
-import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG, ITextToSpeechSession, TextToSpeechInProgress, TextToSpeechStatus } from 'vs/workbench/contrib/speech/common/speechService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { localize } from '../../../../nls.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG, ITextToSpeechSession, TextToSpeechInProgress, TextToSpeechStatus } from '../common/speechService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 
 export interface ISpeechProviderDescriptor {
 	readonly name: string;
@@ -227,7 +226,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		// Send out extension activation to ensure providers can register
 		await this.extensionService.activateByEvent('onSpeech');
 
-		const provider = firstOrDefault(Array.from(this.providers.values()));
+		const provider = Array.from(this.providers.values()).at(0);
 		if (!provider) {
 			throw new Error(`No Speech provider is registered.`);
 		} else if (this.providers.size > 1) {

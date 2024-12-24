@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
-import { getActiveWindow, getWindows } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { ISandboxGlobals, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { getZoomLevel, setZoomFactor, setZoomLevel } from '../../../base/browser/browser.js';
+import { getActiveWindow, getWindows } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
+import { ISandboxGlobals, ipcRenderer, webFrame } from '../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { zoomLevelToZoomFactor } from '../common/window.js';
 
 export enum ApplyZoomTarget {
 	ACTIVE_WINDOW = 1,
@@ -62,3 +63,29 @@ export function zoomIn(target: ApplyZoomTarget | Window): void {
 export function zoomOut(target: ApplyZoomTarget | Window): void {
 	applyZoom(getZoomLevel(typeof target === 'number' ? getActiveWindow() : target) - 1, target);
 }
+
+//#region Bootstrap Window
+
+export interface ILoadOptions<T extends ISandboxConfiguration = ISandboxConfiguration> {
+	configureDeveloperSettings?: (config: T) => {
+		forceDisableShowDevtoolsOnError?: boolean;
+		forceEnableDeveloperKeybindings?: boolean;
+		disallowReloadKeybinding?: boolean;
+		removeDeveloperKeybindingsAfterLoad?: boolean;
+	};
+	beforeImport?: (config: T) => void;
+}
+
+export interface ILoadResult<M, T> {
+	readonly result: M;
+	readonly configuration: T;
+}
+
+export interface IBootstrapWindow {
+	load<M, T extends ISandboxConfiguration = ISandboxConfiguration>(
+		esModule: string,
+		options: ILoadOptions<T>
+	): Promise<ILoadResult<M, T>>;
+}
+
+//#endregion

@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color } from 'vs/base/common/color';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/languages/language';
-import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import * as model from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
-import { StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
-import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
-import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
-import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Color } from '../../../base/common/color.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { Position } from '../../common/core/position.js';
+import { Range } from '../../common/core/range.js';
+import { MetadataConsts } from '../../common/encodedTokenAttributes.js';
+import * as languages from '../../common/languages.js';
+import { ILanguageExtensionPoint, ILanguageService } from '../../common/languages/language.js';
+import { LanguageConfiguration } from '../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
+import { ModesRegistry } from '../../common/languages/modesRegistry.js';
+import { LanguageSelector } from '../../common/languageSelector.js';
+import * as model from '../../common/model.js';
+import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
+import * as standaloneEnums from '../../common/standalone/standaloneEnums.js';
+import { StandaloneServices } from './standaloneServices.js';
+import { compile } from '../common/monarch/monarchCompile.js';
+import { MonarchTokenizer } from '../common/monarch/monarchLexer.js';
+import { IMonarchLanguage } from '../common/monarch/monarchTypes.js';
+import { IStandaloneThemeService } from '../common/standaloneTheme.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IMarkerData, IMarkerService } from '../../../platform/markers/common/markers.js';
 
 /**
  * Register information about a new language.

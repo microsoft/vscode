@@ -42,7 +42,7 @@ export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.T
 }
 
 export async function fetchUrl(url: string, options: IFetchOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
-	const verbose = !!options.verbose ?? (!!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']);
+	const verbose = !!options.verbose || !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'];
 	try {
 		let startTime = 0;
 		if (verbose) {

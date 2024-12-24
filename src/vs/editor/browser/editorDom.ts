@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeColor } from 'vs/base/common/themables';
+import * as dom from '../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../base/browser/domStylesheets.js';
+import { GlobalPointerMoveMonitor } from '../../base/browser/globalPointerMoveMonitor.js';
+import { StandardMouseEvent } from '../../base/browser/mouseEvent.js';
+import { RunOnceScheduler } from '../../base/common/async.js';
+import { Disposable, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
+import { ICodeEditor } from './editorBrowser.js';
+import { asCssVariable } from '../../platform/theme/common/colorRegistry.js';
+import { ThemeColor } from '../../base/common/themables.js';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
@@ -368,7 +369,7 @@ class RefCountedCssRule {
 		public readonly properties: CssProperties,
 	) {
 		this._styleElementDisposables = new DisposableStore();
-		this._styleElement = dom.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
+		this._styleElement = domStylesheetsJs.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
 		this._styleElement.textContent = this.getCssText(this.className, this.properties);
 	}
 

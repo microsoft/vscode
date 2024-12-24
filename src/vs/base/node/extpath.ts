@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { basename, dirname, join, normalize, sep } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { rtrim } from 'vs/base/common/strings';
-import { Promises, readdirSync } from 'vs/base/node/pfs';
+import { CancellationToken } from '../common/cancellation.js';
+import { basename, dirname, join, normalize, sep } from '../common/path.js';
+import { isLinux } from '../common/platform.js';
+import { rtrim } from '../common/strings.js';
+import { Promises, readdirSync } from './pfs.js';
 
 /**
  * Copied from: https://github.com/microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
@@ -119,7 +119,7 @@ export async function realpath(path: string): Promise<string> {
 		// to not resolve links but to simply see if the path is read accessible or not.
 		const normalizedPath = normalizePath(path);
 
-		await Promises.access(normalizedPath, fs.constants.R_OK);
+		await fs.promises.access(normalizedPath, fs.constants.R_OK);
 
 		return normalizedPath;
 	}

@@ -26,6 +26,8 @@ function normalize(path) {
 function createTypeScriptBuilder(config, projectFile, cmd) {
     const _log = config.logFn;
     const host = new LanguageServiceHost(cmd, projectFile, _log);
+    const outHost = new LanguageServiceHost({ ...cmd, options: { ...cmd.options, sourceRoot: cmd.options.outDir } }, cmd.options.outDir ?? '', _log);
+    let lastCycleCheckVersion;
     const service = ts.createLanguageService(host, ts.createDocumentRegistry());
     const lastBuildVersion = Object.create(null);
     const lastDtsHash = Object.create(null);
@@ -251,6 +253,11 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                             lastDtsHash[fileName] = value.signature;
                             filesWithChangedSignature.push(fileName);
                         }
+                        // line up for cycle check
+                        const jsValue = value.files.find(candidate => candidate.basename.endsWith('.js'));
+                        if (jsValue) {
+                            outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), new Date()));
+                        }
                     }).catch(e => {
                         // can't just skip this or make a result up..
                         host.error(`ERROR emitting ${fileName}`);
@@ -342,20 +349,41 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
             }
             workOnNext();
         }).then(() => {
+            // check for cyclic dependencies
+            const thisCycleCheckVersion = outHost.getProjectVersion();
+            if (thisCycleCheckVersion === lastCycleCheckVersion) {
+                return;
+            }
+            const oneCycle = outHost.hasCyclicDependency();
+            lastCycleCheckVersion = thisCycleCheckVersion;
+            delete oldErrors[projectFile];
+            if (oneCycle) {
+                const cycleError = {
+                    category: ts.DiagnosticCategory.Error,
+                    code: 1,
+                    file: undefined,
+                    start: undefined,
+                    length: undefined,
+                    messageText: `CYCLIC dependency between ${oneCycle}`
+                };
+                onError(cycleError);
+                newErrors[projectFile] = [cycleError];
+            }
+        }).then(() => {
             // store the build versions to not rebuilt the next time
             newLastBuildVersion.forEach((value, key) => {
                 lastBuildVersion[key] = value;
             });
             // print old errors and keep them
-            utils.collections.forEach(oldErrors, entry => {
-                entry.value.forEach(diag => onError(diag));
-                newErrors[entry.key] = entry.value;
-            });
+            for (const [key, value] of Object.entries(oldErrors)) {
+                value.forEach(diag => onError(diag));
+                newErrors[key] = value;
+            }
             oldErrors = newErrors;
             // print stats
             const headNow = process.memoryUsage().heapUsed;
             const MB = 1024 * 1024;
-            _log('[tsb]', `time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`);
+            _log('[tsb]', `time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`);
             headUsed = headNow;
         });
     }
@@ -415,7 +443,7 @@ class LanguageServiceHost {
         this._snapshots = Object.create(null);
         this._filesInProject = new Set(_cmdLine.fileNames);
         this._filesAdded = new Set();
-        this._dependencies = new utils.graph.Graph(s => s);
+        this._dependencies = new utils.graph.Graph();
         this._dependenciesRecomputeList = [];
         this._fileNameToDeclaredModule = Object.create(null);
         this._projectVersion = 1;
@@ -478,10 +506,6 @@ class LanguageServiceHost {
         }
         if (!old || old.getVersion() !== snapshot.getVersion()) {
             this._dependenciesRecomputeList.push(filename);
-            const node = this._dependencies.lookup(filename);
-            if (node) {
-                node.outgoing = Object.create(null);
-            }
             // (cheap) check for declare module
             LanguageServiceHost._declareModule.lastIndex = 0;
             let match;
@@ -523,8 +547,18 @@ class LanguageServiceHost {
         filename = normalize(filename);
         const node = this._dependencies.lookup(filename);
         if (node) {
-            utils.collections.forEach(node.incoming, entry => target.push(entry.key));
+            node.incoming.forEach(entry => target.push(entry.data));
         }
+    }
+    hasCyclicDependency() {
+        // Ensure dependencies are up to date
+        while (this._dependenciesRecomputeList.length) {
+            this._processFile(this._dependenciesRecomputeList.pop());
+        }
+        const cycle = this._dependencies.findCycle();
+        return cycle
+            ? cycle.join(' -> ')
+            : undefined;
     }
     _processFile(filename) {
         if (filename.match(/.*\.d\.ts$/)) {
@@ -537,6 +571,8 @@ class LanguageServiceHost {
             return;
         }
         const info = ts.preProcessFile(snapshot.getText(0, snapshot.getLength()), true);
+        // (0) clear out old dependencies
+        this._dependencies.resetNode(filename);
         // (1) ///-references
         info.referencedFiles.forEach(ref => {
             const resolvedPath = path.resolve(path.dirname(filename), ref.fileName);
@@ -545,12 +581,19 @@ class LanguageServiceHost {
         });
         // (2) import-require statements
         info.importedFiles.forEach(ref => {
+            if (!ref.fileName.startsWith('.') || path.extname(ref.fileName) === '') {
+                // node module?
+                return;
+            }
             const stopDirname = normalize(this.getCurrentDirectory());
             let dirname = filename;
             let found = false;
             while (!found && dirname.indexOf(stopDirname) === 0) {
                 dirname = path.dirname(dirname);
-                const resolvedPath = path.resolve(dirname, ref.fileName);
+                let resolvedPath = path.resolve(dirname, ref.fileName);
+                if (resolvedPath.endsWith('.js')) {
+                    resolvedPath = resolvedPath.slice(0, -3);
+                }
                 const normalizedPath = normalize(resolvedPath);
                 if (this.getScriptSnapshot(normalizedPath + '.ts')) {
                     this._dependencies.inertEdge(filename, normalizedPath + '.ts');
@@ -558,6 +601,10 @@ class LanguageServiceHost {
                 }
                 else if (this.getScriptSnapshot(normalizedPath + '.d.ts')) {
                     this._dependencies.inertEdge(filename, normalizedPath + '.d.ts');
+                    found = true;
+                }
+                else if (this.getScriptSnapshot(normalizedPath + '.js')) {
+                    this._dependencies.inertEdge(filename, normalizedPath + '.js');
                     found = true;
                 }
             }

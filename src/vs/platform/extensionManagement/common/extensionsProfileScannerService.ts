@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Queue } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Metadata, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Mutable, isObject, isString, isUndefined } from 'vs/base/common/types';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Queue } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { Metadata, isIExtensionIdentifier } from './extensionManagement.js';
+import { areSameExtensions } from './extensionManagementUtil.js';
+import { IExtension, IExtensionIdentifier } from '../../extensions/common/extensions.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { Mutable, isObject, isString, isUndefined } from '../../../base/common/types.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;

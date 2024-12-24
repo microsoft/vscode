@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, Disposable, IDisposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
-import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { DisposableStore, Disposable, IDisposable, MutableDisposable, combinedDisposable } from '../../../base/common/lifecycle.js';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix, ITerminalCommandDto } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { URI } from '../../../base/common/uri.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, TerminalExitReason, TerminalLocation } from '../../../platform/terminal/common/terminal.js';
+import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
+import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalLink, ITerminalService } from '../../contrib/terminal/browser/terminal.js';
+import { TerminalProcessExtHostProxy } from '../../contrib/terminal/browser/terminalProcessExtHostProxy.js';
+import { IEnvironmentVariableService } from '../../contrib/terminal/common/environmentVariable.js';
+import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariableShared.js';
+import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService } from '../../contrib/terminal/common/terminal.js';
+import { IRemoteAgentService } from '../../services/remote/common/remoteAgentService.js';
+import { OperatingSystem, OS } from '../../../base/common/platform.js';
 import { TerminalEditorLocationOptions } from 'vscode';
-import { Promises } from 'vs/base/common/async';
-import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { Promises } from '../../../base/common/async.js';
+import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
+import { ITerminalLinkProviderService } from '../../contrib/terminalContrib/links/browser/links.js';
+import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from '../../contrib/terminalContrib/quickFix/browser/quickFix.js';
+import { TerminalCapability } from '../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalCompletionService } from '../../contrib/terminalContrib/suggest/browser/terminalCompletionService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -39,6 +40,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _extHostTerminals = new Map<string, Promise<ITerminalInstance>>();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private readonly _profileProviders = new Map<string, IDisposable>();
+	private readonly _completionProviders = new Map<string, IDisposable>();
 	private readonly _quickFixProviders = new Map<string, IDisposable>();
 	private readonly _dataEventTracker = new MutableDisposable<TerminalDataEventTracker>();
 	private readonly _sendCommandEventListener = new MutableDisposable();
@@ -65,7 +67,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService
+		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
@@ -262,6 +265,20 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $registerProcessSupport(isSupported: boolean): void {
 		this._terminalService.registerProcessSupport(isSupported);
+	}
+
+	public $registerCompletionProvider(id: string, extensionIdentifier: string, ...triggerCharacters: string[]): void {
+		this._completionProviders.set(id, this._terminalCompletionService.registerTerminalCompletionProvider(extensionIdentifier, id, {
+			id,
+			provideCompletions: async (commandLine, cursorPosition, token) => {
+				return await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition }, token);
+			}
+		}, ...triggerCharacters));
+	}
+
+	public $unregisterCompletionProvider(id: string): void {
+		this._completionProviders.get(id)?.dispose();
+		this._completionProviders.delete(id);
 	}
 
 	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
@@ -482,3 +499,4 @@ function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerm
 	}
 	return { id, type, source, ...fix };
 }
+

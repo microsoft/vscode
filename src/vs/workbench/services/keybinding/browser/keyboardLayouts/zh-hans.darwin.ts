@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+import { KeyboardLayoutContribution } from './_.contribution.js';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
 	layout: { id: 'com.apple.inputmethod.SCIM.ITABC', lang: 'zh-Hans', localizedName: '搜狗拼音' },

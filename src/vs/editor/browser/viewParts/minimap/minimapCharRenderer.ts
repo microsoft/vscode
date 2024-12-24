@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { Constants, getCharIndex } from './minimapCharSheet';
-import { toUint8 } from 'vs/base/common/uint';
+import { RGBA8 } from '../../../common/core/rgba.js';
+import { Constants, getCharIndex } from './minimapCharSheet.js';
+import { toUint8 } from '../../../../base/common/uint.js';
 
 export class MinimapCharRenderer {
 	_minimapCharRendererBrand: void = undefined;

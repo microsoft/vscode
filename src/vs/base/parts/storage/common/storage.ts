@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { Event, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { parse, stringify } from 'vs/base/common/marshalling';
-import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { ThrottledDelayer } from '../../../common/async.js';
+import { Event, PauseableEmitter } from '../../../common/event.js';
+import { Disposable, IDisposable } from '../../../common/lifecycle.js';
+import { parse, stringify } from '../../../common/marshalling.js';
+import { isObject, isUndefinedOrNull } from '../../../common/types.js';
 
 export enum StorageHint {
 

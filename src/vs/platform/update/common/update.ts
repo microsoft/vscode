@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { upcast } from '../../../base/common/types.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export interface IUpdate {
 	// Windows and Linux: 9a19815253d91900be5ec1016e0ecc7cc9a6950 (Commit Hash). Mac: 1.54.0 (Product Version)
@@ -73,12 +74,12 @@ export type Ready = { type: StateType.Ready; update: IUpdate };
 export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready;
 
 export const State = {
-	Uninitialized: { type: StateType.Uninitialized } as Uninitialized,
-	Disabled: (reason: DisablementReason) => ({ type: StateType.Disabled, reason }) as Disabled,
-	Idle: (updateType: UpdateType, error?: string) => ({ type: StateType.Idle, updateType, error }) as Idle,
+	Uninitialized: upcast<Uninitialized>({ type: StateType.Uninitialized }),
+	Disabled: (reason: DisablementReason): Disabled => ({ type: StateType.Disabled, reason }),
+	Idle: (updateType: UpdateType, error?: string): Idle => ({ type: StateType.Idle, updateType, error }),
 	CheckingForUpdates: (explicit: boolean): CheckingForUpdates => ({ type: StateType.CheckingForUpdates, explicit }),
 	AvailableForDownload: (update: IUpdate): AvailableForDownload => ({ type: StateType.AvailableForDownload, update }),
-	Downloading: { type: StateType.Downloading } as Downloading,
+	Downloading: upcast<Downloading>({ type: StateType.Downloading }),
 	Downloaded: (update: IUpdate): Downloaded => ({ type: StateType.Downloaded, update }),
 	Updating: (update: IUpdate): Updating => ({ type: StateType.Updating, update }),
 	Ready: (update: IUpdate): Ready => ({ type: StateType.Ready, update }),

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INativeHostService } from 'vs/platform/native/common/native';
+import * as nls from '../../../../nls.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 
 export class OpenWebviewDeveloperToolsAction extends Action2 {
 

@@ -1,7 +1,7 @@
 [
   {
     content: {
-      value: "text before",
+      value: "text before ",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false
@@ -9,20 +9,12 @@
     kind: "markdownContent"
   },
   {
-    inlineReference: {
-      scheme: "https",
-      authority: "microsoft.com",
-      path: "/",
-      query: "",
-      fragment: "",
-      _formatted: null,
-      _fsPath: null
-    },
+    inlineReference: URI(https://microsoft.com/),
     kind: "inlineReference"
   },
   {
     content: {
-      value: "text after",
+      value: " text after",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false

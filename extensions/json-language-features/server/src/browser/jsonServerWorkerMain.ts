@@ -22,7 +22,7 @@ const messageHandler = async (e: any) => {
 		} else {
 			l10nLog.push(`l10n: No bundle configured.`);
 		}
-		await import('./jsonServerMain');
+		await import('./jsonServerMain.js');
 		if (self.onmessage !== messageHandler) {
 			pendingMessages.forEach(msg => self.onmessage?.(msg));
 			pendingMessages.length = 0;

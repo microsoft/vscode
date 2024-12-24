@@ -8,64 +8,43 @@ exports.getProductionDependencies = getProductionDependencies;
 const fs = require("fs");
 const path = require("path");
 const cp = require("child_process");
-const parseSemver = require('parse-semver');
 const root = fs.realpathSync(path.dirname(path.dirname(__dirname)));
-function asYarnDependency(prefix, tree) {
-    let parseResult;
+function getNpmProductionDependencies(folder) {
+    let raw;
     try {
-        parseResult = parseSemver(tree.name);
+        raw = cp.execSync('npm ls --all --omit=dev --parseable', { cwd: folder, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, null] });
     }
     catch (err) {
-        err.message += `: ${tree.name}`;
-        console.warn(`Could not parse semver: ${tree.name}`);
-        return null;
-    }
-    // not an actual dependency in disk
-    if (parseResult.version !== parseResult.range) {
-        return null;
-    }
-    const name = parseResult.name;
-    const version = parseResult.version;
-    const dependencyPath = path.join(prefix, name);
-    const children = [];
-    for (const child of (tree.children || [])) {
-        const dep = asYarnDependency(path.join(prefix, name, 'node_modules'), child);
-        if (dep) {
-            children.push(dep);
+        const regex = /^npm ERR! .*$/gm;
+        let match;
+        while (match = regex.exec(err.message)) {
+            if (/ELSPROBLEMS/.test(match[0])) {
+                continue;
+            }
+            else if (/invalid: xterm/.test(match[0])) {
+                continue;
+            }
+            else if (/A complete log of this run/.test(match[0])) {
+                continue;
+            }
+            else {
+                throw err;
+            }
         }
+        raw = err.stdout;
     }
-    return { name, version, path: dependencyPath, children };
-}
-function getYarnProductionDependencies(folderPath) {
-    const raw = cp.execSync('yarn list --json', { cwd: folderPath, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
-    const match = /^{"type":"tree".*$/m.exec(raw);
-    if (!match || match.length !== 1) {
-        throw new Error('Could not parse result of `yarn list --json`');
-    }
-    const trees = JSON.parse(match[0]).data.trees;
-    return trees
-        .map(tree => asYarnDependency(path.join(folderPath, 'node_modules'), tree))
-        .filter((dep) => !!dep);
+    return raw.split(/\r?\n/).filter(line => {
+        return !!line.trim() && path.relative(root, line) !== path.relative(root, folder);
+    });
 }
 function getProductionDependencies(folderPath) {
-    const result = [];
-    const deps = getYarnProductionDependencies(folderPath);
-    const flatten = (dep) => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
-    deps.forEach(flatten);
+    const result = getNpmProductionDependencies(folderPath);
     // Account for distro npm dependencies
     const realFolderPath = fs.realpathSync(folderPath);
     const relativeFolderPath = path.relative(root, realFolderPath);
-    const distroPackageJsonPath = `${root}/.build/distro/npm/${relativeFolderPath}/package.json`;
-    if (fs.existsSync(distroPackageJsonPath)) {
-        const distroPackageJson = JSON.parse(fs.readFileSync(distroPackageJsonPath, 'utf8'));
-        const distroDependencyNames = Object.keys(distroPackageJson.dependencies ?? {});
-        for (const name of distroDependencyNames) {
-            result.push({
-                name,
-                version: distroPackageJson.dependencies[name],
-                path: path.join(realFolderPath, 'node_modules', name)
-            });
-        }
+    const distroFolderPath = `${root}/.build/distro/npm/${relativeFolderPath}`;
+    if (fs.existsSync(distroFolderPath)) {
+        result.push(...getNpmProductionDependencies(distroFolderPath));
     }
     return [...new Set(result)];
 }

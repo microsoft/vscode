@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { getKeybindingsContentFromSyncContent, KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IFileService } from '../../../files/common/files.js';
+import { ILogService } from '../../../log/common/log.js';
+import { IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { getKeybindingsContentFromSyncContent, KeybindingsSynchroniser } from '../../common/keybindingsSync.js';
+import { IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode } from '../../common/userDataSync.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
 
 suite('KeybindingsSync', () => {
 
@@ -196,11 +196,11 @@ suite('KeybindingsSync', () => {
 			await fileService.del(keybindingsResource);
 		}
 
-		const preview = (await testObject.preview(await client.getResourceManifest(), {}))!;
+		const preview = await testObject.sync(await client.getResourceManifest(), true);
 
 		server.reset();
-		const content = await testObject.resolveContent(preview.resourcePreviews[0].remoteResource);
-		await testObject.accept(preview.resourcePreviews[0].remoteResource, content);
+		const content = await testObject.resolveContent(preview!.resourcePreviews[0].remoteResource);
+		await testObject.accept(preview!.resourcePreviews[0].remoteResource, content);
 		await testObject.apply(false);
 		assert.deepStrictEqual(server.requests, []);
 	});

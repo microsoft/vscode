@@ -3,12 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEquals, EqualityComparer } from 'vs/base/common/equals';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { keepObserved, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
-import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { DebugNameData, DebugOwner, getFunctionName } from './debugName.js';
+import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from './commonFacade/deps.js';
+import type { derivedOpts } from './derived.js';
+import { getLogger, logObservable } from './logging.js';
+import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';
+
+/**
+ * Represents an observable value.
+ *
+ * @template T The type of the values the observable can hold.
+ */
+export interface IObservable<T> extends IObservableWithChange<T, unknown> { }
 
 /**
  * Represents an observable value.
@@ -19,7 +25,7 @@ import { getLogger } from 'vs/base/common/observableInternal/logging';
  * While observers can miss temporary values of an observable,
  * they will receive all change values (as long as they are subscribed)!
  */
-export interface IObservable<T, TChange = unknown> {
+export interface IObservableWithChange<T, TChange = unknown> {
 	/**
 	 * Returns the current value.
 	 *
@@ -66,6 +72,14 @@ export interface IObservable<T, TChange = unknown> {
 	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 	map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 
+	flatten<TNew>(this: IObservable<IObservable<TNew>>): IObservable<TNew>;
+
+	/**
+	 * ONLY FOR DEBUGGING!
+	 * Logs computations of this derived.
+	*/
+	log(): IObservableWithChange<T, TChange>;
+
 	/**
 	 * Makes sure this value is computed eagerly.
 	 */
@@ -91,7 +105,7 @@ export interface IReader {
 	/**
 	 * Reads the value of an observable and subscribes to it.
 	 */
-	readObservable<T>(observable: IObservable<T, any>): T;
+	readObservable<T>(observable: IObservableWithChange<T, any>): T;
 }
 
 /**
@@ -136,7 +150,7 @@ export interface IObserver {
 	 *
 	 * @param change Indicates how or why the value changed.
 	 */
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void;
+	handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void;
 }
 
 export interface ISettable<T, TChange = void> {
@@ -155,7 +169,7 @@ export interface ITransaction {
 	 * Calls {@link Observer.beginUpdate} immediately
 	 * and {@link Observer.endUpdate} when the transaction ends.
 	 */
-	updateObserver(observer: IObserver, observable: IObservable<any, any>): void;
+	updateObserver(observer: IObserver, observable: IObservableWithChange<any, any>): void;
 }
 
 let _recomputeInitiallyAndOnChange: typeof recomputeInitiallyAndOnChange;
@@ -178,7 +192,7 @@ export function _setDerivedOpts(derived: typeof _derived) {
 	_derived = derived;
 }
 
-export abstract class ConvenientObservable<T, TChange> implements IObservable<T, TChange> {
+export abstract class ConvenientObservable<T, TChange> implements IObservableWithChange<T, TChange> {
 	get TChange(): TChange { return null!; }
 
 	public abstract get(): T;
@@ -201,9 +215,9 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 
 	/** @sealed */
 	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(owner: Owner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(fnOrOwner: Owner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
-		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as Owner;
+	public map<TNew>(owner: DebugOwner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	public map<TNew>(fnOrOwner: DebugOwner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as DebugOwner;
 		const fn = fnOrUndefined === undefined ? fnOrOwner as (value: T, reader: IReader) => TNew : fnOrUndefined;
 
 		return _derived(
@@ -229,6 +243,25 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 				debugReferenceFn: fn,
 			},
 			(reader) => fn(this.read(reader), reader),
+		);
+	}
+
+	public log(): IObservableWithChange<T, TChange> {
+		logObservable(this);
+		return this;
+	}
+
+	/**
+	 * @sealed
+	 * Converts an observable of an observable value into a direct observable of the value.
+	*/
+	public flatten<TNew>(this: IObservable<IObservableWithChange<TNew, any>>): IObservable<TNew> {
+		return _derived(
+			{
+				owner: undefined,
+				debugName: () => `${this.debugName} (flattened)`,
+			},
+			(reader) => this.read(reader).read(reader),
 		);
 	}
 
@@ -364,7 +397,7 @@ export class TransactionImpl implements ITransaction {
 /**
  * A settable observable.
  */
-export interface ISettableObservable<T, TChange = void> extends IObservable<T, TChange>, ISettable<T, TChange> {
+export interface ISettableObservable<T, TChange = void> extends IObservableWithChange<T, TChange>, ISettable<T, TChange> {
 }
 
 /**
@@ -479,11 +512,11 @@ export interface IChangeTracker {
 }
 
 export interface IChangeContext {
-	readonly changedObservable: IObservable<any, any>;
+	readonly changedObservable: IObservableWithChange<any, any>;
 	readonly change: unknown;
 
 	/**
 	 * Returns if the given observable caused the change.
 	 */
-	didChange<T, TChange>(observable: IObservable<T, TChange>): this is { change: TChange };
+	didChange<T, TChange>(observable: IObservableWithChange<T, TChange>): this is { change: TChange };
 }

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { ITextSearchPreviewOptions, TextSearchMatch, ITextSearchResult, ITextSearchMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { Range } from '../../../../editor/common/core/range.js';
+import { FindMatch, ITextModel } from '../../../../editor/common/model.js';
+import { ITextSearchPreviewOptions, TextSearchMatch, ITextSearchResult, ITextSearchMatch, ITextSearchQuery } from './search.js';
 
 function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch {
 	const firstLine = matches[0].range.startLineNumber;
@@ -44,14 +44,14 @@ export function editorMatchesToTextSearchResults(matches: FindMatch[], model: IT
 	});
 }
 
-export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], model: ITextModel, query: ITextQuery): ITextSearchResult[] {
+export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], model: ITextModel, query: ITextSearchQuery): ITextSearchResult[] {
 	const results: ITextSearchResult[] = [];
 
 	let prevLine = -1;
 	for (let i = 0; i < matches.length; i++) {
 		const { start: matchStartLine, end: matchEndLine } = getMatchStartEnd(matches[i]);
-		if (typeof query.beforeContext === 'number' && query.beforeContext > 0) {
-			const beforeContextStartLine = Math.max(prevLine + 1, matchStartLine - query.beforeContext);
+		if (typeof query.surroundingContext === 'number' && query.surroundingContext > 0) {
+			const beforeContextStartLine = Math.max(prevLine + 1, matchStartLine - query.surroundingContext);
 			for (let b = beforeContextStartLine; b < matchStartLine; b++) {
 				results.push({
 					text: model.getLineContent(b + 1),
@@ -64,8 +64,8 @@ export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], 
 
 		const nextMatch = matches[i + 1];
 		const nextMatchStartLine = nextMatch ? getMatchStartEnd(nextMatch).start : Number.MAX_VALUE;
-		if (typeof query.afterContext === 'number' && query.afterContext > 0) {
-			const afterContextToLine = Math.min(nextMatchStartLine - 1, matchEndLine + query.afterContext, model.getLineCount() - 1);
+		if (typeof query.surroundingContext === 'number' && query.surroundingContext > 0) {
+			const afterContextToLine = Math.min(nextMatchStartLine - 1, matchEndLine + query.surroundingContext, model.getLineCount() - 1);
 			for (let a = matchEndLine + 1; a <= afterContextToLine; a++) {
 				results.push({
 					text: model.getLineContent(a + 1),
@@ -81,9 +81,9 @@ export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], 
 }
 
 function getMatchStartEnd(match: ITextSearchMatch): { start: number; end: number } {
-	const matchRanges = match.ranges;
-	const matchStartLine = Array.isArray(matchRanges) ? matchRanges[0].startLineNumber : matchRanges.startLineNumber;
-	const matchEndLine = Array.isArray(matchRanges) ? matchRanges[matchRanges.length - 1].endLineNumber : matchRanges.endLineNumber;
+	const matchRanges = match.rangeLocations.map(e => e.source);
+	const matchStartLine = matchRanges[0].startLineNumber;
+	const matchEndLine = matchRanges[matchRanges.length - 1].endLineNumber;
 
 	return {
 		start: matchStartLine,
