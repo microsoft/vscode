@@ -13,7 +13,7 @@ import {
 } from 'vscode';
 import { readScripts } from './readScripts';
 import {
-	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
+	createInstallationTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
 	NpmTaskProvider,
 	startDebugging,
 	ITaskWithLocation,
@@ -181,7 +181,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		const task = await createTask(await getPackageManager(this.context, selection.folder.workspaceFolder.uri, true), 'install', ['install'], selection.folder.workspaceFolder, uri, undefined, []);
+		const task = await createInstallationTask(await getPackageManager(this.context, selection.folder.workspaceFolder.uri, true), selection.folder.workspaceFolder, uri);
 		tasks.executeTask(task);
 	}
 

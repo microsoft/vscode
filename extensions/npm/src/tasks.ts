@@ -71,11 +71,10 @@ export class NpmTaskProvider implements TaskProvider {
 			} else {
 				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
 			}
-			const cmd = [kind.script];
-			if (kind.script !== INSTALL_SCRIPT) {
-				cmd.unshift('run');
+			if (kind.script === INSTALL_SCRIPT) {
+				return createInstallationTask(await getPackageManager(this.context, _task.scope.uri), _task.scope, packageJsonUri);
 			}
-			return createTask(await getPackageManager(this.context, _task.scope.uri), kind, cmd, _task.scope, packageJsonUri);
+			return createScriptRunnerTask(await getPackageManager(this.context, _task.scope.uri), kind.script, _task.scope, packageJsonUri);
 		}
 		return undefined;
 	}
@@ -281,12 +280,12 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 	const packageManager = await getPackageManager(context, folder.uri, showWarning);
 
 	for (const { name, value, nameRange } of scripts.scripts) {
-		const task = await createTask(packageManager, name, ['run', name], folder!, packageJsonUri, value, undefined);
+		const task = await createScriptRunnerTask(packageManager, name, folder!, packageJsonUri, value);
 		result.push({ task, location: new Location(packageJsonUri, nameRange) });
 	}
 
 	if (!workspace.getConfiguration('npm', folder).get<string[]>('scriptExplorerExclude', []).find(e => e.includes(INSTALL_SCRIPT))) {
-		result.push({ task: await createTask(packageManager, INSTALL_SCRIPT, [INSTALL_SCRIPT], folder, packageJsonUri, 'install dependencies from package', []) });
+		result.push({ task: await createInstallationTask(packageManager, folder, packageJsonUri, 'install dependencies from package') });
 	}
 	return result;
 }
@@ -298,45 +297,39 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export async function createTask(packageManager: string, script: INpmTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, matcher?: any): Promise<Task> {
-	let kind: INpmTaskDefinition;
-	if (typeof script === 'string') {
-		kind = { type: 'npm', script: script };
-	} else {
-		kind = script;
-	}
-
-	function getCommandLine(cmd: string[]): (string | ShellQuotedString)[] {
-		const result: (string | ShellQuotedString)[] = new Array(cmd.length);
-		for (let i = 0; i < cmd.length; i++) {
-			if (/\s/.test(cmd[i])) {
-				result[i] = { value: cmd[i], quoting: cmd[i].includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
-			} else {
-				result[i] = cmd[i];
-			}
+function getCommandLine(scope: Uri, cmd: string[]): (string | ShellQuotedString)[] {
+	const result: (string | ShellQuotedString)[] = new Array(cmd.length);
+	for (let i = 0; i < cmd.length; i++) {
+		if (/\s/.test(cmd[i])) {
+			result[i] = { value: cmd[i], quoting: cmd[i].includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
+		} else {
+			result[i] = cmd[i];
 		}
-		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
-			result.unshift('--silent');
-		}
-		return result;
 	}
-
-	function getRelativePath(packageJsonUri: Uri): string {
-		const rootUri = folder.uri;
-		const absolutePath = packageJsonUri.path.substring(0, packageJsonUri.path.length - 'package.json'.length);
-		return absolutePath.substring(rootUri.path.length + 1);
+	if (workspace.getConfiguration('npm', scope).get<boolean>('runSilent')) {
+		result.unshift('--silent');
 	}
+	return result;
+}
 
-	const relativePackageJson = getRelativePath(packageJsonUri);
+function getRelativePath(rootUri: Uri, packageJsonUri: Uri): string {
+	const absolutePath = packageJsonUri.path.substring(0, packageJsonUri.path.length - 'package.json'.length);
+	return absolutePath.substring(rootUri.path.length + 1);
+}
+
+export async function createScriptRunnerTask(packageManager: string, script: string, folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string): Promise<Task> {
+	const kind: INpmTaskDefinition = { type: 'npm', script };
+
+	const relativePackageJson = getRelativePath(folder.uri, packageJsonUri);
 	if (relativePackageJson.length && !kind.path) {
 		kind.path = relativePackageJson.substring(0, relativePackageJson.length - 1);
 	}
-	const taskName = getTaskName(kind.script, relativePackageJson);
+	const taskName = getTaskName(script, relativePackageJson);
 	const cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(cmd), { cwd: cwd }), matcher);
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(folder.uri, ['run', script]), { cwd: cwd }));
 	task.detail = scriptValue;
 
-	const lowerCaseTaskName = kind.script.toLowerCase();
+	const lowerCaseTaskName = script.toLowerCase();
 	if (isBuildTask(lowerCaseTaskName)) {
 		task.group = TaskGroup.Build;
 	} else if (isTestTask(lowerCaseTaskName)) {
@@ -347,6 +340,22 @@ export async function createTask(packageManager: string, script: INpmTaskDefinit
 		// todo@connor4312: all scripts are now debuggable, what is a 'debug script'?
 		task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 	}
+	return task;
+}
+
+export async function createInstallationTask(packageManager: string, folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string): Promise<Task> {
+	const kind: INpmTaskDefinition = { type: 'npm', script: INSTALL_SCRIPT };
+
+	const relativePackageJson = getRelativePath(folder.uri, packageJsonUri);
+	if (relativePackageJson.length && !kind.path) {
+		kind.path = relativePackageJson.substring(0, relativePackageJson.length - 1);
+	}
+	const taskName = getTaskName(INSTALL_SCRIPT, relativePackageJson);
+	const cwd = path.dirname(packageJsonUri.fsPath);
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(folder.uri, [INSTALL_SCRIPT]), { cwd: cwd }));
+	task.detail = scriptValue;
+	task.group = TaskGroup.Clean;
+
 	return task;
 }
 
@@ -403,7 +412,7 @@ export async function runScript(context: ExtensionContext, script: string, docum
 	const uri = document.uri;
 	const folder = workspace.getWorkspaceFolder(uri);
 	if (folder) {
-		const task = await createTask(await getPackageManager(context, folder.uri), script, ['run', script], folder, uri);
+		const task = await createScriptRunnerTask(await getPackageManager(context, folder.uri), script, folder, uri);
 		tasks.executeTask(task);
 	}
 }
