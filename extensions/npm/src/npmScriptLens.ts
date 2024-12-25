@@ -15,8 +15,8 @@ import {
 	workspace,
 	l10n
 } from 'vscode';
-import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
+import { getScriptRunner } from './tasks';
 
 
 const enum Constants {
@@ -87,7 +87,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 		}
 
 		if (this.lensLocation === 'all') {
-			const packageManager = await findPreferredPM(Uri.joinPath(document.uri, '..').fsPath);
+			const scriptRunner = await getScriptRunner(Uri.joinPath(document.uri, '..'));
 			return tokens.scripts.map(
 				({ name, nameRange }) =>
 					new CodeLens(
@@ -95,7 +95,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 						{
 							title,
 							command: 'extension.js-debug.createDebuggerTerminal',
-							arguments: [`${packageManager.name} run ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
+							arguments: [`${scriptRunner} run ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
 						},
 					),
 			);

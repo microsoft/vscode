@@ -251,6 +251,26 @@
           "default": "auto",
           "description": "%config.npm.packageManager%"
         },
+        "npm.scriptRunner": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "auto",
+            "npm",
+            "yarn",
+            "pnpm",
+            "bun"
+          ],
+          "enumDescriptions": [
+            "%config.npm.scriptRunner.auto%",
+            "%config.npm.scriptRunner.npm%",
+            "%config.npm.scriptRunner.yarn%",
+            "%config.npm.scriptRunner.pnpm%",
+            "%config.npm.scriptRunner.bun%"
+          ],
+          "default": "auto",
+          "description": "%config.npm.scriptRunner%"
+        },
         "npm.exclude": {
           "type": [
             "string",
