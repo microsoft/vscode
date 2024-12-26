@@ -55,6 +55,10 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 	config.commands = [
 		// Used to refresh the page from the extension when a new version of the IDE is known to exist.
 		{ id: 'membrane.refreshPage', handler: () => window.location.reload() },
+		// Invoked when the navigator finishes loading
+		{
+			id: 'membrane.completeInitialization', handler: () => window.completeInitialization()
+		},
 		{
 			id: 'membrane.getLaunchParams', handler: () => {
 				// eslint-disable-next-line no-restricted-syntax
