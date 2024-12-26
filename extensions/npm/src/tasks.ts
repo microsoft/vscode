@@ -342,7 +342,7 @@ export async function createScriptRunnerTask(context: ExtensionContext, script: 
 	}
 	const taskName = getTaskName(script, relativePackageJson);
 	const cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(scriptRunner, getCommandLine(folder.uri, ['run', script]), { cwd: cwd }));
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(scriptRunner, getCommandLine(folder.uri, [scriptRunner === 'node' ? '--run' : 'run', script]), { cwd: cwd }));
 	task.detail = scriptValue;
 
 	const lowerCaseTaskName = script.toLowerCase();
@@ -439,7 +439,7 @@ export async function startDebugging(context: ExtensionContext, scriptName: stri
 
 	commands.executeCommand(
 		'extension.js-debug.createDebuggerTerminal',
-		`${scriptRunner} run ${scriptName}`,
+		`${scriptRunner} ${scriptRunner === 'node' ? '--run' : 'run'} ${scriptName}`,
 		folder,
 		{ cwd },
 	);

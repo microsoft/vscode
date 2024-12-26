@@ -16,6 +16,7 @@
 	"config.npm.scriptRunner.yarn": "Use yarn as the script runner.",
 	"config.npm.scriptRunner.pnpm": "Use pnpm as the script runner.",
 	"config.npm.scriptRunner.bun": "Use bun as the script runner.",
+	"config.npm.scriptRunner.node": "Use Node.js as the script runner.",
 	"config.npm.scriptRunner.auto": "Auto-detect which script runner to use based on lock files and installed package managers.",
 	"config.npm.exclude": "Configure glob patterns for folders that should be excluded from automatic script detection.",
 	"config.npm.enableScriptExplorer": "Enable an explorer view for npm scripts when there is no top-level 'package.json' file.",
