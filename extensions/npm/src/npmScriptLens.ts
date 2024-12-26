@@ -95,7 +95,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 						{
 							title,
 							command: 'extension.js-debug.createDebuggerTerminal',
-							arguments: [`${scriptRunner} run ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
+							arguments: [`${scriptRunner} ${scriptRunner === 'node' ? '--run' : 'run'} ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
 						},
 					),
 			);
