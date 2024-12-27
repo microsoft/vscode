@@ -964,7 +964,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	hasPhantomElements(): boolean {
-		return this.findProvider.isShowingFilterResults();
+		return !!this.findProvider?.isShowingFilterResults();
 	}
 
 	override dispose(): void {

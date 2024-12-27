@@ -130,7 +130,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: Verbosity.LONG });
 		}
 
-		return this.labelService.getUriLabel(openable.fileUri);
+		return this.labelService.getUriLabel(openable.fileUri, { appendWorkspaceSuffix: true });
 	}
 
 	private doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {

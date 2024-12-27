@@ -10,7 +10,6 @@ import { TextModel } from './textModel.js';
 import { ITreeSitterParserService } from '../services/treeSitterParserService.js';
 import { IModelContentChangedEvent } from '../textModelEvents.js';
 import { AbstractTokens } from './tokens.js';
-import { ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 
 export class TreeSitterTokens extends AbstractTokens {
@@ -95,9 +94,9 @@ export class TreeSitterTokens extends AbstractTokens {
 		// TODO @alexr00 implement once we have custom parsing and don't just feed in the whole text model value
 		return StandardTokenType.Other;
 	}
-	public override tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult {
+	public override tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
 		// TODO @alexr00 understand what this is for and implement
-		return { mainLineTokens: null, additionalLines: null };
+		return null;
 	}
 	public override get hasTokens(): boolean {
 		// TODO @alexr00 once we have a token store, implement properly
