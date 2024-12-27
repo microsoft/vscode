@@ -5,11 +5,11 @@
 
 import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -36,6 +36,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private _tools = new Map<string, IToolEntry>();
 	private _toolContextKeys = new Set<string>();
+
+
+	private _callsByRequestId = new Map<string, IDisposable[]>();
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -141,10 +144,34 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
 		let toolInvocation: ChatToolInvocation | undefined;
 
+		let requestId: string | undefined;
+		let store: DisposableStore | undefined;
 		try {
 			if (dto.context) {
-				const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
+				store = new DisposableStore();
+				const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel | undefined;
+				if (!model) {
+					throw new Error(`Tool called for unknown chat session`);
+				}
+
 				const request = model.getRequests().at(-1)!;
+				requestId = request.id;
+
+				// Replace the token with a new token that we can cancel when cancelToolCallsForRequest is called
+				if (!this._callsByRequestId.has(requestId)) {
+					this._callsByRequestId.set(requestId, []);
+				}
+				this._callsByRequestId.get(requestId)!.push(store);
+
+				const source = new CancellationTokenSource();
+				store.add(toDisposable(() => {
+					toolInvocation!.confirmed.complete(false);
+					source.dispose(true);
+				}));
+				store.add(token.onCancellationRequested(() => {
+					source.cancel();
+				}));
+				token = source.token;
 
 				const prepared = tool.impl.prepareToolInvocation ?
 					await tool.impl.prepareToolInvocation(dto.parameters, token)
@@ -153,9 +180,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
 				const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
 				toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
-				token.onCancellationRequested(() => {
-					toolInvocation!.confirmed.complete(false);
-				});
+
 				model.acceptResponseProgress(request, toolInvocation);
 				if (prepared?.confirmationMessages) {
 					const userConfirmed = await toolInvocation.confirmed.p;
@@ -176,6 +201,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			}
 
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 
 			const result = await tool.impl.invoke(dto, countTokens, token);
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
@@ -200,7 +228,39 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw err;
 		} finally {
 			toolInvocation?.isCompleteDeferred.complete();
+
+			if (requestId && store) {
+				this.cleanupCallDisposables(requestId, store);
+			}
 		}
+	}
+
+	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {
+		const disposables = this._callsByRequestId.get(requestId);
+		if (disposables) {
+			const index = disposables.indexOf(store);
+			if (index > -1) {
+				disposables.splice(index, 1);
+			}
+			if (disposables.length === 0) {
+				this._callsByRequestId.delete(requestId);
+			}
+		}
+		store.dispose();
+	}
+
+	cancelToolCallsForRequest(requestId: string): void {
+		const calls = this._callsByRequestId.get(requestId);
+		if (calls) {
+			calls.forEach(call => call.dispose());
+			this._callsByRequestId.delete(requestId);
+		}
+	}
+
+	public override dispose(): void {
+		super.dispose();
+
+		this._callsByRequestId.forEach(calls => dispose(calls));
 	}
 }
 

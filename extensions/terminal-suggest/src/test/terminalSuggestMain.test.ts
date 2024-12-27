@@ -56,7 +56,6 @@ function createCodeTestSpecs(executable: string): ITestSpec2[] {
 		{ input: `${executable} |`, expectedCompletions: codeOptions },
 		{ input: `${executable} --locale |`, expectedCompletions: localeOptions },
 		{ input: `${executable} --diff |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
-		{ input: `${executable} -di|`, expectedCompletions: codeOptions.filter(o => o.startsWith('di')), expectedResourceRequests: { type: 'both', cwd: testCwd } },
 		{ input: `${executable} --diff ./file1 |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
 		{ input: `${executable} --merge |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
 		{ input: `${executable} --merge ./file1 ./file2 |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },

@@ -14,7 +14,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export function getAriaId(index: number): string {
-	return `simple-suggest-aria-id:${index}`;
+	return `simple-suggest-aria-id-${index}`;
 }
 
 export interface ISimpleSuggestionTemplateData {

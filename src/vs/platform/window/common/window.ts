@@ -63,6 +63,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly noRecentEntry?: boolean;
 
 	readonly addMode?: boolean;
+	readonly removeMode?: boolean;
 
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
@@ -71,8 +72,9 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly waitMarkerFileURI?: URI;
 }
 
-export interface IAddFoldersRequest {
+export interface IAddRemoveFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
+	readonly foldersToRemove: UriComponents[];
 }
 
 interface IOpenedWindow {

@@ -314,41 +314,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		win.focus();
 	}
 
-	handleTitleDoubleClick(): void {
-		const win = this.win;
-		if (!win) {
-			return;
-		}
-
-		// Respect system settings on mac with regards to title click on windows title
-		if (isMacintosh) {
-			const action = electron.systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
-			switch (action) {
-				case 'Minimize':
-					win.minimize();
-					break;
-				case 'None':
-					break;
-				case 'Maximize':
-				default:
-					if (win.isMaximized()) {
-						win.unmaximize();
-					} else {
-						win.maximize();
-					}
-			}
-		}
-
-		// Linux/Windows: just toggle maximize/minimized state
-		else {
-			if (win.isMaximized()) {
-				win.unmaximize();
-			} else {
-				win.maximize();
-			}
-		}
-	}
-
 	//#region Window Control Overlays
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';

@@ -11,12 +11,13 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { AuxiliaryBarVisibleContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
-import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
+import { closeIcon } from '../panel/panelActions.js';
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the auxiliary bar on in its right position.'));
@@ -34,11 +35,15 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 			title: ToggleAuxiliaryBarAction.LABEL,
 			toggled: {
 				condition: AuxiliaryBarVisibleContext,
-				title: localize('secondary sidebar', "Secondary Side Bar"),
+				title: localize('closeSecondarySideBar', 'Hide Secondary Side Bar'),
+				icon: closeIcon,
 				mnemonicTitle: localize({ key: 'secondary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "Secondary Si&&de Bar"),
 			},
-
+			icon: closeIcon, // Ensures no flickering when using toggled.icon
 			category: Categories.View,
+			metadata: {
+				description: localize('openAndCloseAuxiliaryBar', 'Open/Show and Close/Hide Secondary Side Bar'),
+			},
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -54,6 +59,11 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
 					order: 2
+				}, {
+					id: MenuId.AuxiliaryBarTitle,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT)
 				}
 			]
 		});
@@ -66,6 +76,21 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 }
 
 registerAction2(ToggleAuxiliaryBarAction);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.closeAuxiliaryBar',
+			title: localize2('closeSecondarySideBar', 'Hide Secondary Side Bar'),
+			category: Categories.View,
+			precondition: AuxiliaryBarVisibleContext,
+			f1: true,
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.AUXILIARYBAR_PART);
+	}
+});
 
 registerAction2(class FocusAuxiliaryBarAction extends Action2 {
 
@@ -124,14 +149,14 @@ MenuRegistry.appendMenuItems([
 			order: 2
 		}
 	}, {
-		id: MenuId.ViewTitleContext,
+		id: MenuId.ViewContainerTitleContext,
 		item: {
 			group: '3_workbench_layout_move',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
 				title: localize2('hideAuxiliaryBar', 'Hide Secondary Side Bar'),
 			},
-			when: ContextKeyExpr.and(AuxiliaryBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+			when: ContextKeyExpr.and(AuxiliaryBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 			order: 2
 		}
 	}
