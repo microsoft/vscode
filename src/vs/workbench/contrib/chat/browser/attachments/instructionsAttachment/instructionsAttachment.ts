@@ -17,14 +17,13 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { NonPromptSnippetFile } from '../../../common/promptFileReferenceErrors.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { ChatInstructionsAttachment } from '../../chatAttachmentModel/chatInstructionsAttachment.js';
+import { ChatInstructionsAttachmentModel } from '../../chatAttachmentModel/chatInstructionsAttachment.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
@@ -36,31 +35,6 @@ export class InstructionsAttachmentWidget extends Disposable {
 	 * The root DOM node of the widget.
 	 */
 	public readonly domNode: HTMLElement;
-
-	/**
-	 * Get `URI` for the main reference and `URI`s of all valid
-	 * child references it may contain.
-	 */
-	public get references(): readonly URI[] {
-		const { reference, enabled, errorCondition } = this.model;
-
-		// return no references if the attachment is disabled
-		if (!enabled) {
-			return [];
-		}
-
-		// if the model has an error, return no references
-		if (errorCondition && !(errorCondition instanceof NonPromptSnippetFile)) {
-			return [];
-		}
-
-		// otherwise return `URI` for the main reference and
-		// all valid child `URI` references it may contain
-		return [
-			...reference.validFileReferenceUris,
-			reference.uri,
-		];
-	}
 
 	/**
 	 * Get the `URI` associated with the model reference.
@@ -91,7 +65,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
-		private readonly model: ChatInstructionsAttachment,
+		private readonly model: ChatInstructionsAttachmentModel,
 		private readonly resourceLabels: ResourceLabels,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -123,7 +97,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this.renderDisposables.clear();
 		this.domNode.classList.remove('warning', 'error', 'disabled');
 
-		const { enabled, errorCondition } = this.model;
+		const { enabled, resolveIssue: errorCondition } = this.model;
 		if (!enabled) {
 			this.domNode.classList.add('disabled');
 		}

@@ -16,7 +16,7 @@ import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference } from '../../
  * Object that represents an error that may occur during
  * the process of resolving prompt instructions reference.
  */
-export interface IErrorCondition {
+interface IIssue {
 	/**
 	 * Type of the failure. Currently all errors that occur on
 	 * the "main" root reference directly attached to the chat
@@ -26,15 +26,15 @@ export interface IErrorCondition {
 	type: 'error' | 'warning';
 
 	/**
-	 * Error message.
+	 * Error or warning message.
 	 */
 	message: string;
 }
 
 /**
- * Chat prompt instructions attachment.
+ * Model for a single chat prompt instructions attachment.
  */
-export class ChatInstructionsAttachment extends Disposable {
+export class ChatInstructionsAttachmentModel extends Disposable {
 	/**
 	 * Private reference of the underlying prompt instructions
 	 * reference instance.
@@ -47,11 +47,40 @@ export class ChatInstructionsAttachment extends Disposable {
 		return this._reference;
 	}
 
+
 	/**
-	 * If the prompt instructions reference has failed to resolve, this
-	 * field error that contains failure details, otherwise `undefined`.
+	 * Get `URI` for the main reference and `URI`s of all valid
+	 * child references it may contain.
 	 */
-	public get errorCondition(): IErrorCondition | undefined {
+	public get references(): readonly URI[] {
+		const { reference, enabled, resolveIssue } = this;
+
+		// return no references if the attachment is disabled
+		if (!enabled) {
+			return [];
+		}
+
+		// if the model has an error, return no references
+		if (resolveIssue && !(resolveIssue instanceof NonPromptSnippetFile)) {
+			return [];
+		}
+
+		// otherwise return `URI` for the main reference and
+		// all valid child `URI` references it may contain
+		return [
+			...reference.validFileReferenceUris,
+			reference.uri,
+		];
+	}
+
+
+	/**
+	 * If the prompt instructions reference (or any of its child references) has
+	 * failed to resolve, this field contains the failure details, otherwise `undefined`.
+	 *
+	 * See {@linkcode IIssue}.
+	 */
+	public get resolveIssue(): IIssue | undefined {
 		const { errorCondition } = this._reference;
 
 		const errorConditions = this.collectErrorConditions();
@@ -72,7 +101,7 @@ export class ChatInstructionsAttachment extends Disposable {
 			? `\n-\n +${restErrors.length} more error${restErrors.length > 1 ? 's' : ''}`
 			: '';
 
-		const errorMessage = this.getErrorMessage(firstError, isRootError);
+		const errorMessage = this.getMessage(firstError, isRootError);
 		return {
 			type,
 			message: `${errorMessage}${moreSuffix}`,
@@ -80,13 +109,13 @@ export class ChatInstructionsAttachment extends Disposable {
 	}
 
 	/**
-	 * Get error message for the provided error condition object.
+	 * Get message for the provided error condition object.
 	 *
 	 * @param error Error object.
 	 * @param isRootError If the error happened on the the "main" root reference.
 	 * @returns Error message.
 	 */
-	private getErrorMessage(
+	private getMessage(
 		error: TErrorCondition,
 		isRootError: boolean,
 	): string {

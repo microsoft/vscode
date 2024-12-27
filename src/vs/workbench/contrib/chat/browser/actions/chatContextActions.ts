@@ -574,9 +574,11 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
+				const { promptInstructions } = widget.attachmentModel;
+
 				// find all prompt instruction files in the user project
 				// and present them to the user so they can select one
-				const filesPromise = widget.attachmentModel.promptInstructions.listFiles()
+				const filesPromise = promptInstructions.listNonAttachedFiles()
 					.then((files) => {
 						return files.map((file) => {
 							const result: IQuickPickItem & { value: URI } = {
@@ -604,7 +606,7 @@ export class AttachContextAction extends Action2 {
 				}
 
 				// add selected prompt instructions reference to the chat attachments model
-				widget.attachmentModel.promptInstructions.add(selectedFile.value);
+				promptInstructions.add(selectedFile.value);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;

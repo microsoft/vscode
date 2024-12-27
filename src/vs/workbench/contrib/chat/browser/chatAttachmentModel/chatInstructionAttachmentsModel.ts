@@ -5,8 +5,8 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ChatInstructionsAttachment } from './chatInstructionsAttachment.js';
 import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
+import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -19,7 +19,7 @@ const PROMPT_INSTRUCTIONS_SETTING_NAME = 'chat.experimental.prompt-instructions.
 
 /**
  * Model for a collection of prompt instruction attachments.
- * See {@linkcode ChatInstructionsAttachment}.
+ * See {@linkcode ChatInstructionsAttachmentModel}.
  */
 export class ChatInstructionAttachmentsModel extends Disposable {
 	/**
@@ -30,8 +30,22 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	/**
 	 * List of all prompt instruction attachments.
 	 */
-	private attachments: DisposableMap<string, ChatInstructionsAttachment> =
+	private attachments: DisposableMap<string, ChatInstructionsAttachmentModel> =
 		this._register(new DisposableMap());
+
+	/**
+	 * Get all `URI`s of all valid references, including all
+	 * the possible references nested inside the children.
+	 */
+	public get references(): readonly URI[] {
+		const result = [];
+
+		for (const child of this.attachments.values()) {
+			result.push(...child.references);
+		}
+
+		return result;
+	}
 
 	/**
 	 * Event that fires then this model is updated.
@@ -53,13 +67,13 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	 * Event that fires when a new prompt instruction attachment is added.
 	 * See {@linkcode onAdd}.
 	 */
-	protected _onAdd = this._register(new Emitter<ChatInstructionsAttachment>());
+	protected _onAdd = this._register(new Emitter<ChatInstructionsAttachmentModel>());
 	/**
 	 * The `onAdd` event fires when a new prompt instruction attachment is added.
 	 *
 	 * @param callback Function to invoke on add.
 	 */
-	public onAdd(callback: (attachment: ChatInstructionsAttachment) => unknown): this {
+	public onAdd(callback: (attachment: ChatInstructionsAttachmentModel) => unknown): this {
 		this._register(this._onAdd.event(callback));
 
 		return this;
@@ -85,7 +99,7 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 			return this;
 		}
 
-		const instruction = this.initService.createInstance(ChatInstructionsAttachment, uri)
+		const instruction = this.initService.createInstance(ChatInstructionsAttachmentModel, uri)
 			.onUpdate(this._onUpdate.fire)
 			.onDispose(() => {
 				this.attachments.deleteAndDispose(uri.path);
@@ -118,10 +132,10 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	}
 
 	/**
-	 * List all prompt instruction files available.
+	 * List prompt instruction files available and not attached yet.
 	 */
-	public async listFiles(): Promise<readonly URI[]> {
-		return await this.instructionsFileReader.listFiles();
+	public async listNonAttachedFiles(): Promise<readonly URI[]> {
+		return await this.instructionsFileReader.listFiles(this.references);
 	}
 
 	/**

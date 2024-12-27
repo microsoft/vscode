@@ -36,13 +36,23 @@ export class ChatInstructionsFileLocator {
 	/**
 	 * List all prompt instructions files from the filesystem.
 	 *
+	 * @param exclude List of `URIs` to exclude from the result.
 	 * @returns List of prompt instructions files found in the workspace.
 	 */
-	public async listFiles(): Promise<readonly URI[]> {
-		const locations = this.getSourceLocations();
-		const result = await this.findInstructionsFiles(locations);
+	public async listFiles(exclude: ReadonlyArray<URI>): Promise<readonly URI[]> {
+		// create a set from the list of URIs for convenience
+		const excludeSet: Set<string> = new Set();
+		for (const excludeUri of exclude) {
+			excludeSet.add(excludeUri.path);
+		}
 
-		return result;
+		// filter out the excluded paths from the locations list
+		const locations = this.getSourceLocations()
+			.filter((location) => {
+				return !excludeSet.has(location.path);
+			});
+
+		return await this.findInstructionFiles(locations, excludeSet);
 	}
 
 	/**
@@ -108,10 +118,12 @@ export class ChatInstructionsFileLocator {
 	 * Finds all existent prompt instruction files in the provided locations.
 	 *
 	 * @param locations List of locations to search for prompt instruction files in.
+	 * @param exclude Map of `path -> boolean` to exclude from the result.
 	 * @returns List of prompt instruction files found in the provided locations.
 	 */
-	private async findInstructionsFiles(
+	private async findInstructionFiles(
 		locations: readonly URI[],
+		exclude: ReadonlySet<string>,
 	): Promise<readonly URI[]> {
 		const results = await this.fileService.resolveAll(
 			locations.map((location) => {
@@ -139,6 +151,10 @@ export class ChatInstructionsFileLocator {
 				}
 
 				if (!name.endsWith(INSTRUCTIONS_FILE_EXTENSION)) {
+					continue;
+				}
+
+				if (exclude.has(resource.path)) {
 					continue;
 				}
 

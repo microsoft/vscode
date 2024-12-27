@@ -32,13 +32,7 @@ export class InstructionAttachmentsWidget extends Disposable {
 	 * the possible references nested inside the children.
 	 */
 	public get references(): readonly URI[] {
-		const result = [];
-
-		for (const child of this.children) {
-			result.push(...child.references);
-		}
-
-		return result;
+		return this.model.references;
 	}
 
 	/**
