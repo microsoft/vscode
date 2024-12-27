@@ -925,6 +925,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
+/**
+ * Styles related to `prompt instruction` attachments.
+ */
+.chat-attached-context .chat-attached-context-attachment.chat-prompt-instructions-attachment .codicon {
+	color: inherit;
+}
+.chat-attached-context .chat-attached-context-attachment.chat-prompt-instructions-attachment {
+	border-color: currentColor;
+}
+.chat-attached-context .chat-attached-context-attachment.chat-prompt-instructions-attachment.warning {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+.chat-attached-context .chat-attached-context-attachment.chat-prompt-instructions-attachment.error {
+	color: var(--vscode-notificationsErrorIcon-foreground);
+}
+
 .chat-notification-widget .chat-warning-codicon .codicon-warning,
 .chat-quota-error-widget .codicon-warning {
 	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */

@@ -65,7 +65,9 @@ export function registerChatContextActions() {
 /**
  * We fill the quickpick with these types, and enable some quick access providers
  */
-type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem | IScreenShotQuickPickItem | IRelatedFilesQuickPickItem;
+type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem |
+	IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
+	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IPromptInstructionsQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -117,6 +119,17 @@ function isRelatedFileQuickPickItem(obj: unknown): obj is IRelatedFilesQuickPick
 		typeof obj === 'object'
 		&& (obj as IRelatedFilesQuickPickItem).kind === 'related-files'
 	);
+}
+
+/**
+ * Checks is a provided object is a prompt instructions quick pick item.
+ */
+function isPromptInstructionsQuickPickItem(obj: unknown): obj is IPromptInstructionsQuickPickItem {
+	if (!obj || typeof obj !== 'object') {
+		return false;
+	}
+
+	return ('kind' in obj && obj.kind === 'prompt-instructions');
 }
 
 interface IRelatedFilesQuickPickItem extends IQuickPickItem {
@@ -175,6 +188,22 @@ interface IScreenShotQuickPickItem extends IQuickPickItem {
 	kind: 'screenshot';
 	id: string;
 	icon?: ThemeIcon;
+}
+
+/**
+ * Quick pick item for prompt instructions attachment.
+ */
+interface IPromptInstructionsQuickPickItem extends IQuickPickItem {
+	/**
+	 * Unique kind identifier of the prompt instructions
+	 * attachment quick pick item.
+	 */
+	kind: 'prompt-instructions';
+
+	/**
+	 * The id of the qucik pick item.
+	 */
+	id: string;
 }
 
 abstract class AttachFileAction extends Action2 {
@@ -544,6 +573,38 @@ export class AttachContextAction extends Action2 {
 				if (blob) {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
+			} else if (isPromptInstructionsQuickPickItem(pick)) {
+				// find all prompt instruction files in the user project
+				// and present them to the user so they can select one
+				const filesPromise = widget.attachmentModel.promptInstructions.listFiles()
+					.then((files) => {
+						return files.map((file) => {
+							const result: IQuickPickItem & { value: URI } = {
+								type: 'item',
+								label: labelService.getUriBasenameLabel(file),
+								description: labelService.getUriLabel(dirname(file), { relative: true }),
+								tooltip: file.fsPath,
+								value: file,
+							};
+
+							return result;
+						});
+					});
+
+				const selectedFile = await quickInputService.pick(
+					filesPromise,
+					{
+						placeHolder: localize('promptInstructions', 'Add prompt instructions file'),
+						canPickMany: false,
+					});
+
+				// if the quick pick dialog was dismissed, nothing to do
+				if (!selectedFile) {
+					return;
+				}
+
+				// add selected prompt instructions reference to the chat attachments model
+				widget.attachmentModel.promptInstructions.add(selectedFile.value);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -755,6 +816,17 @@ export class AttachContextAction extends Action2 {
 					iconClass: ThemeIcon.asClassName(Codicon.search),
 				});
 			}
+		}
+
+		// if the `prompt instructions` feature is enabled, add
+		// the `Prompt Instructions` attachment type to the list
+		if (widget.attachmentModel.promptInstructions.featureEnabled) {
+			quickPickItems.push({
+				kind: 'prompt-instructions',
+				id: 'prompt-instructions',
+				label: localize('chatContext.promptInstructions', 'Prompt Instructions'),
+				iconClass: ThemeIcon.asClassName(Codicon.lightbulbSparkle),
+			});
 		}
 
 		function extractTextFromIconLabel(label: string | undefined): string {

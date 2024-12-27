@@ -116,18 +116,17 @@ export class PromptFileReference extends Disposable {
 		this.onFilesChanged = this.onFilesChanged.bind(this);
 
 		// make sure the variable is updated on file changes
-		// but only for the prompt snippet files
-		if (this.isPromptSnippetFile) {
-			this.addFilesystemListeners();
-		}
+		this.addFilesystemListeners();
 	}
 
 	/**
 	 * Subscribe to the `onUpdate` event.
 	 * @param callback
 	 */
-	public onUpdate(callback: () => unknown) {
+	public onUpdate(callback: () => unknown): this {
 		this._register(this._onUpdate.event(callback));
+
+		return this;
 	}
 
 	/**
@@ -200,6 +199,12 @@ export class PromptFileReference extends Disposable {
 		const fileChanged = event.contains(this.uri, FileChangeType.UPDATED);
 		const fileDeleted = event.contains(this.uri, FileChangeType.DELETED);
 		if (!fileChanged && !fileDeleted) {
+			return;
+		}
+
+		// handle file changes only for prompt snippet files but in the case a file was
+		// deleted, it does not matter if it was a prompt - we still need to handle it
+		if (fileChanged && !this.isPromptSnippetFile) {
 			return;
 		}
 

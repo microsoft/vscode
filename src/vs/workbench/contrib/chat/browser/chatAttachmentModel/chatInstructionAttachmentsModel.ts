@@ -1,0 +1,149 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { URI } from '../../../../../base/common/uri.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ChatInstructionsAttachment } from './chatInstructionsAttachment.js';
+import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+
+/**
+ * Configuration setting name for the `prompt instructions` feature.
+ * Set to `true` to enable the feature for yourself.
+ */
+const PROMPT_INSTRUCTIONS_SETTING_NAME = 'chat.experimental.prompt-instructions.enabled';
+
+/**
+ * Model for a collection of prompt instruction attachments.
+ * See {@linkcode ChatInstructionsAttachment}.
+ */
+export class ChatInstructionAttachmentsModel extends Disposable {
+	/**
+	 * Helper to locate prompt instruction files on the disk.
+	 */
+	private readonly instructionsFileReader: ChatInstructionsFileLocator;
+
+	/**
+	 * List of all prompt instruction attachments.
+	 */
+	private attachments: DisposableMap<string, ChatInstructionsAttachment> =
+		this._register(new DisposableMap());
+
+	/**
+	 * Event that fires then this model is updated.
+	 *
+	 * See {@linkcode onUpdate}.
+	 */
+	protected _onUpdate = this._register(new Emitter<void>());
+	/**
+	 * Subscribe to the `onUpdate` event.
+	 * @param callback Function to invoke on update.
+	 */
+	public onUpdate(callback: () => unknown): this {
+		this._register(this._onUpdate.event(callback));
+
+		return this;
+	}
+
+	/**
+	 * Event that fires when a new prompt instruction attachment is added.
+	 * See {@linkcode onAdd}.
+	 */
+	protected _onAdd = this._register(new Emitter<ChatInstructionsAttachment>());
+	/**
+	 * The `onAdd` event fires when a new prompt instruction attachment is added.
+	 *
+	 * @param callback Function to invoke on add.
+	 */
+	public onAdd(callback: (attachment: ChatInstructionsAttachment) => unknown): this {
+		this._register(this._onAdd.event(callback));
+
+		return this;
+	}
+
+	constructor(
+		@IInstantiationService private readonly initService: IInstantiationService,
+		@IConfigurationService private readonly configService: IConfigurationService,
+	) {
+		super();
+
+		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
+		this.instructionsFileReader = initService.createInstance(ChatInstructionsFileLocator);
+	}
+
+	/**
+	 * Add a prompt instruction attachment instance with the provided `URI`.
+	 * @param uri URI of the prompt instruction attachment to add.
+	 */
+	public add(uri: URI): this {
+		// if already exists, nothing to do
+		if (this.attachments.has(uri.path)) {
+			return this;
+		}
+
+		const instruction = this.initService.createInstance(ChatInstructionsAttachment, uri)
+			.onUpdate(this._onUpdate.fire)
+			.onDispose(() => {
+				this.attachments.deleteAndDispose(uri.path);
+				this._onUpdate.fire();
+			});
+
+		this.attachments.set(uri.path, instruction);
+		instruction.resolve();
+
+		this._onAdd.fire(instruction);
+		this._onUpdate.fire();
+
+		return this;
+	}
+
+	/**
+	 * Remove a prompt instruction attachment instance by provided `URI`.
+	 * @param uri URI of the prompt instruction attachment to remove.
+	 */
+	public remove(uri: URI): this {
+		// if does not exist, nothing to do
+		if (!this.attachments.has(uri.path)) {
+			return this;
+		}
+
+		this.attachments.deleteAndDispose(uri.path);
+		this._onUpdate.fire();
+
+		return this;
+	}
+
+	/**
+	 * List all prompt instruction files available.
+	 */
+	public async listFiles(): Promise<readonly URI[]> {
+		return await this.instructionsFileReader.listFiles();
+	}
+
+	/**
+	 * Checks if the prompt instructions feature is enabled in the user settings.
+	 * The setting can be set to `true`, `'true'`, `True`, `TRUE`, etc.
+	 * All other values are treated as the `false` value, which is the `default`.
+	 */
+	public get featureEnabled(): boolean {
+		const value = this.configService.getValue(PROMPT_INSTRUCTIONS_SETTING_NAME);
+
+		if (!value) {
+			return false;
+		}
+
+		if (value === true) {
+			return true;
+		}
+
+		if (typeof value === 'string' && value.toLowerCase().trim() === 'true') {
+			return true;
+		}
+
+		return false;
+	}
+}
