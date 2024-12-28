@@ -103,22 +103,18 @@ function isTestTask(name: string): boolean {
 	}
 	return false;
 }
+const preScripts: Set<string> = new Set([
+	'est', /* test typo? */ 'install', 'pack', 'pack', 'publish', 'restart',
+	'shrinkwrap', 'stop', 'uninstall', 'version'
+]);
 
-function isPrePostScript(name: string): boolean {
-	const prePostScripts: Set<string> = new Set([
-		'preuninstall', 'postuninstall', 'prepack', 'postpack', 'preinstall', 'postinstall',
-		'prepack', 'postpack', 'prepublish', 'postpublish', 'preversion', 'postversion',
-		'prestop', 'poststop', 'prerestart', 'postrestart', 'preshrinkwrap', 'postshrinkwrap',
-		'pretest', 'postest', 'prepublishOnly'
-	]);
+const postScripts: Set<string> = new Set([
+	'install', 'pack', 'pack', 'publish', 'publishOnly', 'restart', 'shrinkwrap',
+	'stop', 'test', 'uninstall', 'version'
+]);
 
-	const prepost = ['pre' + name, 'post' + name];
-	for (const knownScript of prePostScripts) {
-		if (knownScript === prepost[0] || knownScript === prepost[1]) {
-			return true;
-		}
-	}
-	return false;
+function canHavePrePostScript(name: string): boolean {
+	return preScripts.has(name) || postScripts.has(name);
 }
 
 export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
@@ -350,7 +346,7 @@ export async function createScriptRunnerTask(context: ExtensionContext, script: 
 		task.group = TaskGroup.Build;
 	} else if (isTestTask(lowerCaseTaskName)) {
 		task.group = TaskGroup.Test;
-	} else if (isPrePostScript(lowerCaseTaskName)) {
+	} else if (canHavePrePostScript(lowerCaseTaskName)) {
 		task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
 	} else if (scriptValue && isDebugScript(scriptValue)) {
 		// todo@connor4312: all scripts are now debuggable, what is a 'debug script'?
