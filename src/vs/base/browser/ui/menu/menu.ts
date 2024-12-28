@@ -1373,6 +1373,13 @@ ${formatRule(Codicon.menuSubmenu)}
 			}
 		`;
 
+		// For z-index of submenus
+		result += `
+		.monaco-menu .action-item .monaco-submenu {
+			z-index: 1;
+		}
+		`;
+
 		// Scrollbars
 		const scrollbarShadowColor = style.scrollbarShadow;
 		if (scrollbarShadowColor) {
