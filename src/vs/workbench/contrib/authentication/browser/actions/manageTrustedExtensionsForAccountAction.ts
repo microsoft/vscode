@@ -107,7 +107,12 @@ class ManageTrustedExtensionsForAccountActionImpl {
 	}
 
 	private async _getItems(providerId: string, accountLabel: string) {
-		const allowedExtensions = this._authenticationAccessService.readAllowedExtensions(providerId, accountLabel);
+		let allowedExtensions = this._authenticationAccessService.readAllowedExtensions(providerId, accountLabel);
+		// only include extensions that are installed
+		const resolvedExtensions = await Promise.all(allowedExtensions.map(ext => this._extensionService.getExtension(ext.id)));
+		allowedExtensions = resolvedExtensions
+			.map((ext, i) => ext ? allowedExtensions[i] : undefined)
+			.filter(ext => !!ext);
 		const trustedExtensionAuthAccess = this._productService.trustedExtensionAuthAccess;
 		const trustedExtensionIds =
 			// Case 1: trustedExtensionAuthAccess is an array
@@ -221,7 +226,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			quickPick.hide();
 		}));
 		disposableStore.add(quickPick.onDidTriggerItemButton(e =>
-			this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id)
+			this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, providerId)
 		));
 		return quickPick;
 	}

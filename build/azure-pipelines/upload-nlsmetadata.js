@@ -13,7 +13,7 @@ const path = require("path");
 const fs_1 = require("fs");
 const azure = require('gulp-azure-storage');
 const commit = process.env['BUILD_SOURCEVERSION'];
-const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
+const credential = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
 function main() {
     return new Promise((c, e) => {
         const combinedMetadataJson = es.merge(

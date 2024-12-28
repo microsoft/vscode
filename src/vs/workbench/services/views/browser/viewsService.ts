@@ -289,10 +289,14 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	getFocusedViewName(): string {
+	getFocusedView(): IViewDescriptor | null {
 		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString());
+	}
+
+	getFocusedViewName(): string {
 		const textEditorFocused = this.editorService.activeTextEditorControl?.hasTextFocus() ? localize('editor', "Text Editor") : undefined;
-		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name?.value ?? textEditorFocused ?? '';
+		return this.getFocusedView()?.name?.value ?? textEditorFocused ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
@@ -455,7 +459,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						id,
 						title: mnemonicTitle,
 					},
-					group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+					group: defaultLocation === ViewContainerLocation.Sidebar ? '3_sidebar' : defaultLocation === ViewContainerLocation.AuxiliaryBar ? '4_auxbar' : '5_panel',
 					when: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
 					order: order ?? Number.MAX_VALUE
 				}));
@@ -524,7 +528,7 @@ export class ViewsService extends Disposable implements IViewsService {
 							id: commandId,
 							title: viewDescriptor.openCommandActionDescriptor.mnemonicTitle,
 						},
-						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_sidebar' : defaultLocation === ViewContainerLocation.AuxiliaryBar ? '4_auxbar' : '5_panel',
 						when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
 						order: viewDescriptor.openCommandActionDescriptor.order ?? Number.MAX_VALUE
 					}));
@@ -611,7 +615,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					viewDescriptorService.moveViewContainerToLocation(defaultContainer, defaultLocation, undefined, this.desc.id);
 				}
 
-				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!, undefined, this.desc.id);
+				viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer, undefined, this.desc.id);
 				accessor.get(IViewsService).openView(viewDescriptor.id, true);
 			}
 		});

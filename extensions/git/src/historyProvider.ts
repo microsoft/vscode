@@ -45,6 +45,29 @@ function toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
 	}
 }
 
+function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, ref2: SourceControlHistoryItemRef): number {
+	const getOrder = (ref: SourceControlHistoryItemRef): number => {
+		if (ref.id.startsWith('refs/heads/')) {
+			return 1;
+		} else if (ref.id.startsWith('refs/remotes/')) {
+			return 2;
+		} else if (ref.id.startsWith('refs/tags/')) {
+			return 3;
+		}
+
+		return 99;
+	};
+
+	const ref1Order = getOrder(ref1);
+	const ref2Order = getOrder(ref2);
+
+	if (ref1Order !== ref2Order) {
+		return ref1Order - ref2Order;
+	}
+
+	return ref1.name.localeCompare(ref2.name);
+}
+
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
@@ -334,14 +357,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						icon: new ThemeIcon('target')
 					});
 					break;
-				case ref.startsWith('tag: refs/tags/'):
-					references.push({
-						id: ref.substring('tag: '.length),
-						name: ref.substring('tag: refs/tags/'.length),
-						revision: commit.hash,
-						icon: new ThemeIcon('tag')
-					});
-					break;
 				case ref.startsWith('refs/heads/'):
 					references.push({
 						id: ref,
@@ -358,10 +373,18 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						icon: new ThemeIcon('cloud')
 					});
 					break;
+				case ref.startsWith('tag: refs/tags/'):
+					references.push({
+						id: ref.substring('tag: '.length),
+						name: ref.substring('tag: refs/tags/'.length),
+						revision: commit.hash,
+						icon: new ThemeIcon('tag')
+					});
+					break;
 			}
 		}
 
-		return references;
+		return references.sort(compareSourceControlHistoryItemRef);
 	}
 
 	private async resolveHEADMergeBase(): Promise<Branch | undefined> {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../dom.js';
+import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
 import { IHistoryNavigationWidget } from '../../history.js';
@@ -11,18 +12,17 @@ import { MarkdownRenderOptions } from '../../markdownRenderer.js';
 import { ActionBar } from '../actionbar/actionbar.js';
 import * as aria from '../aria/aria.js';
 import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview.js';
-import type { IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
-import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { ScrollableElement } from '../scrollbar/scrollableElement.js';
 import { Widget } from '../widget.js';
 import { IAction } from '../../../common/actions.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { HistoryNavigator } from '../../../common/history.js';
+import { HistoryNavigator, IHistory } from '../../../common/history.js';
 import { equals } from '../../../common/objects.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
 import './inputBox.css';
 import * as nls from '../../../../nls.js';
+import { MutableDisposable, type IDisposable } from '../../../common/lifecycle.js';
 
 
 const $ = dom.$;
@@ -39,6 +39,7 @@ export interface IInputOptions {
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly history?: IHistory<string>;
 }
 
 export interface IInputBoxStyles {
@@ -114,7 +115,7 @@ export class InputBox extends Widget {
 	private cachedContentHeight: number | undefined;
 	private maxHeight: number = Number.POSITIVE_INFINITY;
 	private scrollableElement: ScrollableElement | undefined;
-	private hover: IManagedHover | undefined;
+	private readonly hover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -234,10 +235,13 @@ export class InputBox extends Widget {
 
 	public setTooltip(tooltip: string): void {
 		this.tooltip = tooltip;
-		if (!this.hover) {
-			this.hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.input, tooltip));
-		} else {
-			this.hover.update(tooltip);
+		if (!this.hover.value) {
+			this.hover.value = this._register(getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.input, () => ({
+				content: this.tooltip,
+				appearance: {
+					compact: true,
+				}
+			})));
 		}
 	}
 
@@ -403,7 +407,7 @@ export class InputBox extends Widget {
 		this.element.classList.add(this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
-		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(styles.border, 'transparent')}`;
+		this.element.style.border = `1px solid ${cssJs.asCssValueWithDefault(styles.border, 'transparent')}`;
 
 		if (this.message.content && (this.hasFocus() || force)) {
 			this._showMessage();
@@ -578,7 +582,7 @@ export class InputBox extends Widget {
 		this.input.style.color = foreground;
 
 		// there's always a border, even if the color is not set.
-		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(border, 'transparent')}`;
+		this.element.style.border = `1px solid ${cssJs.asCssValueWithDefault(border, 'transparent')}`;
 	}
 
 	public layout(): void {
@@ -621,7 +625,6 @@ export class InputBox extends Widget {
 }
 
 export interface IHistoryInputOptions extends IInputOptions {
-	history: string[];
 	readonly showHistoryHint?: () => boolean;
 }
 

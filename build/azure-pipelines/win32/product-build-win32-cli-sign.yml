@@ -36,11 +36,10 @@ steps:
 
   - powershell: |
       . azure-pipelines/win32/exec.ps1
-      . azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
-      $env:CHILD_CONCURRENCY="1"
-      retry { exec { npm ci } }
+      exec { npm ci }
     workingDirectory: build
+    retryCountOnTaskFailure: 5
     displayName: Install build dependencies
 
   - template: ../cli/cli-win32-sign.yml@self

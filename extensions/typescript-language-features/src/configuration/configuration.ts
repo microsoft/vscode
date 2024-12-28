@@ -135,6 +135,10 @@ export interface ServiceConfigurationProvider {
 	loadFromWorkspace(): TypeScriptServiceConfiguration;
 }
 
+const vscodeWatcherName = 'vscode';
+type vscodeWatcherName = typeof vscodeWatcherName;
+
+
 export abstract class BaseServiceConfigurationProvider implements ServiceConfigurationProvider {
 
 	public loadFromWorkspace(): TypeScriptServiceConfiguration {
@@ -233,11 +237,26 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			return false;
 		}
 
-		return configuration.get<boolean>('typescript.tsserver.experimental.useVsCodeWatcher', true);
+		const experimentalConfig = configuration.inspect('typescript.tsserver.experimental.useVsCodeWatcher');
+		if (typeof experimentalConfig?.globalValue === 'boolean') {
+			return experimentalConfig.globalValue;
+		}
+		if (typeof experimentalConfig?.workspaceValue === 'boolean') {
+			return experimentalConfig.workspaceValue;
+		}
+		if (typeof experimentalConfig?.workspaceFolderValue === 'boolean') {
+			return experimentalConfig.workspaceFolderValue;
+		}
+
+		return configuration.get<Proto.WatchOptions | vscodeWatcherName>('typescript.tsserver.watchOptions', vscodeWatcherName) === vscodeWatcherName;
 	}
 
 	private readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
-		const watchOptions = configuration.get<Proto.WatchOptions>('typescript.tsserver.watchOptions');
+		const watchOptions = configuration.get<Proto.WatchOptions | vscodeWatcherName>('typescript.tsserver.watchOptions');
+		if (watchOptions === vscodeWatcherName) {
+			return undefined;
+		}
+
 		// Returned value may be a proxy. Clone it into a normal object
 		return { ...(watchOptions ?? {}) };
 	}

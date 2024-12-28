@@ -12,8 +12,8 @@ import { dirname } from 'path';
 import { strings } from './utils';
 import { readFileSync, statSync } from 'fs';
 import * as log from 'fancy-log';
+import { ESBuildTranspiler, ITranspiler, TscTranspiler } from './transpiler';
 import colors = require('ansi-colors');
-import { ITranspiler, SwcTranspiler, TscTranspiler } from './transpiler';
 
 export interface IncrementalCompiler {
 	(token?: any): Readable & Writable;
@@ -130,7 +130,7 @@ export function create(
 	if (config.transpileOnly) {
 		const transpiler = !config.transpileWithSwc
 			? new TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
-			: new SwcTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
+			: new ESBuildTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
 		result = <any>(() => createTranspileStream(transpiler));
 	} else {
 		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);

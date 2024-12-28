@@ -22,6 +22,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { Lazy } from '../../../../base/common/lazy.js';
+import { IViewsService } from '../common/viewsService.js';
 
 interface IViewsCustomizations {
 	viewContainerLocations: IStringDictionary<ViewContainerLocation>;
@@ -111,7 +112,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: viewContainerLocation }], added: [] });
 		}));
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._register(new DisposableStore()))(() => this.onDidStorageChange()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._store)(() => this.onDidStorageChange()));
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.whenExtensionsRegistered());
 
@@ -505,7 +506,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const container = this.viewContainersRegistry.registerViewContainer({
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, { mergeViewWithContainerWhenSingleView: true }]),
-			title: { value: id, original: id }, // we don't want to see this so using id
+			title: { value: localize('user', "User View Container"), original: 'User View Container' }, // having a placeholder title - this should not be shown anywhere
 			icon: location === ViewContainerLocation.Sidebar ? defaultViewIcon : undefined,
 			storageId: getViewContainerStorageId(id),
 			hideIfEmpty: true
@@ -782,22 +783,21 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 							toggled: ContextKeyExpr.has(`${viewDescriptor.id}.visible`),
 							title: viewDescriptor.name,
+							metadata: {
+								description: localize2('toggleVisibilityDescription', 'Toggles the visibility of the {0} view if the view container it is located in is visible', viewDescriptor.name.value)
+							},
 							menu: [{
 								id: ViewsSubMenu,
 								when: ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
 								order: index,
 							}, {
 								id: MenuId.ViewContainerTitleContext,
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
-								),
+								when: ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
 								order: index,
 								group: '1_toggleVisibility'
 							}, {
 								id: MenuId.ViewTitleContext,
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id)))
-								),
+								when: ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id))),
 								order: index,
 								group: '2_toggleVisibility'
 							}]
@@ -813,6 +813,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							id: `${viewDescriptor.id}.removeView`,
 							viewPaneContainerId: viewContainerModel.viewContainer.id,
 							title: localize('hideView', "Hide '{0}'", viewDescriptor.name.value),
+							metadata: {
+								description: localize2('hideViewDescription', 'Hides the {0} view if it is visible and the view container it is located in is visible', viewDescriptor.name.value)
+							},
 							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 							menu: [{
 								id: MenuId.ViewTitleContext,
@@ -826,7 +829,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 						});
 					}
 					async runInViewPaneContainer(serviceAccessor: ServicesAccessor, viewPaneContainer: ViewPaneContainer): Promise<void> {
-						viewPaneContainer.toggleViewVisibility(viewDescriptor.id);
+						if (viewPaneContainer.getView(viewDescriptor.id)?.isVisible()) {
+							viewPaneContainer.toggleViewVisibility(viewDescriptor.id);
+						}
 					}
 				}));
 			}
@@ -843,6 +848,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 					title: localize2('resetViewLocation', "Reset Location"),
 					menu: [{
 						id: MenuId.ViewContainerTitleContext,
+						group: '1_viewActions',
 						when: ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals('viewContainer', viewContainer.id),
@@ -852,8 +858,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 					}],
 				});
 			}
-			run(): void {
+			run(accessor: ServicesAccessor) {
 				that.moveViewContainerToLocation(viewContainer, that.getDefaultViewContainerLocation(viewContainer), undefined, this.desc.id);
+				accessor.get(IViewsService).openViewContainer(viewContainer.id, true);
 			}
 		});
 	}

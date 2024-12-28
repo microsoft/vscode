@@ -7,8 +7,8 @@
 
 ; Literals
 
-(this) @variable.language
-(super) @variable.language
+(this) @variable.language.this
+(super) @variable.language.super
 
 (comment) @comment
 
@@ -61,12 +61,13 @@
 (function_declaration
   name: (identifier) @entity.name.function)
 (method_definition
-  name: (property_identifier) @entity.name.function)
+  name: (property_identifier) @meta.definition.method @entity.name.function
+  (#not-eq? @entity.name.function "constructor"))
 (method_definition
-  name: (property_identifier) @storage.type
+  name: (property_identifier) @meta.definition.method @storage.type
   (#eq? @storage.type "constructor"))
 (method_signature
-  name: (property_identifier) @entity.name.function)
+  name: (property_identifier) @meta.definition.method @entity.name.function)
 
 (pair
   key: (property_identifier) @entity.name.function
@@ -108,10 +109,6 @@
 (predefined_type) @support.type
 (predefined_type (["string" "boolean" "number" "any"])) @support.type.primitive
 (type_identifier) @entity.name.type
-
-(("const")
-  (variable_declarator
-  	name: (identifier) @variable.other.constant))
 
 ([
   (identifier)
@@ -192,7 +189,6 @@
   "<<="
   "=="
   "!="
-  "=>"
   ">>"
   ">>="
   ">>>"
@@ -209,6 +205,8 @@
 (binary_expression "instanceof" @keyword.operator.expression.instanceof)
 
 ("of") @keyword.operator.expression.of
+
+("is") @keyword.operator.expression.is
 
 [
   "delete"
@@ -288,6 +286,27 @@
   "new"
 ] @keyword.operator.new
 
+(public_field_definition
+  ("?") @keyword.operator.optional)
+
+(optional_parameter)
+  ([
+    "?"
+    ":"
+  ]) @keyword.operator.optional
+
+(ternary_expression
+  ([
+    "?"
+    ":"
+  ]) @keyword.operator.ternary)
+
+(optional_chain
+  ("?.") @punctuation.accessor.optional)
+
+(rest_pattern) @keyword.operator.rest
+
+(spread_element) @keyword.operator.spread
 
 ; Language constants
 

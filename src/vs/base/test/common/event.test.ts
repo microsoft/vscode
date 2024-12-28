@@ -308,6 +308,27 @@ suite('Event', function () {
 		assert.strictEqual(lastCount, 1);
 	});
 
+	test('onDidAddListener', () => {
+		let count = 0;
+		const a = ds.add(new Emitter({
+			onDidAddListener() { count += 1; }
+		}));
+
+		assert.strictEqual(count, 0);
+
+		let subscription = ds.add(a.event(function () { }));
+		assert.strictEqual(count, 1);
+
+		subscription.dispose();
+		assert.strictEqual(count, 1);
+
+		subscription = ds.add(a.event(function () { }));
+		assert.strictEqual(count, 2);
+
+		subscription.dispose();
+		assert.strictEqual(count, 2);
+	});
+
 	test('onWillRemoveListener', () => {
 		let count = 0;
 		const a = ds.add(new Emitter({
@@ -1518,6 +1539,27 @@ suite('Event utils', () => {
 			await timeout(1);
 			assert.deepStrictEqual(calls, [1]);
 		});
+	});
+
+	test('issue #230401', () => {
+		let count = 0;
+		const emitter = ds.add(new Emitter<void>());
+		const disposables = ds.add(new DisposableStore());
+		ds.add(emitter.event(() => {
+			count++;
+			disposables.add(emitter.event(() => {
+				count++;
+			}));
+			disposables.add(emitter.event(() => {
+				count++;
+			}));
+			disposables.clear();
+		}));
+		ds.add(emitter.event(() => {
+			count++;
+		}));
+		emitter.fire();
+		assert.deepStrictEqual(count, 2);
 	});
 
 	suite('chain2', () => {

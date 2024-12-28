@@ -13,6 +13,11 @@ import { getColorPresentations } from './color.js';
 import { ColorPickerModel } from './colorPickerModel.js';
 import { Range } from '../../../common/core/range.js';
 
+export const enum ColorPickerWidgetType {
+	Hover = 'hover',
+	Standalone = 'standalone'
+}
+
 export interface BaseColor {
 	readonly range: Range;
 	readonly model: ColorPickerModel;

@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Queue, raceCancellation } from '../../../../base/common/async.js';
+import { Queue } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { DisposableStore, MutableDisposable, combinedDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
@@ -14,22 +13,19 @@ import { SaveReason } from '../../../common/editor.js';
 import { Session } from './inlineChatSession.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatConfigKeys } from '../common/inlineChat.js';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IInlineChatSavingService } from './inlineChatSavingService.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
-import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { compare } from '../../../../base/common/strings.js';
 import { IWorkingCopyFileService } from '../../../services/workingCopy/common/workingCopyFileService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { Event } from '../../../../base/common/event.js';
-import { InlineChatController } from './inlineChatController.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 
 interface SessionData {
 	readonly resourceUri: URI;
@@ -37,6 +33,9 @@ interface SessionData {
 	readonly session: Session;
 	readonly groupCandidate: IEditorGroup;
 }
+
+// TODO@jrieken this duplicates a config key
+const key = 'chat.editing.alwaysSaveWithGeneratedChanges';
 
 export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 
@@ -50,14 +49,24 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 		@IFilesConfigurationService private readonly _fileConfigService: IFilesConfigurationService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
+		@IInlineChatSessionService _inlineChatSessionService: IInlineChatSessionService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
-		@ILogService private readonly _logService: ILogService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		this._store.add(Event.any(_inlineChatSessionService.onDidEndSession, _inlineChatSessionService.onDidStashSession)(e => {
 			this._sessionData.get(e.session)?.dispose();
+		}));
+
+		this._store.add(_configService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(key) && !e.affectsConfiguration(InlineChatConfigKeys.AcceptedOrDiscardBeforeSave)) {
+				return;
+			}
+			if (this._isDisabled()) {
+				dispose(this._sessionData.values());
+				this._sessionData.clear();
+			}
 		}));
 	}
 
@@ -67,6 +76,11 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 	}
 
 	markChanged(session: Session): void {
+
+		if (this._isDisabled()) {
+			return;
+		}
+
 		if (!this._sessionData.has(session)) {
 
 			let uri = session.targetUri;
@@ -119,13 +133,14 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 
 	private async _participate(uri: URI | undefined, reason: SaveReason, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
+
 		if (reason !== SaveReason.EXPLICIT) {
 			// all saves that we are concerned about are explicit
 			// because we have disabled auto-save for them
 			return;
 		}
 
-		if (!this._configService.getValue<boolean>(InlineChatConfigKeys.AcceptedOrDiscardBeforeSave)) {
+		if (this._isDisabled()) {
 			// disabled
 			return;
 		}
@@ -141,145 +156,42 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 			return;
 		}
 
-		progress.report({
-			message: sessions.size === 1
-				? localize('inlineChat', "Waiting for Inline Chat changes to be Accepted or Discarded...")
-				: localize('inlineChat.N', "Waiting for Inline Chat changes in {0} editors to be Accepted or Discarded...", sessions.size)
+		let message: string;
+
+		if (sessions.size === 1) {
+			const session = Iterable.first(sessions.values())!.session;
+			const agentName = session.agent.fullName;
+			const filelabel = this._labelService.getUriBasenameLabel(session.textModelN.uri);
+
+			message = localize('message.1', "Do you want to save the changes {0} made in {1}?", agentName, filelabel);
+		} else {
+			const labels = Array.from(Iterable.map(sessions.values(), i => this._labelService.getUriBasenameLabel(i.session.textModelN.uri)));
+			message = localize('message.2', "Do you want to save the changes inline chat made in {0}?", labels.join(', '));
+		}
+
+		const result = await this._dialogService.confirm({
+			message,
+			detail: localize('detail', "AI-generated changes may be incorrect and should be reviewed before saving."),
+			primaryButton: localize('save', "Save"),
+			cancelButton: localize('discard', "Cancel"),
+			checkbox: {
+				label: localize('config', "Always save with AI-generated changes without asking"),
+				checked: false
+			}
 		});
 
-		// reveal all sessions in order and also show dangling sessions
-		const { groups, orphans } = this._getGroupsAndOrphans(sessions.values());
-		const editorsOpenedAndSessionsEnded = this._openAndWait(groups, token).then(() => {
-			if (token.isCancellationRequested) {
-				return;
-			}
-			return this._openAndWait(Iterable.map(orphans, s => [this._editorGroupService.activeGroup, s]), token);
-		});
-
-		// fallback: resolve when all sessions for this model have been resolved. this is independent of the editor opening
-		const allSessionsEnded = this._whenSessionsEnded(Iterable.concat(groups.map(tuple => tuple[1]), orphans), token);
-
-		await Promise.race([allSessionsEnded, editorsOpenedAndSessionsEnded]);
-	}
-
-	private _getGroupsAndOrphans(sessions: Iterable<SessionData>) {
-
-		const groupByEditor = new Map<ICodeEditor, IEditorGroup>();
-		for (const group of this._editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			const candidate = group.activeEditorPane?.getControl();
-			if (isCodeEditor(candidate)) {
-				groupByEditor.set(candidate, group);
-			}
+		if (!result.confirmed) {
+			// cancel the save
+			throw new CancellationError();
 		}
 
-		const groups: [IEditorGroup, SessionData][] = [];
-		const orphans = new Set<SessionData>();
-
-		for (const data of sessions) {
-
-			const editor = this._inlineChatSessionService.getCodeEditor(data.session);
-			const group = groupByEditor.get(editor);
-			if (group) {
-				// there is only one session per group because all sessions have the same model
-				// because we save one file.
-				groups.push([group, data]);
-			} else if (this._editorGroupService.groups.includes(data.groupCandidate)) {
-				// the group candidate is still there. use it
-				groups.push([data.groupCandidate, data]);
-			} else {
-				orphans.add(data);
-			}
-		}
-		return { groups, orphans };
-	}
-
-	private async _openAndWait(groups: Iterable<[IEditorGroup, SessionData]>, token: CancellationToken) {
-
-		const dataByGroup = new Map<IEditorGroup, SessionData[]>();
-		for (const [group, data] of groups) {
-			let array = dataByGroup.get(group);
-			if (!array) {
-				array = [];
-				dataByGroup.set(group, array);
-			}
-			array.push(data);
-		}
-
-		for (const [group, array] of dataByGroup) {
-
-			if (token.isCancellationRequested) {
-				break;
-			}
-
-			array.sort((a, b) => compare(a.session.targetUri.toString(), b.session.targetUri.toString()));
-
-
-			for (const data of array) {
-
-				const input: IResourceEditorInput = { resource: data.resourceUri };
-				const pane = await this._editorService.openEditor(input, group);
-				let editor: ICodeEditor | undefined;
-				if (data.session.targetUri.scheme === Schemas.vscodeNotebookCell) {
-					const notebookEditor = getNotebookEditorFromEditorPane(pane);
-					const uriData = CellUri.parse(data.session.targetUri);
-					if (notebookEditor && notebookEditor.hasModel() && uriData) {
-						const cell = notebookEditor.getCellByHandle(uriData.handle);
-						if (cell) {
-							await notebookEditor.revealRangeInCenterIfOutsideViewportAsync(cell, data.session.wholeRange.value);
-						}
-						const tuple = notebookEditor.codeEditors.find(tuple => tuple[1].getModel()?.uri.toString() === data.session.targetUri.toString());
-						editor = tuple?.[1];
-					}
-
-				} else {
-					if (isCodeEditor(pane?.getControl())) {
-						editor = <ICodeEditor>pane.getControl();
-					}
-				}
-
-				if (!editor) {
-					// PANIC
-					break;
-				}
-				this._inlineChatSessionService.moveSession(data.session, editor);
-				InlineChatController.get(editor)?.showSaveHint();
-				this._logService.info('WAIT for session to end', editor.getId(), data.session.targetUri.toString());
-				await this._whenSessionsEnded(Iterable.single(data), token);
-			}
+		if (result.checkboxChecked) {
+			// remember choice
+			this._configService.updateValue(key, true);
 		}
 	}
 
-	private async _whenSessionsEnded(iterable: Iterable<SessionData>, token: CancellationToken) {
-
-		const sessions = new Map<Session, SessionData>();
-		for (const item of iterable) {
-			sessions.set(item.session, item);
-		}
-
-		if (sessions.size === 0) {
-			// nothing to do
-			return;
-		}
-
-		let listener: IDisposable | undefined;
-
-		const whenEnded = new Promise<void>(resolve => {
-			listener = Event.any(this._inlineChatSessionService.onDidEndSession, this._inlineChatSessionService.onDidStashSession)(e => {
-				const data = sessions.get(e.session);
-				if (data) {
-					data.dispose();
-					sessions.delete(e.session);
-					if (sessions.size === 0) {
-						resolve(); // DONE, release waiting
-					}
-				}
-			});
-		});
-
-		try {
-			await raceCancellation(whenEnded, token);
-		} finally {
-			listener?.dispose();
-		}
+	private _isDisabled() {
+		return this._configService.getValue<boolean>(InlineChatConfigKeys.AcceptedOrDiscardBeforeSave) === true || this._configService.getValue(key);
 	}
 }

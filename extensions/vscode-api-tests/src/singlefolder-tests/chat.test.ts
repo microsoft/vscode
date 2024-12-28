@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, chat, commands } from 'vscode';
+import { ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -13,6 +13,25 @@ suite('chat', () => {
 	let disposables: Disposable[] = [];
 	setup(() => {
 		disposables = [];
+
+		// Register a dummy default model which is required for a participant request to go through
+		disposables.push(lm.registerChatModelProvider('test-lm', {
+			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+				return undefined;
+			},
+			async provideTokenCount(_text, _token) {
+				return 1;
+			},
+		}, {
+			name: 'test-lm',
+			version: '1.0.0',
+			family: 'test',
+			vendor: 'test-lm-vendor',
+			maxInputTokens: 100,
+			maxOutputTokens: 100,
+			isDefault: true,
+			isUserSelectable: true
+		}));
 	});
 
 	teardown(async function () {

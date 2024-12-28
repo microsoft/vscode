@@ -124,6 +124,19 @@ export const context: ISandboxContext = vscodeGlobal.context;
 export const webUtils: WebUtils = vscodeGlobal.webUtils;
 
 /**
+ * A set of globals only available to main windows that depend
+ * on `preload.js`.
+ */
+export interface IMainWindowSandboxGlobals {
+	readonly ipcRenderer: IpcRenderer;
+	readonly ipcMessagePort: IpcMessagePort;
+	readonly webFrame: WebFrame;
+	readonly process: ISandboxNodeProcess;
+	readonly context: ISandboxContext;
+	readonly webUtils: WebUtils;
+}
+
+/**
  * A set of globals that are available in all windows that either
  * depend on `preload.js` or `preload-aux.js`.
  */

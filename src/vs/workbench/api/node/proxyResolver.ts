@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// ESM-comment-begin
-// import * as http from 'http';
-// import * as https from 'https';
-// import * as tls from 'tls';
-// import * as net from 'net';
-// ESM-comment-end
-
 import { IExtHostWorkspaceProvider } from '../common/extHostWorkspace.js';
 import { ExtHostConfigProvider } from '../common/extHostConfiguration.js';
 import { MainThreadTelemetryShape } from '../common/extHost.protocol.js';
@@ -18,18 +11,20 @@ import { ExtHostExtensionService } from './extHostExtensionService.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates } from '@vscode/proxy-agent';
+import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest } from '@vscode/proxy-agent';
 import { AuthInfo } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-
-// ESM-uncomment-begin
 import { createRequire } from 'node:module';
+import type * as undiciType from 'undici-types';
+import type * as tlsType from 'tls';
+import { lookupKerberosAuthorization } from '../../../platform/request/node/requestService.js';
+import * as proxyAgent from '@vscode/proxy-agent';
+
 const require = createRequire(import.meta.url);
 const http = require('http');
 const https = require('https');
-const tls = require('tls');
+const tls: typeof tlsType = require('tls');
 const net = require('net');
-// ESM-uncomment-end
 
 const systemCertificatesV2Default = false;
 const useElectronFetchDefault = false;
@@ -44,8 +39,6 @@ export function connectProxyResolver(
 	disposables: DisposableStore,
 ) {
 
-	patchGlobalFetch(configProvider, mainThreadTelemetry, initData, disposables);
-
 	const useHostProxy = initData.environment.useHostProxy;
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 	const params: ProxyAgentParams = {
@@ -54,6 +47,7 @@ export function connectProxyResolver(
 		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
 		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
 		getNoProxyConfig: () => configProvider.getConfiguration('http').get<string[]>('noProxy') || [],
+		isAdditionalFetchSupportEnabled: () => configProvider.getConfiguration('http').get<boolean>('fetchAdditionalSupport', true),
 		addCertificatesV1: () => certSettingV1(configProvider),
 		addCertificatesV2: () => certSettingV2(configProvider),
 		log: extHostLogService,
@@ -95,8 +89,13 @@ export function connectProxyResolver(
 		},
 		env: process.env,
 	};
-	const resolveProxy = createProxyResolver(params);
-	const lookup = createPatchedModules(params, resolveProxy);
+	const { resolveProxyWithRequest, resolveProxyURL } = createProxyResolver(params);
+	const target = (proxyAgent as any).default || proxyAgent;
+	target.resolveProxyURL = resolveProxyURL;
+
+	patchGlobalFetch(params, configProvider, mainThreadTelemetry, initData, resolveProxyURL, disposables);
+
+	const lookup = createPatchedModules(params, resolveProxyWithRequest);
 	return configureModuleLoading(extensionService, lookup);
 }
 
@@ -112,20 +111,24 @@ const unsafeHeaders = [
 	'set-cookie',
 ];
 
-function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, disposables: DisposableStore) {
-	if (!initData.remote.isRemote && !(globalThis as any).__originalFetch) {
+function patchGlobalFetch(params: ProxyAgentParams, configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, resolveProxyURL: (url: string) => Promise<string | undefined>, disposables: DisposableStore) {
+	if (!(globalThis as any).__vscodeOriginalFetch) {
 		const originalFetch = globalThis.fetch;
-		(globalThis as any).__originalFetch = originalFetch;
-		let useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
-		disposables.add(configProvider.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('http.electronFetch')) {
-				useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
-			}
-		}));
-		const electron = require('electron');
+		(globalThis as any).__vscodeOriginalFetch = originalFetch;
+		const patchedFetch = proxyAgent.createFetchPatch(params, originalFetch, resolveProxyURL);
+		(globalThis as any).__vscodePatchedFetch = patchedFetch;
+		let useElectronFetch = false;
+		if (!initData.remote.isRemote) {
+			useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
+			disposables.add(configProvider.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('http.electronFetch')) {
+					useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
+				}
+			}));
+		}
 		// https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API
-		globalThis.fetch = async function fetch(input: any /* RequestInfo */ | URL, init?: RequestInit) {
-			function getRequestProperty(name: keyof any /* Request */ & keyof RequestInit) {
+		globalThis.fetch = async function fetch(input: string | URL | Request, init?: RequestInit) {
+			function getRequestProperty(name: keyof Request & keyof RequestInit) {
 				return init && name in init ? init[name] : typeof input === 'object' && 'cache' in input ? input[name] : undefined;
 			}
 			// Limitations: https://github.com/electron/electron/pull/36733#issuecomment-1405615494
@@ -148,7 +151,7 @@ function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelem
 				recordFetchFeatureUse(mainThreadTelemetry, 'integrity');
 			}
 			if (!useElectronFetch || isDataUrl || isBlobUrl || isManualRedirect || integrity) {
-				const response = await originalFetch(input, init);
+				const response = await patchedFetch(input, init);
 				monitorResponseProperties(mainThreadTelemetry, response, urlString);
 				return response;
 			}
@@ -162,6 +165,7 @@ function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelem
 			}
 			// Support for URL: https://github.com/electron/electron/issues/43712
 			const electronInput = input instanceof URL ? input.toString() : input;
+			const electron = require('electron');
 			const response = await electron.net.fetch(electronInput, init);
 			monitorResponseProperties(mainThreadTelemetry, response, urlString);
 			return response;
@@ -229,10 +233,12 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 	}
 }
 
-function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
+function createPatchedModules(params: ProxyAgentParams, resolveProxy: ResolveProxyWithRequest) {
 
 	function mergeModules(module: any, patch: any) {
-		return Object.assign(module.default || module, patch);
+		const target = module.default || module;
+		target.__vscodeOriginal = Object.assign({}, target);
+		return Object.assign(target, patch);
 	}
 
 	return {
@@ -253,7 +259,7 @@ function certSettingV2(configProvider: ExtHostConfigProvider) {
 	return !!http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
 }
 
-const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https }>();
+const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https; undici?: typeof undiciType }>();
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
 	return extensionService.getExtensionPathIndex()
 		.then(extensionPaths => {
@@ -268,7 +274,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 					return lookup.tls;
 				}
 
-				if (request !== 'http' && request !== 'https') {
+				if (request !== 'http' && request !== 'https' && request !== 'undici') {
 					return original.apply(this, arguments);
 				}
 
@@ -278,8 +284,14 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 					modulesCache.set(ext, cache = {});
 				}
 				if (!cache[request]) {
-					const mod = lookup[request];
-					cache[request] = <any>{ ...mod }; // Copy to work around #93167.
+					if (request === 'undici') {
+						const undici = original.apply(this, arguments);
+						proxyAgent.patchUndici(undici);
+						cache[request] = undici;
+					} else {
+						const mod = lookup[request];
+						cache[request] = <any>{ ...mod }; // Copy to work around #93167.
+					}
 				}
 				return cache[request];
 			};
@@ -311,13 +323,8 @@ async function lookupProxyAuthorization(
 		state.kerberosRequested = true;
 
 		try {
-			const kerberos = await import('kerberos');
-			const url = new URL(proxyURL);
-			const spn = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal')
-				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
-			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup', `proxyURL:${proxyURL}`, `spn:${spn}`);
-			const client = await kerberos.initializeClient(spn);
-			const response = await client.step('');
+			const spnConfig = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal');
+			const response = await lookupKerberosAuthorization(proxyURL, spnConfig, extHostLogService, 'ProxyResolver#lookupProxyAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
 			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);

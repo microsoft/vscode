@@ -33,8 +33,8 @@ export class FailureTracker {
 	private readonly logFile: string;
 	private logs?: ITrackedRemediation[];
 
-	constructor(context: vscode.ExtensionContext, private readonly rootDir: string) {
-		this.logFile = join(context.globalStorageUri.fsPath, '.build/vscode-test-failures.json');
+	constructor(storageLocation: string, private readonly rootDir: string) {
+		this.logFile = join(storageLocation, '.build/vscode-test-failures.json');
 		mkdirSync(dirname(this.logFile), { recursive: true });
 
 		const oldLogFile = join(rootDir, '.build/vscode-test-failures.json');
