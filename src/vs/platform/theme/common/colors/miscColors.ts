@@ -71,3 +71,17 @@ export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.ac
 export const progressBarBackground = registerColor('progressBar.background',
 	{ dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hcDark: contrastBorder, hcLight: contrastBorder },
 	nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
+
+// ----- chart
+
+export const chartLine = registerColor('chart.line',
+	{ dark: '#236B8E', light: '#236B8E', hcDark: '#236B8E', hcLight: '#236B8E' },
+	nls.localize('chartLine', "Line color for the chart."));
+
+export const chartAxis = registerColor('chart.axis',
+	{ dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hcDark: contrastBorder, hcLight: contrastBorder },
+	nls.localize('chartAxis', "Axis color for the chart."));
+
+export const chartGuide = registerColor('chart.guide',
+	{ dark: Color.fromHex('#BFBFBF').transparent(0.2), light: Color.fromHex('#000000').transparent(0.2), hcDark: contrastBorder, hcLight: contrastBorder },
+	nls.localize('chartGuide', "Guide line for the chart."));

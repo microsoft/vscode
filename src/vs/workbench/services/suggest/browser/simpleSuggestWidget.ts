@@ -10,15 +10,16 @@ import { List } from '../../../../base/browser/ui/list/listWidget.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from './simpleCompletionModel.js';
-import { SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
+import { getAriaId, SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
 import { TimeoutTimer } from '../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter, Event, PauseableEmitter } from '../../../../base/common/event.js';
 import { MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/suggestWidgetStatus.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 const $ = dom.$;
 
@@ -58,14 +59,20 @@ export interface IWorkbenchSuggestWidgetOptions {
 
 export class SimpleSuggestWidget extends Disposable {
 
+	private static LOADING_MESSAGE: string = localize('suggestWidget.loading', "Loading...");
+	private static NO_SUGGESTIONS_MESSAGE: string = localize('suggestWidget.noSuggestions', "No suggestions.");
+
 	private _state: State = State.Hidden;
 	private _completionModel?: SimpleCompletionModel;
 	private _cappedHeight?: { wanted: number; capped: number };
 	private _forceRenderingAbove: boolean = false;
 	private _preference?: WidgetPositionPreference;
 	private readonly _pendingLayout = this._register(new MutableDisposable());
-
+	// private _currentSuggestionDetails?: CancelablePromise<void>;
+	private _focusedItem?: SimpleCompletionItem;
+	private _ignoreFocusEvents: boolean = false;
 	readonly element: ResizableHTMLElement;
+	private readonly _messageElement: HTMLElement;
 	private readonly _listElement: HTMLElement;
 	private readonly _list: List<SimpleCompletionItem>;
 	private readonly _status?: SuggestWidgetStatus;
@@ -78,6 +85,8 @@ export class SimpleSuggestWidget extends Disposable {
 	readonly onDidHide: Event<this> = this._onDidHide.event;
 	private readonly _onDidShow = this._register(new Emitter<this>());
 	readonly onDidShow: Event<this> = this._onDidShow.event;
+	private readonly _onDidFocus = new PauseableEmitter<ISimpleSelectedSuggestion>();
+	readonly onDidFocus: Event<ISimpleSelectedSuggestion> = this._onDidFocus.event;
 
 	get list(): List<SimpleCompletionItem> { return this._list; }
 
@@ -86,7 +95,8 @@ export class SimpleSuggestWidget extends Disposable {
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
 		options: IWorkbenchSuggestWidgetOptions,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -141,6 +151,9 @@ export class SimpleSuggestWidget extends Disposable {
 			state = undefined;
 		}));
 
+		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !configurationService.getValue('editor.suggest.showIcons'));
+		applyIconStyle();
+
 		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo);
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
@@ -188,6 +201,8 @@ export class SimpleSuggestWidget extends Disposable {
 			}
 		}));
 
+		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
+
 		if (options.statusBarMenuId) {
 			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
@@ -195,7 +210,74 @@ export class SimpleSuggestWidget extends Disposable {
 
 		this._register(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
 		this._register(this._list.onTap(e => this._onListMouseDownOrTap(e)));
+		this._register(this._list.onDidChangeFocus(e => this._onListFocus(e)));
 		this._register(this._list.onDidChangeSelection(e => this._onListSelection(e)));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.suggest.showIcons')) {
+				applyIconStyle();
+			}
+		}));
+	}
+
+	private _onListFocus(e: IListEvent<SimpleCompletionItem>): void {
+		if (this._ignoreFocusEvents) {
+			return;
+		}
+
+		if (this._state === State.Details) {
+			// This can happen when focus is in the details-panel and when
+			// arrow keys are pressed to select next/prev items
+			this._setState(State.Open);
+		}
+
+		if (!e.elements.length) {
+			// if (this._currentSuggestionDetails) {
+			// 	this._currentSuggestionDetails.cancel();
+			// 	this._currentSuggestionDetails = undefined;
+			// 	this._focusedItem = undefined;
+			// }
+			this._clearAriaActiveDescendant();
+			return;
+		}
+
+		if (!this._completionModel) {
+			return;
+		}
+
+		// this._ctxSuggestWidgetHasFocusedSuggestion.set(true);
+		const item = e.elements[0];
+		const index = e.indexes[0];
+
+		if (item !== this._focusedItem) {
+
+			// this._currentSuggestionDetails?.cancel();
+			// this._currentSuggestionDetails = undefined;
+
+			this._focusedItem = item;
+
+			this._list.reveal(index);
+			const id = getAriaId(index);
+			const node = dom.getActiveWindow().document.activeElement;
+			if (node && id) {
+				node.setAttribute('aria-haspopup', 'true');
+				node.setAttribute('aria-autocomplete', 'list');
+				node.setAttribute('aria-activedescendant', id);
+			} else {
+				this._clearAriaActiveDescendant();
+			}
+		}
+		// emit an event
+		this._onDidFocus.fire({ item, index, model: this._completionModel });
+	}
+
+	private _clearAriaActiveDescendant(): void {
+		const node = dom.getActiveWindow().document.activeElement;
+		if (!node) {
+			return;
+		}
+		node.setAttribute('aria-haspopup', 'false');
+		node.setAttribute('aria-autocomplete', 'both');
+		node.removeAttribute('aria-activedescendant');
 	}
 
 	private _cursorPosition?: { top: number; left: number; height: number };
@@ -206,6 +288,10 @@ export class SimpleSuggestWidget extends Disposable {
 
 	hasCompletions(): boolean {
 		return this._completionModel?.items.length !== 0;
+	}
+
+	resetWidgetSize(): void {
+		this._persistedSize.reset();
 	}
 
 	showSuggestions(selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }): void {
@@ -277,7 +363,9 @@ export class SimpleSuggestWidget extends Disposable {
 
 		switch (state) {
 			case State.Hidden:
-				// dom.hide(this._messageElement, this._listElement, this._status.element);
+				if (this._status) {
+					dom.hide(this._messageElement, this._listElement, this._status.element);
+				}
 				dom.hide(this._listElement);
 				if (this._status) {
 					dom.hide(this._status?.element);
@@ -297,30 +385,30 @@ export class SimpleSuggestWidget extends Disposable {
 				break;
 			case State.Loading:
 				this.element.domNode.classList.add('message');
-				// this._messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
+				this._messageElement.textContent = SimpleSuggestWidget.LOADING_MESSAGE;
 				dom.hide(this._listElement);
 				if (this._status) {
 					dom.hide(this._status?.element);
 				}
-				// dom.show(this._messageElement);
+				dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
 				// this._focusedItem = undefined;
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
-				// this._messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
+				this._messageElement.textContent = SimpleSuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				dom.hide(this._listElement);
 				if (this._status) {
 					dom.hide(this._status?.element);
 				}
-				// dom.show(this._messageElement);
+				dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
 				// this._focusedItem = undefined;
 				break;
 			case State.Open:
-				// dom.hide(this._messageElement);
+				dom.hide(this._messageElement);
 				dom.show(this._listElement);
 				if (this._status) {
 					dom.show(this._status?.element);
@@ -328,7 +416,7 @@ export class SimpleSuggestWidget extends Disposable {
 				this._show();
 				break;
 			case State.Frozen:
-				// dom.hide(this._messageElement);
+				dom.hide(this._messageElement);
 				dom.show(this._listElement);
 				if (this._status) {
 					dom.show(this._status?.element);
@@ -336,7 +424,7 @@ export class SimpleSuggestWidget extends Disposable {
 				this._show();
 				break;
 			case State.Details:
-				// dom.hide(this._messageElement);
+				dom.hide(this._messageElement);
 				dom.show(this._listElement);
 				if (this._status) {
 					dom.show(this._status?.element);

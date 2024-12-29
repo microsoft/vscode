@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, createStyleSheet, h, isInShadowDOM, reset } from '../../../../../base/browser/dom.js';
+import { $, h, isInShadowDOM, reset } from '../../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';

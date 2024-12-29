@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { canASAR, importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
-import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { equals as equalArray } from '../../../../base/common/arrays.js';
 import { Color } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -75,7 +75,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	) {
 		super();
 
-		this._styleElement = dom.createStyleSheet();
+		this._styleElement = domStylesheets.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
 
 		grammarsExtPoint.setHandler((extensions) => this._handleGrammarsExtPoint(extensions));

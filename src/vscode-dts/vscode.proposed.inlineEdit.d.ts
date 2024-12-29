@@ -28,6 +28,8 @@ declare module 'vscode' {
 		 */
 		rejected?: Command;
 
+		shown?: Command;
+
 		commands?: Command[];
 
 		/**

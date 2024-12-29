@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../dom.js';
+import * as domStylesheetsJs from '../../domStylesheets.js';
 import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { IContentActionHandler } from '../../formattedTextRenderer.js';
@@ -192,7 +193,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this._dropDownPosition = AnchorPosition.BELOW;
 
 		// Inline stylesheet for themes
-		this.styleElement = dom.createStyleSheet(this.selectDropDownContainer);
+		this.styleElement = domStylesheetsJs.createStyleSheet(this.selectDropDownContainer);
 
 		// Prevent dragging of dropdown #114329
 		this.selectDropDownContainer.setAttribute('draggable', 'true');

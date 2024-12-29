@@ -62,6 +62,7 @@ function npmInstall(dir, opts) {
 		log(dir, 'Installing dependencies...');
 		run(npm, command.split(' '), opts);
 	}
+	removeParcelWatcherPrebuild(dir);
 }
 
 function setNpmrcConfig(dir, env) {
@@ -96,11 +97,27 @@ function setNpmrcConfig(dir, env) {
 	}
 }
 
+function removeParcelWatcherPrebuild(dir) {
+	const parcelModuleFolder = path.join(root, dir, 'node_modules', '@parcel');
+	if (!fs.existsSync(parcelModuleFolder)) {
+		return;
+	}
+
+	const parcelModules = fs.readdirSync(parcelModuleFolder);
+	for (const moduleName of parcelModules) {
+		if (moduleName.startsWith('watcher-')) {
+			const modulePath = path.join(parcelModuleFolder, moduleName);
+			fs.rmSync(modulePath, { recursive: true, force: true });
+			log(dir, `Removed @parcel/watcher prebuilt module ${modulePath}`);
+		}
+	}
+}
+
 for (let dir of dirs) {
 
 	if (dir === '') {
-		// already executed in root
-		continue;
+		removeParcelWatcherPrebuild(dir);
+		continue; // already executed in root
 	}
 
 	let opts;

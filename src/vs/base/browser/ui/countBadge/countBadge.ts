@@ -6,7 +6,7 @@
 import { $, append } from '../../dom.js';
 import { format } from '../../../common/strings.js';
 import './countBadge.css';
-import { Disposable, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface ICountBadgeOptions {
@@ -33,7 +33,7 @@ export class CountBadge extends Disposable {
 	private count: number = 0;
 	private countFormat: string;
 	private titleFormat: string;
-	private hover: IDisposable | undefined;
+	private readonly hover = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(container: HTMLElement, private readonly options: ICountBadgeOptions, private readonly styles: ICountBadgeStyles) {
 
@@ -43,6 +43,7 @@ export class CountBadge extends Disposable {
 		this.countFormat = this.options.countFormat || '{0}';
 		this.titleFormat = this.options.titleFormat || '';
 		this.setCount(this.options.count || 0);
+		this.updateHover();
 	}
 
 	setCount(count: number) {
@@ -57,14 +58,15 @@ export class CountBadge extends Disposable {
 
 	setTitleFormat(titleFormat: string) {
 		this.titleFormat = titleFormat;
+		this.updateHover();
 		this.render();
 	}
 
 	private updateHover(): void {
-		this.hover?.dispose();
-		this.hover = undefined;
-		if (this.titleFormat !== '') {
-			this.hover = getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.element, { content: format(this.titleFormat, this.count), appearance: { compact: true } });
+		if (this.titleFormat !== '' && !this.hover.value) {
+			this.hover.value = getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.element, () => ({ content: format(this.titleFormat, this.count), appearance: { compact: true } }));
+		} else if (this.titleFormat === '' && this.hover.value) {
+			this.hover.value = undefined;
 		}
 	}
 
@@ -77,7 +79,5 @@ export class CountBadge extends Disposable {
 		if (this.styles.badgeBorder) {
 			this.element.style.border = `1px solid ${this.styles.badgeBorder}`;
 		}
-
-		this.updateHover();
 	}
 }

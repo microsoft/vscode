@@ -272,8 +272,6 @@ pub enum ExtensionSubcommand {
 	Uninstall(UninstallExtensionArgs),
 	/// Update the installed extensions.
 	Update,
-	/// Download an extension.
-	Download(DownloadExtensionArgs),
 }
 
 impl ExtensionSubcommand {
@@ -295,6 +293,9 @@ impl ExtensionSubcommand {
 				if args.pre_release {
 					target.push("--pre-release".to_string());
 				}
+				if args.donot_include_pack_and_dependencies {
+					target.push("do-not-include-pack-dependencies".to_string());
+				}
 				if args.force {
 					target.push("--force".to_string());
 				}
@@ -306,16 +307,6 @@ impl ExtensionSubcommand {
 			}
 			ExtensionSubcommand::Update => {
 				target.push("--update-extensions".to_string());
-			}
-			ExtensionSubcommand::Download(args) => {
-				for id in args.id.iter() {
-					target.push(format!("--download-extension={id}"));
-				}
-				if let Some(location) = &args.location {
-					if !location.is_empty() {
-						 target.push(format!("--location={location}"));
-					}
-			  }
 			}
 		}
 	}
@@ -345,6 +336,10 @@ pub struct InstallExtensionArgs {
 	#[clap(long)]
 	pub pre_release: bool,
 
+	/// Don't include installing pack and dependencies of the extension
+	#[clap(long)]
+	pub donot_include_pack_and_dependencies: bool,
+
 	/// Update to the latest version of the extension if it's already installed.
 	#[clap(long)]
 	pub force: bool,
@@ -357,21 +352,6 @@ pub struct UninstallExtensionArgs {
 	/// to latest version.
 	#[clap(name = "ext-id")]
 	pub id: Vec<String>,
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct DownloadExtensionArgs {
-	/// Id of the extension to download. The identifier of an
-	/// extension is '${publisher}.${name}'. Should provide '--location' to specify the location to download the VSIX.
-	/// To download a specific version provide '@${version}'.
-	/// For example: 'vscode.csharp@1.2.3'.
-	#[clap(name = "ext-id")]
-	pub id: Vec<String>,
-
-	/// Specify the location to download the VSIX.
-	#[clap(long, value_name = "location")]
-	pub location: Option<String>,
-
 }
 
 #[derive(Args, Debug, Clone)]

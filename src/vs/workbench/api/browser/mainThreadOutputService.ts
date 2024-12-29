@@ -8,10 +8,13 @@ import { Extensions, IOutputChannelRegistry, IOutputService, IOutputChannel, OUT
 import { MainThreadOutputServiceShape, MainContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { UriComponents, URI } from '../../../base/common/uri.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Event } from '../../../base/common/event.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 import { isNumber } from '../../../base/common/types.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../services/statusbar/browser/statusbar.js';
+import { localize } from '../../../nls.js';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
 export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
@@ -21,21 +24,30 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 	private readonly _proxy: ExtHostOutputServiceShape;
 	private readonly _outputService: IOutputService;
 	private readonly _viewsService: IViewsService;
+	private readonly _configurationService: IConfigurationService;
+	private readonly _statusbarService: IStatusbarService;
+
+	private readonly _outputStatusItem = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IOutputService outputService: IOutputService,
 		@IViewsService viewsService: IViewsService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStatusbarService statusbarService: IStatusbarService,
 	) {
 		super();
 		this._outputService = outputService;
 		this._viewsService = viewsService;
+		this._configurationService = configurationService;
+		this._statusbarService = statusbarService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostOutputService);
 
 		const setVisibleChannel = () => {
 			const visibleChannel = this._viewsService.isViewVisible(OUTPUT_VIEW_ID) ? this._outputService.getActiveChannel() : undefined;
 			this._proxy.$setVisibleChannel(visibleChannel ? visibleChannel.id : null);
+			this._outputStatusItem.value = undefined;
 		};
 		this._register(Event.any<any>(this._outputService.onActiveOutputChannel, Event.filter(this._viewsService.onDidChangeViewVisibility, ({ id }) => id === OUTPUT_VIEW_ID))(() => setVisibleChannel()));
 		setVisibleChannel();
@@ -65,8 +77,39 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 
 	public async $reveal(channelId: string, preserveFocus: boolean): Promise<void> {
 		const channel = this._getChannel(channelId);
-		if (channel) {
-			this._outputService.showChannel(channel.id, preserveFocus);
+		if (!channel) {
+			return;
+		}
+
+		const viewsToShowQuietly = this._configurationService.getValue<Record<string, boolean> | undefined>('workbench.view.showQuietly') ?? {};
+		if (!this._viewsService.isViewVisible(OUTPUT_VIEW_ID) && viewsToShowQuietly[OUTPUT_VIEW_ID]) {
+			this._showChannelQuietly(channel);
+			return;
+		}
+
+		this._outputService.showChannel(channel.id, preserveFocus);
+	}
+
+	// Show status bar indicator
+	private _showChannelQuietly(channel: IOutputChannel) {
+		const statusProperties: IStatusbarEntry = {
+			name: localize('status.showOutput', "Show Output"),
+			text: '$(output)',
+			ariaLabel: localize('status.showOutputAria', "Show {0} Output Channel", channel.label),
+			command: `workbench.action.output.show.${channel.id}`,
+			tooltip: localize('status.showOutputTooltip', "Show {0} Output Channel", channel.label),
+			kind: 'prominent'
+		};
+
+		if (!this._outputStatusItem.value) {
+			this._outputStatusItem.value = this._statusbarService.addEntry(
+				statusProperties,
+				'status.view.showQuietly',
+				StatusbarAlignment.RIGHT,
+				{ id: 'status.notifications', alignment: StatusbarAlignment.LEFT }
+			);
+		} else {
+			this._outputStatusItem.value.update(statusProperties);
 		}
 	}
 

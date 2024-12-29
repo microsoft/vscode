@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChangeContext, IObservable, IObserver, IReader } from './base.js';
+import { IChangeContext, IObservable, IObservableWithChange, IObserver, IReader } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
 import { assertFn, BugIndicatingError, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
@@ -124,6 +124,35 @@ export function autorunDelta<T>(
 		handler({ lastValue, newValue });
 	});
 }
+
+export function autorunIterableDelta<T>(
+	getValue: (reader: IReader) => Iterable<T>,
+	handler: (args: { addedValues: T[]; removedValues: T[] }) => void,
+	getUniqueIdentifier: (value: T) => unknown = v => v,
+) {
+	const lastValues = new Map<unknown, T>();
+	return autorunOpts({ debugReferenceFn: getValue }, (reader) => {
+		const newValues = new Map();
+		const removedValues = new Map(lastValues);
+		for (const value of getValue(reader)) {
+			const id = getUniqueIdentifier(value);
+			if (lastValues.has(id)) {
+				removedValues.delete(id);
+			} else {
+				newValues.set(id, value);
+				lastValues.set(id, value);
+			}
+		}
+		for (const id of removedValues.keys()) {
+			lastValues.delete(id);
+		}
+
+		if (newValues.size || removedValues.size) {
+			handler({ addedValues: [...newValues.values()], removedValues: [...removedValues.values()] });
+		}
+	});
+}
+
 
 
 const enum AutorunState {
@@ -257,7 +286,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		}
 	}
 
-	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	public handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
 		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			try {
 				const shouldReact = this._handleChange ? this._handleChange({
