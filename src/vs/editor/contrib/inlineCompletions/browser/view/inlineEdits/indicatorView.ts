@@ -13,19 +13,15 @@ import { registerColor } from '../../../../../../platform/theme/common/colorUtil
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { Point } from './utils.js';
+import { localize } from '../../../../../../nls.js';
 
 export interface IInlineEditsIndicatorState {
-	editTopLeft: Point;
+	editTop: number;
 	showAlways: boolean;
 }
-
-// editorHoverForeground
-export const inlineEditIndicatorForeground = registerColor('inlineEdit.indicator.foreground', buttonForeground, '');
-// editorHoverBackground
-export const inlineEditIndicatorBackground = registerColor('inlineEdit.indicator.background', buttonBackground, '');
-// editorHoverBorder
-export const inlineEditIndicatorBorder = registerColor('inlineEdit.indicator.border', buttonSeparator, '');
+export const inlineEditIndicatorForeground = registerColor('inlineEdit.indicator.foreground', buttonForeground, localize('inlineEdit.indicator.foreground', 'Foreground color for the inline edit indicator.'));
+export const inlineEditIndicatorBackground = registerColor('inlineEdit.indicator.background', buttonBackground, localize('inlineEdit.indicator.background', 'Background color for the inline edit indicator.'));
+export const inlineEditIndicatorBorder = registerColor('inlineEdit.indicator.border', buttonSeparator, localize('inlineEdit.indicator.border', 'Border color for the inline edit indicator.'));
 
 export class InlineEditsIndicator extends Disposable {
 	private readonly _indicator = h('div.inline-edits-view-indicator', {
@@ -73,15 +69,14 @@ export class InlineEditsIndicator extends Disposable {
 
 			const range = new OffsetRange(0, i.height - 30);
 
-			const topEdit = state.editTopLeft;
-			this._indicator.root.classList.toggle('top', topEdit.y < range.start);
-			this._indicator.root.classList.toggle('bottom', topEdit.y > range.endExclusive);
+			const topEdit = state.editTop;
+			this._indicator.root.classList.toggle('top', topEdit < range.start);
+			this._indicator.root.classList.toggle('bottom', topEdit > range.endExclusive);
 			const showAnyway = state.showAlways;
 			this._indicator.root.classList.toggle('visible', showAnyway);
-			this._indicator.root.classList.toggle('contained', range.contains(topEdit.y));
+			this._indicator.root.classList.toggle('contained', range.contains(topEdit));
 
-
-			this._indicator.root.style.top = `${range.clip(topEdit.y)}px`;
+			this._indicator.root.style.top = `${range.clip(topEdit)}px`;
 			this._indicator.root.style.right = `${i.minimap.minimapWidth + i.verticalScrollbarWidth}px`;
 		}));
 	}

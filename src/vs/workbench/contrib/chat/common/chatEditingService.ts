@@ -23,7 +23,6 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
 	/**
 	 * emitted when a session is created, changed or disposed
 	 */
@@ -163,4 +162,11 @@ export interface IChatEditingActionContext {
 
 export function isChatEditingActionContext(thing: unknown): thing is IChatEditingActionContext {
 	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
+}
+
+export function getMultiDiffSourceUri(): URI {
+	return URI.from({
+		scheme: CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME,
+		path: '',
+	});
 }

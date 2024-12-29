@@ -53,25 +53,6 @@ const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('
 const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
 const zenModeIcon = registerIcon('zenMode', Codicon.target, localize('zenModeIcon', "Represents zen mode"));
 
-
-// --- Close Side Bar
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.closeSidebar',
-			title: localize2('closeSidebar', 'Close Primary Side Bar'),
-			category: Categories.View,
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.SIDEBAR_PART);
-	}
-});
-
 export const ToggleActivityBarVisibilityActionId = 'workbench.action.toggleActivityBarVisibility';
 
 // --- Toggle Centered Layout
@@ -201,17 +182,6 @@ MenuRegistry.appendMenuItems([{
 		order: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar right', "Move Primary Side Bar Right")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
-	}
-}, {
 	id: MenuId.ViewContainerTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
@@ -223,36 +193,25 @@ MenuRegistry.appendMenuItems([{
 		order: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar left', "Move Primary Side Bar Left")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
-	}
-}, {
-	id: MenuId.ViewTitleContext,
+	id: MenuId.ViewContainerTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
 			title: localize('move second sidebar left', "Move Secondary Side Bar Left")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 		order: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
+	id: MenuId.ViewContainerTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
 			title: localize('move second sidebar right', "Move Secondary Side Bar Right")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 		order: 1
 	}
 }]);
@@ -310,9 +269,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 
 // Toggle Sidebar Visibility
 
-class ToggleSidebarVisibilityAction extends Action2 {
+export class ToggleSidebarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleSidebarVisibility';
+	static readonly LABEL = localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar");
 
 	constructor() {
 		super({
@@ -322,6 +282,9 @@ class ToggleSidebarVisibilityAction extends Action2 {
 				condition: SideBarVisibleContext,
 				title: localize('primary sidebar', "Primary Side Bar"),
 				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
+			},
+			metadata: {
+				description: localize('openAndCloseSidebar', 'Open/Show and Close/Hide Sidebar'),
 			},
 			category: Categories.View,
 			f1: true,
@@ -363,17 +326,6 @@ MenuRegistry.appendMenuItems([
 				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
 			},
 			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-			order: 2
-		}
-	}, {
-		id: MenuId.ViewTitleContext,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
-			},
-			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 			order: 2
 		}
 	}, {

@@ -306,7 +306,7 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 	// Drag and drop
 	widget.draggable = true;
 	store.add(dom.addDisposableListener(widget, 'dragstart', e => {
-		instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [attachment.value.uri], e));
+		instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [{ resource: attachment.value.uri, selection: attachment.value.range }], e));
 
 		fillInSymbolsDragData([{
 			fsPath: attachment.value.uri.fsPath,

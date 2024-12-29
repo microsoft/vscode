@@ -15,6 +15,8 @@ export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
+	private sessions = new Map<string, IChatModel>();
+
 	isEnabled(location: ChatAgentLocation): boolean {
 		throw new Error('Method not implemented.');
 	}
@@ -27,9 +29,12 @@ export class MockChatService implements IChatService {
 	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined {
 		throw new Error('Method not implemented.');
 	}
+	addSession(session: IChatModel): void {
+		this.sessions.set(session.sessionId, session);
+	}
 	getSession(sessionId: string): IChatModel | undefined {
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		return {} as IChatModel;
+		return this.sessions.get(sessionId) ?? {} as IChatModel;
 	}
 	getOrRestoreSession(sessionId: string): IChatModel | undefined {
 		throw new Error('Method not implemented.');

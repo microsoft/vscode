@@ -275,6 +275,20 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.emptyPaneMessageElement.appendChild(messageElement);
 		parent.appendChild(this.emptyPaneMessageElement);
 
+		const setDropBackgroundFeedback = (visible: boolean) => {
+			const updateActivityBarBackground = !this.getActiveComposite() || !visible;
+			const backgroundColor = visible ? this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)?.toString() || '' : '';
+
+			if (this.titleContainer && updateActivityBarBackground) {
+				this.titleContainer.style.backgroundColor = backgroundColor;
+			}
+			if (this.headerFooterCompositeBarContainer && updateActivityBarBackground) {
+				this.headerFooterCompositeBarContainer.style.backgroundColor = backgroundColor;
+			}
+
+			this.emptyPaneMessageElement!.style.backgroundColor = backgroundColor;
+		};
+
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragOver: (e) => {
 				EventHelper.stop(e.eventData, true);
@@ -287,20 +301,20 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				EventHelper.stop(e.eventData, true);
 				if (this.paneCompositeBar.value) {
 					const validDropTarget = this.paneCompositeBar.value.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
-					this.emptyPaneMessageElement!.style.backgroundColor = validDropTarget ? this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)?.toString() || '' : '';
+					setDropBackgroundFeedback(validDropTarget);
 				}
 			},
 			onDragLeave: (e) => {
 				EventHelper.stop(e.eventData, true);
-				this.emptyPaneMessageElement!.style.backgroundColor = '';
+				setDropBackgroundFeedback(false);
 			},
 			onDragEnd: (e) => {
 				EventHelper.stop(e.eventData, true);
-				this.emptyPaneMessageElement!.style.backgroundColor = '';
+				setDropBackgroundFeedback(false);
 			},
 			onDrop: (e) => {
 				EventHelper.stop(e.eventData, true);
-				this.emptyPaneMessageElement!.style.backgroundColor = '';
+				setDropBackgroundFeedback(false);
 				if (this.paneCompositeBar.value) {
 					this.paneCompositeBar.value.dndHandler.drop(e.dragAndDropData, undefined, e.eventData);
 				} else {
@@ -596,7 +610,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private layoutEmptyMessage(): void {
 		const visible = !this.getActiveComposite();
-		this.emptyPaneMessageElement?.classList.toggle('visible', visible);
+		this.element.classList.toggle('empty', visible);
 		if (visible) {
 			this.titleLabel?.updateTitle('', '');
 		}

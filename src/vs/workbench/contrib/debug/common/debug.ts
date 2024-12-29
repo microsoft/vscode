@@ -29,6 +29,7 @@ import { Source } from './debugSource.js';
 import { ITaskIdentifier } from '../../tasks/common/tasks.js';
 import { LiveTestResult } from '../../testing/common/testResult.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IView } from '../../../common/views.js';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -114,6 +115,10 @@ export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
 	default: 'openOnFirstSessionStart',
 	description: nls.localize('internalConsoleOptions', "Controls when the internal Debug Console should open.")
 };
+
+export interface IDebugViewWithVariables extends IView {
+	readonly treeSelection: IExpression[];
+}
 
 // raw
 

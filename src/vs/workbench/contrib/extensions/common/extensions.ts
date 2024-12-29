@@ -112,6 +112,7 @@ export interface InstallExtensionOptions extends IWorkbenchInstallOptions {
 	version?: string;
 	justification?: string | { reason: string; action: string };
 	enable?: boolean;
+	installEverywhere?: boolean;
 }
 
 export interface IExtensionsNotification {
@@ -143,7 +144,6 @@ export interface IExtensionsWorkbenchService {
 	installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void>;
 	downloadVSIX(extension: string, prerelease: boolean): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
-	reinstall(extension: IExtension): Promise<IExtension>;
 	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;

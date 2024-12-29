@@ -20,7 +20,7 @@ export const enum InlineChatConfigKeys {
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	AccessibleDiffView = 'inlineChat.accessibleDiffView',
 	LineEmptyHint = 'inlineChat.lineEmptyHint',
-	LineSuffixHint = 'inlineChat.lineSuffixHint'
+	LineNLHint = 'inlineChat.lineNaturalLanguageHint'
 }
 
 export const enum EditMode {
@@ -68,8 +68,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			tags: ['experimental'],
 		},
-		[InlineChatConfigKeys.LineSuffixHint]: {
-			markdownDescription: localize('lineSuffixHint', "Whether a hint to complete a line with inline chat is shown. Only shows when at the end of a line that is dominated by natural language, like `class Person with name and hobbies`"),
+		[InlineChatConfigKeys.LineNLHint]: {
+			markdownDescription: localize('lineSuffixHint', "Whether lines that are dominated by natural language or pseudo code show a hint to continue with inline chat. For instance, `class Person with name and hobbies` would show a hint to continue with chat."),
 			default: true,
 			type: 'boolean',
 			tags: ['experimental'],
