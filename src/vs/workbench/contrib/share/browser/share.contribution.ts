@@ -32,7 +32,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 
 const targetMenus = [
 	MenuId.EditorContextShare,
@@ -44,7 +44,7 @@ const targetMenus = [
 	MenuId.ExplorerContextShare
 ];
 
-class ShareWorkbenchContribution {
+class ShareWorkbenchContribution extends Disposable {
 	private static SHARE_ENABLED_SETTING = 'workbench.experimental.share.enabled';
 
 	private _disposables: DisposableStore | undefined;
@@ -53,10 +53,12 @@ class ShareWorkbenchContribution {
 		@IShareService private readonly shareService: IShareService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		super();
+
 		if (this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING)) {
 			this.registerActions();
 		}
-		this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ShareWorkbenchContribution.SHARE_ENABLED_SETTING)) {
 				const settingValue = this.configurationService.getValue<boolean>(ShareWorkbenchContribution.SHARE_ENABLED_SETTING);
 				if (settingValue === true && this._disposables === undefined) {
@@ -66,7 +68,12 @@ class ShareWorkbenchContribution {
 					this._disposables = undefined;
 				}
 			}
-		});
+		}));
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._disposables?.dispose();
 	}
 
 	private registerActions() {

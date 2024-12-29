@@ -14,6 +14,7 @@ import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activi
 import { IAction } from '../../../../base/common/actions.js';
 import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { isLinux, isNative } from '../../../../base/common/platform.js';
 
 // --- Context Menu Actions --- //
 
@@ -65,7 +66,7 @@ registerAction2(class ToggleNavigationControl extends ToggleTitleBarConfigAction
 
 registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 3, true);
+		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 4, true);
 	}
 });
 
@@ -104,7 +105,6 @@ registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.WINDOWED);
 	}
 });
-
 
 class ToggleCustomTitleBar extends Action2 {
 
@@ -177,7 +177,6 @@ registerAction2(class ShowCustomTitleBar extends Action2 {
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
 	}
 });
-
 
 registerAction2(class HideCustomTitleBar extends Action2 {
 	constructor() {
@@ -259,6 +258,26 @@ registerAction2(class ToggleEditorActions extends Action2 {
 		}
 	}
 });
+
+if (isLinux && isNative) {
+	registerAction2(class ToggleCustomTitleBar extends Action2 {
+		constructor() {
+			super({
+				id: `toggle.${TitleBarSetting.TITLE_BAR_STYLE}`,
+				title: localize('toggle.titleBarStyle', 'Restore Native Title Bar'),
+				menu: [
+					{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.CUSTOM), group: '4_restore_native_title' },
+					{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.CUSTOM), group: '4_restore_native_title' },
+				]
+			});
+		}
+
+		run(accessor: ServicesAccessor): void {
+			const configService = accessor.get(IConfigurationService);
+			configService.updateValue(TitleBarSetting.TITLE_BAR_STYLE, TitlebarStyle.NATIVE);
+		}
+	});
+}
 
 // --- Toolbar actions --- //
 

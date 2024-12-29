@@ -235,6 +235,7 @@ export class CodeActionModel extends Disposable {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
+							codeActionSet.dispose();
 							return emptyCodeActionSet;
 						}
 

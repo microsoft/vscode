@@ -215,7 +215,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FILE);
 			iconAttributes = getIconAttributes(resource);
 			openable = { fileUri: resource };
-			fullLabel = recent.label || labelService.getUriLabel(resource);
+			fullLabel = recent.label || labelService.getUriLabel(resource, { appendWorkspaceSuffix: true });
 		}
 
 		const { name, parentPath } = splitRecentLabel(fullLabel);

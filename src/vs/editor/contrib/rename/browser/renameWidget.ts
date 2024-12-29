@@ -995,7 +995,7 @@ class InputWithButton implements IDisposable {
 
 	setStopButton() {
 		this._buttonState = 'stop';
-		this._stopIcon ??= renderIcon(Codicon.primitiveSquare);
+		this._stopIcon ??= renderIcon(Codicon.stopCircle);
 		dom.clearNode(this.button);
 		this.button.appendChild(this._stopIcon);
 		this.button.setAttribute('aria-label', 'Cancel generating new name suggestions');

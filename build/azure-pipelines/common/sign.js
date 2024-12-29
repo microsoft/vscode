@@ -105,6 +105,20 @@ function getParams(type) {
                     toolName: 'sign',
                     toolVersion: '1.0'
                 }];
+        case 'nuget':
+            return [{
+                    keyCode: 'CP-401405',
+                    operationSetCode: 'NuGetSign',
+                    parameters: [],
+                    toolName: 'sign',
+                    toolVersion: '1.0'
+                }, {
+                    keyCode: 'CP-401405',
+                    operationSetCode: 'NuGetVerify',
+                    parameters: [],
+                    toolName: 'sign',
+                    toolVersion: '1.0'
+                }];
         default:
             throw new Error(`Sign type ${type} not found`);
     }
@@ -112,6 +126,14 @@ function getParams(type) {
 function main([esrpCliPath, type, folderPath, pattern]) {
     const tmp = new Temp();
     process.on('exit', () => tmp.dispose());
+    const key = crypto.randomBytes(32);
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    const encryptedToken = cipher.update(process.env['SYSTEM_ACCESSTOKEN'].trim(), 'utf8', 'hex') + cipher.final('hex');
+    const encryptionDetailsPath = tmp.tmpNameSync();
+    fs.writeFileSync(encryptionDetailsPath, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
+    const encryptedTokenPath = tmp.tmpNameSync();
+    fs.writeFileSync(encryptedTokenPath, encryptedToken);
     const patternPath = tmp.tmpNameSync();
     fs.writeFileSync(patternPath, pattern);
     const paramsPath = tmp.tmpNameSync();
@@ -128,7 +150,8 @@ function main([esrpCliPath, type, folderPath, pattern]) {
         managedIdentityTenantId: process.env['VSCODE_ESRP_TENANT_ID'],
         serviceConnectionId: process.env['VSCODE_ESRP_SERVICE_CONNECTION_ID'],
         tempDirectory: os.tmpdir(),
-        systemAccessToken: process.env['SYSTEM_ACCESSTOKEN']
+        systemAccessToken: encryptedTokenPath,
+        encryptionKey: encryptionDetailsPath
     };
     const args = [
         esrpCliPath,

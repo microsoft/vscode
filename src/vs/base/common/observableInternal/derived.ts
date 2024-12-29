@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
+import { BaseObservable, IChangeContext, IObservable, IObservableWithChange, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
 import { DebugNameData, DebugOwner, IDebugNameData } from './debugName.js';
 import { BugIndicatingError, DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
@@ -220,6 +220,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		 */
 		this.state = DerivedState.initial;
 		this.value = undefined;
+		getLogger()?.handleDerivedCleared(this);
 		for (const d of this.dependencies) {
 			d.removeObserver(this);
 		}
@@ -365,6 +366,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		}
 	}
 
+	private _removedObserverToCallEndUpdateOn: Set<IObserver> | null = null;
+
 	public endUpdate<T>(_observable: IObservable<T>): void {
 		this.updateCount--;
 		if (this.updateCount === 0) {
@@ -373,11 +376,18 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			for (const r of observers) {
 				r.endUpdate(this);
 			}
+			if (this._removedObserverToCallEndUpdateOn) {
+				const observers = [...this._removedObserverToCallEndUpdateOn];
+				this._removedObserverToCallEndUpdateOn = null;
+				for (const r of observers) {
+					r.endUpdate(this);
+				}
+			}
 		}
 		assertFn(() => this.updateCount >= 0);
 	}
 
-	public handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
+	public handlePossibleChange<T>(observable: IObservable<T>): void {
 		// In all other states, observers already know that we might have changed.
 		if (this.state === DerivedState.upToDate && this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			this.state = DerivedState.dependenciesMightHaveChanged;
@@ -387,7 +397,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		}
 	}
 
-	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	public handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
 		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			let shouldReact = false;
 			try {
@@ -433,18 +443,32 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		super.addObserver(observer);
 
 		if (shouldCallBeginUpdate) {
-			observer.beginUpdate(this);
+			if (this._removedObserverToCallEndUpdateOn && this._removedObserverToCallEndUpdateOn.has(observer)) {
+				this._removedObserverToCallEndUpdateOn.delete(observer);
+			} else {
+				observer.beginUpdate(this);
+			}
 		}
 	}
 
 	public override removeObserver(observer: IObserver): void {
-		const shouldCallEndUpdate = this.observers.has(observer) && this.updateCount > 0;
-		super.removeObserver(observer);
-
-		if (shouldCallEndUpdate) {
-			// Calling end update after removing the observer makes sure endUpdate cannot be called twice here.
-			observer.endUpdate(this);
+		if (this.observers.has(observer) && this.updateCount > 0) {
+			if (!this._removedObserverToCallEndUpdateOn) {
+				this._removedObserverToCallEndUpdateOn = new Set();
+			}
+			this._removedObserverToCallEndUpdateOn.add(observer);
 		}
+		super.removeObserver(observer);
+	}
+
+	public override log(): IObservableWithChange<T, void> {
+		if (!getLogger()) {
+			super.log();
+			getLogger()?.handleDerivedCreated(this);
+		} else {
+			super.log();
+		}
+		return this;
 	}
 }
 

@@ -299,6 +299,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+		this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
 		const session = await this.doGetSession(providerId, scopes, extensionId, extensionName, options);
 
 		if (session) {
@@ -312,6 +313,28 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	async $getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
 		const accounts = await this.authenticationService.getAccounts(providerId);
 		return accounts;
+	}
+
+	// TODO@TylerLeonhardt this is a temporary addition to telemetry to understand what extensions are overriding the client id.
+	// We can use this telemetry to reach out to these extension authors and let them know that they many need configuration changes
+	// due to the adoption of the Microsoft broker.
+	// Remove this in a few iterations.
+	private _sentClientIdUsageEvents = new Set<string>();
+	private sendClientIdUsageTelemetry(extensionId: string, providerId: string, scopes: string[]): void {
+		const containsVSCodeClientIdScope = scopes.some(scope => scope.startsWith('VSCODE_CLIENT_ID:'));
+		const key = `${extensionId}|${providerId}|${containsVSCodeClientIdScope}`;
+		if (this._sentClientIdUsageEvents.has(key)) {
+			return;
+		}
+		this._sentClientIdUsageEvents.add(key);
+		if (containsVSCodeClientIdScope) {
+			type ClientIdUsageClassification = {
+				owner: 'TylerLeonhardt';
+				comment: 'Used to see which extensions are using the VSCode client id override';
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
+			};
+			this.telemetryService.publicLog2<{ extensionId: string }, ClientIdUsageClassification>('authentication.clientIdUsage', { extensionId });
+		}
 	}
 
 	private sendProviderUsageTelemetry(extensionId: string, providerId: string): void {
