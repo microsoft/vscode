@@ -452,23 +452,28 @@ export class GitBlameController {
 }
 
 class GitBlameEditorDecoration implements HoverProvider {
-	private readonly _decorationType: TextEditorDecorationType;
+	private _decoration: TextEditorDecorationType | undefined;
+	private get decoration(): TextEditorDecorationType {
+		if (!this._decoration) {
+			this._decoration = window.createTextEditorDecorationType({
+				after: {
+					color: new ThemeColor('git.blame.editorDecorationForeground')
+				}
+			});
+		}
+
+		return this._decoration;
+	}
 
 	private _hoverDisposable: IDisposable | undefined;
 	private _disposables: IDisposable[] = [];
 
 	constructor(private readonly _controller: GitBlameController) {
-		this._decorationType = window.createTextEditorDecorationType({
-			after: {
-				color: new ThemeColor('git.blame.editorDecorationForeground')
-			}
-		});
-		this._disposables.push(this._decorationType);
-
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
 		window.onDidChangeActiveTextEditor(this._onDidChangeActiveTextEditor, this, this._disposables);
-
 		this._controller.onDidChangeBlameInformation(e => this._updateDecorations(e), this, this._disposables);
+
+		this._onDidChangeConfiguration();
 	}
 
 	async provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined> {
@@ -503,8 +508,9 @@ class GitBlameEditorDecoration implements HoverProvider {
 		return { range: getEditorDecorationRange(position.line), contents: [contents] };
 	}
 
-	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
+	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e &&
+			!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
 			!e.affectsConfiguration('git.blame.editorDecoration.template')) {
 			return;
 		}
@@ -515,10 +521,11 @@ class GitBlameEditorDecoration implements HoverProvider {
 				this._updateDecorations(window.activeTextEditor);
 			}
 		} else {
-			for (const textEditor of window.visibleTextEditors) {
-				textEditor.setDecorations(this._decorationType, []);
-			}
+			this._decoration?.dispose();
+			this._decoration = undefined;
+
 			this._hoverDisposable?.dispose();
+			this._hoverDisposable = undefined;
 		}
 	}
 
@@ -530,7 +537,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 		// Clear decorations
 		for (const editor of window.visibleTextEditors) {
 			if (editor !== window.activeTextEditor) {
-				editor.setDecorations(this._decorationType, []);
+				editor.setDecorations(this.decoration, []);
 			}
 		}
 
@@ -554,14 +561,14 @@ class GitBlameEditorDecoration implements HoverProvider {
 
 		// Only support resources with `file` and `git` schemes
 		if (textEditor.document.uri.scheme !== 'file' && !isGitUri(textEditor.document.uri)) {
-			textEditor.setDecorations(this._decorationType, []);
+			textEditor.setDecorations(this.decoration, []);
 			return;
 		}
 
 		// Get blame information
 		const blameInformation = this._controller.textEditorBlameInformation.get(textEditor);
 		if (!blameInformation) {
-			textEditor.setDecorations(this._decorationType, []);
+			textEditor.setDecorations(this.decoration, []);
 			return;
 		}
 
@@ -574,7 +581,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 			return this._createDecoration(blame.lineNumber, contentText);
 		});
 
-		textEditor.setDecorations(this._decorationType, decorations);
+		textEditor.setDecorations(this.decoration, decorations);
 	}
 
 	private _createDecoration(lineNumber: number, contentText: string): DecorationOptions {
@@ -592,7 +599,8 @@ class GitBlameEditorDecoration implements HoverProvider {
 	private _registerHoverProvider(): void {
 		this._hoverDisposable?.dispose();
 
-		if (window.activeTextEditor) {
+		if (window.activeTextEditor?.document.uri.scheme === 'file' ||
+			window.activeTextEditor?.document.uri.scheme === 'git') {
 			this._hoverDisposable = languages.registerHoverProvider({
 				pattern: window.activeTextEditor.document.uri.fsPath
 			}, this);
@@ -600,6 +608,9 @@ class GitBlameEditorDecoration implements HoverProvider {
 	}
 
 	dispose() {
+		this._decoration?.dispose();
+		this._decoration = undefined;
+
 		this._hoverDisposable?.dispose();
 		this._hoverDisposable = undefined;
 
