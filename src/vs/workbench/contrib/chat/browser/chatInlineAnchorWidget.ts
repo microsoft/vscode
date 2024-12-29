@@ -111,7 +111,7 @@ export class InlineAnchorWidget extends Disposable {
 			location = this.data.symbol.location;
 			iconText = this.data.symbol.name;
 
-      iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
+			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
 			iconAttributes = getIconAttributes(undefined);
 
 			this._register(dom.addDisposableListener(element, 'click', () => {
