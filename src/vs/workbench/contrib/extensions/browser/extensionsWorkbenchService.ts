@@ -19,7 +19,8 @@ import {
 	InstallOptions, IProductVersion,
 	UninstallExtensionInfo,
 	TargetPlatformToString,
-	IAllowedExtensionsService
+	IAllowedExtensionsService,
+	AllowedExtensionsConfigKey
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -924,7 +925,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onChange = this._register(new Emitter<IExtension | undefined>());
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
-	private extensionsNotification: IExtensionsNotification | undefined;
+	private extensionsNotification: IExtensionsNotification & { readonly key: string } | undefined;
 	private readonly _onDidChangeExtensionsNotification = new Emitter<IExtensionsNotification | undefined>();
 	readonly onDidChangeExtensionsNotification = this._onDidChangeExtensionsNotification.event;
 
@@ -1381,7 +1382,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const computedNotificiations = this.computeExtensionsNotifications();
 		const dismissedNotifications: string[] = [];
 
-		let extensionsNotification: IExtensionsNotification | undefined;
+		let extensionsNotification: IExtensionsNotification & { key: string } | undefined;
 		if (computedNotificiations.length) {
 			// populate dismissed notifications with the ones that are still valid
 			for (const dismissedNotification of this.getDismissedNotifications()) {
@@ -1394,6 +1395,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					message: computedNotificiations[0].message,
 					severity: computedNotificiations[0].severity,
 					extensions: computedNotificiations[0].extensions,
+					key: computedNotificiations[0].key,
 					dismiss: () => {
 						this.setDismissedNotifications([...this.getDismissedNotifications(), computedNotificiations[0].key]);
 						this.updateExtensionsNotificaiton();
@@ -1403,7 +1405,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		this.setDismissedNotifications(dismissedNotifications);
 
-		if (this.extensionsNotification?.message !== extensionsNotification?.message) {
+		if (this.extensionsNotification?.key !== extensionsNotification?.key) {
 			this.extensionsNotification = extensionsNotification;
 			this._onDidChangeExtensionsNotification.fire(this.extensionsNotification);
 		}
@@ -1411,6 +1413,19 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private computeExtensionsNotifications(): Array<Omit<IExtensionsNotification, 'dismiss'> & { key: string }> {
 		const computedNotificiations: Array<Omit<IExtensionsNotification, 'dismiss'> & { key: string }> = [];
+
+		const disallowedExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByAllowlist);
+		if (disallowedExtensions.length) {
+			computedNotificiations.push({
+				message: this.configurationService.inspect(AllowedExtensionsConfigKey).policy
+					? nls.localize('disallowed extensions by policy', "Some extensions are disabled because they are not allowed by your system administrator.")
+					: nls.localize('disallowed extensions', "Some extensions are disabled because they are configured not to be allowed."),
+				severity: Severity.Warning,
+				extensions: disallowedExtensions,
+				key: 'disallowedExtensions:' + disallowedExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => e.identifier.id.toLowerCase()).join('-'),
+			});
+		}
+
 		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension && !e.isWorkspaceScoped);
 		if (invalidExtensions.length) {
 			if (invalidExtensions.some(e => e.local && e.local.manifest.engines?.vscode &&
@@ -1439,16 +1454,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				severity: Severity.Warning,
 				extensions: deprecatedExtensions,
 				key: 'deprecatedExtensions:' + deprecatedExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => e.identifier.id.toLowerCase()).join('-'),
-			});
-		}
-
-		const disallowedExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByAllowlist);
-		if (disallowedExtensions.length) {
-			computedNotificiations.push({
-				message: nls.localize('disallowed extensions', "Some extensions are disabled because they are configured not to be in the allowed list."),
-				severity: Severity.Warning,
-				extensions: disallowedExtensions,
-				key: 'disallowedExtensions:' + disallowedExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => e.identifier.id.toLowerCase()).join('-'),
 			});
 		}
 
@@ -1580,7 +1585,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (toAdd.length || toRemove.length) {
-			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"), auto)) {
+			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Changing extension enablement"), auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 				if (auto) {
 					this.notificationService.notify({
@@ -2337,34 +2342,69 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		} else {
 			let installableInfo: IExtensionInfo | undefined;
 			let gallery: IGalleryExtension | undefined;
+
+			// Install by id
 			if (isString(arg)) {
 				extension = this.local.find(e => areSameExtensions(e.identifier, { id: arg }));
 				if (!extension?.isBuiltin) {
 					installableInfo = { id: arg, version: installOptions.version, preRelease: installOptions.installPreReleaseVersion ?? this.preferPreReleases };
 				}
-			} else if (arg.gallery) {
+			}
+			// Install by gallery
+			else if (arg.gallery) {
 				extension = arg;
 				gallery = arg.gallery;
 				if (installOptions.version && installOptions.version !== gallery?.version) {
 					installableInfo = { id: extension.identifier.id, version: installOptions.version };
 				}
-			} else if (arg.resourceExtension) {
+			}
+			// Install by resource
+			else if (arg.resourceExtension) {
 				extension = arg;
 				installable = arg.resourceExtension;
 			}
+
 			if (installableInfo) {
 				const targetPlatform = extension?.server ? await extension.server.extensionManagementService.getTargetPlatform() : undefined;
 				gallery = (await this.galleryService.getExtensions([installableInfo], { targetPlatform }, CancellationToken.None)).at(0);
 			}
+
 			if (!extension && gallery) {
 				extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
 				(<Extension>extension).setExtensionsControlManifest(await this.extensionManagementService.getExtensionsControlManifest());
 			}
+
 			if (extension?.isMalicious) {
 				throw new Error(nls.localize('malicious', "This extension is reported to be problematic."));
 			}
-			// Do not install if requested to enable and extension is already installed
-			if (!(installOptions.enable && extension?.local)) {
+
+			if (gallery) {
+				// If requested to install everywhere
+				// then install the extension in all the servers where it is not installed
+				if (installOptions.installEverywhere) {
+					installOptions.servers = [];
+					const installableServers = await this.extensionManagementService.getInstallableServers(gallery);
+					for (const extensionsServer of this.extensionsServers) {
+						if (installableServers.includes(extensionsServer.server) && !extensionsServer.local.find(e => areSameExtensions(e.identifier, gallery.identifier))) {
+							installOptions.servers.push(extensionsServer.server);
+						}
+					}
+				}
+				// If requested to enable and extension is already installed
+				// Check if the extension is disabled because of extension kind
+				// If so, install the extension in the server that is compatible.
+				else if (installOptions.enable && extension?.local) {
+					installOptions.servers = [];
+					if (extension.enablementState === EnablementState.DisabledByExtensionKind) {
+						const [installableServer] = await this.extensionManagementService.getInstallableServers(gallery);
+						if (installableServer) {
+							installOptions.servers.push(installableServer);
+						}
+					}
+				}
+			}
+
+			if (!installOptions.servers || installOptions.servers.length) {
 				if (!installable) {
 					if (!gallery) {
 						const id = isString(arg) ? arg : (<IExtension>arg).identifier.id;
@@ -2613,17 +2653,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			extension.displayName, dependents[0].displayName, dependents[1].displayName);
 	}
 
-	reinstall(extension: IExtension): Promise<IExtension> {
-		return this.doInstall(extension, () => {
-			const ext = extension.local ? extension : this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
-			const toReinstall: ILocalExtension | null = ext && ext.local ? ext.local : null;
-			if (!toReinstall) {
-				throw new Error('Missing local');
-			}
-			return this.extensionManagementService.reinstallFromGallery(toReinstall);
-		});
-	}
-
 	isExtensionIgnoredToSync(extension: IExtension): boolean {
 		return extension.local ? !this.isInstalledExtensionSynced(extension.local)
 			: this.extensionsSyncManagementService.hasToNeverSyncExtension(extension.identifier.id);
@@ -2736,10 +2765,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.extensionManagementService.installVSIX(vsix, manifest, installOptions);
 	}
 
-	private installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	private installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallExtensionOptions): Promise<ILocalExtension> {
 		installOptions = installOptions ?? {};
 		installOptions.pinned = extension.local?.pinned || !this.shouldAutoUpdateExtension(extension);
-		if (extension.local) {
+		if (extension.local && !installOptions.servers) {
 			installOptions.productVersion = this.getProductVersion();
 			installOptions.operation = InstallOperation.Update;
 			return this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);

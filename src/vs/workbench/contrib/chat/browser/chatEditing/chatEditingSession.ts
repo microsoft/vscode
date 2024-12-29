@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../../base/common/async.js';
+import { ITask, Sequencer, timeout } from '../../../../../base/common/async.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { autorun, derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -30,9 +30,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, IChatEditingSession, IModifiedFileEntry, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedFileEntry, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { ChatEditingMultiDiffSourceResolver } from './chatEditingService.js';
 import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -43,9 +42,47 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IOffsetEdit, ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatService } from '../../common/chatService.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
+import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
+import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
+
+
+class ThrottledSequencer extends Sequencer {
+
+	private _size = 0;
+
+	constructor(
+		private readonly _minDuration: number,
+		private readonly _maxOverallDelay: number
+	) {
+		super();
+	}
+
+	override queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
+
+		this._size += 1;
+
+		const noDelay = this._size * this._minDuration > this._maxOverallDelay;
+
+		return super.queue(async () => {
+			try {
+				const p1 = promiseTask();
+				const p2 = noDelay
+					? Promise.resolve(undefined)
+					: timeout(this._minDuration);
+
+				const [result] = await Promise.all([p1, p2]);
+				return result;
+
+			} finally {
+				this._size -= 1;
+			}
+		});
+	}
+}
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
 
@@ -64,7 +101,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._assertNotDisposed();
 		return this._entriesObs;
 	}
-	private readonly _sequencer = new Sequencer();
+	private readonly _sequencer = new ThrottledSequencer(15, 1000);
 
 	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
 	get workingSet() {
@@ -142,6 +179,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IFileDialogService private readonly _dialogService: IFileDialogService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
+		@INotebookService private readonly _notebookService: INotebookService,
 	) {
 		super();
 	}
@@ -210,19 +248,27 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			if (!group.activeEditorPane) {
 				return;
 			}
-			let activeEditorControl = group.activeEditorPane.getControl();
-			if (isDiffEditor(activeEditorControl)) {
-				activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
-			}
-			if (isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
-				const uri = activeEditorControl.getModel().uri;
-				if (existingTransientEntries.has(uri)) {
-					existingTransientEntries.delete(uri);
-				} else if (!this._workingSet.has(uri) && !this._removedTransientEntries.has(uri)) {
-					// Don't add as a transient entry if it's already part of the working set
-					// or if the user has intentionally removed it from the working set
-					activeEditors.add(uri);
+			let uri;
+			if (isNotebookEditorInput(group.activeEditorPane.input)) {
+				uri = group.activeEditorPane.input.resource;
+			} else {
+				let activeEditorControl = group.activeEditorPane.getControl();
+				if (isDiffEditor(activeEditorControl)) {
+					activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
 				}
+				if ((isCodeEditor(activeEditorControl)) && activeEditorControl.hasModel()) {
+					uri = activeEditorControl.getModel().uri;
+				}
+			}
+			if (!uri) {
+				return;
+			}
+			if (existingTransientEntries.has(uri)) {
+				existingTransientEntries.delete(uri);
+			} else if ((!this._workingSet.has(uri) || this._workingSet.get(uri)?.state === WorkingSetEntryState.Suggested) && !this._removedTransientEntries.has(uri)) {
+				// Don't add as a transient entry if it's already a confirmed part of the working set
+				// or if the user has intentionally removed it from the working set
+				activeEditors.add(uri);
 			}
 		});
 
@@ -248,8 +294,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public createSnapshot(requestId: string | undefined): void {
 		const snapshot = this._createSnapshot(requestId);
 		if (requestId) {
-			for (const workingSetItem of this._workingSet.keys()) {
-				this._workingSet.set(workingSetItem, { state: WorkingSetEntryState.Sent });
+			for (const [uri, data] of this._workingSet) {
+				if (data.state !== WorkingSetEntryState.Suggested) {
+					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
+				}
 			}
 			const linearHistory = this._linearHistory.get();
 			const linearHistoryIndex = this._linearHistoryIndex.get();
@@ -294,10 +342,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._modelService.createModel(snapshotEntry.current, this._languageService.createById(snapshotEntry.languageId), snapshotUri, false);
 	}
 
-	public getSnapshot(requestId: string, uri: URI) {
+	public getSnapshot(requestId: string, uri: URI): ISnapshotEntry | undefined {
 		const snapshot = this._findSnapshot(requestId);
 		const snapshotEntries = snapshot?.entries;
 		return snapshotEntries?.get(uri);
+	}
+
+	public getSnapshotUri(requestId: string, uri: URI): URI | undefined {
+		return this.getSnapshot(requestId, uri)?.snapshotUri;
 	}
 
 	/**
@@ -431,7 +483,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		}
 		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
-			multiDiffSource: ChatEditingMultiDiffSourceResolver.getMultiDiffSourceUri(),
+			multiDiffSource: getMultiDiffSourceUri(),
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 
@@ -471,10 +523,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	override dispose() {
 		this._assertNotDisposed();
 
-		for (const entry of this._entriesObs.get()) {
-			entry.dispose();
-		}
+		this._chatService.cancelCurrentRequestForSession(this.chatSessionId);
 
+		dispose(this._entriesObs.get());
 		super.dispose();
 		this._state.set(ChatEditingSessionState.Disposed, undefined);
 		this._onDidDispose.fire();
@@ -604,7 +655,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
 		entry.acceptAgentEdits(textEdits, isLastEdits);
-		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
 
 	private async _resolve(): Promise<void> {
@@ -653,6 +703,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		try {
 			const ref = await this._textModelService.createModelReference(resource);
 
+			if (this._notebookService.hasSupportedNotebooks(resource)) {
+				return this._instantiationService.createInstance(ChatEditingModifiedNotebookEntry, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel, mustExist ? ChatEditKind.Created : ChatEditKind.Modified, initialContent);
+			}
 			return this._instantiationService.createInstance(ChatEditingModifiedFileEntry, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel, mustExist ? ChatEditKind.Created : ChatEditKind.Modified, initialContent);
 		} catch (err) {
 			if (mustExist) {

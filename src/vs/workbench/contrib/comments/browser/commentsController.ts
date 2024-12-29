@@ -47,6 +47,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { threadHasMeaningfulComments } from './commentsModel.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 export const ID = 'editor.contrib.review';
 
@@ -485,7 +486,8 @@ export class CommentController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
@@ -1168,7 +1170,11 @@ export class CommentController implements IEditorContribution {
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			this._addInProgress = false;
 			if (!newCommentInfos.length) {
-				throw new Error(`There are no commenting ranges at the current position (${range ? 'with range' : 'without range'}).`);
+				if (range) {
+					this.notificationService.error(nls.localize('comments.addCommand.error', "The cursor must be within a commenting range to add a comment."));
+				} else {
+					this.notificationService.error(nls.localize('comments.addFileCommentCommand.error', "File comments are not allowed on this file."));
+				}
 			}
 			return Promise.resolve();
 		}

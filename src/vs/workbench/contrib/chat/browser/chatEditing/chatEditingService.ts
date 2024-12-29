@@ -22,6 +22,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -61,11 +62,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._currentSessionObs;
 	}
 
-	private readonly _onDidCreateEditingSession = this._register(new Emitter<IChatEditingSession>());
-	get onDidCreateEditingSession() {
-		return this._onDidCreateEditingSession.event;
-	}
-
 	private readonly _onDidChangeEditingSession = this._register(new Emitter<void>());
 	public readonly onDidChangeEditingSession = this._onDidChangeEditingSession.event;
 
@@ -94,6 +90,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
 		@IStorageService storageService: IStorageService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
@@ -163,10 +160,15 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const sessionIdToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
 		if (isString(sessionIdToRestore)) {
-			this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
-			this._restoringEditingSession.finally(() => {
-				this._restoringEditingSession = undefined;
-			});
+			if (this._chatService.getOrRestoreSession(sessionIdToRestore)) {
+				this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
+				this._restoringEditingSession.finally(() => {
+					this._restoringEditingSession = undefined;
+				});
+			} else {
+				logService.error(`Edit session session to restore is a non-existing chat session: ${sessionIdToRestore}`);
+			}
+			storageService.remove(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -175,14 +177,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			await this._restoringEditingSession;
 		}
 		return this.currentEditingSessionObs.get();
-	}
-
-	getSnapshotUri(id: string, uri: URI) {
-		const session = this._currentSessionObs.get();
-		if (!session) {
-			return undefined;
-		}
-		return session.getSnapshot(id, uri)?.snapshotUri;
 	}
 
 	override dispose(): void {
@@ -228,17 +222,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 
 		this._currentSessionObs.set(session, undefined);
-		this._onDidCreateEditingSession.fire(session);
 		this._onDidChangeEditingSession.fire();
 		return session;
-	}
-
-	public createSnapshot(requestId: string): void {
-		this._currentSessionObs.get()?.createSnapshot(requestId);
-	}
-
-	public async restoreSnapshot(requestId: string | undefined): Promise<void> {
-		await this._currentSessionObs.get()?.restoreSnapshot(requestId);
 	}
 
 	private installAutoApplyObserver(session: ChatEditingSession): IDisposable {
@@ -294,8 +279,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					const newEdits = allEdits.slice(entry.seen);
 					entry.seen += newEdits.length;
 
-					editsSource ??= new AsyncIterableSource();
-					editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+					if (newEdits.length > 0 || entry.seen === 0) {
+						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
+						editsSource ??= new AsyncIterableSource();
+						editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+					}
 
 					if (first) {
 
@@ -305,6 +293,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 							for await (const item of editsSource!.asyncIterable) {
 								if (token.isCancellationRequested) {
 									break;
+								}
+								if (item.edits.length === 0) {
+									// EMPTY edit, just signal via empty edits that work is starting
+									builder.textEdits(item.uri, [], item.done ?? false, responseModel);
+									continue;
 								}
 								for (let i = 0; i < item.edits.length; i++) {
 									const group = item.edits[i];
@@ -334,8 +327,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 							await handleResponseParts(responseModel);
 							if (responseModel.isComplete) {
 								onResponseComplete(responseModel);
-								disposable.dispose();
-							} else if (responseModel.isCanceled || responseModel.isStale) {
 								disposable.dispose();
 							}
 						});
@@ -394,11 +385,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			return undefined;
 		}
 		const userAddedWorkingSetEntries: URI[] = [];
-		for (const entry of currentSession.workingSet) {
+		for (const [uri, metadata] of currentSession.workingSet) {
 			// Don't incorporate suggested files into the related files request
 			// but do consider transient entries like open editors
-			if (entry[1].state !== WorkingSetEntryState.Suggested) {
-				userAddedWorkingSetEntries.push(entry[0]);
+			if (metadata.state !== WorkingSetEntryState.Suggested) {
+				userAddedWorkingSetEntries.push(uri);
 			}
 		}
 
@@ -494,14 +485,6 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 }
 
 export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResolver {
-	public static readonly scheme = CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME;
-
-	public static getMultiDiffSourceUri(): URI {
-		return URI.from({
-			scheme: ChatEditingMultiDiffSourceResolver.scheme,
-			path: '',
-		});
-	}
 
 	constructor(
 		private readonly _currentSession: IObservable<ChatEditingSession | null>,
@@ -509,7 +492,7 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 	) { }
 
 	canHandleUri(uri: URI): boolean {
-		return uri.scheme === ChatEditingMultiDiffSourceResolver.scheme;
+		return uri.scheme === CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME;
 	}
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {

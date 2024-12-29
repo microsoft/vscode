@@ -23,7 +23,6 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
 	/**
 	 * emitted when a session is created, changed or disposed
 	 */
@@ -38,10 +37,6 @@ export interface IChatEditingService {
 
 	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 	getOrRestoreEditingSession(): Promise<IChatEditingSession | null>;
-	createSnapshot(requestId: string): void;
-	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
-	restoreSnapshot(requestId: string | undefined): Promise<void>;
-
 	hasRelatedFilesProviders(): boolean;
 	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
 	getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
@@ -83,6 +78,10 @@ export interface IChatEditingSession {
 	reject(...uris: URI[]): Promise<void>;
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
 	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
+
+	restoreSnapshot(requestId: string): Promise<void>;
+	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
+
 	/**
 	 * Will lead to this object getting disposed
 	 */
@@ -163,4 +162,11 @@ export interface IChatEditingActionContext {
 
 export function isChatEditingActionContext(thing: unknown): thing is IChatEditingActionContext {
 	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
+}
+
+export function getMultiDiffSourceUri(): URI {
+	return URI.from({
+		scheme: CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME,
+		path: '',
+	});
 }

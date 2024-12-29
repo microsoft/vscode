@@ -764,11 +764,11 @@ export class CodeCompareBlockPart extends Disposable {
 
 			let template: string;
 			if (data.edit.state.applied === 1) {
-				template = localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
+				template = localize('chat.edits.1', "Applied 1 change in [[``{0}``]]", uriLabel);
 			} else if (data.edit.state.applied < 0) {
 				template = localize('chat.edits.rejected', "Edits in [[``{0}``]] have been rejected", uriLabel);
 			} else {
-				template = localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
+				template = localize('chat.edits.N', "Applied {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
 			}
 
 			const message = renderFormattedText(template, {
@@ -938,4 +938,6 @@ export class DefaultChatTextEditor {
 
 		response.setEditApplied(item, -1);
 	}
+
+
 }

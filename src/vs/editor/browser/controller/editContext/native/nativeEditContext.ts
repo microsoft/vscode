@@ -12,7 +12,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, EndOfLineSequence, IModelDeltaDecoration } from '../../../../common/model.js';
-import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
+import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
@@ -54,6 +54,8 @@ export class NativeEditContext extends AbstractEditContext {
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
 
 	private _targetWindowId: number = -1;
+	private _scrollTop: number = 0;
+	private _scrollLeft: number = 0;
 
 	private readonly _focusTracker: FocusTracker;
 
@@ -83,7 +85,12 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
-			this._selectionChangeListener.value = newFocusValue ? this._setSelectionChangeListener(viewController) : undefined;
+			if (newFocusValue) {
+				this._selectionChangeListener.value = this._setSelectionChangeListener(viewController);
+				this._screenReaderSupport.setIgnoreSelectionChangeTime('onFocus');
+			} else {
+				this._selectionChangeListener.value = undefined;
+			}
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
@@ -95,6 +102,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			// Pretend here we touched the text area, as the `cut` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._screenReaderSupport.setIgnoreSelectionChangeTime('onCut');
 			this._ensureClipboardGetsEditorSelection(e);
 			viewController.cut();
 		}));
@@ -137,6 +147,9 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionEnd();
 		}));
 		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
+			// Pretend here we touched the text area, as the `paste` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._screenReaderSupport.setIgnoreSelectionChangeTime('onPaste');
 			e.preventDefault();
 			if (!e.clipboardData) {
 				return;
@@ -203,8 +216,39 @@ export class NativeEditContext extends AbstractEditContext {
 		return true;
 	}
 
+	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations that can end up relayouting text
+		return true;
+	}
+
+	public override onFlushed(e: ViewFlushedEvent): boolean {
+		return true;
+	}
+
+	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		return true;
+	}
+
+	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+
+	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+
+	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
+		this._scrollLeft = e.scrollLeft;
+		this._scrollTop = e.scrollTop;
+		return true;
+	}
+
+	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
+		return true;
+	}
+
 	public onWillPaste(): void {
-		this._screenReaderSupport.setIgnoreSelectionChangeTime();
+		this._screenReaderSupport.setIgnoreSelectionChangeTime('onWillPaste');
 	}
 
 	public writeScreenReaderContent(): void {
@@ -367,12 +411,10 @@ export class NativeEditContext extends AbstractEditContext {
 		const modelStartPosition = this._primarySelection.getStartPosition();
 		const viewStartPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelStartPosition);
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewStartPosition.lineNumber);
-		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 
-		const top = parentBounds.top + verticalOffsetStart - editorScrollTop;
+		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		const height = (this._primarySelection.endLineNumber - this._primarySelection.startLineNumber + 1) * lineHeight;
-		let left = parentBounds.left + contentLeft - editorScrollLeft;
+		let left = parentBounds.left + contentLeft - this._scrollLeft;
 		let width: number;
 
 		if (this._primarySelection.isEmpty()) {
@@ -411,9 +453,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const characterViewRange = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(characterModelRange);
 			const characterLinesVisibleRanges = this._visibleRangeProvider.linesVisibleRangesForRange(characterViewRange, true) ?? [];
 			const characterVerticalOffset = this._context.viewLayout.getVerticalOffsetForLineNumber(characterViewRange.startLineNumber);
-			const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-			const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
-			const top = parentBounds.top + characterVerticalOffset - editorScrollTop;
+			const top = parentBounds.top + characterVerticalOffset - this._scrollTop;
 
 			let left = 0;
 			let width = typicalHalfWidthCharacterWidth;
@@ -424,7 +464,7 @@ export class NativeEditContext extends AbstractEditContext {
 					break;
 				}
 			}
-			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - editorScrollLeft, top, width, lineHeight));
+			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - this._scrollLeft, top, width, lineHeight));
 		}
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
 	}

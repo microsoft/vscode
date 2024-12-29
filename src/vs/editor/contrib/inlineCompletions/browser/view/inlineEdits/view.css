@@ -77,7 +77,7 @@
 	}
 
 	.inline-edits-view {
-		&.toolbarDropdownVisible, .editorContainer:hover {
+		&.toolbarDropdownVisible, .editorContainer.showHover:hover {
 			.toolbar {
 				display: block;
 			}
@@ -131,8 +131,6 @@
 					.current-line-margin {
 						border: none;
 					}
-
-					--vscode-editor-background: transparent;
 				}
 			}
 		}
@@ -140,5 +138,49 @@
 
 	.strike-through {
 		text-decoration: line-through;
+	}
+
+	.inlineCompletions-line-insert {
+		background: var(--vscode-inlineEdit-modifiedChangedLineBackground);
+	}
+
+	.inlineCompletions-line-delete {
+		background: var(--vscode-inlineEdit-originalChangedLineBackground);
+	}
+
+	.inlineCompletions-char-insert {
+		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+	}
+
+	.inlineCompletions-char-delete {
+		background: var(--vscode-inlineEdit-originalChangedTextBackground);
+	}
+
+	.inlineCompletions-char-delete.diff-range-empty {
+		margin-left: -1px;
+		border-left: solid var(--vscode-inlineEdit-originalChangedTextBackground) 3px;
+	}
+
+	.inlineCompletions-char-insert.diff-range-empty {
+		border-left: solid var(--vscode-inlineEdit-modifiedChangedTextBackground) 3px;
+	}
+}
+
+.monaco-menu-option {
+	color: var(--vscode-editorActionList-foreground);
+	font-size: 13px;
+	padding: 0 10px;
+	line-height: 26px;
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	border-radius: 4px;
+	cursor: pointer;
+
+	&.active {
+		background: var(--vscode-editorActionList-focusBackground);
+		color: var(--vscode-editorActionList-focusForeground);
+		outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
+		outline-offset: -1px;
 	}
 }

@@ -467,6 +467,7 @@ export interface INotebookViewModel {
 	getMostRecentlyExecutedCell(): ICellViewModel | undefined;
 	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[];
 	getFoldedLength(index: number): number;
+	getFoldingStartIndex(index: number): number;
 	replaceOne(cell: ICellViewModel, range: Range, text: string): Promise<void>;
 	replaceAll(matches: CellFindMatchWithIndex[], texts: string[]): Promise<void>;
 }

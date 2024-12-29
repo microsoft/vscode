@@ -70,6 +70,9 @@ import { IChatEditingService, IChatEditingSession } from '../../../chat/common/c
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 
 suite('InlineChatController', function () {
 
@@ -162,7 +165,7 @@ suite('InlineChatController', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IChatEditingService, new class extends mock<IChatEditingService>() {
-				override onDidCreateEditingSession: Event<IChatEditingSession> = Event.None;
+				override currentEditingSessionObs: IObservable<IChatEditingSession | null> = observableValue(this, null);
 			}],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
@@ -197,6 +200,7 @@ suite('InlineChatController', function () {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
 			[ITextModelService, new SyncDescriptor(TextModelResolverService)],
+			[ILanguageModelToolsService, new SyncDescriptor(MockLanguageModelToolsService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
@@ -290,7 +294,7 @@ suite('InlineChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 10 /* line length */));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 11 /* line length */));
 
 		editor.setSelection(new Range(2, 1, 2, 1));
 		editor.trigger('test', 'type', { text: 'a' });

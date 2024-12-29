@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { Barrier, DeferredPromise, Queue } from '../../../../base/common/async.js';
+import { Barrier, DeferredPromise, Queue, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -885,6 +885,10 @@ export class InlineChatController implements IEditorContribution {
 			widgetPosition = this._session.wholeRange.trackedInitialRange.getStartPosition().delta(-1);
 		}
 
+		if (initialRender && (this._editor.getOption(EditorOption.stickyScroll)).enabled) {
+			this._editor.revealLine(widgetPosition.lineNumber); // do NOT substract `this._editor.getOption(EditorOption.stickyScroll).maxLineCount` because the editor already does that
+		}
+
 		if (!headless) {
 			if (this._ui.rawValue?.position) {
 				this._ui.value.updatePositionAndHeight(widgetPosition);
@@ -1183,7 +1187,9 @@ export class InlineChatController implements IEditorContribution {
 			this.cancelSession();
 		}
 
-		await run;
+		const dispo = token.onCancellationRequested(() => this.cancelSession());
+		await raceCancellation(run, token);
+		dispo.dispose();
 		return true;
 	}
 }

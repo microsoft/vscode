@@ -1043,11 +1043,19 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		// Add to commandPalette array any commands not explicitly contributed to it
 		const implicitlyOnCommandPalette = index(commands, c => c.id);
-		for (const command of menus['commandPalette']) {
-			delete implicitlyOnCommandPalette[command.command];
+		if (menus['commandPalette']) {
+			for (const command of menus['commandPalette']) {
+				delete implicitlyOnCommandPalette[command.command];
+			}
 		}
-		for (const command in implicitlyOnCommandPalette) {
-			menus['commandPalette'].push({ command });
+
+		if (Object.keys(implicitlyOnCommandPalette).length) {
+			if (!menus['commandPalette']) {
+				menus['commandPalette'] = [];
+			}
+			for (const command in implicitlyOnCommandPalette) {
+				menus['commandPalette'].push({ command });
+			}
 		}
 
 		for (const context in menus) {

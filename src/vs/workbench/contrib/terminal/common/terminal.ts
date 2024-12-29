@@ -211,6 +211,7 @@ export interface ITerminalConfiguration {
 	experimental?: {
 		windowsUseConptyDll?: boolean;
 	};
+	hideOnLastClosed: boolean;
 }
 
 export interface ITerminalFont {

@@ -22,6 +22,7 @@ import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../.
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
+import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 
 /**
  * @deprecated
@@ -1943,11 +1944,15 @@ export enum DecorationRangeBehavior {
 }
 
 export namespace TextEditorSelectionChangeKind {
-	export function fromValue(s: string | undefined) {
+	export function fromValue(s: TextEditorSelectionSource | string | undefined) {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api': return TextEditorSelectionChangeKind.Command;
+			case 'api':
+			case TextEditorSelectionSource.PROGRAMMATIC:
+			case TextEditorSelectionSource.JUMP:
+			case TextEditorSelectionSource.NAVIGATION:
+				return TextEditorSelectionChangeKind.Command;
 		}
 		return undefined;
 	}
@@ -2338,7 +2343,9 @@ export class ShellExecution implements vscode.ShellExecution {
 				throw illegalArgument('command');
 			}
 			this._command = arg0;
-			this._args = arg1 as (string | vscode.ShellQuotedString)[];
+			if (arg1) {
+				this._args = arg1;
+			}
 			this._options = arg2;
 		} else {
 			if (typeof arg0 !== 'string') {
@@ -2375,7 +2382,7 @@ export class ShellExecution implements vscode.ShellExecution {
 		return this._args;
 	}
 
-	set args(value: (string | vscode.ShellQuotedString)[]) {
+	set args(value: (string | vscode.ShellQuotedString)[] | undefined) {
 		this._args = value || [];
 	}
 

@@ -11,7 +11,8 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
@@ -19,7 +20,6 @@ import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
 import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
-import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 
 export class ShowNextInlineSuggestionAction extends EditorAction {
 	public static ID = showNextInlineSuggestionActionId;
@@ -177,12 +177,12 @@ export class AcceptInlineCompletion extends EditorAction {
 				menuId: MenuId.InlineSuggestionToolbar,
 				title: nls.localize('accept', "Accept"),
 				group: 'primary',
-				order: 1,
+				order: 2,
 			}, {
 				menuId: MenuId.InlineEditsActions,
 				title: nls.localize('accept', "Accept"),
 				group: 'primary',
-				order: 1,
+				order: 2,
 			}],
 			kbOpts: [
 				{
@@ -206,30 +206,26 @@ export class AcceptInlineCompletion extends EditorAction {
 							InlineCompletionContextKeys.tabShouldAcceptInlineEdit,
 						)
 					),
-				},
-				{
-					primary: KeyMod.CtrlCmd | KeyCode.Enter,
-					weight: 200,
-					kbExpr: ContextKeyExpr.and(
-						EditorContextKeys.editorTextFocus,
-						InlineCompletionContextKeys.inlineEditVisible,
-						SuggestContext.Visible.toNegated(),
-						EditorContextKeys.hoverFocused.toNegated(),
-						EditorContextKeys.tabMovesFocus.toNegated(),
-					),
 				}
 			],
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = InlineCompletionsController.get(editor);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.getInFocusedEditorOrParent(accessor);
 		if (controller) {
 			controller.model.get()?.accept(controller.editor);
 			controller.editor.focus();
 		}
 	}
 }
+KeybindingsRegistry.registerKeybindingRule({
+	id: inlineSuggestCommitId,
+	weight: 202, // greater than jump
+	primary: KeyCode.Tab,
+	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
+});
+
 
 export class JumpToNextInlineEdit extends EditorAction {
 	constructor() {
@@ -241,7 +237,7 @@ export class JumpToNextInlineEdit extends EditorAction {
 				menuId: MenuId.InlineEditsActions,
 				title: nls.localize('jump', "Jump"),
 				group: 'primary',
-				order: 2,
+				order: 1,
 				when: InlineCompletionContextKeys.cursorAtInlineEdit.toNegated(),
 			}],
 			kbOpts: {
@@ -277,17 +273,32 @@ export class HideInlineCompletion extends EditorAction {
 			kbOpts: {
 				weight: 100,
 				primary: KeyCode.Escape,
-			}
+			},
+			menuOpts: [{
+				menuId: MenuId.InlineEditsActions,
+				title: nls.localize('reject', "Reject"),
+				group: 'primary',
+				order: 3,
+			}]
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = InlineCompletionsController.get(editor);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.getInFocusedEditorOrParent(accessor);
 		transaction(tx => {
 			controller?.model.get()?.stop('explicitCancel', tx);
 		});
+		controller?.editor.focus();
 	}
 }
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: HideInlineCompletion.ID,
+	weight: -1, // very weak
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape],
+	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
+});
 
 export class ToggleAlwaysShowInlineSuggestionToolbar extends Action2 {
 	public static ID = 'editor.action.inlineSuggest.toggleAlwaysShowToolbar';

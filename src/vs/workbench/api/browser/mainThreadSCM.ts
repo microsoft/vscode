@@ -323,7 +323,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (typeof features.actionButton !== 'undefined') {
-			this._actionButton.set(features.actionButton, undefined);
+			this._actionButton.set(features.actionButton ?? undefined, undefined);
 		}
 
 		if (typeof features.count !== 'undefined') {
