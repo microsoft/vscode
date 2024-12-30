@@ -13,7 +13,7 @@ import { ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectB
 import { SelectActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from '../../../../editor/contrib/peekView/browser/peekView.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
@@ -48,6 +48,7 @@ import { gotoNextLocation, gotoPreviousLocation } from '../../../../platform/the
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { getOuterEditor } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 
 export const isQuickDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
@@ -305,7 +306,11 @@ class QuickDiffWidget extends PeekViewWidget {
 	}
 
 	private shouldUseDropdown(): boolean {
-		return this.model.getQuickDiffResults()
+		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
+		const visibleQuickDiffResults = this.model.getQuickDiffResults()
+			.filter(result => visibleQuickDiffs.some(quickDiff => quickDiff.label === result.label));
+
+		return visibleQuickDiffResults
 			.filter(quickDiff => quickDiff.changes.length > 0).length > 1;
 	}
 
@@ -333,9 +338,12 @@ class QuickDiffWidget extends PeekViewWidget {
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
+		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
+
 		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
-		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem, new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
-			this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this._index].label);
+		this.dropdown = this.instantiationService.createInstance(QuickDiffPickerViewItem,
+			new QuickDiffPickerBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
+			visibleQuickDiffs.map(quickDiff => quickDiff.label), this.model.changes[this._index].label);
 		this.dropdown.render(this.dropdownContainer);
 		this.updateActions();
 	}

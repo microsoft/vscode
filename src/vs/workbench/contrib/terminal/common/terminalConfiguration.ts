@@ -25,7 +25,7 @@ const terminalDescriptors = '\n- ' + [
 	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 	'`\${shellType}`: ' + localize('shellType', "the detected shell type"),
-	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration"),
+	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration. This also requires high confidence in the detected command line which may not work in some prompt frameworks."),
 	'`\${shellPromptInput}`: ' + localize('shellPromptInput', "the shell's full prompt input according to shell integration"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
@@ -366,7 +366,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'never'
 		},
 		[TerminalSettingId.ConfirmOnKill]: {
-			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as changed when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell."),
+			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as changed when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell. Background terminals like those launched by some extensions will not trigger the confirmation."),
 			type: 'string',
 			enum: ['never', 'editor', 'panel', 'always'],
 			enumDescriptions: [
@@ -548,6 +548,11 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('hideOnStartup.always', "Always hide the terminal, even when there are persistent sessions restored.")
 			],
 			default: 'never'
+		},
+		[TerminalSettingId.HideOnLastClosed]: {
+			description: localize('terminal.integrated.hideOnLastClosed', "Whether to hide the terminal view when the last terminal is closed. This will only happen when the terminal is the only visible view in the view container."),
+			type: 'boolean',
+			default: true
 		},
 		[TerminalSettingId.CustomGlyphs]: {
 			markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),

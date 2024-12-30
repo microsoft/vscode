@@ -90,8 +90,33 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
-		const result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
+		let result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
+		// Check expiration of id token and if it's 5min before expiration, force a refresh.
+		// this is what MSAL does for access tokens already so we're just adding it for id tokens since we care about those.
+		const idTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
+		if (idTokenExpirationInSecs) {
+			const fiveMinutesBefore = new Date(
+				(idTokenExpirationInSecs - 5 * 60) // subtract 5 minutes
+				* 1000 // convert to milliseconds
+			);
+			if (fiveMinutesBefore < new Date()) {
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
+				const newRequest = this._isBrokerAvailable
+					// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
+					? { ...request, claims: '{ "id_token": {}}' }
+					: { ...request, forceRefresh: true };
+				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got refreshed result`);
+			}
+			const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
+			if (newIdTokenExpirationInSecs) {
+				if (new Date(newIdTokenExpirationInSecs * 1000) < new Date()) {
+					this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is still expired.`);
+				}
+			}
+		}
+
 		// this._setupRefresh(result);
 		if (result.account && !result.fromCache && this._verifyIfUsingBroker(result)) {
 			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
@@ -108,11 +133,11 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				cancellable: true,
 				title: l10n.t('Signing in to Microsoft...')
 			},
-			(_process, token) => raceCancellationAndTimeoutError(
-				this._sequencer.queue(() => this._pca.acquireTokenInteractive(request)),
+			(_process, token) => this._sequencer.queue(() => raceCancellationAndTimeoutError(
+				this._pca.acquireTokenInteractive(request),
 				token,
 				1000 * 60 * 5
-			)
+			))
 		);
 		// this._setupRefresh(result);
 		if (this._isBrokerAvailable) {

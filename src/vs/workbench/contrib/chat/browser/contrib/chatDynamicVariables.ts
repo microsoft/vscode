@@ -15,7 +15,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions, IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -24,14 +24,23 @@ import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
+import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
+import { PromptFileReference } from '../../common/promptFileReference.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
+
+/**
+ * Type of dynamic variables. Can be either a file reference or
+ * another dynamic variable (e.g., a `#sym`, `#kb`, etc.).
+ */
+type TDynamicVariable = IDynamicVariable | ChatFileReference;
 
 export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
 	public static readonly ID = 'chatDynamicVariableModel';
 
-	private _variables: IDynamicVariable[] = [];
-	get variables(): ReadonlyArray<IDynamicVariable> {
+	private _variables: TDynamicVariable[] = [];
+	get variables(): ReadonlyArray<TDynamicVariable> {
 		return [...this._variables];
 	}
 
@@ -42,8 +51,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
+		@IConfigurationService private readonly configService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
@@ -60,18 +72,23 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 							}]);
 							this.widget.refreshParsedInput();
 						}
+
+						// dispose the reference if possible before dropping it off
+						if ('dispose' in ref && typeof ref.dispose === 'function') {
+							ref.dispose();
+						}
+
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
-						return {
-							...ref,
-							range: {
-								startLineNumber: ref.range.startLineNumber,
-								startColumn: ref.range.startColumn + delta,
-								endLineNumber: ref.range.endLineNumber,
-								endColumn: ref.range.endColumn + delta
-							}
+						ref.range = {
+							startLineNumber: ref.range.startLineNumber,
+							startColumn: ref.range.startColumn + delta,
+							endLineNumber: ref.range.endLineNumber,
+							endColumn: ref.range.endColumn + delta,
 						};
+
+						return ref;
 					}
 
 					return ref;
@@ -83,7 +100,15 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	getInputState(): any {
-		return this.variables;
+		return this.variables
+			.map((variable: TDynamicVariable) => {
+				// return underlying `IDynamicVariable` object for file references
+				if (variable instanceof ChatFileReference) {
+					return variable.reference;
+				}
+
+				return variable;
+			});
 	}
 
 	setInputState(s: any): void {
@@ -91,14 +116,39 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			s = [];
 		}
 
-		this._variables = s.filter(isDynamicVariable);
-		this.updateDecorations();
+		this.disposeVariables();
+		this._variables = [];
+
+		for (const variable of s) {
+			if (!isDynamicVariable(variable)) {
+				continue;
+			}
+
+			this.addReference(variable);
+		}
 	}
 
 	addReference(ref: IDynamicVariable): void {
-		this._variables.push(ref);
+		// use `ChatFileReference` for file references and `IDynamicVariable` for other variables
+		const promptSnippetsEnabled = PromptFileReference.promptSnippetsEnabled(this.configService);
+		const variable = (ref.id === 'vscode.file' && promptSnippetsEnabled)
+			? this.instantiationService.createInstance(ChatFileReference, ref)
+			: ref;
+
+		this._variables.push(variable);
 		this.updateDecorations();
 		this.widget.refreshParsedInput();
+
+		// if the `prompt snippets` feature is enabled, and file is a `prompt snippet`,
+		// start resolving nested file references immediatelly and subscribe to updates
+		if (variable instanceof ChatFileReference && variable.isPromptSnippetFile) {
+			// subscribe to variable changes
+			variable.onUpdate(() => {
+				this.updateDecorations();
+			});
+			// start resolving the file references
+			variable.resolve();
+		}
 	}
 
 	private updateDecorations(): void {
@@ -119,6 +169,22 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		} else {
 			return undefined;
 		}
+	}
+
+	/**
+	 * Dispose all existing variables.
+	 */
+	private disposeVariables(): void {
+		for (const variable of this._variables) {
+			if ('dispose' in variable && typeof variable.dispose === 'function') {
+				variable.dispose();
+			}
+		}
+	}
+
+	public override dispose() {
+		this.disposeVariables();
+		super.dispose();
 	}
 }
 

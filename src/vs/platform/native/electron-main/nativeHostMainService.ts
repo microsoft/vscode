@@ -220,6 +220,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				diffMode: options.diffMode,
 				mergeMode: options.mergeMode,
 				addMode: options.addMode,
+				removeMode: options.removeMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
 				waitMarkerFileURI: options.waitMarkerFileURI,
@@ -245,11 +246,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async toggleFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.toggleFullScreen();
-	}
-
-	async handleTitleDoubleClick(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.handleTitleDoubleClick();
 	}
 
 	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {

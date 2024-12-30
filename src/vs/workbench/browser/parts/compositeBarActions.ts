@@ -83,10 +83,10 @@ export class CompositeBarAction extends Action {
 	private readonly _onDidChangeCompositeBarActionItem = this._register(new Emitter<CompositeBarAction>());
 	readonly onDidChangeCompositeBarActionItem = this._onDidChangeCompositeBarActionItem.event;
 
-	private readonly _onDidChangeActivity = this._register(new Emitter<IActivity | undefined>());
+	private readonly _onDidChangeActivity = this._register(new Emitter<IActivity[]>());
 	readonly onDidChangeActivity = this._onDidChangeActivity.event;
 
-	private _activity: IActivity | undefined;
+	private _activities: IActivity[] = [];
 
 	constructor(private item: ICompositeBarActionItem) {
 		super(item.id, item.name, item.classNames?.join(' '), true);
@@ -102,13 +102,13 @@ export class CompositeBarAction extends Action {
 		this._onDidChangeCompositeBarActionItem.fire(this);
 	}
 
-	get activity(): IActivity | undefined {
-		return this._activity;
+	get activities(): IActivity[] {
+		return this._activities;
 	}
 
-	set activity(activity: IActivity | undefined) {
-		this._activity = activity;
-		this._onDidChangeActivity.fire(activity);
+	set activities(activities: IActivity[]) {
+		this._activities = activities;
+		this._onDidChangeActivity.fire(activities);
 	}
 
 	activate(): void {
@@ -214,7 +214,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		// Badge
 		if (this.badgeContent) {
-			const badgeStyles = this.getActivity()?.badge.getColors(theme);
+			const badgeStyles = this.getActivities()[0]?.badge.getColors(theme);
 			const badgeFg = badgeStyles?.badgeForeground ?? colors.badgeForeground ?? theme.getColor(badgeForeground);
 			const badgeBg = badgeStyles?.badgeBackground ?? colors.badgeBackground ?? theme.getColor(badgeBackground);
 			const contrastBorderColor = badgeStyles?.badgeBorder ?? theme.getColor(contrastBorder);
@@ -300,11 +300,11 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.updateStyles();
 	}
 
-	private getActivity(): IActivity | undefined {
+	private getActivities(): IActivity[] {
 		if (this._action instanceof CompositeBarAction) {
-			return this._action.activity;
+			return this._action.activities;
 		}
-		return undefined;
+		return [];
 	}
 
 	protected updateActivity(): void {
@@ -312,7 +312,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		const activity = this.getActivity();
+		const { badges, type } = this.getVisibleBadges(this.getActivities());
 
 		this.badgeDisposable.value = new DisposableStore();
 
@@ -321,9 +321,8 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		const shouldRenderBadges = this.badgesEnabled(this.compositeBarActionItem.id);
 
-		if (activity && shouldRenderBadges) {
+		if (badges.length > 0 && shouldRenderBadges) {
 
-			const { badge } = activity;
 			const classes: string[] = [];
 
 			if (this.options.compact) {
@@ -331,36 +330,33 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 			}
 
 			// Progress
-			if (badge instanceof ProgressBadge) {
+			if (type === 'progress') {
 				show(this.badge);
 				classes.push('progress-badge');
 			}
 
 			// Number
-			else if (badge instanceof NumberBadge) {
-				if (badge.number) {
-					let number = badge.number.toString();
-					if (badge.number > 999) {
-						const noOfThousands = badge.number / 1000;
+			else if (type === 'number') {
+				const total = badges.reduce((r, b) => r + (b instanceof NumberBadge ? b.number : 0), 0);
+				if (total > 0) {
+					let badgeNumber = total.toString();
+					if (total > 999) {
+						const noOfThousands = total / 1000;
 						const floor = Math.floor(noOfThousands);
-						if (noOfThousands > floor) {
-							number = `${floor}K+`;
-						} else {
-							number = `${noOfThousands}K`;
-						}
+						badgeNumber = noOfThousands > floor ? `${floor}K+` : `${noOfThousands}K`;
 					}
-					if (this.options.compact && number.length >= 3) {
+					if (this.options.compact && badgeNumber.length >= 3) {
 						classes.push('compact-content');
 					}
-					this.badgeContent.textContent = number;
+					this.badgeContent.textContent = badgeNumber;
 					show(this.badge);
 				}
 			}
 
 			// Icon
-			else if (badge instanceof IconBadge) {
+			else if (type === 'icon') {
 				classes.push('icon-badge');
-				const badgeContentClassess = ['icon-overlay', ...ThemeIcon.asClassNameArray(badge.icon)];
+				const badgeContentClassess = ['icon-overlay', ...ThemeIcon.asClassNameArray((badges[0] as IconBadge).icon)];
 				this.badgeContent.classList.add(...badgeContentClassess);
 				this.badgeDisposable.value.add(toDisposable(() => this.badgeContent?.classList.remove(...badgeContentClassess)));
 				show(this.badge);
@@ -375,6 +371,25 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		this.updateTitle();
 		this.updateStyles();
+	}
+
+	private getVisibleBadges(activities: IActivity[]): { badges: IBadge[]; type: 'progress' | 'icon' | 'number' | undefined } {
+		const progressBadges = activities.filter(activity => activity.badge instanceof ProgressBadge).map(activity => activity.badge);
+		if (progressBadges.length > 0) {
+			return { badges: progressBadges, type: 'progress' };
+		}
+
+		const iconBadges = activities.filter(activity => activity.badge instanceof IconBadge).map(activity => activity.badge);
+		if (iconBadges.length > 0) {
+			return { badges: iconBadges, type: 'icon' };
+		}
+
+		const numberBadges = activities.filter(activity => activity.badge instanceof NumberBadge).map(activity => activity.badge);
+		if (numberBadges.length > 0) {
+			return { badges: numberBadges, type: 'number' };
+		}
+
+		return { badges: [], type: undefined };
 	}
 
 	protected override updateLabel(): void {
@@ -403,9 +418,14 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 	protected computeTitle(): string {
 		this.keybindingLabel = this.computeKeybindingLabel();
 		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.compositeBarActionItem.name, this.keybindingLabel) : this.compositeBarActionItem.name;
-		const badge = (this.action as CompositeBarAction).activity?.badge;
-		if (badge?.getDescription()) {
-			title = localize('badgeTitle', "{0} - {1}", title, badge.getDescription());
+
+		const badges = this.getVisibleBadges((this.action as CompositeBarAction).activities).badges;
+		for (const badge of badges) {
+			const description = badge.getDescription();
+			if (!description) {
+				continue;
+			}
+			title = `${title} - ${badge.getDescription()}`;
 		}
 
 		return title;

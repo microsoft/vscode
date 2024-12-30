@@ -540,7 +540,7 @@ async function processArtifact(artifact, filePath) {
             const stagingContainerClient = blobServiceClient.getContainerClient('staging');
             await stagingContainerClient.createIfNotExists();
             const releaseService = await ESRPReleaseService.create(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT'), e('RELEASE_REQUEST_SIGNING_CERT'), stagingContainerClient);
-            await (0, retry_1.retry)(() => releaseService.createRelease(version, filePath, friendlyFileName));
+            await releaseService.createRelease(version, filePath, friendlyFileName);
         }
         const { product, os, arch, unprocessedType } = match.groups;
         const isLegacy = artifact.name.includes('_legacy');

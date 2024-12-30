@@ -32,7 +32,7 @@ import { CompletionModel } from './completionModel.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu } from './suggest.js';
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails.js';
-import { getAriaId, ItemRenderer } from './suggestWidgetRenderer.js';
+import { ItemRenderer } from './suggestWidgetRenderer.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 
@@ -434,7 +434,7 @@ export class SuggestWidget implements IDisposable {
 					this.element.domNode.classList.remove('docs-side');
 				}
 
-				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
+				this.editor.setAriaOptions({ activeDescendant: this._list.getElementID(index) });
 			}).catch(onUnexpectedError);
 		}
 

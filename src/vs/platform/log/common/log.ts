@@ -432,7 +432,7 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.canLog(LogLevel.Warning)) {
 			if (this.useColors) {
-				console.log('%c WARN', 'color: #993', message, ...args);
+				console.warn('%c WARN', 'color: #993', message, ...args);
 			} else {
 				console.log(message, ...args);
 			}
@@ -442,7 +442,7 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	error(message: string, ...args: any[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (this.useColors) {
-				console.log('%c  ERR', 'color: #f33', message, ...args);
+				console.error('%c  ERR', 'color: #f33', message, ...args);
 			} else {
 				console.error(message, ...args);
 			}

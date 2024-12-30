@@ -1006,7 +1006,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			let attachedContext = this.inputPart.getAttachedAndImplicitContext();
+			let attachedContext = this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
 			let workingSet: URI[] | undefined;
 			if (this.location === ChatAgentLocation.EditingSession) {
 				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();

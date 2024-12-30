@@ -71,6 +71,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'update-extensions':
 		case 'list-extensions':
 		case 'force':
+		case 'do-not-include-pack-dependencies':
 		case 'show-versions':
 		case 'category':
 		case 'verbose':
@@ -183,10 +184,11 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	parsedArgs['_'] = [];
 
 	let readFromStdinPromise: Promise<void> | undefined;
+	let stdinFilePath: string | undefined;
 
 	if (hasReadStdinArg && hasStdinWithoutTty()) {
 		try {
-			let stdinFilePath = cliStdInFilePath;
+			stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
 				stdinFilePath = getStdinFilePath();
 				const readFromStdinDone = new DeferredPromise<void>();
@@ -335,6 +337,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			diffMode: parsedArgs.diff,
 			mergeMode: parsedArgs.merge,
 			addMode: parsedArgs.add,
+			removeMode: parsedArgs.remove,
 			gotoLineMode: parsedArgs.goto,
 			forceReuseWindow: parsedArgs['reuse-window'],
 			forceNewWindow: parsedArgs['new-window'],
@@ -350,8 +353,18 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 
 		if (readFromStdinPromise) {
 			await readFromStdinPromise;
+
+		}
+
+		if (waitMarkerFilePath && stdinFilePath) {
+			try {
+				fs.unlinkSync(stdinFilePath);
+			} catch (e) {
+				//ignore
+			}
 		}
 	}
+
 }
 
 function runningInWSL2(): boolean {

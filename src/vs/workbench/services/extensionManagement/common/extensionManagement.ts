@@ -60,7 +60,7 @@ export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { 
 export type DidChangeProfileForServerEvent = DidChangeProfileEvent & { server: IExtensionManagementServer };
 
 export interface IWorkbenchInstallOptions extends InstallOptions {
-	readonly installEverywhere?: boolean;
+	servers?: IExtensionManagementServer[];
 }
 
 export const IWorkbenchExtensionManagementService = refineServiceDecorator<IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService>(IProfileAwareExtensionManagementService);
@@ -84,6 +84,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 
 	canInstall(extension: IGalleryExtension | IResourceExtension): Promise<true | IMarkdownString>;
 
+	getInstallableServers(extension: IGalleryExtension): Promise<IExtensionManagementServer[]>;
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	installFromGallery(gallery: IGalleryExtension, installOptions?: IWorkbenchInstallOptions): Promise<ILocalExtension>;
 	installFromLocation(location: URI): Promise<ILocalExtension>;

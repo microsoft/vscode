@@ -792,16 +792,12 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 								order: index,
 							}, {
 								id: MenuId.ViewContainerTitleContext,
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
-								),
+								when: ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
 								order: index,
 								group: '1_toggleVisibility'
 							}, {
 								id: MenuId.ViewTitleContext,
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id)))
-								),
+								when: ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id))),
 								order: index,
 								group: '2_toggleVisibility'
 							}]

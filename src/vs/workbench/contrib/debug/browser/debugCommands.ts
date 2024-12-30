@@ -680,14 +680,6 @@ CommandsRegistry.registerCommand({
 });
 
 CommandsRegistry.registerCommand({
-	id: FOCUS_REPL_ID,
-	handler: async (accessor) => {
-		const viewsService = accessor.get(IViewsService);
-		await viewsService.openView(REPL_VIEW_ID, true);
-	}
-});
-
-CommandsRegistry.registerCommand({
 	id: 'debug.startFromConfig',
 	handler: async (accessor, config: IConfig) => {
 		const debugService = accessor.get(IDebugService);

@@ -33,6 +33,7 @@ import { BufferContentTracker } from './bufferContentTracker.js';
 import { TerminalAccessibilityHelpProvider } from './terminalAccessibilityHelp.js';
 import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from './terminalAccessibleBufferProvider.js';
 import { TextAreaSyncAddon } from './textAreaSyncAddon.js';
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 
 // #region Terminal Contributions
 
