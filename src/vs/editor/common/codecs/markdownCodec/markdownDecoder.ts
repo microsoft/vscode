@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../baseToken.js';
 import { MarkdownLink } from './tokens/markdownLink.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { FormFeed } from '../simpleCodec/tokens/formFeed.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { VerticalTab } from '../simpleCodec/tokens/verticalTab.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
+import { ParserBase, TAcceptTokenResult } from '../parsers/parserBase.js';
 import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
@@ -21,51 +21,11 @@ import { LeftParenthesis, RightParenthesis } from '../simpleCodec/tokens/parenth
  */
 export type TMarkdownToken = MarkdownLink | TSimpleToken;
 
-interface IParseResult {
-	result: 'success' | 'failure';
-	wasTokenConsumed: boolean;
-}
-
-interface IParseSuccess<T> extends IParseResult {
-	result: 'success';
-	nextParser: T;
-}
-
-interface IParseFailure extends IParseResult {
-	result: 'failure';
-}
-
-export type TParseResult<T> = IParseSuccess<T> | IParseFailure;
-
 /**
- * An abstract parser class that is able to parse a sequence of
- * tokens into a new single entity.
- * TODO: @legomushroom - move out to a differnet file
+ * List of characters that stop a markdown link sequence.
  */
-export abstract class ParserBase<TToken extends BaseToken, TNextObject> {
-	constructor(
-		/**
-		 * Set of tokens that were accumulated so far.
-		 */
-		protected readonly currentTokens: TToken[] = [],
-	) { }
-
-	/**
-	 * Get the tokens that were accumulated so far.
-	 */
-	public get tokens(): readonly TToken[] {
-		return this.currentTokens;
-	}
-
-	/**
-	 * Accept a new token returning parsing result:
-	 *  - successful result must include the next parser object or a fully parsed out token
-	 *  - failure result must indicate that the token was not consumed
-	 *
-	 * @param token The token to accept.
-	 */
-	public abstract accept(token: TToken): TParseResult<TNextObject>;
-}
+const MARKDOWN_LINK_STOP_CHARACTERS: readonly string[] = [CarriageReturn, NewLine, VerticalTab, FormFeed]
+	.map((token) => { return token.symbol; });
 
 /**
  * Parser that is responsible for parsing a `markdown link caption`,
@@ -76,9 +36,9 @@ class PartialMarkdownLinkCaption extends ParserBase<TSimpleToken, PartialMarkdow
 		super([token]);
 	}
 
-	public accept(token: TSimpleToken): TParseResult<PartialMarkdownLinkCaption | MarkdownLinkCaption> {
+	public accept(token: TSimpleToken): TAcceptTokenResult<PartialMarkdownLinkCaption | MarkdownLinkCaption> {
 		// any of stop characters is are breaking a markdown link caption sequence
-		if (token instanceof CarriageReturn || token instanceof NewLine || token instanceof VerticalTab || token instanceof FormFeed) { // TODO: @legomushroom - are the vertical tab/form feed correct here?
+		if (MARKDOWN_LINK_STOP_CHARACTERS.includes(token.text)) {
 			return {
 				result: 'failure',
 				wasTokenConsumed: false,
@@ -110,7 +70,7 @@ class PartialMarkdownLinkCaption extends ParserBase<TSimpleToken, PartialMarkdow
  * a partial `markdown link`, e.g., from the `[caption text]` to `[caption text](some-link`.
  */
 class MarkdownLinkCaption extends ParserBase<TSimpleToken, MarkdownLinkCaption | PartialMarkdownLink> {
-	public accept(token: TSimpleToken): TParseResult<MarkdownLinkCaption | PartialMarkdownLink> {
+	public accept(token: TSimpleToken): TAcceptTokenResult<MarkdownLinkCaption | PartialMarkdownLink> {
 		// the `(` character starts the link part of a markdown link
 		// that is the only character that can follow the caption
 		if (token instanceof LeftParenthesis) {
@@ -144,7 +104,7 @@ class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink |
 		return [...this.captionTokens, ...this.currentTokens];
 	}
 
-	public accept(token: TSimpleToken): TParseResult<PartialMarkdownLink | MarkdownLink> {
+	public accept(token: TSimpleToken): TAcceptTokenResult<PartialMarkdownLink | MarkdownLink> {
 		// the `)` character ends the reference part of a markdown link
 		if (token instanceof RightParenthesis) {
 			const { startLineNumber, startColumn } = this.captionTokens[0].range;
@@ -170,7 +130,7 @@ class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink |
 		}
 
 		// any of stop characters is are breaking a markdown link reference sequence
-		if (token instanceof CarriageReturn || token instanceof NewLine || token instanceof VerticalTab || token instanceof FormFeed) { // TODO: @legomushroom - are the vertical tab/form feed correct here?
+		if (MARKDOWN_LINK_STOP_CHARACTERS.includes(token.text)) {
 			return {
 				result: 'failure',
 				wasTokenConsumed: false,
@@ -192,7 +152,8 @@ class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink |
  */
 export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 	/**
-	 * TODO: @legomushroom
+	 * Current parser object that is responsible for parsing a sequence of tokens
+	 * into some markdown entity.
 	 */
 	private current?: PartialMarkdownLinkCaption | MarkdownLinkCaption | PartialMarkdownLink;
 

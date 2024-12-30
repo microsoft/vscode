@@ -5,13 +5,14 @@
 
 import { BaseToken } from '../../baseToken.js';
 import { Range } from '../../../core/range.js';
+import { MarkdownToken } from './markdownToken.js';
 import { assert } from '../../../../../base/common/assert.js';
 
 /**
  * A token that represent a `markdown link` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class MarkdownLink extends BaseToken {
+export class MarkdownLink extends MarkdownToken {
 	constructor(
 		// the line index
 		// Note! 1-based indexing
@@ -40,7 +41,7 @@ export class MarkdownLink extends BaseToken {
 				lineNumber,
 				columnNumber,
 				lineNumber,
-				columnNumber + caption.length + reference.length + 1, // TODO: @legomushroom
+				columnNumber + caption.length + reference.length,
 			),
 		);
 	}
@@ -70,23 +71,6 @@ export class MarkdownLink extends BaseToken {
 
 		return this.text === other.text;
 	}
-
-	// TODO: @legomushroom - remove or implement?
-	// public static newOnLine(
-	// 	line: Line,
-	// 	atColumnNumber: number,
-	// ): MarkdownLink {
-	// 	const { range } = line;
-
-	// 	const startPosition = new Position(range.startLineNumber, atColumnNumber);
-	// 	// the tab token length is 1, hence `+ 1`
-	// 	const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
-
-	// 	return new MarkdownLink(Range.fromPositions(
-	// 		startPosition,
-	// 		endPosition,
-	// 	));
-	// }
 
 	/**
 	 * Returns a string representation of the token.

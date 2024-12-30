@@ -16,9 +16,10 @@ import { Colon } from '../../../../../../editor/common/codecs/simpleCodec/tokens
 import { NewLine } from '../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
 import { FormFeed } from '../../../../../../editor/common/codecs/simpleCodec/tokens/formFeed.js';
 import { VerticalTab } from '../../../../../../editor/common/codecs/simpleCodec/tokens/verticalTab.js';
-import { CarriageReturn } from '../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
+import { ParserBase, TAcceptTokenResult } from '../../../../../../editor/common/codecs/parsers/parserBase.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { MarkdownDecoder, ParserBase, TMarkdownToken, TParseResult } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
+import { CarriageReturn } from '../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
+import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
 
 /**
  * Tokens produced by this decoder.
@@ -26,14 +27,14 @@ import { MarkdownDecoder, ParserBase, TMarkdownToken, TParseResult } from '../..
 export type TChatPromptToken = MarkdownLink | FileReference;
 
 /**
- * TODO: @legomushroom
+ * Parser representing a partial prompt variable name, e.g., `#file:` etc.
  */
 class PartialPromptVariableName extends ParserBase<TMarkdownToken, PartialPromptVariableName | PartialPromptFileReference | FileReference> {
 	constructor(token: Hash) {
 		super([token]);
 	}
 
-	public accept(token: TMarkdownToken): TParseResult<PartialPromptVariableName | PartialPromptFileReference | FileReference> {
+	public accept(token: TMarkdownToken): TAcceptTokenResult<PartialPromptVariableName | PartialPromptFileReference | FileReference> {
 		if (token instanceof Word) {
 			if (token.text === 'file') {
 				this.currentTokens.push(token);
@@ -73,22 +74,31 @@ class PartialPromptVariableName extends ParserBase<TMarkdownToken, PartialPrompt
 }
 
 /**
- * TODO: @legomushroom
+ * List of characters that stop a prompt variable sequence.
+ */
+const PROMPT_FILE_REFERENCE_STOP_CHARACTERS: readonly string[] = [Space, Tab, CarriageReturn, NewLine, VerticalTab, FormFeed]
+	.map((token) => { return token.symbol; });
+
+/**
+ * Parser representing a partial prompt file reference, e.g., `#file:`.
  */
 class PartialPromptFileReference extends ParserBase<TMarkdownToken, PartialPromptFileReference | FileReference> {
 	/**
-	 * TODO: @legomushroom
+	 * Set of tokens that were accumulated so far.
 	 */
-	private readonly variableNameTokens: (Hash | Word | Colon)[];
+	private readonly fileReferenceTokens: (Hash | Word | Colon)[];
 
 	constructor(tokens: (Hash | Word | Colon)[]) {
 		super([]);
 
-		this.variableNameTokens = tokens;
+		this.fileReferenceTokens = tokens;
 	}
 
+	/**
+	 * List of tokens that were accumulated so far.
+	 */
 	public override get tokens(): readonly (Hash | Word | Colon)[] {
-		return [...this.variableNameTokens, ...this.currentTokens];
+		return [...this.fileReferenceTokens, ...this.currentTokens];
 	}
 
 	/**
@@ -113,9 +123,9 @@ class PartialPromptFileReference extends ParserBase<TMarkdownToken, PartialPromp
 		return new FileReference(range, path);
 	}
 
-	public accept(token: TMarkdownToken): TParseResult<PartialPromptFileReference | FileReference> {
+	public accept(token: TMarkdownToken): TAcceptTokenResult<PartialPromptFileReference | FileReference> {
 		// any of stop characters is are breaking a prompt variable sequence
-		if (token instanceof Space || token instanceof Tab || token instanceof CarriageReturn || token instanceof NewLine || token instanceof VerticalTab || token instanceof FormFeed) { // TODO: @legomushroom - are the vertical tab/form feed correct here?
+		if (PROMPT_FILE_REFERENCE_STOP_CHARACTERS.includes(token.text)) {
 			return {
 				result: 'success',
 				wasTokenConsumed: false,
@@ -140,7 +150,9 @@ class PartialPromptFileReference extends ParserBase<TMarkdownToken, PartialPromp
  */
 export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownToken> {
 	/**
-	 * TODO: @legomushroom
+	 * Currently active parser object that is used to parse a well-known equence of
+	 * tokens, for instance, a `file reference` that consists of `hash`, `word`, and
+	 * `colon` tokens sequence plus following file path part.
 	 */
 	private current?: PartialPromptVariableName;
 
@@ -158,11 +170,18 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 			return;
 		}
 
-		// if current parser was not initiated before, - we are in the general
-		// "text" mode, therefore re-emit the token immediatelly and continue
-		// TODO: @legomushroom - collect this into a text sequence entity?
+		// if current parser was not yet initiated, - we are in the general
+		// "text" mode, therefore re-emit the token immediatelly and return
 		if (!this.current) {
-			if (token instanceof MarkdownLink) { // TODO: @legomushroom - use the common `MarkdownToken` type instead?
+			// at the moment, the decoder outputs only specific markdown tokens, like
+			// the `markdown link`, so re-emit only these tokens ignoring the rest
+			//
+			// note! to make the decoder consistent with others we would need to:
+			// 	- re-emit all tokens here
+			//  - collect all "text" sequences of tokens and emit them as a single
+			// 	  "text" sequence token
+			// TODO: @legomushroom - create a tracking issue for the above?
+			if (token instanceof MarkdownLink) {
 				this._onData.fire(token);
 			}
 
