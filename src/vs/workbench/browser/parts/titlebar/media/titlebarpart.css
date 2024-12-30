@@ -459,30 +459,3 @@
 .monaco-workbench .part.titlebar.inactive .window-controls-container .window-icon {
 	color: var(--vscode-titleBar-inactiveForeground);
 }
-
-/* MEMBRANE: Since we move the layout controls to the center, separate it from the command center */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center {
-	gap: 10px;
-}
-
-/* MEMBRANE: Top-left Logo */
-.membrane-appicon {
-	padding-top: 16px;
-	padding-left: 9px;
-	width: 24px;
-	height: 100%;
-	z-index: 2500;
-	flex-shrink: 0;
-	order: 1;
-}
-
-/* MEMBRANE: Logo SVG */
-.membrane-appicon svg path {
-	fill: var(--vscode-titleBar-activeBackground);
-	stroke: var(--vscode-titleBar-activeForeground);
-	transition: fill 0.2s ease-in-out, stroke 0.2s ease-in-out;
-}
-.membrane-appicon:hover svg path{
-	fill: var(--vscode-titleBar-activeForeground);
-	stroke: var(--vscode-titleBar-activeBackground);
-}
