@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseToken } from '../../baseToken.js';
-import { Line } from '../../linesCodec/tokens/line.js';
 import { Range } from '../../../core/range.js';
 import { Position } from '../../../core/position.js';
+import { Line } from '../../linesCodec/tokens/line.js';
 
 /**
  * A token that represent a `(` with a `range`. The `range`

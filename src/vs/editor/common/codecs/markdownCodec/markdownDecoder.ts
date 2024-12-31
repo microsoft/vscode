@@ -5,15 +5,16 @@
 
 import { MarkdownLink } from './tokens/markdownLink.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
+import { assert } from '../../../../base/common/assert.js';
 import { FormFeed } from '../simpleCodec/tokens/formFeed.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { VerticalTab } from '../simpleCodec/tokens/verticalTab.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
-import { ParserBase, TAcceptTokenResult } from '../parsers/parserBase.js';
 import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
 import { LeftBracket, RightBracket } from '../simpleCodec/tokens/brackets.js';
+import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
+import { ParserBase, TAcceptTokenResult } from '../simpleCodec/parserBase.js';
 import { LeftParenthesis, RightParenthesis } from '../simpleCodec/tokens/parentheses.js';
 
 /**
@@ -93,6 +94,12 @@ class MarkdownLinkCaption extends ParserBase<TSimpleToken, MarkdownLinkCaption |
  * e.g., from the `[caption text](some-partial-link..` tothe complete `[caption text](some-partial-link-reference)`.
  */
 class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink | MarkdownLink> {
+	/**
+	 * Number of open parenthesis in the sequence.
+	 * See comment in the {@linkcode accept} method for more details.
+	 */
+	private openParensCount: number = 1;
+
 	constructor(
 		protected readonly captionTokens: TSimpleToken[],
 		token: LeftParenthesis,
@@ -105,28 +112,56 @@ class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink |
 	}
 
 	public accept(token: TSimpleToken): TAcceptTokenResult<PartialMarkdownLink | MarkdownLink> {
-		// the `)` character ends the reference part of a markdown link
+		// markdown links allow for nested parenthesis inside the link reference part, but
+		// the number of open parenthesis must match the number of closing parenthesis, e.g.:
+		// 	- `[caption](/some/p()th/file.md)` is a valid markdown link
+		// 	- `[caption](/some/p(th/file.md)` is an invalid markdown link
+		// hence we use the `openParensCount` variable to keep track of the number of open
+		// parenthesis encountered so far; then upon encountering a closing parenthesis we
+		// decrement the `openParensCount` and if it reaches 0 - we consider the link reference
+		// to be complete
+
+		if (token instanceof LeftParenthesis) {
+			this.openParensCount += 1;
+		}
+
 		if (token instanceof RightParenthesis) {
-			const { startLineNumber, startColumn } = this.captionTokens[0].range;
+			this.openParensCount -= 1;
 
-			const caption = this.captionTokens
-				.map((token) => { return token.text; })
-				.join('');
+			// sanity check! this must alway hold true because we return a complete markdown
+			// link as soon as we encounter matching number of closing parenthesis, hence
+			// we must never have `openParensCount` that is less than 0
+			assert(
+				this.openParensCount >= 0,
+				`Unexpected right parenthesis token encountered: '${token}'.`,
+			);
 
-			this.currentTokens.push(token);
-			const reference = this.currentTokens
-				.map((token) => { return token.text; }).join('');
+			// the markdown link is complete as soon as we get the same number of closing parenthesis
+			if (this.openParensCount === 0) {
+				const { startLineNumber, startColumn } = this.captionTokens[0].range;
 
-			return {
-				result: 'success',
-				wasTokenConsumed: true,
-				nextParser: new MarkdownLink(
-					startLineNumber,
-					startColumn,
-					caption,
-					reference,
-				),
-			};
+				// create link caption string
+				const caption = this.captionTokens
+					.map((token) => { return token.text; })
+					.join('');
+
+				// create link reference string
+				this.currentTokens.push(token);
+				const reference = this.currentTokens
+					.map((token) => { return token.text; }).join('');
+
+				// return complete markdown link object
+				return {
+					result: 'success',
+					wasTokenConsumed: true,
+					nextParser: new MarkdownLink(
+						startLineNumber,
+						startColumn,
+						caption,
+						reference,
+					),
+				};
+			}
 		}
 
 		// any of stop characters is are breaking a markdown link reference sequence
@@ -208,5 +243,20 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 		if (!parseResult.wasTokenConsumed) {
 			this.onStreamData(token);
 		}
+	}
+
+	protected override onStreamEnd(): void {
+		// if the stream has ended and there is a current incomplete parser
+		// object present, then re-emit its tokens as standalone entities
+		if (this.current) {
+			const { tokens } = this.current;
+			delete this.current;
+
+			for (const token of [...tokens]) {
+				this._onData.fire(token);
+			}
+		}
+
+		super.onStreamEnd();
 	}
 }

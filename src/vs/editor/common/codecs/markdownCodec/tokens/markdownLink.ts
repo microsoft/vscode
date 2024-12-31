@@ -14,11 +14,21 @@ import { assert } from '../../../../../base/common/assert.js';
  */
 export class MarkdownLink extends MarkdownToken {
 	constructor(
-		// the line index
-		// Note! 1-based indexing
+		/**
+		 * The starting line number of the link (1-based indexing).
+		 */
 		lineNumber: number,
+		/**
+		 * The starting column number of the link (1-based indexing).
+		 */
 		columnNumber: number,
+		/**
+		 * The caprtion of the link, including the square brackets.
+		 */
 		private readonly caption: string,
+		/**
+		 * The reference of the link, including the parentheses.
+		 */
 		private readonly reference: string,
 	) {
 		assert(
@@ -34,6 +44,16 @@ export class MarkdownLink extends MarkdownToken {
 		assert(
 			columnNumber > 0,
 			`The column number must be >= 1, got "${columnNumber}".`,
+		);
+
+		assert(
+			caption[0] === '[' && caption[caption.length - 1] === ']',
+			`The caption must be enclosed in square brackets, got "${caption}".`,
+		);
+
+		assert(
+			reference[0] === '(' && reference[reference.length - 1] === ')',
+			`The reference must be enclosed in parentheses, got "${reference}".`,
 		);
 
 		super(

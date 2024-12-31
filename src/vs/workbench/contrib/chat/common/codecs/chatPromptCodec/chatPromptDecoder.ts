@@ -16,9 +16,9 @@ import { Colon } from '../../../../../../editor/common/codecs/simpleCodec/tokens
 import { NewLine } from '../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
 import { FormFeed } from '../../../../../../editor/common/codecs/simpleCodec/tokens/formFeed.js';
 import { VerticalTab } from '../../../../../../editor/common/codecs/simpleCodec/tokens/verticalTab.js';
-import { ParserBase, TAcceptTokenResult } from '../../../../../../editor/common/codecs/parsers/parserBase.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { CarriageReturn } from '../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
+import { ParserBase, TAcceptTokenResult } from '../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
 import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
 
 /**
@@ -180,7 +180,6 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 			// 	- re-emit all tokens here
 			//  - collect all "text" sequences of tokens and emit them as a single
 			// 	  "text" sequence token
-			// TODO: @legomushroom - create a tracking issue for the above?
 			if (token instanceof MarkdownLink) {
 				this._onData.fire(token);
 			}

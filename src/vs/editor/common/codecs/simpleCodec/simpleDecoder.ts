@@ -22,9 +22,8 @@ import { LeftParenthesis, RightParenthesis } from './tokens/parentheses.js';
 /**
  * A token type that this decoder can handle.
  */
-export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed |
-	CarriageReturn | LeftBracket | RightBracket | LeftParenthesis | RightParenthesis |
-	Colon | Hash;
+export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed | CarriageReturn | LeftBracket
+	| RightBracket | LeftParenthesis | RightParenthesis | Colon | Hash;
 
 /**
  * List of well-known distinct tokens that this decoder emits (excluding
