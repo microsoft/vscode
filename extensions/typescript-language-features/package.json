@@ -529,13 +529,13 @@
         "typescript.format.indentSwitchCase": {
           "type": "boolean",
           "default": true,
-          "description": "%format.indentSwitchCase%",
+          "description": "%typescript.format.indentSwitchCase%",
           "scope": "resource"
         },
         "javascript.format.indentSwitchCase": {
           "type": "boolean",
           "default": true,
-          "description": "%format.indentSwitchCase%",
+          "description": "%javascript.format.indentSwitchCase%",
           "scope": "resource"
         },
         "javascript.validate.enable": {
