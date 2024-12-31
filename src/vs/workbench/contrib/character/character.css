@@ -1,0 +1,22 @@
+.character {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.speed-indicator,
+.attack-indicator {
+  margin: 5px;
+  padding: 10px;
+  border: 1px solid #000;
+  border-radius: 5px;
+  background-color: #f0f0f0;
+}
+
+.speed-indicator {
+  color: #007bff;
+}
+
+.attack-indicator {
+  color: #dc3545;
+}
