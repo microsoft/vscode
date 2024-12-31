@@ -424,11 +424,9 @@ export class FormatString extends Marker {
 	}
 
 	private _toSnakeCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
-		if (!match) {
-			return value;
-		}
-		return match.map(word => word.toLowerCase()).join('_');
+		return value.replace(/([a-z])([A-Z])/g, '$1_$2')
+			.replace(/[\s\-]+/g, '_')
+			.toLowerCase();
 	}
 
 	toTextmateString(): string {
