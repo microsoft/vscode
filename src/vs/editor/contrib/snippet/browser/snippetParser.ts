@@ -387,6 +387,8 @@ export class FormatString extends Marker {
 			return !value ? '' : this._toPascalCase(value);
 		} else if (this.shorthandName === 'camelcase') {
 			return !value ? '' : this._toCamelCase(value);
+		} else if (this.shorthandName === 'snakecase') {
+			return !value ? '' : this._toSnakeCase(value);
 		} else if (Boolean(value) && typeof this.ifValue === 'string') {
 			return this.ifValue;
 		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
@@ -419,6 +421,14 @@ export class FormatString extends Marker {
 			return word.charAt(0).toUpperCase() + word.substr(1);
 		})
 			.join('');
+	}
+
+	private _toSnakeCase(value: string): string {
+		const match = value.match(/[a-z0-9]+/gi);
+		if (!match) {
+			return value;
+		}
+		return match.map(word => word.toLowerCase()).join('_');
 	}
 
 	toTextmateString(): string {
