@@ -23,13 +23,17 @@ type RenameResponse = {
 	readonly spans: readonly Proto.TextSpan[];
 };
 
-class TypeScriptRenameProvider implements vscode.RenameProvider {
+// MEMBRANE: added `instance` to get typescript renames from our own RenameProvider
+export class TypeScriptRenameProvider implements vscode.RenameProvider {
+	public static instance: TypeScriptRenameProvider | undefined = undefined;
 
 	public constructor(
 		private readonly language: LanguageDescription,
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager
-	) { }
+	) {
+		TypeScriptRenameProvider.instance = this;
+	}
 
 	public async prepareRename(
 		document: vscode.TextDocument,
