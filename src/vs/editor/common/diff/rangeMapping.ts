@@ -10,6 +10,7 @@ import { LineRange } from '../core/lineRange.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { AbstractText, SingleTextEdit, TextEdit } from '../core/textEdit.js';
+import { IChange } from './legacyLinesDiffComputer.js';
 
 /**
  * Maps a line range in the original text model to a line range in the modified text model.
@@ -380,4 +381,24 @@ export function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: A
 	);
 
 	return new DetailedLineRangeMapping(originalLineRange, modifiedLineRange, [rangeMapping]);
+}
+
+export function lineRangeMappingFromChange(change: IChange): LineRangeMapping {
+	let originalRange: LineRange;
+	if (change.originalEndLineNumber === 0) {
+		// Insertion
+		originalRange = new LineRange(change.originalStartLineNumber + 1, change.originalStartLineNumber + 1);
+	} else {
+		originalRange = new LineRange(change.originalStartLineNumber, change.originalEndLineNumber + 1);
+	}
+
+	let modifiedRange: LineRange;
+	if (change.modifiedEndLineNumber === 0) {
+		// Deletion
+		modifiedRange = new LineRange(change.modifiedStartLineNumber + 1, change.modifiedStartLineNumber + 1);
+	} else {
+		modifiedRange = new LineRange(change.modifiedStartLineNumber, change.modifiedEndLineNumber + 1);
+	}
+
+	return new LineRangeMapping(originalRange, modifiedRange);
 }

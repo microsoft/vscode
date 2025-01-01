@@ -207,6 +207,7 @@ export class LaunchMainService implements ILaunchMainService {
 				diffMode: args.diff,
 				mergeMode: args.merge,
 				addMode: args.add,
+				removeMode: args.remove,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
 				gotoLineMode: args.goto
 			});

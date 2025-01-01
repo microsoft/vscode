@@ -5,16 +5,16 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, SourceControlHistoryItemRef } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
-import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
+import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
+import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -309,7 +309,7 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
 	const isAnyDeleted = (s: Resource) => s.type === Status.DELETED_BY_THEM || s.type === Status.DELETED_BY_US;
 	const possibleUnresolved = merge.filter(isBothAddedOrModified);
-	const promises = possibleUnresolved.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
+	const promises = possibleUnresolved.map(s => grep(s.resourceUri.fsPath, /^<{7}\s|^={7}$|^>{7}\s/));
 	const unresolvedBothModified = await Promise.all<boolean>(promises);
 	const resolved = possibleUnresolved.filter((_s, i) => !unresolvedBothModified[i]);
 	const deletionConflicts = merge.filter(s => isAnyDeleted(s));
@@ -1559,19 +1559,25 @@ export class CommandCenter {
 	async stageSelectedChanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		this.logger.debug('[CommandCenter][stageSelectedChanges] changes:', changes);
-		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.diff:', textEditor?.diffInformation?.diff);
-		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
-
-		if (!textEditor || !textEditor.diffInformation || textEditor.diffInformation.isStale) {
+		if (!textEditor) {
 			return;
+		}
+
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] changes: ${JSON.stringify(changes)}`);
+
+		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
+		if (workingTreeDiffInformation) {
+			this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
+			this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation changes: ${JSON.stringify(toLineChanges(workingTreeDiffInformation))}`);
 		}
 
 		const modifiedDocument = textEditor.document;
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedChanges = textEditor.diffInformation.diff
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+		const selectedChanges = changes
+			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(d => !!d) as LineChange[];
+
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] selectedChanges: ${JSON.stringify(selectedChanges)}`);
 
 		if (!selectedChanges.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
@@ -1745,25 +1751,31 @@ export class CommandCenter {
 	async revertSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		this.logger.debug('[CommandCenter][revertSelectedRanges] changes:', changes);
-		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.diff:', textEditor?.diffInformation?.diff);
-		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
-
-		if (!textEditor || !textEditor.diffInformation || textEditor.diffInformation.isStale) {
+		if (!textEditor) {
 			return;
+		}
+
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] changes: ${JSON.stringify(changes)}`);
+
+		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
+		if (workingTreeDiffInformation) {
+			this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
+			this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation changes: ${JSON.stringify(toLineChanges(workingTreeDiffInformation))}`);
 		}
 
 		const modifiedDocument = textEditor.document;
 		const selections = textEditor.selections;
-		const selectedChanges = textEditor.diffInformation.diff.filter(change => {
+		const selectedChanges = changes.filter(change => {
 			const modifiedRange = getModifiedRange(modifiedDocument, change);
 			return selections.every(selection => !selection.intersection(modifiedRange));
 		});
 
-		if (selectedChanges.length === textEditor.diffInformation.diff.length) {
+		if (selectedChanges.length === changes.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
+
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] selectedChanges: ${JSON.stringify(selectedChanges)}`);
 
 		const selectionsBeforeRevert = textEditor.selections;
 		await this._revertChanges(textEditor, selectedChanges);
@@ -1826,11 +1838,7 @@ export class CommandCenter {
 	async unstageSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		this.logger.debug('[CommandCenter][unstageSelectedRanges] changes:', changes);
-		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.diff:', textEditor?.diffInformation?.diff);
-		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
-
-		if (!textEditor || !textEditor.diffInformation || textEditor.diffInformation.isStale) {
+		if (!textEditor) {
 			return;
 		}
 
@@ -1847,12 +1855,26 @@ export class CommandCenter {
 			return;
 		}
 
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(changes)}`);
+
+		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
+		if (workingTreeDiffInformation) {
+			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation (working tree): ${JSON.stringify(workingTreeDiffInformation)}`);
+			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes (working tree): ${JSON.stringify(toLineChanges(workingTreeDiffInformation))}`);
+		}
+
+		const workingTreeAndIndexDiffInformation = getWorkingTreeAndIndexDiffInformation(textEditor);
+		if (workingTreeAndIndexDiffInformation) {
+			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation (working tree + index): ${JSON.stringify(workingTreeAndIndexDiffInformation)}`);
+			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes (working tree + index): ${JSON.stringify(toLineChanges(workingTreeAndIndexDiffInformation))}`);
+		}
+
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = textEditor.diffInformation.diff
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
-			.filter(d => !!d) as LineChange[];
+		const selectedDiffs = changes
+			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
+			.filter(c => !!c) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
@@ -1860,8 +1882,11 @@ export class CommandCenter {
 		}
 
 		const invertedDiffs = selectedDiffs.map(invertLineChange);
-		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffs: ${JSON.stringify(selectedDiffs)}`);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
+
+		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
@@ -2189,6 +2214,8 @@ export class CommandCenter {
 			// amend allows changing only the commit message
 			&& !opts.amend
 			&& !opts.empty
+			// merge not in progress
+			&& !repository.mergeInProgress
 			// rebase not in progress
 			&& repository.rebaseCommit === undefined
 		) {
@@ -2517,8 +2544,18 @@ export class CommandCenter {
 		return this._checkout(repository, { detached: true, treeish });
 	}
 
+	@command('git.checkoutRef', { repository: true })
+	async checkoutRef(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<boolean> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return false;
+		}
+
+		return this._checkout(repository, { treeish: historyItemRefId });
+	}
+
 	@command('git.checkoutRefDetached', { repository: true })
-	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItemRef): Promise<boolean> {
+	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
 		if (!historyItem) {
 			return false;
 		}
@@ -2619,7 +2656,7 @@ export class CommandCenter {
 					await this.cleanAll(repository);
 					await item.run(repository, opts);
 				} else if (choice === stash || choice === migrate) {
-					if (await this._stash(repository)) {
+					if (await this._stash(repository, true)) {
 						await item.run(repository, opts);
 
 						if (choice === migrate) {
@@ -3993,8 +4030,8 @@ export class CommandCenter {
 		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : `${commit.hash}^`;
 		const changes = await repository.diffBetween(commitParentId, commit.hash);
 
-		const title = `${item.shortRef} - ${commit.message}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), commit.hash, { scheme: 'git-commit' });
+		const title = `${item.shortRef} - ${truncate(commit.message)}`;
+		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${commitParentId}..${commit.hash}` });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of changes) {
@@ -4255,14 +4292,14 @@ export class CommandCenter {
 		// TODO@lszomoru - handle the case when historyItem2 is the first commit in the repository
 		if (!historyItem2) {
 			const commit = await repository.getCommit(historyItem1.id);
-			title = `${historyItem1.id.substring(0, 8)} - ${commit.message}`;
+			title = `${historyItem1.id.substring(0, 8)} - ${truncate(commit.message)}`;
 			historyItemParentId = historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItem1.id}^`;
 		} else {
 			title = l10n.t('All Changes ({0} ↔ {1})', historyItem2.id.substring(0, 8), historyItem1.id.substring(0, 8));
 			historyItemParentId = historyItem2.parentIds.length > 0 ? historyItem2.parentIds[0] : `${historyItem2.id}^`;
 		}
 
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItem1.id}`, { scheme: 'git-commit', });
+		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItem1.id}` });
 
 		await this._viewChanges(repository, historyItem1.id, historyItemParentId, multiDiffSourceUri, title);
 	}
@@ -4305,6 +4342,33 @@ export class CommandCenter {
 		}
 
 		env.clipboard.writeText(historyItem.message);
+	}
+
+	@command('git.blameStatusBarItem.viewCommit', { repository: true })
+	async viewStatusBarCommit(repository: Repository, historyItemId: string): Promise<void> {
+		if (!repository || !historyItemId) {
+			return;
+		}
+
+		const commit = await repository.getCommit(historyItemId);
+		const title = `${historyItemId.substring(0, 8)} - ${truncate(commit.message)}`;
+		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
+
+		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
+
+		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
+
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	}
+
+	@command('git.blameStatusBarItem.copyContent')
+	async blameStatusBarCopyContent(content: string): Promise<void> {
+		if (typeof content !== 'string') {
+			return;
+		}
+
+		env.clipboard.writeText(content);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
@@ -4393,15 +4457,17 @@ export class CommandCenter {
 						message = l10n.t('Can\'t force push refs to remote. The tip of the remote-tracking branch has been updated since the last checkout. Try running "Pull" first to pull the latest changes from the remote branch first.');
 						break;
 					case GitErrorCodes.Conflict:
-						message = l10n.t('There are merge conflicts. Resolve them before committing.');
+						message = l10n.t('There are merge conflicts. Please resolve them before committing your changes.');
 						type = 'warning';
+						choices.clear();
 						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.StashConflict:
-						message = l10n.t('There were merge conflicts while applying the stash.');
-						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
+						message = l10n.t('There are merge conflicts while applying the stash. Please resolve them before committing your changes.');
 						type = 'warning';
+						choices.clear();
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					case GitErrorCodes.AuthenticationFailed: {

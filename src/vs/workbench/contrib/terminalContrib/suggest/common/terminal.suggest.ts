@@ -13,6 +13,7 @@ export const enum TerminalSuggestCommandId {
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	ClearSuggestCache = 'workbench.action.terminal.clearSuggestCache',
 	RequestCompletions = 'workbench.action.terminal.requestCompletions',
+	ResetWidgetSize = 'workbench.action.terminal.resetSuggestWidgetSize',
 }
 
 export const defaultTerminalSuggestCommandsToSkipShell = [

@@ -19,7 +19,8 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -50,6 +51,7 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	title?: string;
 	description?: string;
 	state?: WorkingSetEntryState;
+	excluded?: boolean;
 }
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
@@ -374,17 +376,18 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
 			arg = uri;
+			const extraClasses = data.excluded ? ['excluded'] : [];
 			if (uri.scheme === 'https' && isEqualAuthority(uri.authority, 'github.com') && uri.path.includes('/tree/')) {
 				// Parse a nicer label for GitHub URIs that point at a particular commit + file
 				const label = uri.path.split('/').slice(1, 3).join('/');
 				const description = uri.path.split('/').slice(5).join('/');
-				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title });
+				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title, strikethrough: data.excluded, extraClasses });
 			} else if (uri.scheme === this.productService.urlProtocol && isEqualAuthority(uri.authority, SETTINGS_AUTHORITY)) {
 				// a nicer label for settings URIs
 				const settingId = uri.path.substring(1);
-				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId) });
+				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId), strikethrough: data.excluded, extraClasses });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString() });
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString(), strikethrough: data.excluded, extraClasses });
 			} else {
 				if (data.state === WorkingSetEntryState.Transient || data.state === WorkingSetEntryState.Suggested) {
 					templateData.label.setResource(
@@ -393,14 +396,16 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 							name: basenameOrAuthority(uri),
 							description: data.description ?? localize('chat.openEditor', 'Open Editor'),
 							range: 'range' in reference ? reference.range : undefined,
-						}, { icon, title: data.options?.status?.description ?? data.title });
+						}, { icon, title: data.options?.status?.description ?? data.title, italic: data.state === WorkingSetEntryState.Suggested, strikethrough: data.excluded, extraClasses });
 				} else {
 					templateData.label.setFile(uri, {
 						fileKind: FileKind.FILE,
 						// Should not have this live-updating data on a historical reference
 						fileDecorations: undefined,
 						range: 'range' in reference ? reference.range : undefined,
-						title: data.options?.status?.description ?? data.title
+						title: data.options?.status?.description ?? data.title,
+						strikethrough: data.excluded,
+						extraClasses
 					});
 				}
 			}
@@ -472,7 +477,7 @@ registerAction2(class AddToChatAction extends Action2 {
 				id: MenuId.ChatAttachmentsContext,
 				group: 'chat',
 				order: 1,
-				when: ExplorerFolderContext.negate(),
+				when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext.negate()),
 			}]
 		});
 	}
@@ -491,6 +496,31 @@ registerAction2(class AddToChatAction extends Action2 {
 		}
 
 		variablesService.attachContext('file', resource, widget.location);
+	}
+});
+
+registerAction2(class OpenChatReferenceLinkAction extends Action2 {
+
+	static readonly id = 'workbench.action.chat.copyLink';
+
+	constructor() {
+		super({
+			id: OpenChatReferenceLinkAction.id,
+			title: {
+				...localize2('copyLink', "Copy Link"),
+			},
+			f1: false,
+			menu: [{
+				id: MenuId.ChatAttachmentsContext,
+				group: 'chat',
+				order: 0,
+				when: ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.http), ResourceContextKey.Scheme.isEqualTo(Schemas.https)),
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
+		await accessor.get(IClipboardService).writeResources([resource]);
 	}
 });
 

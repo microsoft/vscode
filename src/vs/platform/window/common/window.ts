@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
 import { isLinux, isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
@@ -62,6 +63,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly noRecentEntry?: boolean;
 
 	readonly addMode?: boolean;
+	readonly removeMode?: boolean;
 
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
@@ -70,8 +72,9 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly waitMarkerFileURI?: URI;
 }
 
-export interface IAddFoldersRequest {
+export interface IAddRemoveFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
+	readonly foldersToRemove: UriComponents[];
 }
 
 interface IOpenedWindow {
@@ -355,7 +358,7 @@ export interface IOSConfiguration {
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
-	handle?: string;
+	handle?: VSBuffer;
 
 	machineId: string;
 	sqmId: string;

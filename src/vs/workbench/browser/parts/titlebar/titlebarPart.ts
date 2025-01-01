@@ -15,7 +15,6 @@ import { IConfigurationService, IConfigurationChangeEvent } from '../../../../pl
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../common/theme.js';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from '../../../../base/common/platform.js';
 import { Color } from '../../../../base/common/color.js';
@@ -29,8 +28,6 @@ import { createActionViewItem, fillInActionBarActions as fillInActionBarActions 
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 import { WindowTitle } from './windowTitle.js';
 import { CommandCenterControl } from './commandCenterControl.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -57,6 +54,7 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
+import { TitleBarVisibleContext } from '../../../common/contextkeys.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -122,11 +120,12 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 					title: localize2('focusTitleBar', 'Focus Title Bar'),
 					category: Categories.View,
 					f1: true,
+					precondition: TitleBarVisibleContext
 				});
 			}
 
 			run(): void {
-				that.getPartByDocument(getActiveDocument()).focus();
+				that.getPartByDocument(getActiveDocument())?.focus();
 			}
 		}));
 	}
@@ -434,23 +433,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
-		// App Icon (Native Windows/Linux and Web)
-		if (!isMacintosh && !isWeb && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
+		// App Icon (Windows, Linux)
+		if ((isWindows || isLinux) && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
-
-			// Web-only home indicator and menu (not for auxiliary windows)
-			if (!this.isAuxiliary && isWeb) {
-				const homeIndicator = this.environmentService.options?.homeIndicator;
-				if (homeIndicator) {
-					const icon: ThemeIcon = getIconRegistry().getIcon(homeIndicator.icon) ? { id: homeIndicator.icon } : Codicon.code;
-
-					this.appIcon.setAttribute('href', homeIndicator.href);
-					this.appIcon.classList.add(...ThemeIcon.asClassNameArray(icon));
-					this.appIconBadge = document.createElement('div');
-					this.appIconBadge.classList.add('home-bar-icon-badge');
-					this.appIcon.appendChild(this.appIconBadge);
-				}
-			}
 		}
 
 		// Draggable region that we can manipulate for #52522
@@ -553,6 +538,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.title.innerText = this.windowTitle.value;
 			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
 				this.title.innerText = this.windowTitle.value;
+				// layout menubar and other renderings in the titlebar
+				if (this.lastLayoutDimensions) {
+					this.updateLayout(this.lastLayoutDimensions);
+				}
 			}));
 		}
 

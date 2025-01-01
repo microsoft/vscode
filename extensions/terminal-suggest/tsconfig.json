@@ -1,0 +1,21 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./out",
+		"types": [
+			"node"
+		],
+		"target": "es2020",
+		"module": "CommonJS",
+		"moduleResolution": "node",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+	},
+	"include": [
+		"src/**/*",
+		"src/completions/index.d.ts",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.terminalCompletionProvider.d.ts"
+	]
+}

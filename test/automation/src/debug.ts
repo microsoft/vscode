@@ -31,7 +31,7 @@ const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_EVALUATION_RESULT = `.repl .evaluation-result.expression .value`;
 const CONSOLE_LINK = `.repl .value a.link`;
 
-const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor .native-edit-context';
+const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
 
 export interface IStackFrame {
 	name: string;

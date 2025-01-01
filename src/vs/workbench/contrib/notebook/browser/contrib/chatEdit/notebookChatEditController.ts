@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../../base/common/resources.js';
 import { Disposable, dispose, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
@@ -18,13 +17,12 @@ import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceF
 import { debouncedObservable2 } from '../../../../../../base/common/observableInternal/utils.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { NotebookChatActionsOverlayController } from './notebookChatActionsOverlay.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { localize } from '../../../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
-
-export const ctxNotebookHasEditorModification = new RawContextKey<boolean>('chat.hasNotebookEditorModifications', undefined, localize('chat.hasNotebookEditorModifications', "The current Notebook editor contains chat modifications"));
+import { Event } from '../../../../../../base/common/event.js';
+import { ctxNotebookHasEditorModification } from './notebookChatEditContext.js';
 
 export class NotebookChatEditorControllerContrib extends Disposable implements INotebookEditorContribution {
 
@@ -37,9 +35,7 @@ export class NotebookChatEditorControllerContrib extends Disposable implements I
 
 	) {
 		super();
-		if (configurationService.getValue<boolean>('notebook.experimental.chatEdits')) {
-			this._register(instantiationService.createInstance(NotebookChatEditorController, notebookEditor));
-		}
+		this._register(instantiationService.createInstance(NotebookChatEditorController, notebookEditor));
 	}
 }
 
@@ -62,8 +58,11 @@ class NotebookChatEditorController extends Disposable {
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
-		const viewModelAttached = observableFromEvent(this.notebookEditor.onDidAttachViewModel, () => !!this.notebookEditor.getViewModel());
-		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 100);
+		// We need to render viewzones only when the viewmodel is attached (i.e. list view is ready).
+		// https://github.com/microsoft/vscode/issues/234718
+		const readyToRenderViewzones = observableValue<boolean>('viewModelAttached', false);
+		this._register(Event.once(this.notebookEditor.onDidAttachViewModel)(() => readyToRenderViewzones.set(true, undefined)));
+		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
 		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
 
 		let updatedCellDecoratorsOnceBefore = false;
@@ -86,7 +85,7 @@ class NotebookChatEditorController extends Disposable {
 			if (!model || !session) {
 				return;
 			}
-			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
+			return session.readEntry(model.uri, r);
 		}).recomputeInitiallyAndOnChange(this._store);
 
 
@@ -154,32 +153,36 @@ class NotebookChatEditorController extends Disposable {
 			}
 
 			updatedCellDecoratorsOnceBefore = true;
+			const validDiffDecorators = new Set<NotebookCellDiffDecorator>();
 			diffInfo.cellDiff.forEach((diff) => {
 				if (diff.type === 'modified') {
 					const modifiedCell = modified.cells[diff.modifiedCellIndex];
 					const originalCell = original.cells[diff.originalCellIndex];
 					const editor = this.notebookEditor.codeEditors.find(([vm,]) => vm.handle === modifiedCell.handle)?.[1];
 
-					if (editor && (decorators.get(modifiedCell)?.editor !== editor ||
-						decorators.get(modifiedCell)?.modifiedCell !== modifiedCell ||
-						decorators.get(modifiedCell)?.originalCell !== originalCell)) {
-
-						decorators.get(modifiedCell)?.dispose();
-						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, editor, modifiedCell, originalCell);
-						decorators.set(modifiedCell, decorator);
-						this._register(editor.onDidDispose(() => {
-							decorator.dispose();
-							if (decorators.get(modifiedCell) === decorator) {
-								decorators.delete(modifiedCell);
-							}
-						}));
+					if (editor) {
+						const currentDecorator = decorators.get(modifiedCell);
+						if ((currentDecorator?.modifiedCell !== modifiedCell || currentDecorator?.originalCell !== originalCell)) {
+							currentDecorator?.dispose();
+							const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, notebookEditor, modifiedCell, originalCell);
+							decorators.set(modifiedCell, decorator);
+							validDiffDecorators.add(decorator);
+							this._register(editor.onDidDispose(() => {
+								decorator.dispose();
+								if (decorators.get(modifiedCell) === decorator) {
+									decorators.delete(modifiedCell);
+								}
+							}));
+						} else if (currentDecorator) {
+							validDiffDecorators.add(currentDecorator);
+						}
 					}
 				}
 			});
 
-			const visibleEditors = new Set(this.notebookEditor.codeEditors.map(e => e[1]));
+			// Dispose old decorators
 			decorators.forEach((v, cell) => {
-				if (!visibleEditors.has(v.editor)) {
+				if (!validDiffDecorators.has(v)) {
 					v.dispose();
 					decorators.delete(cell);
 				}
@@ -191,8 +194,8 @@ class NotebookChatEditorController extends Disposable {
 			const diffInfo = notebookDiffInfo.read(r);
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
-			const vmAttached = viewModelAttached.read(r);
-			if (!vmAttached || !entry || !modified || !original || !diffInfo) {
+			const ready = readyToRenderViewzones.read(r);
+			if (!ready || !entry || !modified || !original || !diffInfo) {
 				return;
 			}
 			if (diffInfo && updatedDeletedInsertedDecoratorsOnceBefore && (diffInfo.modelVersion !== modified.versionId)) {
