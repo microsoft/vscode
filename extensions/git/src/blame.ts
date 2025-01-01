@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, languages, HoverProvider, CancellationToken, Hover, TextDocument } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
-import { BlameInformation } from './git';
+import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
@@ -53,6 +53,15 @@ function mapModifiedLineNumberToOriginalLineNumber(lineNumber: number, changes: 
 	}
 
 	return lineNumber;
+}
+
+function getEditorDecorationRange(lineNumber: number): Range {
+	const position = new Position(lineNumber, Number.MAX_SAFE_INTEGER);
+	return new Range(position, position);
+}
+
+function isBlameInformation(object: any): object is BlameInformation {
+	return Array.isArray((object as BlameInformation).ranges);
 }
 
 type BlameInformationTemplateTokens = {
@@ -191,32 +200,63 @@ export class GitBlameController {
 		});
 	}
 
-	getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation | string): MarkdownString {
-		if (typeof blameInformation === 'string') {
-			return new MarkdownString(blameInformation, true);
+	async getBlameInformationDetailedHover(documentUri: Uri, blameInformation: BlameInformation): Promise<MarkdownString | undefined> {
+		const repository = this._model.getRepository(documentUri);
+		if (!repository) {
+			return this.getBlameInformationHover(documentUri, blameInformation);
 		}
 
+		try {
+			const commit = await repository.getCommit(blameInformation.hash);
+			return this.getBlameInformationHover(documentUri, commit);
+		} catch {
+			return this.getBlameInformationHover(documentUri, blameInformation);
+		}
+	}
+
+	getBlameInformationHover(documentUri: Uri, blameInformationOrCommit: BlameInformation | Commit): MarkdownString {
 		const markdownString = new MarkdownString();
-		markdownString.supportThemeIcons = true;
 		markdownString.isTrusted = true;
+		markdownString.supportHtml = true;
+		markdownString.supportThemeIcons = true;
 
-		if (blameInformation.authorName) {
-			markdownString.appendMarkdown(`$(account) **${blameInformation.authorName}**`);
+		if (blameInformationOrCommit.authorName) {
+			markdownString.appendMarkdown(`$(account) **${blameInformationOrCommit.authorName}**`);
 
-			if (blameInformation.authorDate) {
-				const dateString = new Date(blameInformation.authorDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformation.authorDate, true, true)} (${dateString})`);
+			if (blameInformationOrCommit.authorDate) {
+				const dateString = new Date(blameInformationOrCommit.authorDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformationOrCommit.authorDate, true, true)} (${dateString})`);
 			}
 
 			markdownString.appendMarkdown('\n\n');
 		}
 
-		markdownString.appendMarkdown(`${emojify(blameInformation.subject ?? '')}\n\n`);
+		markdownString.appendMarkdown(`${emojify(isBlameInformation(blameInformationOrCommit) ? blameInformationOrCommit.subject ?? '' : blameInformationOrCommit.message)}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
-		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.hash]))} "${l10n.t('View Commit')}")`);
+		if (!isBlameInformation(blameInformationOrCommit) && blameInformationOrCommit.shortStat) {
+			markdownString.appendMarkdown(`<span>${blameInformationOrCommit.shortStat.files === 1 ?
+				l10n.t('{0} file changed', blameInformationOrCommit.shortStat.files) :
+				l10n.t('{0} files changed', blameInformationOrCommit.shortStat.files)}</span>`);
+
+			if (blameInformationOrCommit.shortStat.insertions) {
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${blameInformationOrCommit.shortStat.insertions === 1 ?
+					l10n.t('{0} insertion{1}', blameInformationOrCommit.shortStat.insertions, '(+)') :
+					l10n.t('{0} insertions{1}', blameInformationOrCommit.shortStat.insertions, '(+)')}</span>`);
+			}
+
+			if (blameInformationOrCommit.shortStat.deletions) {
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${blameInformationOrCommit.shortStat.deletions === 1 ?
+					l10n.t('{0} deletion{1}', blameInformationOrCommit.shortStat.deletions, '(-)') :
+					l10n.t('{0} deletions{1}', blameInformationOrCommit.shortStat.deletions, '(-)')}</span>`);
+			}
+
+			markdownString.appendMarkdown(`\n\n---\n\n`);
+		}
+
+		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformationOrCommit.hash]))} "${l10n.t('View Commit')}")`);
 		markdownString.appendMarkdown('&nbsp;&nbsp;&nbsp;&nbsp;');
-		markdownString.appendMarkdown(`[$(copy) ${blameInformation.hash.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.hash))} "${l10n.t('Copy Commit Hash')}")`);
+		markdownString.appendMarkdown(`[$(copy) ${blameInformationOrCommit.hash.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformationOrCommit.hash))} "${l10n.t('Copy Commit Hash')}")`);
 
 		return markdownString;
 	}
@@ -411,36 +451,81 @@ export class GitBlameController {
 	}
 }
 
-class GitBlameEditorDecoration {
-	private readonly _decorationType: TextEditorDecorationType;
+class GitBlameEditorDecoration implements HoverProvider {
+	private _decoration: TextEditorDecorationType | undefined;
+	private get decoration(): TextEditorDecorationType {
+		if (!this._decoration) {
+			this._decoration = window.createTextEditorDecorationType({
+				after: {
+					color: new ThemeColor('git.blame.editorDecorationForeground')
+				}
+			});
+		}
+
+		return this._decoration;
+	}
+
+	private _hoverDisposable: IDisposable | undefined;
 	private _disposables: IDisposable[] = [];
 
 	constructor(private readonly _controller: GitBlameController) {
-		this._decorationType = window.createTextEditorDecorationType({
-			after: {
-				color: new ThemeColor('git.blame.editorDecorationForeground')
-			}
-		});
-		this._disposables.push(this._decorationType);
-
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
 		window.onDidChangeActiveTextEditor(this._onDidChangeActiveTextEditor, this, this._disposables);
-
 		this._controller.onDidChangeBlameInformation(e => this._updateDecorations(e), this, this._disposables);
+
+		this._onDidChangeConfiguration();
 	}
 
-	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
+	async provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const textEditor = window.activeTextEditor;
+		if (!textEditor) {
+			return undefined;
+		}
+
+		// Position must be at the end of the line
+		if (position.character !== document.lineAt(position.line).range.end.character) {
+			return undefined;
+		}
+
+		// Get blame information
+		const blameInformation = this._controller.textEditorBlameInformation
+			.get(textEditor)?.find(blame => blame.lineNumber === position.line);
+
+		if (!blameInformation || typeof blameInformation.blameInformation === 'string') {
+			return undefined;
+		}
+
+		const contents = await this._controller.getBlameInformationDetailedHover(textEditor.document.uri, blameInformation.blameInformation);
+
+		if (!contents || token.isCancellationRequested) {
+			return undefined;
+		}
+
+		return { range: getEditorDecorationRange(position.line), contents: [contents] };
+	}
+
+	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e &&
+			!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
 			!e.affectsConfiguration('git.blame.editorDecoration.template')) {
 			return;
 		}
 
-		for (const textEditor of window.visibleTextEditors) {
-			if (this._getConfiguration().enabled) {
-				this._updateDecorations(textEditor);
-			} else {
-				textEditor.setDecorations(this._decorationType, []);
+		if (this._getConfiguration().enabled) {
+			if (window.activeTextEditor) {
+				this._registerHoverProvider();
+				this._updateDecorations(window.activeTextEditor);
 			}
+		} else {
+			this._decoration?.dispose();
+			this._decoration = undefined;
+
+			this._hoverDisposable?.dispose();
+			this._hoverDisposable = undefined;
 		}
 	}
 
@@ -449,11 +534,15 @@ class GitBlameEditorDecoration {
 			return;
 		}
 
+		// Clear decorations
 		for (const editor of window.visibleTextEditors) {
 			if (editor !== window.activeTextEditor) {
-				editor.setDecorations(this._decorationType, []);
+				editor.setDecorations(this.decoration, []);
 			}
 		}
+
+		// Register hover provider
+		this._registerHoverProvider();
 	}
 
 	private _getConfiguration(): { enabled: boolean; template: string } {
@@ -472,14 +561,14 @@ class GitBlameEditorDecoration {
 
 		// Only support resources with `file` and `git` schemes
 		if (textEditor.document.uri.scheme !== 'file' && !isGitUri(textEditor.document.uri)) {
-			textEditor.setDecorations(this._decorationType, []);
+			textEditor.setDecorations(this.decoration, []);
 			return;
 		}
 
 		// Get blame information
 		const blameInformation = this._controller.textEditorBlameInformation.get(textEditor);
 		if (!blameInformation) {
-			textEditor.setDecorations(this._decorationType, []);
+			textEditor.setDecorations(this.decoration, []);
 			return;
 		}
 
@@ -488,32 +577,43 @@ class GitBlameEditorDecoration {
 			const contentText = typeof blame.blameInformation !== 'string'
 				? this._controller.formatBlameInformationMessage(template, blame.blameInformation)
 				: blame.blameInformation;
-			const hoverMessage = typeof blame.blameInformation !== 'string'
-				? this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation)
-				: undefined;
 
-			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
+			return this._createDecoration(blame.lineNumber, contentText);
 		});
 
-		textEditor.setDecorations(this._decorationType, decorations);
+		textEditor.setDecorations(this.decoration, decorations);
 	}
 
-	private _createDecoration(lineNumber: number, contentText: string, hoverMessage: MarkdownString | undefined): DecorationOptions {
-		const position = new Position(lineNumber, Number.MAX_SAFE_INTEGER);
-
+	private _createDecoration(lineNumber: number, contentText: string): DecorationOptions {
 		return {
-			hoverMessage,
-			range: new Range(position, position),
+			range: getEditorDecorationRange(lineNumber),
 			renderOptions: {
 				after: {
-					contentText: `${contentText}`,
+					contentText,
 					margin: '0 0 0 50px'
 				}
 			},
 		};
 	}
 
+	private _registerHoverProvider(): void {
+		this._hoverDisposable?.dispose();
+
+		if (window.activeTextEditor?.document.uri.scheme === 'file' ||
+			window.activeTextEditor?.document.uri.scheme === 'git') {
+			this._hoverDisposable = languages.registerHoverProvider({
+				pattern: window.activeTextEditor.document.uri.fsPath
+			}, this);
+		}
+	}
+
 	dispose() {
+		this._decoration?.dispose();
+		this._decoration = undefined;
+
+		this._hoverDisposable?.dispose();
+		this._hoverDisposable = undefined;
+
 		this._disposables = dispose(this._disposables);
 	}
 }
