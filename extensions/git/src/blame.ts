@@ -254,9 +254,11 @@ export class GitBlameController {
 			markdownString.appendMarkdown(`\n\n---\n\n`);
 		}
 
-		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformationOrCommit.hash]))} "${l10n.t('View Commit')}")`);
-		markdownString.appendMarkdown('&nbsp;&nbsp;&nbsp;&nbsp;');
-		markdownString.appendMarkdown(`[$(copy) ${blameInformationOrCommit.hash.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformationOrCommit.hash))} "${l10n.t('Copy Commit Hash')}")`);
+		markdownString.appendMarkdown(`[\`$(git-commit) ${blameInformationOrCommit.hash.substring(0, 8)} \`](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformationOrCommit.hash]))} "${l10n.t('View Commit')}")`);
+		markdownString.appendMarkdown('&nbsp;');
+		markdownString.appendMarkdown(`[$(copy)](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformationOrCommit.hash))} "${l10n.t('Copy Commit Hash')}")`);
+		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+		markdownString.appendMarkdown(`[$(gear)](command:workbench.action.openSettings?%5B%22git.blame%22%5D "${l10n.t('Open Settings')}")`);
 
 		return markdownString;
 	}
