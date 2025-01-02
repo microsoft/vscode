@@ -3203,38 +3203,22 @@
         "git.blame.editorDecoration.enabled": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%config.blameEditorDecoration.enabled%",
-          "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "markdownDescription": "%config.blameEditorDecoration.enabled%"
         },
         "git.blame.editorDecoration.template": {
           "type": "string",
           "default": "${subject}, ${authorName} (${authorDateAgo})",
-          "markdownDescription": "%config.blameEditorDecoration.template%",
-          "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "markdownDescription": "%config.blameEditorDecoration.template%"
         },
         "git.blame.statusBarItem.enabled": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%config.blameStatusBarItem.enabled%",
-          "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "markdownDescription": "%config.blameStatusBarItem.enabled%"
         },
         "git.blame.statusBarItem.template": {
           "type": "string",
           "default": "${authorName} (${authorDateAgo})",
-          "markdownDescription": "%config.blameStatusBarItem.template%",
-          "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "markdownDescription": "%config.blameStatusBarItem.template%"
         }
       }
     },
