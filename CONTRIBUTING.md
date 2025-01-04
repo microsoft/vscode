@@ -168,7 +168,7 @@ This will generate the new PearAI app and takes around 1 hour.
 `pearai-submodule` also needs to be packaged and integrated into the overall PearAI app.
 
 1. `cd` into `extensions/pearai-submodule`.
-2. Run `./scripts/install-dependencies.sh`.
+2. Run `./scripts/install-and-build.sh`.
 3. `cd` into `extensions/vscode` (Full path is now `extensions/pearai-submodule/extensions/vscode/`).
 4. Run `npm run package`.
 5. This will create the `.vsix` extension within `extensions/pearai-submodule/extensions/vscode/build`.
