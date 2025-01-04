@@ -42,7 +42,16 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
+				primary: KeyMod.CtrlCmd | KeyCode.Semicolon,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyCode.Semicolon
+				},
+				win: {
+					primary: KeyMod.Alt | KeyCode.Semicolon
+				},
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Semicolon
+				}
 			},
 			menu: [
 				{
