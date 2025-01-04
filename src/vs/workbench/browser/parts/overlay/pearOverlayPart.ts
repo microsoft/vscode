@@ -19,6 +19,7 @@ import {
 import { WebviewService } from "vs/workbench/contrib/webview/browser/webviewService";
 import { URI } from "vs/base/common/uri";
 import { ExtensionIdentifier } from "vs/platform/extensions/common/extensions";
+import { IEditorGroupsService } from "vs/workbench/services/editor/common/editorGroupsService";
 
 const PEAROVERLAY_ID = "pearai.pearAIChatView";
 const PEAR_OVERLAY_TITLE = "pearai.pearOverlay";
@@ -47,6 +48,8 @@ export class PearOverlayPart extends Part {
 		private readonly _webviewViewService: IWebviewViewService,
 		@IInstantiationService
 		private readonly _instantiationService: IInstantiationService,
+		@IEditorGroupsService
+		private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super(
 			PearOverlayPart.ID,
@@ -237,6 +240,9 @@ export class PearOverlayPart extends Part {
 		setTimeout(() => {
 			this.fullScreenOverlay!.style.zIndex = "-10";
 			container.style.display = "none";
+
+			// Focus the active editor
+			this._editorGroupsService.activeGroup.focus();
 		}, 20); // 20ms matches the animation duration
 	}
 
