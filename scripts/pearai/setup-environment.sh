@@ -15,15 +15,14 @@ printf "\n\nDetected operating system: $os\n\n"
 
 # If the OS is Windows, give warning and prompt user to continue
 if [ "$os" == "Windows" ]; then
-  echo "This script is for unix systems (mac, linux)"
+  	echo "This script is for unix systems (mac, linux)"
 	echo -e "Symbolic links might not work properly on Windows, please run windows scripts"
 	read -n 1 -s -r -p "Press any key to exit or enter to continue..."
-
 	# Check the user's input
-  if [ "$REPLY" != "" ]; then
-    echo -e "\n\e[91mExiting...\e[0m"
-    exit
-  fi
+  	if [ "$REPLY" != "" ]; then
+    	echo -e "\n\e[91mExiting...\e[0m"
+    	exit
+  	fi
 fi
 
 
@@ -31,8 +30,8 @@ fi
 execute() {
 	local cmd=$1
 	local failure_message=$2
-
-	$cmd
+	echo "Executing: $cmd"
+	eval $cmd
 	if [ $? -ne 0 ]; then
 		echo "Setup | $failure_message"
 		exit 1
@@ -46,6 +45,13 @@ link_path="$app_dir/extensions/pearai-ref"
 
 # Run the base functionality
 echo -e "\nInitializing sub-modules..."
+
+# Check if the submodule directory already exists
+if [ -d "$app_dir/extensions/pearai-submodule" ]; then
+    echo "Removing existing pearai-submodule directory"
+    execute "rm -rf $app_dir/extensions/pearai-submodule" "Failed to remove existing pearai-submodule directory"
+fi
+
 # Clone the submodule extension folder
 execute "git submodule update --init --recursive" "Failed to initialize git submodules"
 
@@ -62,8 +68,8 @@ fi
 
 
 execute "cd ./extensions/pearai-submodule" "Failed to change directory to extensions/pearai-submodule"
-
 echo -e "\nSetting the submodule directory to match origin/main's latest changes..."
+
 # Set the current branch to match the latest origin/main branch for the submodule.
 execute "git reset origin/main" "Failed to git reset to origin/main"
 
