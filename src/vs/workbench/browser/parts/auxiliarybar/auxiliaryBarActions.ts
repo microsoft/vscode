@@ -15,9 +15,10 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyCodeUtils, KeyMod, KeyModUtils } from '../../../../base/common/keyCodes.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { ICommandService } from '../../../../platform/commands/common/commands';
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the auxiliary bar on in its right position.'));
@@ -250,3 +251,89 @@ export class ResizeAuxiliaryBarWidthAction extends Action2 {
 }
 
 registerAction2(ResizeAuxiliaryBarWidthAction);
+
+class FocusPearAIExtensionAction extends Action2 {
+	static readonly ID = 'workbench.action.focusPearAIExtension';
+	static readonly LABEL = localize2(
+		"focusPearAIExtension",
+		"Focus into PearAI Extension",
+	);
+
+	constructor() {
+		super({
+			id: FocusPearAIExtensionAction.ID,
+			title: FocusPearAIExtensionAction.LABEL,
+			category: Categories.View,
+			f1: true,
+			// keybinding: do not add keybinding CTRL/CMD L here, it comes from pearai extension
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		// focus pearai extension
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand('pearai.focusContinueInput');
+	}
+}
+
+registerAction2(FocusPearAIExtensionAction);
+
+MenuRegistry.appendMenuItems([
+	{
+		id: MenuId.LayoutControlMenu,
+		item: {
+			group: '0_workbench_toggles',
+			command: {
+				id: FocusPearAIExtensionAction.ID,
+				title: `New Chat (${KeyModUtils.keyModToString(KeyMod.CtrlCmd)} + ${KeyCodeUtils.toString(KeyCode.KeyL)})`,
+			},
+			order: -1,
+		},
+	},
+]);
+
+// Following is a only PearAI related action, need to refactor these type of actions to separate file
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
+import { IProductService } from 'vs/platform/product/common/productService';
+
+class OpenPearAIDocsAction extends Action2 {
+	static readonly ID = 'workbench.action.openPearAIDocs';
+	static readonly LABEL = localize2(
+		"openPearAIDocs",
+		"Open PearAI Documentation",
+	);
+
+	constructor() {
+		super({
+			id: OpenPearAIDocsAction.ID,
+			title: OpenPearAIDocsAction.LABEL,
+			category: Categories.Help,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const openerService = accessor.get(IOpenerService);
+		const productService = accessor.get(IProductService);
+		if (!productService.pearAILinks?.docs) {
+			return;
+		}
+		await openerService.open(URI.parse(productService.pearAILinks?.docs));
+	}
+}
+
+registerAction2(OpenPearAIDocsAction);
+
+MenuRegistry.appendMenuItems([
+	{
+		id: MenuId.CommandCenter,
+		item: {
+			command: {
+				id: OpenPearAIDocsAction.ID,
+				title: 'Docs',
+			},
+			order: 150,
+		},
+	},
+]);
