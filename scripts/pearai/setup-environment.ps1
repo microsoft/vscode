@@ -22,7 +22,7 @@ function Initialize-BaseFunctionality {
     Set-Location .\extensions\pearai-submodule
 
 	$script = Join-Path -Path $modulePath -ChildPath 'scripts\install-dependencies.ps1'
-    Invoke-CMD -Command "powershell.exe -File $script" -ErrorMessage "Failed to install dependencies for the submodule"
+    Invoke-CMD -Command "powershell.exe -ExecutionPolicy Bypass -File $script" -ErrorMessage "Failed to install dependencies for the submodule"
 
     Set-Location $currentDir
 
@@ -41,7 +41,7 @@ $createLinkScript = Join-Path -Path (Get-Item $MyInvocation.MyCommand.Path).Dire
 
 if (-not (Test-Path $linkPath -PathType Any)) {
     Write-Host "`nCreating symbolic link 'extensions\pearai-submodule\extensions\vscode' -> 'extensions\pearai-extension'" -ForegroundColor White
-    Start-Process powershell.exe -Verb RunAs -ArgumentList ("-Command", "powershell.exe -File '$createLinkScript' '$targetPath' '$linkPath'")
+    Start-Process powershell.exe -Verb RunAs -ArgumentList ("-ExecutionPolicy Bypass ", "-Command", "powershell.exe -ExecutionPolicy Bypass -File '$createLinkScript' '$targetPath' '$linkPath'")
 	Start-Sleep 1
 }
 
