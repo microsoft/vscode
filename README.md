@@ -1,6 +1,6 @@
 # Pear: The Best AI-Powered Code Editor
 
-Supercharge your development with an editor designed for less coding, using AI. PearAI is forked from VSCode, and aims to reduce the time from ideation to conception for your product development by achieving the most seamless integration with AI.
+Supercharge your development with an editor designed for less coding, using AI. PearAI is forked from VSCode and Continue, and aims to reduce the time from ideation to conception for your product development by achieving the most seamless integration with AI.
 
 This repository serves as the primary application for PearAI, with most functionalities housed within the extension/pearai folder. We recommend focusing your work within this submodule by cloning it from https://github.com/trypear/pearai-app/.
 
@@ -31,30 +31,8 @@ We welcome contributions from the community! Whether you're fixing a bug, improv
 
 Please review our [Contributing Guide](CONTRIBUTING.md) to get started.
 
-
-### Known or Common Errors
-Below describes a set of known or common errors that can occur when developing with PearAI and the steps that can resolve such issues.
-
-#### No main.js found
-The following issue can occur after the build process.
-```
-[Error: ENOENT: no such file or directory, open '/pearai/out/vs/code/electron-main/main.js'] {
-  errno: -2,
-  code: 'ENOENT',
-  syscall: 'open',
-  path: '/code/pearai/out/vs/code/electron-main/main.js',
-  phase: 'loading',
-  moduleId: 'vs/code/electron-main/main',
-  neededBy: [ '===anonymous1===' ]
-}
-```
-To resolve this, follow the below steps:
- 1. Remove the build `rm -rf out`
- 2. Re-run the app: `./scripts/code.sh`
- 3. If this persists please reach out via the communication channels listed in the [Contact](#contact) section
-
 ## License
-Pear is licensed under the Pear Enterprise Edition (EE) license (the “EE License”). See the LICENSE file for details.
+Pear OSS is licensed under the Apache 2.0 license. See the LICENSE file for details.
 
 ## Contact
 For any questions or issues, please open an issue or reach out in the PearAI [Discord](https://discord.gg/7QMraJUsQt).
@@ -66,7 +44,6 @@ Thanks to these wonderful people who have contributed to this project:
 - [FryingPannnn](https://github.com/Fryingpannn)
 - [ItWasEnder](https://github.com/ItWasEnder)
 - [Gedeondoescode](https://github.com/gedeondoescode)
-- [Jwhitt3r](https://github.com/jwhitt3r)
 
 Feel free to join them and contribute!
 
