@@ -9,7 +9,7 @@ To download the full product visit our homepage at https://trypear.ai.
 Get an API key from your favourite LLM provider. To obtain an OpenAI API key go to [platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys).
 
 ## Features
-* **Knows your code** - Pear has context on your database so you can ask questions about your code.
+* **Knows your code** - Pear has context on your codebase so you can ask questions directly (code is stored locally on your computer).
 * **UI/UX focused** - Pear puts the user experience first, making developing as seamless as possible.
 * **Familiar feel** - Pear is a fork of VSCode, so you can pick up exactly where you left off.
 
