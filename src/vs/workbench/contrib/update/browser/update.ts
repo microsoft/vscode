@@ -39,36 +39,36 @@ export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
 export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
-	if (!releaseNotesManager) {
-		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
-	}
+	// if (!releaseNotesManager) {
+	// 	releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
+	// }
 
-	return releaseNotesManager.show(version, useCurrentFile);
+	// return releaseNotesManager.show(version, useCurrentFile);
 }
 
 async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
-	const openerService = accessor.get(IOpenerService);
-	const productService = accessor.get(IProductService);
+	// const openerService = accessor.get(IOpenerService);
+	// const productService = accessor.get(IProductService);
 
-	if (productService.releaseNotesUrl) {
-		const uri = URI.parse(productService.releaseNotesUrl);
-		await openerService.open(uri);
-	} else {
-		throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
-	}
+	// if (productService.releaseNotesUrl) {
+	// 	const uri = URI.parse(productService.releaseNotesUrl);
+	// 	await openerService.open(uri);
+	// } else {
+	// 	throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
+	// }
 }
 
 async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
-	const instantiationService = accessor.get(IInstantiationService);
-	try {
-		await showReleaseNotesInEditor(instantiationService, version, false);
-	} catch (err) {
-		try {
-			await instantiationService.invokeFunction(openLatestReleaseNotesInBrowser);
-		} catch (err2) {
-			throw new Error(`${err.message} and ${err2.message}`);
-		}
-	}
+	// const instantiationService = accessor.get(IInstantiationService);
+	// try {
+	// 	await showReleaseNotesInEditor(instantiationService, version, false);
+	// } catch (err) {
+	// 	try {
+	// 		await instantiationService.invokeFunction(openLatestReleaseNotesInBrowser);
+	// 	} catch (err2) {
+	// 		throw new Error(`${err.message} and ${err2.message}`);
+	// 	}
+	// }
 }
 
 interface IVersion {
@@ -134,22 +134,22 @@ export class ProductContribution implements IWorkbenchContribution {
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
 			// was there a major/minor update? if so, open release notes
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotesInEditor(instantiationService, productService.version, false)
-					.then(undefined, () => {
-						notificationService.prompt(
-							severity.Info,
-							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
-							[{
-								label: nls.localize('releaseNotes', "Release Notes"),
-								run: () => {
-									const uri = URI.parse(releaseNotesUrl);
-									openerService.open(uri);
-								}
-							}]
-						);
-					});
-			}
+			// if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
+			// 	showReleaseNotesInEditor(instantiationService, productService.version, false)
+			// 		.then(undefined, () => {
+			// 			notificationService.prompt(
+			// 				severity.Info,
+			// 				nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
+			// 				[{
+			// 					label: nls.localize('releaseNotes', "Release Notes"),
+			// 					run: () => {
+			// 						const uri = URI.parse(releaseNotesUrl);
+			// 						openerService.open(uri);
+			// 					}
+			// 				}]
+			// 			);
+			// 		});
+			// }
 
 			storageService.store(ProductContribution.KEY, productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		});
