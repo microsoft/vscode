@@ -152,8 +152,11 @@ export class PearOverlayPart extends Part {
 
 		// if both content and webview are ready, end loading state and open
 		if (this.popupAreaOverlay && this.webviewView) {
-			this.webviewView?.webview.layoutWebviewOverElement(this.popupAreaOverlay);
-			this.open();
+			//this.webviewView?.webview.layoutWebviewOverElement(this.popupAreaOverlay);
+			// createContentArea is called within the workbench and layout when instantiating the overlay.
+			// If we don't close it here, it will open up by default when editor starts, or appear for half a second.
+			// If we remove this completely, it gets stuck in the loading stage, so we must close it.
+			this.close();
 		} else {
 			// hide stuff while we load
 			this.fullScreenOverlay!.style.display = "none";
