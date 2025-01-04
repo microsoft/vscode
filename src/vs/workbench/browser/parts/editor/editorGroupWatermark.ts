@@ -3,6 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isMacintosh, isWeb, OS } from 'vs/base/common/platform';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { append, clearNode, $, h } from 'vs/base/browser/dom';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+
+registerColor('editorWatermark.foreground', { dark: transparent(editorForeground, 0.6), light: transparent(editorForeground, 0.68), hcDark: editorForeground, hcLight: editorForeground }, localize('editorLineHighlight', 'Foreground color for the labels in the editor watermark.'));
 import { localize } from '../../../../nls.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
@@ -21,12 +36,14 @@ import { coalesce, shuffle } from '../../../../base/common/arrays.js';
 interface WatermarkEntry {
 	readonly id: string;
 	readonly text: string;
-	readonly when?: {
-		native?: ContextKeyExpression;
-		web?: ContextKeyExpression;
-	};
+	readonly id: string;
+	readonly mac?: boolean;
+	readonly when?: ContextKeyExpression;
 }
 
+const openPearAIChat: WatermarkEntry = { text: localize('watermark.openPearAIChat', "Open Chat"), id: 'pearai.focusContinueInput', when: ContextKeyExpr.has('pearAIExtensionLoaded') };
+const bigChat: WatermarkEntry = { text: localize('watermark.pearAIBigChat', "Big Chat"), id: 'pearai.resizeAuxiliaryBarWidth', when: ContextKeyExpr.has('pearAIExtensionLoaded') };
+const prevChat: WatermarkEntry = { text: localize('watermark.pearAIPrevChat', "Previous Chat"), id: 'pearai.loadRecentChat', when: ContextKeyExpr.has('pearAIExtensionLoaded') };
 const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
 const gotoFile: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
 const openFile: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile' };
@@ -42,6 +59,9 @@ const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Ch
 const openCopilotEdits: WatermarkEntry = { text: localize('watermark.openCopilotEdits', "Open Copilot Edits"), id: 'workbench.action.chat.openEditSession', when: { native: ContextKeyExpr.equals('chatSetupInstalled', true), web: ContextKeyExpr.equals('chatSetupInstalled', true) } };
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
+	openPearAIChat,
+	bigChat,
+	prevChat,
 	showCommands,
 	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
 	openRecent,
@@ -54,6 +74,9 @@ const randomEmptyWindowEntries: WatermarkEntry[] = [
 ];
 
 const workspaceEntries: WatermarkEntry[] = [
+	openPearAIChat,
+	bigChat,
+	prevChat,
 	showCommands,
 	gotoFile,
 	openChat
@@ -86,7 +109,8 @@ export class EditorGroupWatermark extends Disposable {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
@@ -132,7 +156,12 @@ export class EditorGroupWatermark extends Disposable {
 		}));
 	}
 
-	private render(): void {
+	private async render(): Promise<void> {
+		// Wait for the all extensions to be activated
+		await this.extensionService.activateByEvent('onStartupFinished');
+		// TODO: @Himanshu-Singh-Chauhan - this should be set from inside the extension, test it later, if it works, remove this
+		this.contextKeyService.createKey('pearAIExtensionLoaded', true); // Set a context key when the PearAI extension is loaded
+
 		this.enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
 
 		clearNode(this.shortcuts);
