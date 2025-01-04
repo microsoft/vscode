@@ -36,10 +36,13 @@
 	"quality": "stable",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"extensionsGallery": {
-		"serviceUrl": "https://walrus-backup-app-sgqep.ondigitalocean.app/pearai-backup-server-api/gallery",
-		"itemUrl": "https://walrus-backup-app-sgqep.ondigitalocean.app/pearai-backup-server-api/items"
+		"nlsBaseUrl": "https://www.vscode-unpkg.net/_lp/",
+		"serviceUrl": "https://market.trypear.ai/gallery",
+		"itemUrl": "https://market.trypear.ai/items",
+		"publisherUrl": "https://market.trypear.ai/publishers",
+		"resourceUrlTemplate": "https://{publisher}.vscode-unpkg.net/{publisher}/{name}/{version}/{path}",
+		"controlUrl": "https://az764295.vo.msecnd.net/extensions/marketplace.json"
 	},
-
 	"profileTemplatesUrl": "https://az764295.vo.msecnd.net/profile-templates/profile-templates.json",
 	"extensionRecommendations": {
 		"ms-dotnettools.csdevkit": {
