@@ -2,19 +2,13 @@
 
 This is the main app for PearAI. The bulk of the functionality is within `extension/pearai-submodule`. Almost all the contributions should be in this subdirectory.
 
-PearAI is a fork of VSCode (and Continue), so simply follow VSCode's guide for running the app.
+PearAI is a fork of VSCode (and Continue), so we can simply follow most of VSCode's guide for running the app (see below).
 
-The extension can be run in two ways:
-
-RECOMMENDED: Internally within the main PearAI application: https://github.com/trypear/pearai/. This guide is for running it internally.
-
-Standalone as an extension. For running it standalone, you will want to `cd` into `extensions/pearai-extension` and visit [Contributing to pearai-extension](extensions/pearai-extension/CONTRIBUTING.md)
-
-After cloning and building the repo, check out the [issues list](https://github.com/trypear/pearai-app/issues). Issues labeled [`good first issue`](https://github.com/trypear/pearai-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22Good+First+Issue%22) are great candidates to pick up if you are in the code for the first time. If you are contributing significant changes, or if the issue is already assigned to a specific month milestone, please discuss with the assignee of the issue first before starting to work on the issue.
+After cloning and building the repo, check out the [issues list](https://github.com/trypear/pearai-app/issues). Issues labeled [`good first issue`](https://github.com/trypear/pearai-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22Good+First+Issue%22) are great candidates to pick up if you are in the code for the first time. If you are contributing significant changes, or if the issue is already assigned to a specific month milestone, please discuss with the assignee of the issue first (in [Discord]([url](https://discord.gg/7QMraJUsQt))) before starting to work on the issue.
 
 ## Prerequisites
 
-In order to download necessary tools, clone the repository, and install dependencies via `yarn`, you need network access.
+In order to download necessary tools, clone the repository, and install dependencies via `yarn` (you need internet access).
 
 You'll need the following tools:
 
@@ -24,7 +18,7 @@ You'll need the following tools:
 - [Python](https://www.python.org/downloads/) (required for node-gyp; check the [node-gyp readme](https://github.com/nodejs/node-gyp#installation) for the currently supported Python versions)
   - **Note:** Python will be automatically installed for Windows users through installing `windows-build-tools` npm module (see below)
 - A C/C++ compiler tool chain for your platform:
-  - **Windows 10/11**
+  - **For Windows 10/11**
     - Install the Windows Build Tools:
       - if you install Node on your system using the Node installer from the [Node.JS](https://nodejs.org/en/download/) page then ensure that you have installed the 'Tools for Native Modules'. Everything should work out of the box then.
       - if you use a node version manager like [nvm](https://github.com/coreybutler/nvm-windows) or [nvs](https://github.com/jasongin/nvs) then follow these steps:
@@ -37,18 +31,18 @@ You'll need the following tools:
         ```
     - **Warning:** Make sure your profile path only contains ASCII letters, e.g. *John*, otherwise, it can lead to [node-gyp usage problems (nodejs/node-gyp/issues#297)](https://github.com/nodejs/node-gyp/issues/297)
     - **Note**: Building and debugging via the Windows subsystem for Linux (WSL) is currently not supported.
-  - **Windows WSL2**: <https://github.com/microsoft/vscode/wiki/Selfhosting-on-Windows-WSL>
-  - **macOS**
+  - **For Windows WSL2**: https://github.com/microsoft/vscode/wiki/Selfhosting-on-Windows-WSL
+  - **For macOS**
     - [Xcode](https://developer.apple.com/xcode/resources/) and the Command Line Tools, which will install `gcc` and the related toolchain containing `make`
       - Run `xcode-select --install` to install the Command Line Tools
-  - **Linux**
-    - On Debian-based Linux: `sudo apt-get install build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3`
-    - On Red Hat-based Linux: `sudo yum groupinstall "Development Tools" && sudo yum install libX11-devel.x86_64 libxkbfile-devel.x86_64 libsecret-devel krb5-devel # or .i686`.
-    - Others:
-      - `make`
-      - [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
-      - [GCC](https://gcc.gnu.org) or another compile toolchain
-    - Building deb and rpm packages requires `fakeroot` and `rpm`; run: `sudo apt-get install fakeroot rpm`
+  - **For Linux**
+    * On Debian-based Linux: `sudo apt-get install build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev python-is-python3`
+    * On Red Hat-based Linux: `sudo yum groupinstall "Development Tools" && sudo yum install libX11-devel.x86_64 libxkbfile-devel.x86_64 libsecret-devel krb5-devel # or .i686`.
+    * Others:
+      * `make`
+      * [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
+      * [GCC](https://gcc.gnu.org) or another compile toolchain
+    * Building deb and rpm packages requires `fakeroot` and `rpm`; run: `sudo apt-get install fakeroot rpm`
 
 ## Build and Run
 
