@@ -190,7 +190,10 @@ These `gulp` tasks are available:
 - `vscode-[platform]`: Builds a packaged version for `[platform]`.
 - `vscode-[platform]-min`: Builds a packaged and minified version for `[platform]`.
 
-👉 **Tip!** Run `gulp` via `yarn` to avoid potential out-of-memory issues, for example, `yarn gulp vscode-linux-x64`.
+1. If you have not already, run `./scripts/pearai/setup-environment.[sh,ps1]` (Note that .sh or .ps1 depends on your OS)
+2. If have already ran that upon your first install, run `./scripts/pearai/install-dependencies.[sh,ps1]` (Note that .sh or .ps1 depends on your OS)
+3. Run `yarn gulp vscode-[platform]`. For example `yarn gulp vscode-linux-x64`
+
 
 This will generate the new PearAI app and takes around 1 hour.
 
@@ -220,7 +223,7 @@ This will install the extension as a compatible dist for your system:
 1. Copy the contents of the generated `extensions` folder into the `extensions/` folder of the packaged PearAI App. For example, on macOS, it is:
    - `cp -r ~/.vscode/extensions/pearai.pearai-0.9.156 {path_to_PearAI.app}/Contents/Resources/app/extensions`
 2. Take a quick look into the `extensions/` folder of the packaged PearAI app for any other pearai folders. For example, there will be a pearai-submodule folder. Delete it. For example, on macOS, it is:
-   - `rm -rf ~/.vscode/extensions/pearai.pearai-0.9.156 {path_to_PearAI.app}/Contents/Resources/app/extensions/pearai-submodule`
+   - rm -rf {path_to_PearAI.app}/Contents/Resources/app/extensions/pearai-submodule
 3. Double-click your overall PearAI app, and the extension should be built-in.
 4. Distribute the application.
 
