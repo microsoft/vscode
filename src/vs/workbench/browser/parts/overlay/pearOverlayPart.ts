@@ -143,6 +143,8 @@ export class PearOverlayPart extends Part {
 		this.fullScreenOverlay.style.right = "0";
 		this.fullScreenOverlay.style.bottom = "0";
 		this.fullScreenOverlay.style.backgroundColor = "rgba(0, 0, 0, 0.2)";
+		// this.fullScreenOverlay.style.pointerEvents = "none"; // Ignore clicks on the full screen overlay
+		this.fullScreenOverlay!.style.backgroundColor = "rgba(0, 0, 0, 0.5)"; // Darken the overlay
 
 		// create the popup area overlay. this is just a target for webview to layout over
 		this.popupAreaOverlay = $("div.pearai-popup-area-overlay");
@@ -221,6 +223,7 @@ export class PearOverlayPart extends Part {
 		container.style.backgroundColor = "var(--vscode-editor-background)";
 		container.style.zIndex = "1000";
 		this.fullScreenOverlay?.addEventListener("click", () => {
+			// TODO: If we are in the tutorial, don't close
 			this.close();
 		});
 
