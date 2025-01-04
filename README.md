@@ -2,11 +2,7 @@
 
 Supercharge your development with an editor designed for less coding, using AI. PearAI is forked from VSCode and Continue, and aims to reduce the time from ideation to conception for your product development by achieving the most seamless integration with AI.
 
-To download the full product visit our homepage at https://trypear.ai.
-
-# Prerequisites
-
-Get an API key from your favourite LLM provider. To obtain an OpenAI API key go to [platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys).
+To download the full app, visit our homepage at https://trypear.ai.
 
 ## Features
 * **Knows your code** - Pear has context on your codebase so you can ask questions directly (code is stored locally on your computer).
