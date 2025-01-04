@@ -33,7 +33,7 @@ function Initialize-BaseFunctionality {
     Invoke-CMD -Command "git pull origin main" -ErrorMessage "Failed to pull latest changes from origin/main"
 
 
-	$script = Join-Path -Path $modulePath -ChildPath 'scripts\install-dependencies.ps1'
+	$script = Join-Path -Path $modulePath -ChildPath 'scripts\install-and-build.ps1'
     Invoke-CMD -Command "powershell.exe -ExecutionPolicy Bypass -File $script" -ErrorMessage "Failed to install dependencies for the submodule"
 
     # Discard the package.json and package-lock.json version update changes     
@@ -46,7 +46,7 @@ function Initialize-BaseFunctionality {
 }
 
 function Create-SymLink {
-    Write-Host "`nCreating symbolic link 'extensions\pearai-submodule\extensions\vscode' -> 'extensions\pearai-extension'" -ForegroundColor White
+    Write-Host "`nCreating symbolic link 'extensions\pearai-ref' -> 'extensions\pearai-submodule\extensions\vscode'" -ForegroundColor White
     Start-Process powershell.exe -Verb RunAs -ArgumentList ("-ExecutionPolicy Bypass ", "-Command", "powershell.exe -ExecutionPolicy Bypass -File '$createLinkScript' '$targetPath' '$linkPath'")
     Start-Sleep 1
 }

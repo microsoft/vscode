@@ -78,7 +78,7 @@ execute "git fetch origin" "Failed to fetch latest changes from origin"
 # Make sure the submodule has the latest updates
 execute "git pull origin main" "Failed to pull latest changes from origin/main"
 
-execute "./scripts/install-dependencies.sh" "Failed to install dependencies for the submodule"
+execute "./scripts/install-and-build.sh" "Failed to install dependencies for the submodule"
 
 # Discard the package.json and package-lock.json version update changes
 execute "git reset --hard" "Failed to reset --hard after submodule dependencies install"
