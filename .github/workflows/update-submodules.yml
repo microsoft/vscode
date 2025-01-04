@@ -20,9 +20,26 @@ jobs:
           git submodule update --init --recursive
           git submodule update --recursive --remote
 
-      - name: Commit & push changes
+      - name: Commit changes
         run: |
-          git config --global user.name github-actions
-          git config --global user.email github-actions@github.com
-          git commit -am "Update submodules"
-          git push
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git checkout -b update-submodules
+          git add .
+          git commit -m "Update submodules"
+
+      - name: Push changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push --set-upstream origin update-submodules
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: update-submodules
+          title: "Update submodules"
+          body: "Automated update of submodules."
+          draft: false
+          base: main
