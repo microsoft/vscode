@@ -267,8 +267,6 @@ class InternalTerminalShellIntegration extends Disposable {
 	}
 }
 
-
-
 class InternalTerminalShellExecution {
 	private _dataStream: ShellExecutionDataStream | undefined;
 

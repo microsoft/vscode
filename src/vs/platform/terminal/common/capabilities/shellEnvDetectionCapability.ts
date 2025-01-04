@@ -35,9 +35,14 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		this._onDidChangeEnv.fire(this._env);
 	}
 
+	//TODO: Implement setSingleEnvironmentVariable()
+
 	applyEnvironmentDiff(env: { [key: string]: string | undefined }): void {
 		// TODO: Implement
 		throw new Error('Method not implemented.');
 		//look at every key, fire event after applying everything.
 	}
 }
+
+// bash, pwsh => capability (env change =>) main thread (env change =>)
+// extension host [(new or changed) .cwd, .env, .shellIntegration SI Change event => ] Extension

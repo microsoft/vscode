@@ -41,8 +41,6 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 	builtin unset VSCODE_INJECTION
 fi
 
-echo "hi"
-
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
@@ -128,7 +126,7 @@ __vsc_escape_value() {
 		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
 		byte="${str:$i:1}"
 		builtin printf -v val '%d' "'$byte"
-		if (( val < 31 )); then
+		if  (( val < 31 )); then
 			builtin printf -v token '\\x%02x' "'$byte"
 		elif (( val == 92 )); then # \
 			token="\\\\"
