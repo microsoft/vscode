@@ -186,21 +186,10 @@ export class PearOverlayPart extends Part {
 			this.fullScreenOverlay!.style.height = `${height}px`;
 		}
 
-		// Calculate 80% of width and height
-		const overlayWidth = Math.floor(width * 0.8);
-		const overlayHeight = Math.floor(height * 0.8);
-
-		// Calculate position to center the overlay
-		const overlayLeft = Math.floor((width - overlayWidth) / 2);
-		const overlayTop = Math.floor((height - overlayHeight) / 2);
-
 		if (this.popupAreaOverlay) {
-			this.popupAreaOverlay.style.width = `${overlayWidth}px`;
-			this.popupAreaOverlay.style.height = `${overlayHeight}px`;
-			this.popupAreaOverlay.style.left = `${overlayLeft}px`;
-			this.popupAreaOverlay.style.top = `${overlayTop}px`;
-			this.popupAreaOverlay.style.backgroundColor =
-				"var(--vscode-editor-background)";
+			this.popupAreaOverlay.style.width = `${width}px`;
+			this.popupAreaOverlay.style.height = `${height}px`;
+			this.popupAreaOverlay.style.backgroundColor = "transparent";
 			this.popupAreaOverlay.style.borderRadius = "12px";
 		}
 
@@ -220,10 +209,6 @@ export class PearOverlayPart extends Part {
 
 		const container = this.webviewView!.webview.container;
 		container.style.display = "flex";
-		container.style.boxSizing = "border-box";
-		container.style.boxShadow = "0 0 20px 0 rgba(0, 0, 0, 0.5)";
-		container.style.borderRadius = "12px";
-		container.style.backgroundColor = "var(--vscode-editor-background)";
 		container.style.zIndex = "1000";
 		this.fullScreenOverlay?.addEventListener("click", () => {
 			// TODO: If we are in the tutorial, don't close
