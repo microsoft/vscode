@@ -39,11 +39,9 @@ $createLinkScript = Join-Path -Path (Get-Item $MyInvocation.MyCommand.Path).Dire
 
 # Check if the symbolic link exists
 
-if (-not (Test-Path $linkPath -PathType Any)) {
-    Write-Host "`nCreating symbolic link 'extensions\pearai-submodule\extensions\vscode' -> 'extensions\pearai-extension'" -ForegroundColor White
-    Start-Process powershell.exe -Verb RunAs -ArgumentList ("-ExecutionPolicy Bypass ", "-Command", "powershell.exe -ExecutionPolicy Bypass -File '$createLinkScript' '$targetPath' '$linkPath'")
-	Start-Sleep 1
-}
+Write-Host "`nCreating symbolic link 'extensions\pearai-submodule\extensions\vscode' -> 'extensions\pearai-extension'" -ForegroundColor White
+Start-Process powershell.exe -Verb RunAs -ArgumentList ("-ExecutionPolicy Bypass ", "-Command", "powershell.exe -ExecutionPolicy Bypass -File '$createLinkScript' '$targetPath' '$linkPath'")
+Start-Sleep 1
 
 # Run the base functionality
 Initialize-BaseFunctionality
