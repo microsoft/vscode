@@ -55,10 +55,12 @@ export type ExtensionVirtualWorkspaceSupport = {
 };
 
 export interface IProductConfiguration {
-	readonly version: string;
+	readonly pearAIVersion?: string;
+	readonly version: string; // vscode version
 	readonly date?: string;
 	readonly quality?: string;
-	readonly commit?: string;
+	readonly commit?: string; // pearAI commit, generated when building and packaging
+	readonly VSCodeCommit?: string;
 
 	readonly nameShort: string;
 	readonly nameLong: string;
@@ -207,7 +209,6 @@ export interface IProductConfiguration {
 	readonly chatParticipantRegistry?: string;
 
 	readonly emergencyAlertUrl?: string;
-	readonly pearAIVersion?: string;
 }
 
 export interface ITunnelApplicationConfig {
