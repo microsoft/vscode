@@ -844,7 +844,9 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		return accessor.get(IViewDescriptorService).reset();
+		accessor.get(IViewDescriptorService).reset();
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand('workbench.action.movePearExtensionToAuxBar');
 	}
 });
 
