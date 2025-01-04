@@ -1,7 +1,7 @@
 {
-	"nameShort": "code-oss",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
+	"nameShort": "pear-ai",
+	"nameLong": "PearAI",
+	"applicationName": "pear-ai",
 	"dataFolderName": ".vscode-oss",
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",
