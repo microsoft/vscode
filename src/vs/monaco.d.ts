@@ -5067,6 +5067,7 @@ declare namespace monaco.editor {
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
 		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'hover' | 'clickAndHover' | 'click'>;
+		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'hover' | 'clickAndHover' | 'click'>;
 		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;
@@ -5180,11 +5181,13 @@ declare namespace monaco.editor {
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, any>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'auto' | 'prompt'>;
+		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'auto' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, {}>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
+		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
