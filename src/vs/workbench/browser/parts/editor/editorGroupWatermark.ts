@@ -221,6 +221,8 @@ export class EditorGroupWatermark extends Disposable {
 	}
 
 	private async renderNoWorkspaceWatermark(): Promise<void> {
+		// close the sidebar on new window open
+		this.commandService.executeCommand('workbench.action.closeAuxiliaryBar');
 		const container = append(this.watermark, $('.editor-group-watermark-no-workspace'));
 
 		// button container
