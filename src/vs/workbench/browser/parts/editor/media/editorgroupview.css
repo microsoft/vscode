@@ -77,58 +77,141 @@
 	margin-bottom: 30px;
 }
 
+/* Parent Container Styles */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 20px;
+	box-sizing: border-box;
+	width: 100%;
+}
+
+/* Button Container Styles */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .button-container {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 30px;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* Open Folder Button Styles */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .open-folder-button {
-	padding: 8px 12px;
+	padding: 14px 18px;
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	border: none;
 	border-radius: 6px;
 	cursor: pointer;
-	font-size: 13px;
+	font-size: 15px;
 	display: flex;
 	align-items: center;
 	gap: 5px;
 }
 
+/* Icon Inside the Button */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .open-folder-button .codicon {
-	font-size: 16px;
+	font-size: 19px;
+	color: var(--vscode-button-foreground);
 }
 
+/* Open Folder Button Hover Effect */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .open-folder-button:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
 
+/* Recent List Styles */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list {
-	width: 100%;
-	min-width: 260px;
-	max-width: 700px;
-	color: var(--vscode-editorWatermark-foreground);
-	opacity: 0.8;
+	width: 70%;
+	padding: 0 20px;
+	box-sizing: border-box;
+	text-align: left;
+	margin: 0 auto;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item {
-	padding: 6px 0;
-	cursor: pointer;
+/* Recent Item Styles */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item {
+	display: inline-block;
+	max-width: 100%;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	padding: 6px 0;
+	cursor: pointer;
 	opacity: 0.8;
-	font-size: 13px;
+	font-size: 14px;
+	color: var(--vscode-foreground);
+	vertical-align: middle;
+}
+
+/* File Name Styles */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item .name {
+	font-weight: normal;
 	color: var(--vscode-foreground);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item .path {
+/* Path Styles */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item .path {
 	opacity: 0.6;
 	color: var(--vscode-editorWatermark-foreground);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item:hover {
+/* Add Space Between Name and Path */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item .spacer {
+	display: inline-block;
+	width: 10px;  /* Adjust this value to increase/decrease spacing between name and path(location) of recent items */
+}
+
+/* Recent Item Hover Effects */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item:hover {
 	opacity: 1;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item:hover .path {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item:hover .path {
 	color: var(--vscode-foreground);
 	opacity: 0.8;
+}
+
+/* New File Item Styles */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .new-file-item {
+	opacity: 0.7;
+	cursor: pointer;
+	margin-bottom: 5px;
+	color: var(--vscode-editorWatermark-foreground);
+	text-align: left;
+	width: 70%;
+	font-size: 14px;
+	box-sizing: border-box;
+	padding: 1px 20px;
+	margin: 0 auto;
+	margin-bottom: 2px;
+}
+
+/* New File Item Hover Effect */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .new-file-item:hover {
+	opacity: 1;
+	color: var(--vscode-foreground);
+}
+
+/* More Item Styles */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .more-item {
+	opacity: 0.7;
+	margin-top: 8px;
+	text-align: left;
+	width: 100%;
+	max-width: 700px;
+	box-sizing: border-box;
+	padding: 0;
+	font-size: 14px;
+	color: var(--vscode-editorWatermark-foreground);
+	cursor: pointer;
+}
+
+/* More Item Hover Effect */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .more-item:hover {
+	color: var(--vscode-foreground);
+	opacity: 1;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .letterpress {
@@ -257,40 +340,10 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .more-item {
-	opacity: 0.7;
-	margin-top: 8px;
-	font-style: italic;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .more-item:hover {
-	color: var(--vscode-foreground);
-	opacity: 1;
-}
-
 /* When container is small, allow wrapping */
 @media (max-width: 700px) {
 	.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item {
 		white-space: normal;
 		word-break: break-all;
 	}
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item .spacer {
-    display: inline-block;
-    width: 10px;  /* Adjust this value to increase/decrease spacing between name and path(location) of recent items */
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .new-file-item {
-	opacity: 0.7;
-	cursor: pointer;
-	padding: 1px 0;
-	font-style: italic;
-	margin-bottom: 5px;
-	color: var(--vscode-editorWatermark-foreground);
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .new-file-item:hover {
-	color: var(--vscode-foreground);
-	opacity: 1;
 }
