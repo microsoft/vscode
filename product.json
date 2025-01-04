@@ -2382,5 +2382,6 @@
 		"vs/code/electron-sandbox/workbench/workbench.html": "MOHfHsuI+CL4nPwyAQjuFCAjFomNep+vcvjL0sLDlbw",
 		"vs/code/electron-sandbox/workbench/workbench.js": "UfEYJUwE/3rVxokZpMqXUk+OC+ZVfikR++K0yTZ+on8"
 	},
-	"version": "1.91.1"
+	"version": "1.91.1",
+	"target": "user"
 }

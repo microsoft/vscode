@@ -155,15 +155,17 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					}).then(packagePath => {
 						this.availableUpdate = { packagePath };
 						this.setState(State.Downloaded(update));
+						// NOTE: pear does not support fast updates. so we are setting the state to ready.
+						this.setState(State.Ready(update));
 
-						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-						if (fastUpdatesEnabled) {
-							if (this.productService.target === 'user') {
-								this.doApplyUpdate();
-							}
-						} else {
-							this.setState(State.Ready(update));
-						}
+						// const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+						// if (fastUpdatesEnabled) {
+						// 	if (this.productService.target === 'user') {
+						// 		this.doApplyUpdate();
+						// 	}
+						// } else {
+						// 	this.setState(State.Ready(update));
+						// }
 					});
 				});
 			})
