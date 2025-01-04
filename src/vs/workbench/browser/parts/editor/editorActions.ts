@@ -77,17 +77,27 @@ abstract class AbstractSplitEditorAction extends Action2 {
 export class SplitEditorAction extends AbstractSplitEditorAction {
 
 	static readonly ID = SPLIT_EDITOR;
+	static readonly LABEL = localize2('splitEditor', 'Split Editor');
 
 	constructor() {
 		super({
 			id: SplitEditorAction.ID,
-			title: localize2('splitEditor', 'Split Editor'),
+			title: SplitEditorAction.LABEL,
+			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.Backslash
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backslash,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backslash
+				},
+				win: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backslash
+				},
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backslash
+				}
 			},
-			category: Categories.View
 		});
 	}
 }
