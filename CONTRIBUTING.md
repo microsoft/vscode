@@ -34,7 +34,9 @@ The extension can be run in two ways:
 
 RECOMMENDED: Internally within the main PearAI application (which is a VSCode fork): <https://github.com/trypear/pearai/>. This guide is for running it internally.
 
-After cloning and building the repo, check out the [issues list](https://github.com/trypear/pearai-app/issues?utf8=%E2%9C%93&q=is%3Aopen+is%3Aissue). Issues labeled [`help wanted`](https://github.com/trypear/pearai-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) are good issues to submit a PR for. Issues labeled [`good first issue`](https://github.com/trypear/pearai-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) are great candidates to pick up if you are in the code for the first time. If you are contributing significant changes, or if the issue is already assigned to a specific month milestone, please discuss with the assignee of the issue first before starting to work on the issue.
+Standalone as an extension. For running it standalone, you will want to `cd` into `extensions/pearai-extension` and visit [Contributing to pearai-extension](extensions/pearai-extension/CONTRIBUTING.md)
+
+After cloning and building the repo, check out the [issues list](https://github.com/trypear/pearai-app/issues). Issues labeled [`good first issue`](https://github.com/trypear/pearai-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22Good+First+Issue%22) are great candidates to pick up if you are in the code for the first time. If you are contributing significant changes, or if the issue is already assigned to a specific month milestone, please discuss with the assignee of the issue first before starting to work on the issue.
 
 ## Prerequisites
 
@@ -70,70 +72,19 @@ You'll need the following tools:
       - [GCC](https://gcc.gnu.org) or another compile toolchain
     - Building deb and rpm packages requires `fakeroot` and `rpm`; run: `sudo apt-get install fakeroot rpm`
 
-### Troubleshooting
-
-In case of issues, try deleting the contents of `~/.node-gyp` (alternatively `~/.cache/node-gyp` for Linux, `~/Library/Caches/node-gyp/` for macOS, or `%USERPROFILE%\AppData\Local\node-gyp` for Windows) first and then run `yarn cache clean` and then try again.
-
-> If you are on Windows or Linux 64 bit systems and would like to compile to 32 bit, you'll need to set the `npm_config_arch` environment variable to `ia32` before running `yarn`. This will compile all native node modules for a 32 bit architecture. Similarly, when cross-compiling for ARM, set `npm_config_arch` to `arm`.
-
-> **Note:** For more information on how to install NPM modules globally on UNIX systems without resorting to `sudo`, refer to [this guide](http://www.johnpapa.net/how-to-use-npm-global-without-sudo-on-osx/).
-
-> If you have Visual Studio 2019 installed, you may face issues when using the default version of node-gyp. If you have Visual Studio 2019 installed, you may need to follow the solutions [here](https://github.com/nodejs/node-gyp/issues/1747).
-
-#### Missing spectre mitigated libraries on Windows
-
-If you are using npm >= 10.2.3 or node-gyp >= 10.0.0, then you might see error when building native modules of this project
-
-> Spectre-mitigated libraries are required for this project.
-
-To fix this error open Visual Studio Installer, add the following components corresponding to the architecture you are building for (x64/ARM/ARM64) and restart your build session
-
-- MSVC Spectre-mitigated libs (latest)
-- C++ ATL for latest build tools with Spectre Mitigations
-- C++ MFC for latest build tools with Spectre Mitigations
-
-### Development container
-
-Alternatively, you can avoid local dependency installation as this repository includes a Visual Studio Code Remote - Containers / Codespaces [development container](https://github.com/trypear/pearai-app/tree/main/.devcontainer).
-
-- For [Remote - Containers](https://aka.ms/vscode-remote/download/containers), use the **Remote-Containers: Open Repository in Container...** command which creates a Docker volume for better disk I/O on macOS and Windows.
-- For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
-
-Docker / the Codespace should have at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run the full build. See the [development container README](https://github.com/trypear/pearai-app/blob/main/.devcontainer/README.md) for more information.
-
-If you'd like to contribute to the list of available development containers in the Remote - Containers extension, you can check out the [Contributing documentation](https://github.com/microsoft/vscode-dev-containers/blob/master/CONTRIBUTING.md) in the vscode-dev-containers repo.
-
-## Enable Commit Signing
-
-If you're a community member, feel free to jump over this step.
-
-Otherwise, if you're a member of the VS Code team, follow the [Commit Signing](https://github.com/microsoft/vscode/wiki/Commit-Signing) guide.
-
 ## Build and Run
 
-If you want to understand how the PearAI App works or want to debug an issue, you'll want to get the source, build it, and run the tool locally.
+The first time you clone the repo, please run:
 
-> NOTE: If you need to debug the 32bit version of VS Code on 64bit Windows, follow [the guide on how to do that](https://github.com/microsoft/vscode/wiki/Build-and-run-32bit-Code---OSS-on-Windows).
-
-### Getting the sources
-
-First, fork the `trypear/pearai-app` repository so that you can make pull requests. Then, clone your fork locally:
+##### Mac
 
 ```
-git clone https://github.com/<<<your-github-account>>>/pearai-app.git
+./scripts/init.sh
 ```
 
-Occasionally you will want to merge changes in the upstream repository (the official code repo) with your fork.
+##### Windows
 
-```
-cd pearai-app
-git checkout main
-git pull https://github.com/trypear/pearai-app.git main
-```
-
-Manage any merge conflicts, commit them, and then push them to your fork.
-
-**Note**: The `trypear/pearai-app` repository contains a collection of GitHub Actions that help us with triaging issues. They are disabled by default, but you can enable them for your fork via `https://github.com/<<Your Username>>/pearai-app/actions`.
+Open `Command Palette` and type `Run Task`. Then, select `setup-environment`.
 
 ### Build
 
@@ -144,33 +95,7 @@ cd pearai-app
 yarn
 ```
 
-Then you have two options:
-
-- If you want to build from inside VS Code, you can open the `pearai-app` folder and start the build task with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (<kbd>CMD</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> on macOS). The build task will stay running in the background even if you close the app. If you happen to close VS Code and open it again, just resume the build by pressing <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (<kbd>CMD</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>) again. You can kill it by running the `Kill Build VS Code` task or pressing <kbd>Ctrl</kbd>+<kbd>D</kbd> in the task terminal.
-- If you want to build from a terminal, run `yarn watch`. This will run both the core watch task and watch-extension tasks in a single terminal.
-
-The incremental builder will do an initial full build and will display a message that includes the phrase "Finished compilation" once the initial build is complete. The builder will watch for file changes and compile those changes incrementally, giving you a fast, iterative coding experience.
-
-**Troubleshooting:**
-
-- **Windows:** If you have installed Visual Studio 2017 as your build tool, you need to open **x64 Native Tools Command Prompt for VS 2017**. Do not confuse it with *VS2015 x64 Native Tools Command Prompt*, if installed.
-- **Linux:** You may hit a ENOSPC error when running the build. To get around this follow instructions in the [Common Questions](https://code.visualstudio.com/docs/setup/linux#_common-questions).
-
-If the build step fails, or if the built version fails to run (see next section), run `git clean -xfd` in your `pearai-app` folder, then re-run `yarn`.
-
-#### Errors and Warnings
-
-Errors and warnings will show in the console while developing the PearAI App. If you use VS Code to develop the PearAI App, errors and warnings are shown in the status bar at the bottom left of the editor. You can view the error list using `View | Errors and Warnings` or pressing <kbd>Ctrl</kbd>+<kbd>P</kbd> and then <kbd>!</kbd> (<kbd>CMD</kbd>+<kbd>P</kbd> and <kbd>!</kbd> on macOS).
-
-👉 **Tip!** You don't need to stop and restart the development version of the PearAI App after each change. You can just execute `Reload Window` from the command palette. We like to assign the keyboard shortcut <kbd>Ctrl</kbd>+<kbd>R</kbd> (<kbd>CMD</kbd>+<kbd>R</kbd> on macOS) to this command.
-
 ### Run
-
-To test the changes, you launch a development version of the PearAI App on the workspace `pearai-app`, which you are currently editing.
-
-To test changes with a remote, use the "TestResolver" in your Code - OSS window which creates a fake remote window. Search Command Palette for `TestResolver`. More information is at <https://github.com/microsoft/vscode/issues/162874#issuecomment-1271774905>.
-
-#### Desktop
 
 Running on Electron with extensions run in NodeJS:
 
@@ -190,41 +115,26 @@ Running on Electron with extensions run in NodeJS:
 
 👉 **Tip!** If you receive an error stating that the app is not a valid Electron app, it probably means you didn't run `yarn watch` first.
 
-#### VS Code for the Web
+**Troubleshooting:**
 
-Extensions and UI run in the browser.
+In case of issues, try deleting the contents of `~/.node-gyp` (alternatively `~/.cache/node-gyp` for Linux, `~/Library/Caches/node-gyp/` for macOS, or `%USERPROFILE%\AppData\Local\node-gyp` for Windows) first and then run `yarn cache clean` and then try again.
 
-👉 Besides `yarn watch` also run `yarn watch-web` to build the web bits for the built-in extensions.
+> If you are on Windows or Linux 64 bit systems and would like to compile to 32 bit, you'll need to set the `npm_config_arch` environment variable to `ia32` before running `yarn`. This will compile all native node modules for a 32 bit architecture. Similarly, when cross-compiling for ARM, set `npm_config_arch` to `arm`.
 
-##### macOS and Linux
+> **Note:** For more information on how to install NPM modules globally on UNIX systems without resorting to `sudo`, refer to [this guide](http://www.johnpapa.net/how-to-use-npm-global-without-sudo-on-osx/).
 
-```bash
-./scripts/code-web.sh
-```
+> If you have Visual Studio 2019 installed, you may face issues when using the default version of node-gyp. If you have Visual Studio 2019 installed, you may need to follow the solutions [here](https://github.com/nodejs/node-gyp/issues/1747).
 
-##### Windows
+- **Windows:** If you have installed Visual Studio 2017 as your build tool, you need to open **x64 Native Tools Command Prompt for VS 2017**. Do not confuse it with *VS2015 x64 Native Tools Command Prompt*, if installed.
+- **Linux:** You may hit a ENOSPC error when running the build. To get around this follow instructions in the [Common Questions](https://code.visualstudio.com/docs/setup/linux#_common-questions).
 
-```bat
-.\scripts\code-web.bat
-```
+If the build step fails, or if the built version fails to run (see next section), run `git clean -xfd` in your `vscode` folder, then re-run `yarn`.
 
-#### Code Server Web
+#### Errors and Warnings
+Errors and warnings will show in the console while developing VS Code. If you use VS Code to develop VS Code, errors and warnings are shown in the status bar at the bottom left of the editor. You can view the error list using `View | Errors and Warnings` or pressing <kbd>Ctrl</kbd>+<kbd>P</kbd> and then <kbd>!</kbd> (<kbd>CMD</kbd>+<kbd>P</kbd> and <kbd>!</kbd> on macOS).
 
-UI in the browser, extensions run in code server (NodeJS):
+👉 **Tip!** You don't need to stop and restart the development version of VS Code after each change. You can just execute `Reload Window` from the command palette. We like to assign the keyboard shortcut <kbd>Ctrl</kbd>+<kbd>R</kbd> (<kbd>CMD</kbd>+<kbd>R</kbd> on macOS) to this command.
 
-##### macOS and Linux
-
-```bash
-./scripts/code-server.sh --launch
-```
-
-##### Windows
-
-```bat
-.\scripts\code-server.bat --launch
-```
-
-You can identify the development version of the PearAI App by finding the Pear logo in your Dock or Taskbar.
 
 ### Debugging
 
