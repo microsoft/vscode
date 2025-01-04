@@ -29,14 +29,12 @@ You'll need the following tools:
       - if you install Node on your system using the Node installer from the [Node.JS](https://nodejs.org/en/download/) page then ensure that you have installed the 'Tools for Native Modules'. Everything should work out of the box then.
       - if you use a node version manager like [nvm](https://github.com/coreybutler/nvm-windows) or [nvs](https://github.com/jasongin/nvs) then follow these steps:
         - Install the current version of Python using the [Microsoft Store Package](https://docs.python.org/3/using/windows.html#the-microsoft-store-package).
-        - Install the Visual C++ Build Environment by either installing the [Visual Studio Build Tools](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) or the [Visual Studio Community Edition](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Community). The minimum workload to install is 'Desktop Development with C++'.
-        - Make sure to also check the MSVC option, e.g.:
+        - Install the Visual C++ Build Environment by either installing the [Visual Studio Build Tools](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) or the [Visual Studio Community Edition](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Community) (note: you should only have one of these, if you already have one of them, make sure to check if you have the required packages installed (indicated below)).
+        	- Make sure to install the two options below (the MSVC option is in the "Individual Components" tab). e.g.:
         ```
-         [x] Desktop development with C++
-         [x] (IC) MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (v14.39-17.9)
+         [1] Desktop development with C++
+         [2] MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (v14.39-17.9)
         ```
-
-        - open a command prompt and run `npm config set msvs_version {visual studio version}`. (If you are using Visual Studio 2019 then you need to run `npm config set msvs_version 2019`)
     - **Warning:** Make sure your profile path only contains ASCII letters, e.g. *John*, otherwise, it can lead to [node-gyp usage problems (nodejs/node-gyp/issues#297)](https://github.com/nodejs/node-gyp/issues/297)
     - **Note**: Building and debugging via the Windows subsystem for Linux (WSL) is currently not supported.
   - **Windows WSL2**: <https://github.com/microsoft/vscode/wiki/Selfhosting-on-Windows-WSL>
