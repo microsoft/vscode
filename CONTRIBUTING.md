@@ -146,16 +146,16 @@ You can also directly ping the maintainers or admins in the [Discord](https://di
 
 ## ⚙️ Packaging
 
-This section outlines how to package the app for a new release/distribution. This process is a bit manual currently.
+This section outlines how to  the app for a new release/distribution. This process is a bit manual currently.
 
-### Step 1: Package PearAI App
+### Step 1:  PearAI App
 
-PearAI can be packaged for the following platforms: `win32-ia32 | win32-x64 | darwin-x64 | darwin-arm64 | linux-ia32 | linux-x64 | linux-arm`.
+PearAI can be d for the following platforms: `win32-ia32 | win32-x64 | darwin-x64 | darwin-arm64 | linux-ia32 | linux-x64 | linux-arm`.
 
 These `gulp` tasks are available:
 
-- `vscode-[platform]`: Builds a packaged version for `[platform]`.
-- `vscode-[platform]-min`: Builds a packaged and minified version for `[platform]`.
+- `vscode-[platform]`: Builds a d version for `[platform]`.
+- `vscode-[platform]-min`: Builds a d and minified version for `[platform]`.
 
 1. If you have not already, run `./scripts/pearai/setup-environment.[sh,ps1]`.
 2. If already ran that upon your first install, run `./scripts/pearai/install-dependencies.[sh,ps1]`.
@@ -176,7 +176,7 @@ This will generate the new PearAI app and takes around 1 hour.
 
 ### Step 3: Integrate the Extension
 
-1. Copy the contents of the generated `extensions` folder into the `extensions/` folder of the packaged PearAI App.
+1. Copy the generated pearai.pearai-1.x.x folder to the `extensions` folder of the packaged PearAI App (right click on packaged app -> Show Package Contents).
 2. Delete any existing `pearai-submodule` folder in the `extensions/` folder of the packaged PearAI app.
 3. Double-click your overall PearAI app, and the extension should be built-in.
  - On MacOS for example (Using VScode for .vsix installation)
