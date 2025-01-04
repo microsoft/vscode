@@ -1667,6 +1667,9 @@
 		"GitHub.copilot-chat"
 	],
 	"extensionEnabledApiProposals": {
+		"pearai.pearai": [
+			"editorInsets"
+		],
 		"ms-vscode.vscode-selfhost-test-provider": [
 			"testObserver",
 			"attributableCoverage"
