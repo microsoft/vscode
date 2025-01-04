@@ -1511,7 +1511,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		pearOverlayPartContainer.style.zIndex = "-10";
 		pearOverlayPartContainer.style.display = "absolute";
 		pearOverlayPartContainer.classList.add("pearoverlay-part-container");
-		pearOverlayPartContainer.style.backgroundColor = 'var(--vscode-editor-background)';
+		pearOverlayPartContainer.style.backgroundColor = 'transparent';
 
 		this.mainContainer.appendChild(pearOverlayPartContainer);
 		pearOverlayPart.create(pearOverlayPartContainer);
