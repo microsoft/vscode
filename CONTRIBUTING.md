@@ -176,55 +176,64 @@ Please ensure your code adheres to the coding standards used throughout the proj
 
 Please be respectful and considerate of others. We're all here to learn and grow, so constructive, respectful communication is encouraged.
 
+
 ## Packaging
 
 This section outlines how to package the app for a new release / distribution. This process is a bit manual currently.
+
+### Step 1: Package PearAI App
 
 PearAI can be packaged for the following platforms: `win32-ia32 | win32-x64 | darwin-x64 | darwin-arm64 | linux-ia32 | linux-x64 | linux-arm`
 
 These `gulp` tasks are available:
 
-* `vscode-[platform]`: Builds a packaged version for `[platform]`.
-* `vscode-[platform]-min`: Builds a packaged and minified version for `[platform]`.
+- `vscode-[platform]`: Builds a packaged version for `[platform]`.
+- `vscode-[platform]-min`: Builds a packaged and minified version for `[platform]`.
 
-👉 **Tip!** Run `gulp` via `yarn` to avoid potential out of memory issues, for example `yarn gulp vscode-linux-x64`
+👉 **Tip!** Run `gulp` via `yarn` to avoid potential out-of-memory issues, for example, `yarn gulp vscode-linux-x64`.
 
 This will generate the new PearAI app and takes around 1 hour.
 
-Then, `pearai-submodule` also needs to be packaged and integrated into the overall PearAI app.
+### Step 2: Package PearAI Extension
+
+`pearai-submodule` also needs to be packaged and integrated into the overall PearAI app.
 
 To do this, follow these steps. Some are manual.
 
-1. `cd` into `extensions/pearai-submodule/extensions/vscode`
-2. Run `npm run package'.
-3. This will create the `.vsix` extension within `extensions/pearai-submodule/extensions/vscode/build`
-4. Right-click the .vsix in VSCode or PearAI and select `Install vsix as Extension`. ![select](assets/pearai-install-vsix.png)
+1. `cd` into `extensions/pearai-submodule`
+2. Run `./scripts/install-dependencies.sh`
+3. `cd` into `extensions/vscode` (Full path is now `extensions/pearai-submodule/extensions/vscode/`)
+4. Run `npm run package`
+5. This will create the `.vsix` extension within `extensions/pearai-submodule/extensions/vscode/build`
+6. Right-click the `.vsix` in VSCode or PearAI and select `Install vsix as Extension`.
+This will install the extension as a compatible dist for your system:
+    - If you are using VSCode it will be:
+        - Windows: `%USERPROFILE%\.vscode\extensions`
+        - macOS: `~/.vscode/extensions`
+        - Linux: `~/.vscode/extensions`
+    - If you are using PearAI it will be:
+        - Windows: `%USERPROFILE%\.pearai\extensions`
+        - macOS: `~/.pearai/extensions`
+        - Linux: `~/.pearai/extensions`
 
-5. This will install the extension as a compatible dist for your system:
+### Step 3: Integrate the Extension
+1. Copy the contents of the generated `extensions` folder into the `extensions/pearai` folder of the packaged PearAI App. For example, on macOS, it is:
+   - `cp -r ~/.vscode/extensions/pearai.pearai-0.9.156 {path_to_PearAI.app}/Contents/Resources/app/extensions`
+2. Double-click your overall PearAI app, and the extension should be built-in.
+3. Distribute the application.
 
-If you are using VSCode it will be:
-- Windows %USERPROFILE%\.vscode\extensions
-- macOS ~/.vscode/extensions
-- Linux ~/.vscode/extensions
-
-If you are using PearAI it will be:
-- Windows %USERPROFILE%\.pearai\extensions
-- macOS ~/.pearai/extensions
-- Linux ~/.pearai/extensions
-
-6. Copy the contents of the generated `extensions` folder into the `extensions/pearai` folder of the packaged PearAI App. For example, on MacOS, it is:
-
-`cp -r ~/.vscode/extensions/pearai.pearai-0.9.156 {path_to_PearAI.app}/Contents/Resources/app/extensions`
-
-7. Double-click your overall PearAI app, and the extension should be built-in.
-8. Distribute application.
+### Step 4: Signing
+We changed the contents of the app. Admin must sign the app on certain OS's, like MacOS. Admin should follow these [manuals](https://docs.google.com/document/d/1hZahz2UNrtZOgHZkquqNO7Jfoe0Pd0OA7Ud16ts_AKs)
 
 ## Known or Common Errors
+
 Below describes a set of known or common errors that can occur when developing with PearAI and the steps that can resolve such issues.
 
-#### No main.js found
-The following issue can occur after the build process.
-```
+### Error: No main.js found
+
+The following issue can occur after the build process:
+
+\`\`\`
 [Error: ENOENT: no such file or directory, open '/pearai/out/vs/code/electron-main/main.js'] {
   errno: -2,
   code: 'ENOENT',
@@ -234,8 +243,9 @@ The following issue can occur after the build process.
   moduleId: 'vs/code/electron-main/main',
   neededBy: [ '===anonymous1===' ]
 }
-```
-To resolve this, follow the below steps:
- 1. Remove the build `rm -rf out`
- 2. Re-run the app: `./scripts/code.sh`
- 3. If this persists please reach out via the communication channels listed in the [Contact](#contact) section
+\`\`\`
+
+#### Steps to Resolve:
+1. Remove the build: `rm -rf out`
+2. Re-run the app: `./scripts/code.sh`
+3. If this persists, please reach out via the communication channels listed in the [Contact](#contact) section.
