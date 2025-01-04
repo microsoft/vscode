@@ -1,7 +1,7 @@
 {
 	"nameShort": "PearAI",
 	"nameLong": "PearAI",
-	"pearAIVersion": "1.3.0",
+	"pearAIVersion": "1.4.0",
 	"applicationName": "PearAI",
 	"dataFolderName": ".pearai",
 	"win32MutexName": "pearai",
