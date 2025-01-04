@@ -236,8 +236,8 @@ function createCopilotSetupStep(id: string, button: string, when: string, includ
 export const walkthroughs: GettingStartedWalkthroughContent = [
 	{
 		id: 'Setup',
-		title: localize('gettingStarted.setup.title', "Get Started with the PearAI Editor"),
-		description: localize('gettingStarted.setup.description', "Customize your editor, learn the basics, and start coding"),
+		title: localize('gettingStarted.setup.title', "Get Started With PearAI"),
+		description: localize('gettingStarted.setup.description', "Welcome to PearAI, your AI code editor! Let's personalize your editor and get you familiar with the AI tools."),
 		isFeatured: true,
 		icon: setupIcon,
 		when: '!isWeb',
@@ -260,24 +260,31 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: { type: 'markdown', path: 'theme_picker', }
 				},
 				{
-					id: 'extensionsWeb',
-					title: localize('gettingStarted.extensions.title', "Code with extensions"),
-					description: localize('gettingStarted.extensionsWeb.description.interpolated', "Extensions are VS Code's power-ups. A growing number are becoming available in the web.\n{0}", Button(localize('browsePopularWeb', "Browse Popular Web Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
-					when: 'workspacePlatform == \'webworker\'',
+					id: 'talk',
+					title: "Talk To Your Codebase Directly",
+					description: "Type in the chat box (CMD+L, CTRL+L on Windows) to ask questions about your code. PearAI uses Retrival Augmented Generation to add context to your prompts, but you can also directly reference code by including other files in the chat by adding  @filename. This also works for folders, docs, terminal content, codebase, and more!",
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
+						type: "image",
+						path: "media/light.png", // Todo: Fill in with gif
+						altText: "Empty image"
 					},
+					completionEvents: []
 				},
 				{
-					id: 'findLanguageExtensions',
-					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
-					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
-					when: 'workspacePlatform != \'webworker\'',
+					id: 'change',
+					title: "Make Changes Inline With AI",
+					description: "Directly make changes inline by pressing CMD+I (ALT+L on Windows), and choose what you want to keep.",
 					media: {
-						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
+						type: "image",
+						path: "media/light.png", // Todo: Fill in with gif
+						altText: "Empty image"
 					},
+					completionEvents: []
 				},
 				{
+					id: 'copy',
+					title: "No More Copy Pasting",
+					description: "Directly bring your code to the chat by selecting it and pressing CMD+L (ALT+L on Windows). Prompt it right away",
 					id: 'settings',
 					title: localize('gettingStarted.settings.title', "Tune your settings"),
 					description: localize('gettingStarted.settings.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
