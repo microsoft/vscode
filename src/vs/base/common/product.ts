@@ -207,6 +207,7 @@ export interface IProductConfiguration {
 	readonly chatParticipantRegistry?: string;
 
 	readonly emergencyAlertUrl?: string;
+	readonly pearAIVersion?: string;
 }
 
 export interface ITunnelApplicationConfig {
