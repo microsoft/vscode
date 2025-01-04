@@ -1,10 +1,10 @@
 # Contributing to Pear AI
 
-This is the main app for PearAI. The bulk of the functionality is within `extension/pearai-submodule`. Almost all the contributions should be in this subdirectory.
+This is the main app for PearAI. The bulk of the functionality is within `extension/pearai-submodule`, so most of the contributions would be in there.
 
 PearAI is a fork of VSCode (and Continue), so we can simply follow most of VSCode's guide for running the app (see below).
 
-After cloning and building the repo, check out the [issues list](https://github.com/trypear/pearai-app/issues). Issues labeled [`good first issue`](https://github.com/trypear/pearai-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22Good+First+Issue%22) are great candidates to pick up if you are in the code for the first time. If you are contributing significant changes, or if the issue is already assigned to a specific month milestone, please discuss with the assignee of the issue first (in [Discord]([url](https://discord.gg/7QMraJUsQt))) before starting to work on the issue.
+After cloning and building the repo, check out the [issues list](https://github.com/trypear/pearai-app/issues). Issues labeled [`good first issue`](https://github.com/trypear/pearai-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22Good+First+Issue%22) are great candidates to pick up if you are in the code for the first time. If you are contributing significant changes, or if the issue is already assigned to a specific month milestone, please discuss with the assignee of the issue first (in [Discord](https://discord.gg/7QMraJUsQt)) before starting to work on the issue.
 
 ## Prerequisites
 
@@ -133,13 +133,8 @@ We use [eslint](https://eslint.org/) for linting our sources. You can run eslint
 
 To lint the source as you make changes you can install the [eslint extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint).
 
-### Extensions
-
-The Visual Studio Marketplace is not available from the `pearai-app` open source builds. If you need to use or debug an extension you can check to see if the extension author publishes builds in their repository (check the `Builds` page) or if it is open source you can clone and build the extension locally. Once you have the .VSIX, you can "side load" the extension either through the command line or using **Install from VSIX** command in the Extensions View command drop-down ([see more](https://code.visualstudio.com/docs/editor/extension-gallery#_command-line-extension-management) on command line extension management).
-
 ## Work Branches
-
-Even if you have push rights on the trypear/pearai-app repository, you should create a personal fork and create feature branches there when you need them. This keeps the main repository clean and your personal workflow cruft out of sight.
+Even if you have push rights on the `trypear/pearai-app` repository, you should create a personal fork and create feature branches (`yourname/branch-name`, e.g. `pan/open-chat-shortcut`) there when you need them. This keeps the main repository clean and your personal workflow cruft out of sight.
 
 ## Pull Requests
 
@@ -153,6 +148,8 @@ Before you submit an issue, please do a search in [open issues](https://github.c
 Use the provided issue template when creating a new issue. Fill in the template with as much detail as possible. The more detail you provide, the more likely that someone can help you.
 Alternatively, you can use Pear to create a ticket for the problem first. Simply describe the issue or feature request, and Pear will create a ticket for it. This can help you understand the problem better and guide you in manually solving it.
 You can also use Pear to create tickets. Simply describe the issue or feature request, and Pear will create a ticket for it.
+
+You can also directly ping the maintainers or admins in the [Discord](https://discord.gg/7QMraJUsQt).
 
 ## Submitting Pull Requests
 
