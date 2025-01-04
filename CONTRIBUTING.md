@@ -29,8 +29,8 @@ You'll need the following tools:
       - if you install Node on your system using the Node installer from the [Node.JS](https://nodejs.org/en/download/) page then ensure that you have installed the 'Tools for Native Modules'. Everything should work out of the box then.
       - if you use a node version manager like [nvm](https://github.com/coreybutler/nvm-windows) or [nvs](https://github.com/jasongin/nvs) then follow these steps:
         - Install the current version of Python using the [Microsoft Store Package](https://docs.python.org/3/using/windows.html#the-microsoft-store-package).
-        - Install the Visual C++ Build Environment by either installing the [Visual Studio Build Tools](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) or the [Visual Studio Community Edition](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Community) (note: you should only have one of these, if you already have one of them, make sure to check if you have the required packages installed (indicated below)).
-        	- Make sure to install the two options below (the MSVC option is in the "Individual Components" tab). e.g.:
+        - Install the Visual C++ Build Environment by either installing the [Visual Studio Build Tools](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) or the [Visual Studio Community Edition](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Community) (note: you should only have one of these installed).
+        	- Make sure to then install the two options below (the MSVC option is in the "Individual Components" tab). e.g.:
         ```
          [1] Desktop development with C++
          [2] MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (v14.39-17.9)
