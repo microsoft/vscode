@@ -1,11 +1,19 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
-
+name: ✨ Feature request
+about: "Suggest a new idea of what PearAI could do (e.g.: add new shortcut, add new payment processor, etc.)"
+title: ""
+labels: "enhancement"
+assignees: "nang-dev,fryingpannn"
 ---
 
-<!-- ⚠️⚠️ Do Not Delete This! feature_request_template ⚠️⚠️ -->
-<!-- Please read our Rules of Conduct: https://opensource.microsoft.com/codeofconduct/ -->
-<!-- Please search existing issues to avoid creating duplicates. -->
+## Is this request related to a problem? Please describe.
 
-<!-- Describe the feature you'd like. -->
+_A clear and concise description of what the problem is (e.g. "I'm always frustrated when […]")._
+
+## Describe the solution you'd like
+
+_A clear and concise description of what you want to happen._
+
+## Additional context
+
+_Add any other information or screenshots about the feature request here (e.g. a gif showing how another tool does it)._

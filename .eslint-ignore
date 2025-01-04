@@ -34,3 +34,4 @@
 **/test/automation/out/**
 **/typings/**
 !.vscode
+**/*.gif

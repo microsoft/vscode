@@ -23,12 +23,12 @@ set VSCODE_CLI=1
 set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
-set DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
-for %%A in (%*) do (
-	if "%%~A"=="--extensionTestsPath" (
-		set DISABLE_TEST_EXTENSION=""
-	)
-)
+:: Get Pear AI
+setlocal
+cd extensions/pearai-extension
+call yarn install
+call yarn build-all
+endlocal
 
 :: Launch Code
 
