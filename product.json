@@ -1,7 +1,7 @@
 {
 	"nameShort": "PearAI",
 	"nameLong": "PearAI",
-	"pearAIVersion": "1.2.0",
+	"pearAIVersion": "1.3.0",
 	"applicationName": "PearAI",
 	"dataFolderName": ".pearai",
 	"win32MutexName": "pearai",
@@ -15,7 +15,7 @@
 	"serverDataFolderName": ".pearai-server",
 	"tunnelApplicationName": "code-tunnel",
 	"downloadUrl": "https://trypear.ai/",
-	"updateUrl": "https://stingray-app-gb2an.ondigitalocean.app/pearai-server-api2",
+	"updateUrl": "https://walrus-backup-app-sgqep.ondigitalocean.app/pearai-backup-server-api",
 	"win32DirName": "PearAI",
 	"win32NameVersion": "PearAI",
 	"win32RegValueName": "PearAI",
@@ -36,8 +36,8 @@
 	"quality": "stable",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"extensionsGallery": {
-		"serviceUrl": "https://stingray-app-gb2an.ondigitalocean.app/pearai-server-api2/gallery",
-		"itemUrl": "https://stingray-app-gb2an.ondigitalocean.app/pearai-server-api2/items"
+		"serviceUrl": "https://walrus-backup-app-sgqep.ondigitalocean.app/pearai-backup-server-api/gallery",
+		"itemUrl": "https://walrus-backup-app-sgqep.ondigitalocean.app/pearai-backup-server-api/items"
 	},
 
 	"profileTemplatesUrl": "https://az764295.vo.msecnd.net/profile-templates/profile-templates.json",
