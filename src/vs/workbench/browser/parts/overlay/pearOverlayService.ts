@@ -100,22 +100,22 @@ export class PearOverlayService
 
 	private registerCommands(): void {
 		// Register commands for external use e.g. in pearai submodule
-		CommandsRegistry.registerCommand('pearai.isOverlayVisible', (accessor) => {
+		CommandsRegistry.registerCommand("pearai.isOverlayVisible", (accessor) => {
 			const overlayService = accessor.get(IPearOverlayService);
 			return overlayService.isVisible();
 		});
 
-		CommandsRegistry.registerCommand('pearai.showOverlay', (accessor) => {
+		CommandsRegistry.registerCommand("pearai.showOverlay", (accessor) => {
 			const overlayService = accessor.get(IPearOverlayService);
 			overlayService.show();
 		});
 
-		CommandsRegistry.registerCommand('pearai.hideOverlay', (accessor) => {
+		CommandsRegistry.registerCommand("pearai.hideOverlay", (accessor) => {
 			const overlayService = accessor.get(IPearOverlayService);
 			overlayService.hide();
 		});
 
-		CommandsRegistry.registerCommand('pearai.toggleOverlay', (accessor) => {
+		CommandsRegistry.registerCommand("pearai.toggleOverlay", (accessor) => {
 			const overlayService = accessor.get(IPearOverlayService);
 			overlayService.toggle();
 		});
