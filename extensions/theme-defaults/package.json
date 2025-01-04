@@ -14,6 +14,12 @@
   "contributes": {
     "themes": [
       {
+        "id": "Default PearAI Dark",
+        "label": "%pearAIDarkThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/pearai_dark.json"
+      },
+      {
         "id": "Default Dark+",
         "label": "%darkPlusColorThemeLabel%",
         "uiTheme": "vs-dark",
@@ -24,6 +30,12 @@
         "label": "%darkModernThemeLabel%",
         "uiTheme": "vs-dark",
         "path": "./themes/dark_modern.json"
+      },
+      {
+        "id": "Default PearAI Light",
+        "label": "%pearAILightThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/pearai_light.json"
       },
       {
         "id": "Default Light+",
