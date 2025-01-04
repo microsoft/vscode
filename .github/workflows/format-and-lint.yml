@@ -19,6 +19,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'yarn'
 
       - name: Install system dependencies
         run: sudo apt-get install -y libkrb5-dev
