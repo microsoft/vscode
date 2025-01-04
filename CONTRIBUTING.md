@@ -217,12 +217,14 @@ This will install the extension as a compatible dist for your system:
         - Linux: `~/.pearai/extensions`
 
 ### Step 3: Integrate the Extension
-1. Copy the contents of the generated `extensions` folder into the `extensions/pearai` folder of the packaged PearAI App. For example, on macOS, it is:
+1. Copy the contents of the generated `extensions` folder into the `extensions/` folder of the packaged PearAI App. For example, on macOS, it is:
    - `cp -r ~/.vscode/extensions/pearai.pearai-0.9.156 {path_to_PearAI.app}/Contents/Resources/app/extensions`
-2. Double-click your overall PearAI app, and the extension should be built-in.
-3. Distribute the application.
+2. Take a quick look into the `extensions/` folder of the packaged PearAI app for any other pearai folders. For example, there will be a pearai-submodule folder. Delete it. For example, on macOS, it is:
+   - `rm -rf ~/.vscode/extensions/pearai.pearai-0.9.156 {path_to_PearAI.app}/Contents/Resources/app/extensions/pearai-submodule`
+3. Double-click your overall PearAI app, and the extension should be built-in.
+4. Distribute the application.
 
-### Step 4: Signing
+### Step 4: Signing and Turn Into Installer
 We changed the contents of the app. Admin must sign the app on certain OS's, like MacOS. Admin should follow these [manuals](https://docs.google.com/document/d/1hZahz2UNrtZOgHZkquqNO7Jfoe0Pd0OA7Ud16ts_AKs)
 
 ## Known or Common Errors
