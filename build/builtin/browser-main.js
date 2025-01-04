@@ -10,7 +10,7 @@ const os = require('os');
 const { ipcRenderer } = require('electron');
 
 const builtInExtensionsPath = path.join(__dirname, '..', '..', 'product.json');
-const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+const controlFilePath = path.join(os.homedir(), '.pearai-dev', 'extensions', 'control.json');
 
 /**
  * @param {string} filePath
