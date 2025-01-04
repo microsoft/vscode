@@ -566,7 +566,7 @@ export const codiconsLibrary = {
 	gitStashPop: register('git-stash-pop', 0xec28),
 	vscode: register('vscode', 0xec29),
 	vscodeInsiders: register('vscode-insiders', 0xec2a),
-	codeOss: register('code-oss', 0xec2b),
+	codeOss: register('pearai', 0xec2b),
 	runCoverage: register('run-coverage', 0xec2c),
 	runAllCoverage: register('run-all-coverage', 0xec2d),
 	coverage: register('coverage', 0xec2e),
