@@ -153,7 +153,9 @@ export interface IShellEnvDetectionCapability {
 	readonly onDidChangeEnv: Event<Map<string, string>>;
 	get envs(): Map<string, string>;
 	setEnvironment(envs: { [key: string]: string | undefined } | undefined, isTrusted: boolean): void;
-
+	startSingleEnvironmentVar(isTrusted: boolean): void;
+	setSingleEnvironmentVar(key: string, value: string | undefined, isTrusted: boolean): void;
+	endSingleEnvironmentVar(isTrusted: boolean): void;
 	applyEnvironmentDiff(envs: { [key: string]: string | undefined } | undefined): void;
 }
 
