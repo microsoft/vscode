@@ -3,25 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWeb, OS } from 'vs/base/common/platform';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { append, clearNode, $, h, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { isRecentFolder, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { splitRecentLabel } from 'vs/base/common/labels';
-
 registerColor('editorWatermark.foreground', { dark: transparent(editorForeground, 0.6), light: transparent(editorForeground, 0.68), hcDark: editorForeground, hcLight: editorForeground }, localize('editorLineHighlight', 'Foreground color for the labels in the editor watermark.'));
 import { localize } from '../../../../nls.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -29,27 +10,33 @@ import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { append, clearNode, $, h } from '../../../../base/browser/dom.js';
+import { append, clearNode, $, h, EventType, addDisposableListener } from '../../../../base/browser/dom.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { editorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { coalesce, shuffle } from '../../../../base/common/arrays.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
+import { isRecentFolder, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { splitRecentLabel } from '../../../../base/common/labels.js';
+import { IWindowOpenable } from '../../../../platform/window/common/window.js';
 
 interface WatermarkEntry {
 	readonly id: string;
 	readonly text: string;
-	readonly id: string;
 	readonly mac?: boolean;
-	readonly when?: ContextKeyExpression;
-}
+	readonly when?: {
+		native?: ContextKeyExpression;
+		web?: ContextKeyExpression;
+	};}
 
-const openPearAIChat: WatermarkEntry = { text: localize('watermark.openPearAIChat', "Open Chat"), id: 'pearai.focusContinueInput', when: ContextKeyExpr.has('pearAIExtensionLoaded') };
-const openPearAIChat: WatermarkEntry = { text: localize('watermark.openPearAIChat', "Open Chat"), id: 'pearai.focusContinueInput', when: ContextKeyExpr.has('pearAIExtensionLoaded') };
-const bigChat: WatermarkEntry = { text: localize('watermark.pearAIBigChat', "Big Chat"), id: 'pearai.resizeAuxiliaryBarWidth', when: ContextKeyExpr.has('pearAIExtensionLoaded') };
-const prevChat: WatermarkEntry = { text: localize('watermark.pearAIPrevChat', "Previous Chat"), id: 'pearai.loadRecentChat', when: ContextKeyExpr.has('pearAIExtensionLoaded') };
+const openPearAIChat: WatermarkEntry = { text: localize('watermark.openPearAIChat', "Open Chat"), id: 'pearai.focusContinueInput', when: { native: ContextKeyExpr.has('pearAIExtensionLoaded') } };
+const bigChat: WatermarkEntry = { text: localize('watermark.pearAIBigChat', "Big Chat"), id: 'pearai.resizeAuxiliaryBarWidth', when: { native: ContextKeyExpr.has('pearAIExtensionLoaded') } };
+const prevChat: WatermarkEntry = { text: localize('watermark.pearAIPrevChat', "Previous Chat"), id: 'pearai.loadRecentChat', when: { native: ContextKeyExpr.has('pearAIExtensionLoaded') } };
 const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
 const gotoFile: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
 const openFile: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile' };
@@ -173,7 +160,7 @@ export class EditorGroupWatermark extends Disposable {
 
 		this.enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
 
-		clearNode(this.shortcuts);
+		clearNode(this.watermark);
 		this.transientDisposables.clear();
 
 		if (!this.enabled) {

@@ -10,7 +10,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { NotebookSetting } from '../../notebook/common/notebookCommon.js';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
 import product from '../../../../platform/product/common/product.js';
 

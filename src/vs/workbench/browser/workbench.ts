@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-<<<<<<< HEAD
 import './style.js';
 import { runWhenWindowIdle } from '../../base/browser/dom.js';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
@@ -50,58 +49,8 @@ import { AccessibilityProgressSignalScheduler } from '../../platform/accessibili
 import { setProgressAcccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
 import { AccessibleViewRegistry } from '../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NotificationAccessibleView } from './parts/notifications/notificationAccessibleView.js';
-import { IPearOverlayService } from '../../parts/overlay/pearOverlayService';
-=======
-import 'vs/workbench/browser/style';
-import { localize } from 'vs/nls';
-import { runWhenWindowIdle } from 'vs/base/browser/dom';
-import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
-import { isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
-import { mark } from 'vs/base/common/performance';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isWeb, isNative, isMacintosh } from 'vs/base/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
-import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, WillSaveStateReason, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LifecyclePhase, ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
-import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
-import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
-import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
-import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
-import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
-import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { ILogService } from 'vs/platform/log/common/log';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
-import { coalesce } from 'vs/base/common/arrays';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { Layout } from 'vs/workbench/browser/layout';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { mainWindow } from 'vs/base/browser/window';
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
-import { setProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/progressbar/progressAccessibilitySignal';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { NotificationAccessibleView } from 'vs/workbench/browser/parts/notifications/notificationAccessibleView';
-import { IPearOverlayService } from 'vs/workbench/browser/parts/overlay/pearOverlayService';
-import { IShadowOverlayService } from 'vs/workbench/browser/parts/overlay/onboardingShadow/shadowOverlayService';
->>>>>>> 80f8c8e0b8f (highlight cmd i onboarding (#105))
+import { IPearOverlayService } from '../browser/parts/overlay/pearOverlayService.js';
+import { IShadowOverlayService } from './parts/overlay/onboardingShadow/shadowOverlayService.js';
 
 export interface IWorkbenchOptions {
 
