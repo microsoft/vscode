@@ -32,7 +32,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { TitlebarStyle } from '../../../platform/window/common/window.js';
 import { IPreferencesService } from '../../services/preferences/common/preferences.js';
-import { TogglePearOverlayAction } from '../parts/overlay/pearOverlayActions';
+import { TogglePearOverlayAction } from '../parts/overlay/pearOverlayActions.js';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));

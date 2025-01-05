@@ -2374,9 +2374,9 @@
 			}
 		}
 	],
-	"VSCodeCommit": "f1e16e1e6214d7c44d078b1f0607b2388f29d729",
-	"commit": "f1e16e1e6214d7c44d078b1f0607b2388f29d729",
-	"date": "2024-07-09T22:07:54.982Z",
+	"VSCodeCommit": "fabdb6a30b49f79a7aba0f2ad9df9b399473380f",
+	"commit": "fabdb6a30b49f79a7aba0f2ad9df9b399473380f",
+	"date": "2024-12-19T10:22:47.216Z",
 	"checksums": {
 		"vs/base/parts/sandbox/electron-sandbox/preload.js": "M3aummATb+y2Jr3XxxVrJnkbAoHc9zC9m3LrlnvRNAg",
 		"vs/workbench/workbench.desktop.main.js": "lr5OOxuOW3cP/6+9vu9+84Q2BnqzoKlhsYTu2p6IWuU",
@@ -2385,6 +2385,6 @@
 		"vs/code/electron-sandbox/workbench/workbench.html": "MOHfHsuI+CL4nPwyAQjuFCAjFomNep+vcvjL0sLDlbw",
 		"vs/code/electron-sandbox/workbench/workbench.js": "UfEYJUwE/3rVxokZpMqXUk+OC+ZVfikR++K0yTZ+on8"
 	},
-	"version": "1.91.1",
+	"version": "1.96.2",
 	"target": "user"
 }

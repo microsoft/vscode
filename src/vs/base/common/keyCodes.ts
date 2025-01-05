@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from '../../base/common/platform.js';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.

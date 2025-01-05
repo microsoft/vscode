@@ -15,11 +15,13 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-// import { KeyCode, KeyCodeUtils, KeyMod, KeyModUtils } from '../../../../base/common/keyCodes.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyCodeUtils, KeyMod, KeyModUtils } from '../../../../base/common/keyCodes.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
-// import { mainWindow } from '../../../../base/browser/window.js';
-// import { ICommandService } from '../../../../platform/commands/common/commands';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the auxiliary bar on in its right position.'));
@@ -171,170 +173,167 @@ registerAction2(class extends SwitchCompositeViewAction {
 	}
 });
 
-// export class ResizeAuxiliaryBarWidthAction extends Action2 {
-// 	static readonly ID = 'workbench.action.resizeAuxiliaryBarWidth';
-// 	static readonly LABEL = localize2('resizeAuxiliaryBarWidth', "Resize Auxiliary Bar Width");
+export class ResizeAuxiliaryBarWidthAction extends Action2 {
+	static readonly ID = 'workbench.action.resizeAuxiliaryBarWidth';
+	static readonly LABEL = localize2('resizeAuxiliaryBarWidth', "Resize Auxiliary Bar Width");
 
-// 	// Tracking the previous width of the aux bar and visibility of the left side bar
-// 	static _previousAuxiliaryBarWidth: number | null = null;
-// 	static _previousSideBarVisibility: boolean | null = null;
+	// Tracking the previous width of the aux bar and visibility of the left side bar
+	static _previousAuxiliaryBarWidth: number | null = null;
+	static _previousSideBarVisibility: boolean | null = null;
 
-// 	constructor() {
-// 		super({
-// 			id: ResizeAuxiliaryBarWidthAction.ID,
-// 			title: ResizeAuxiliaryBarWidthAction.LABEL,
-// 			category: Categories.View,
-// 			f1: true,
-// 			keybinding: {
-// 				weight: KeybindingWeight.WorkbenchContrib,
-// 				primary: KeyMod.CtrlCmd | KeyCode.Backslash,
-// 				linux: {
-// 					primary: KeyMod.CtrlCmd | KeyCode.Backslash
-// 				},
-// 				win: {
-// 					primary: KeyMod.CtrlCmd | KeyCode.Backslash
-// 				},
-// 				mac: {
-// 					primary: KeyMod.CtrlCmd | KeyCode.Backslash
-// 				}
-// 			},
-// 		});
-// 	}
+	constructor() {
+		super({
+			id: ResizeAuxiliaryBarWidthAction.ID,
+			title: ResizeAuxiliaryBarWidthAction.LABEL,
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Backslash,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyCode.Backslash
+				},
+				win: {
+					primary: KeyMod.CtrlCmd | KeyCode.Backslash
+				},
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Backslash
+				}
+			},
+		});
+	}
 
-// 	run(accessor: ServicesAccessor): void {
-// 		const layoutService = accessor.get(IWorkbenchLayoutService);
-// 		// Check if the main window is available
-// 		if (!mainWindow) {
-// 			return;
-// 		}
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		// Check if the main window is available
+		if (!mainWindow) {
+			return;
+		}
 
-// 		const auxBarPart = layoutService.getContainer(mainWindow, Parts.AUXILIARYBAR_PART);
-// 		const auxBarDimensions = auxBarPart?.getBoundingClientRect();
-// 		const isAuxiliaryBarVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		const auxBarPart = layoutService.getContainer(mainWindow, Parts.AUXILIARYBAR_PART);
+		const auxBarDimensions = auxBarPart?.getBoundingClientRect();
+		const isAuxiliaryBarVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 
-// 		// If the auxiliary bar is not visible, or the dimensions are null, return
-// 		if (!auxBarDimensions || !isAuxiliaryBarVisible) {
-// 			return;
-// 		}
+		// If the auxiliary bar is not visible, or the dimensions are null, return
+		if (!auxBarDimensions || !isAuxiliaryBarVisible) {
+			return;
+		}
 
-// 		// Save the current width as the previous width if it has not been saved yet
-// 		if (ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth === null) {
-// 			ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth = auxBarDimensions.width;
-// 			ResizeAuxiliaryBarWidthAction._previousSideBarVisibility = layoutService.isVisible(Parts.SIDEBAR_PART);
-// 		}
+		// Save the current width as the previous width if it has not been saved yet
+		if (ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth === null) {
+			ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth = auxBarDimensions.width;
+			ResizeAuxiliaryBarWidthAction._previousSideBarVisibility = layoutService.isVisible(Parts.SIDEBAR_PART);
+		}
 
-// 		// Set a minimum width for the auxiliary bar, unless its greater than a % of the window width
-// 		const PSEUDO_MINIMUM_AUX_BAR_WIDTH = 600;
+		// Set a minimum width for the auxiliary bar, unless its greater than a % of the window width
+		const PSEUDO_MINIMUM_AUX_BAR_WIDTH = 600;
 
-// 		// Calculate the minimum width for the auxiliary bar
-// 		// 70% of the window width is the maximum width
-// 		const maxWidth = (0.7 * mainWindow.innerWidth);
-// 		// The minimum width is the maximum width, unless it is less than the max of (previous width * 2) or the predetermined minimum width
-// 		const minWidth = Math.min(maxWidth, Math.max(ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth * 2, PSEUDO_MINIMUM_AUX_BAR_WIDTH));
+		// Calculate the minimum width for the auxiliary bar
+		// 70% of the window width is the maximum width
+		const maxWidth = (0.7 * mainWindow.innerWidth);
+		// The minimum width is the maximum width, unless it is less than the max of (previous width * 2) or the predetermined minimum width
+		const minWidth = Math.min(maxWidth, Math.max(ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth * 2, PSEUDO_MINIMUM_AUX_BAR_WIDTH));
 
-// 		// If the current width is less than or equal to the previous width, expand the auxiliary bar
-// 		if (auxBarDimensions.width <= ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth) {
-// 			// Expand to the calculated minWidth
-// 			layoutService.resizePart(Parts.AUXILIARYBAR_PART, (minWidth - auxBarDimensions.width), 0);
-// 			// Hide the left side bar if it was previously visible
-// 			layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
-// 		} else {
-// 			// If the current width is greater than the previous width, collapse the auxiliary bar back to the previous width (initial width)
-// 			layoutService.resizePart(Parts.AUXILIARYBAR_PART, (auxBarDimensions.width - ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth) * -1, 0);
-// 			// Restore the left side bar to the user's previous state
-// 			ResizeAuxiliaryBarWidthAction._previousSideBarVisibility ? layoutService.setPartHidden(false, Parts.SIDEBAR_PART) : layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
-// 			// Reset the previous width to null after collapsing
-// 			ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth = null;
-// 		}
+		// If the current width is less than or equal to the previous width, expand the auxiliary bar
+		if (auxBarDimensions.width <= ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth) {
+			// Expand to the calculated minWidth
+			layoutService.resizePart(Parts.AUXILIARYBAR_PART, (minWidth - auxBarDimensions.width), 0);
+			// Hide the left side bar if it was previously visible
+			layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		} else {
+			// If the current width is greater than the previous width, collapse the auxiliary bar back to the previous width (initial width)
+			layoutService.resizePart(Parts.AUXILIARYBAR_PART, (auxBarDimensions.width - ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth) * -1, 0);
+			// Restore the left side bar to the user's previous state
+			ResizeAuxiliaryBarWidthAction._previousSideBarVisibility ? layoutService.setPartHidden(false, Parts.SIDEBAR_PART) : layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			// Reset the previous width to null after collapsing
+			ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth = null;
+		}
 
-// 		return;
-// 	}
-// }
+		return;
+	}
+}
 
-// registerAction2(ResizeAuxiliaryBarWidthAction);
+registerAction2(ResizeAuxiliaryBarWidthAction);
 
-// class FocusPearAIExtensionAction extends Action2 {
-// 	static readonly ID = 'workbench.action.focusPearAIExtension';
-// 	static readonly LABEL = localize2(
-// 		"focusPearAIExtension",
-// 		"Focus into PearAI Extension",
-// 	);
+class FocusPearAIExtensionAction extends Action2 {
+	static readonly ID = 'workbench.action.focusPearAIExtension';
+	static readonly LABEL = localize2(
+		"focusPearAIExtension",
+		"Focus into PearAI Extension",
+	);
 
-// 	constructor() {
-// 		super({
-// 			id: FocusPearAIExtensionAction.ID,
-// 			title: FocusPearAIExtensionAction.LABEL,
-// 			category: Categories.View,
-// 			f1: true,
-// 			// keybinding: do not add keybinding CTRL/CMD L here, it comes from pearai extension
-// 		});
-// 	}
+	constructor() {
+		super({
+			id: FocusPearAIExtensionAction.ID,
+			title: FocusPearAIExtensionAction.LABEL,
+			category: Categories.View,
+			f1: true,
+			// keybinding: do not add keybinding CTRL/CMD L here, it comes from pearai extension
+		});
+	}
 
-// 	override async run(accessor: ServicesAccessor): Promise<void> {
-// 		// focus pearai extension
-// 		const commandService = accessor.get(ICommandService);
-// 		commandService.executeCommand('pearai.focusContinueInput');
-// 	}
-// }
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		// focus pearai extension
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand('pearai.focusContinueInput');
+	}
+}
 
-// registerAction2(FocusPearAIExtensionAction);
+registerAction2(FocusPearAIExtensionAction);
 
-// MenuRegistry.appendMenuItems([
-// 	{
-// 		id: MenuId.LayoutControlMenu,
-// 		item: {
-// 			group: '0_workbench_toggles',
-// 			command: {
-// 				id: FocusPearAIExtensionAction.ID,
-// 				title: `New Chat (${KeyModUtils.keyModToString(KeyMod.CtrlCmd)} + ${KeyCodeUtils.toString(KeyCode.KeyL)})`,
-// 			},
-// 			order: -1,
-// 		},
-// 	},
-// ]);
+MenuRegistry.appendMenuItems([
+	{
+		id: MenuId.LayoutControlMenu,
+		item: {
+			group: '0_workbench_toggles',
+			command: {
+				id: FocusPearAIExtensionAction.ID,
+				title: `New Chat (${KeyModUtils.keyModToString(KeyMod.CtrlCmd)} + ${KeyCodeUtils.toString(KeyCode.KeyL)})`,
+			},
+			order: -1,
+		},
+	},
+]);
 
-// // Following is a only PearAI related action, need to refactor these type of actions to separate file
-// import { IOpenerService } from 'vs/platform/opener/common/opener';
-// import { URI } from 'vs/base/common/uri';
-// import { IProductService } from 'vs/platform/product/common/productService';
+// Following is a only PearAI related action, need to refactor these type of actions to separate file
 
-// class OpenPearAIDocsAction extends Action2 {
-// 	static readonly ID = 'workbench.action.openPearAIDocs';
-// 	static readonly LABEL = localize2(
-// 		"openPearAIDocs",
-// 		"Open PearAI Documentation",
-// 	);
+class OpenPearAIDocsAction extends Action2 {
+	static readonly ID = 'workbench.action.openPearAIDocs';
+	static readonly LABEL = localize2(
+		"openPearAIDocs",
+		"Open PearAI Documentation",
+	);
 
-// 	constructor() {
-// 		super({
-// 			id: OpenPearAIDocsAction.ID,
-// 			title: OpenPearAIDocsAction.LABEL,
-// 			category: Categories.Help,
-// 			f1: true,
-// 		});
-// 	}
+	constructor() {
+		super({
+			id: OpenPearAIDocsAction.ID,
+			title: OpenPearAIDocsAction.LABEL,
+			category: Categories.Help,
+			f1: true,
+		});
+	}
 
-// 	override async run(accessor: ServicesAccessor): Promise<void> {
-// 		const openerService = accessor.get(IOpenerService);
-// 		const productService = accessor.get(IProductService);
-// 		if (!productService.pearAILinks?.docs) {
-// 			return;
-// 		}
-// 		await openerService.open(URI.parse(productService.pearAILinks?.docs));
-// 	}
-// }
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const openerService = accessor.get(IOpenerService);
+		const productService = accessor.get(IProductService);
+		if (!productService.pearAILinks?.docs) {
+			return;
+		}
+		await openerService.open(URI.parse(productService.pearAILinks?.docs));
+	}
+}
 
-// registerAction2(OpenPearAIDocsAction);
+registerAction2(OpenPearAIDocsAction);
 
-// MenuRegistry.appendMenuItems([
-// 	{
-// 		id: MenuId.CommandCenter,
-// 		item: {
-// 			command: {
-// 				id: OpenPearAIDocsAction.ID,
-// 				title: 'Docs',
-// 			},
-// 			order: 150,
-// 		},
-// 	},
-// ]);
+MenuRegistry.appendMenuItems([
+	{
+		id: MenuId.CommandCenter,
+		item: {
+			command: {
+				id: OpenPearAIDocsAction.ID,
+				title: 'Docs',
+			},
+			order: 20000,
+		},
+	},
+]);
