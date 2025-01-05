@@ -3,16 +3,16 @@
 import {
 	registerSingleton,
 	InstantiationType,
-} from "vs/platform/instantiation/common/extensions";
-import { Disposable, IDisposable } from "vs/base/common/lifecycle";
-import { PearOverlayPart } from "./pearOverlayPart";
+} from "../../../../platform/instantiation/common/extensions.js";
+import { Disposable, IDisposable } from "../../../../base/common/lifecycle.js";
+import { PearOverlayPart } from "./pearOverlayPart.js";
 import {
 	createDecorator,
 	IInstantiationService,
-} from "vs/platform/instantiation/common/instantiation";
-import { IEditorService } from "vs/workbench/services/editor/common/editorService";
-import { ITerminalService } from "vs/workbench/contrib/terminal/browser/terminal";
-import { CommandsRegistry } from "vs/platform/commands/common/commands";
+} from "../../../../platform/instantiation/common/instantiation.js";
+import { IEditorService } from "../../../../workbench/services/editor/common/editorService.js";
+import { ITerminalService } from "../../../../workbench/contrib/terminal/browser/terminal.js";
+import { CommandsRegistry } from "../../../../platform/commands/common/commands.js";
 
 export const IPearOverlayService = createDecorator<IPearOverlayService>(
 	"pearaiOverlayService",

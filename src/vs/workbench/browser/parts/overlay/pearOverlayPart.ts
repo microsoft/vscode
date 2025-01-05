@@ -1,25 +1,25 @@
 /* eslint-disable header/header */
 
-import { Part } from "vs/workbench/browser/part";
+import { Part } from "../../../../workbench/browser/part.js";
 import {
 	IWorkbenchLayoutService,
 	Parts,
-} from "vs/workbench/services/layout/browser/layoutService";
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { IStorageService } from "vs/platform/storage/common/storage";
-import { $, getActiveWindow } from "vs/base/browser/dom";
-import { CancellationTokenSource } from "vs/base/common/cancellation";
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
-import { WebviewExtensionDescription } from "vs/workbench/contrib/webview/browser/webview";
+} from "../../../../workbench/services/layout/browser/layoutService.js";
+import { IThemeService } from "../../../../platform/theme/common/themeService.js";
+import { IStorageService } from "../../../../platform/storage/common/storage.js";
+import { $, getActiveWindow } from "../../../../base/browser/dom.js";
+import { CancellationTokenSource } from "../../../../base/common/cancellation.js";
+import { IInstantiationService } from "../../../../platform/instantiation/common/instantiation.js";
+import { WebviewExtensionDescription } from "../../../../workbench/contrib/webview/browser/webview.js";
 
 import {
 	IWebviewViewService,
 	WebviewView,
-} from "vs/workbench/contrib/webviewView/browser/webviewViewService";
-import { WebviewService } from "vs/workbench/contrib/webview/browser/webviewService";
-import { URI } from "vs/base/common/uri";
-import { ExtensionIdentifier } from "vs/platform/extensions/common/extensions";
-import { IEditorGroupsService } from "vs/workbench/services/editor/common/editorGroupsService";
+} from "../../../../workbench/contrib/webviewView/browser/webviewViewService.js";
+import { WebviewService } from "../../../../workbench/contrib/webview/browser/webviewService.js";
+import { URI } from "../../../../base/common/uri.js";
+import { ExtensionIdentifier } from "../../../../platform/extensions/common/extensions.js";
+import { IEditorGroupsService } from "../../../../workbench/services/editor/common/editorGroupsService.js";
 
 const PEAROVERLAY_ID = "pearai.pearAIChatView";
 const PEAR_OVERLAY_TITLE = "pearai.pearOverlay";
