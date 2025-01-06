@@ -82,6 +82,13 @@ __vsc_escape_value() {
 			token="\\x3b"
 		elif [ "$byte" = $'\n' ]; then
 			token="\x0a"
+		elif [ "$byte" = "%" ] && [ "${str:$((i+1)):1}" = "{" ]; then
+			token="\\x25\\x7b"
+			# token="\\x25\\x7b\"}"
+			((i++))  # Case %{ Not sure if it is right thing to insert " and } at the end..
+		elif [ "$byte" = "%" ] && [ "${str:$((i+1)):1}" = "}" ]; then
+			token="\\x25\\x7d"
+			((i++))  # Case %}
 		else
 			token="$byte"
 		fi
@@ -131,7 +138,10 @@ __vsc_update_env() {
 		fi
 	done
 	env_json+="}"
-	builtin printf '\e]633;Env;%s;%s\a' "$(__vsc_escape_value "${env_json}")" $__vsc_nonce
+	# Investigation: I think } is somehow getting wrongly escaped for trailing PS1
+	# In zsh %{ marks the start of non-printing characters
+	# %} marks end of non-printing characters
+	builtin printf '\e]633;Env;%s;%s\a' "$(__vsc_escape_value "${env_json}")" $__vsc_nonce # changing this to EnvSingle doesnt JSON.parse crash
 }
 
 __vsc_command_output_start() {
