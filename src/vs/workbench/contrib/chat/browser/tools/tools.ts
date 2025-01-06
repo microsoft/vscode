@@ -62,7 +62,7 @@ class Person {
 
 class EditTool implements IToolData, IToolImpl {
 	readonly id = 'vscode_editFile';
-	readonly tags = ['editing'];
+	readonly tags = ['vscode_editing'];
 	readonly displayName = localize('chat.tools.editFile', "Edit File");
 	readonly modelDescription = `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. ${codeInstructions}`;
 	readonly inputSchema: IJSONSchema;
