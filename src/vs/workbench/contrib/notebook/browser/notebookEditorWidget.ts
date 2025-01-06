@@ -282,7 +282,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	get visibleRanges() {
-		return this._list.visibleRanges || [];
+		return this._list ? (this._list.visibleRanges || []) : [];
 	}
 
 	private _baseCellEditorOptions = new Map<string, IBaseCellEditorOptions>();
