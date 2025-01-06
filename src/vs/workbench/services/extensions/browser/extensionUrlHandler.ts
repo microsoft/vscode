@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../nls.js';
-import { IDisposable, combinedDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -27,6 +27,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -99,6 +100,25 @@ type ExtensionUrlReloadHandlerClassification = {
 	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
 };
 
+export interface IExtensionUrlHandlerOverride {
+	handleURL(uri: URI): Promise<boolean>;
+}
+
+export class ExtensionUrlHandlerOverrideRegistry {
+
+	private static readonly handlers = new ResourceMap<IExtensionUrlHandlerOverride>();
+
+	static registerHandler(uri: URI, handler: IExtensionUrlHandlerOverride): IDisposable {
+		this.handlers.set(uri, handler);
+
+		return toDisposable(() => this.handlers.delete(uri));
+	}
+
+	static getHandler(uri: URI): IExtensionUrlHandlerOverride | undefined {
+		return this.handlers.get(uri);
+	}
+}
+
 /**
  * This class handles URLs which are directed towards extensions.
  * If a URL is directed towards an inactive extension, it buffers it,
@@ -151,6 +171,14 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!isExtensionId(uri.authority)) {
 			return false;
+		}
+
+		const overrideHandler = ExtensionUrlHandlerOverrideRegistry.getHandler(uri);
+		if (overrideHandler) {
+			const handled = await overrideHandler.handleURL(uri);
+			if (handled) {
+				return handled;
+			}
 		}
 
 		const extensionId = uri.authority;

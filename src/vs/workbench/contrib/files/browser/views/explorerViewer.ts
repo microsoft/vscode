@@ -562,7 +562,9 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 
 		const tree = this.treeProvider();
 		for (const directory of highlightedDirectories) {
-			tree.rerender(directory);
+			if (tree.hasNode(directory)) {
+				tree.rerender(directory);
+			}
 		}
 	}
 
@@ -602,7 +604,10 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 
 		const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: root.resource })) || {};
 		const searchOptions: IFileQuery = {
-			folderQueries: [{ folder: root.resource }],
+			folderQueries: [{
+				folder: root.resource,
+				disregardIgnoreFiles: !this.configurationService.getValue<boolean>('explorer.excludeGitIgnore'),
+			}],
 			type: QueryType.File,
 			shouldGlobMatchFilePattern: true,
 			cacheKey: `explorerfindprovider:${root.name}:${rootIndex}:${this.sessionId}`,

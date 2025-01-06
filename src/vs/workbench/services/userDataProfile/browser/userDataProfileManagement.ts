@@ -198,7 +198,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 
 		if (shouldRestartExtensionHosts) {
 			if (!isRemoteWindow) {
-				if (!(await this.extensionService.stopExtensionHosts(localize('switch profile', "Switching to a profile.")))) {
+				if (!(await this.extensionService.stopExtensionHosts(localize('switch profile', "Switching to a profile")))) {
 					// If extension host did not stop, do not switch profile
 					if (this.userDataProfilesService.profiles.some(p => p.id === this.userDataProfileService.currentProfile.id)) {
 						await this.userDataProfilesService.setProfileForWorkspace(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()), this.userDataProfileService.currentProfile);

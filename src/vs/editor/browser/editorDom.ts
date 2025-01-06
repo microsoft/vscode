@@ -150,13 +150,13 @@ export class EditorMouseEventFactory {
 	}
 
 	public onContextMenu(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'contextmenu', (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
 	public onMouseUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'mouseup', (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.MOUSE_UP, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
@@ -180,7 +180,7 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseMove(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'mousemove', (e) => callback(this._create(e)));
+		return dom.addDisposableListener(target, dom.EventType.MOUSE_MOVE, (e) => callback(this._create(e)));
 	}
 }
 

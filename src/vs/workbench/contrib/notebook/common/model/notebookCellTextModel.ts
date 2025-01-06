@@ -516,7 +516,7 @@ function computeRunStartTimeAdjustment(oldMetadata: NotebookCellInternalMetadata
 }
 
 
-export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMetadata | undefined, metadata: NotebookCellMetadata, language?: string) {
+export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMetadata | undefined, metadata: NotebookCellMetadata, language?: string, sortKeys?: boolean): string {
 	let filteredMetadata: { [key: string]: any } = {};
 
 	if (transientCellMetadata) {
@@ -541,7 +541,28 @@ export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMet
 	if (language) {
 		obj.language = language;
 	}
-	const metadataSource = toFormattedString(obj, {});
+	const metadataSource = toFormattedString(sortKeys ? sortObjectPropertiesRecursively(obj) : obj, {});
 
 	return metadataSource;
+}
+
+
+/**
+ * Sort the JSON to ensure when diffing, the JSON keys are sorted & matched correctly in diff view.
+ */
+export function sortObjectPropertiesRecursively(obj: any): any {
+	if (Array.isArray(obj)) {
+		return obj.map(sortObjectPropertiesRecursively);
+	}
+	if (obj !== undefined && obj !== null && typeof obj === 'object' && Object.keys(obj).length > 0) {
+		return (
+			Object.keys(obj)
+				.sort()
+				.reduce<Record<string, any>>((sortedObj, prop) => {
+					sortedObj[prop] = sortObjectPropertiesRecursively(obj[prop]);
+					return sortedObj;
+				}, {}) as any
+		);
+	}
+	return obj;
 }

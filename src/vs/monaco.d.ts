@@ -773,6 +773,7 @@ declare namespace monaco {
 		 * Moves the range by the given amount of lines.
 		 */
 		delta(lineCount: number): Range;
+		isSingleLine(): boolean;
 		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
 		 * Create a `Range` from an `IRange`.
@@ -4602,9 +4603,12 @@ declare namespace monaco.editor {
 		edits?: {
 			experimental?: {
 				enabled?: boolean;
-				useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
+				useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+				useWordInsertionView?: 'never' | 'whenPossible';
+				useWordReplacementView?: 'never' | 'whenPossible';
 				onlyShowWhenCloseToCursor?: boolean;
+				useGutterIndicator?: boolean;
 			};
 		};
 	}
@@ -7102,9 +7106,6 @@ declare namespace monaco.languages {
 		insertTextRules?: CompletionItemInsertTextRule;
 		/**
 		 * A range of text that should be replaced by this completion item.
-		 *
-		 * Defaults to a range from the start of the {@link TextDocument.getWordRangeAtPosition current word} to the
-		 * current position.
 		 *
 		 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
 		 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.

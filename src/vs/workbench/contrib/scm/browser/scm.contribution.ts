@@ -6,7 +6,7 @@
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
-import { DirtyDiffWorkbenchController } from './dirtydiffDecorator.js';
+import { QuickDiffWorkbenchController } from './quickDiffDecorator.js';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from '../common/scm.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -38,7 +38,9 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { isSCMRepository } from './util.js';
 import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
-import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { QuickDiffModelService, IQuickDiffModelService } from './quickDiffModel.js';
+import { QuickDiffEditorController } from './quickDiffWidget.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
 
 ModesRegistry.registerLanguage({
@@ -49,7 +51,10 @@ ModesRegistry.registerLanguage({
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(QuickDiffWorkbenchController, LifecyclePhase.Restored);
+
+registerEditorContribution(QuickDiffEditorController.ID,
+	QuickDiffEditorController, EditorContributionInstantiation.AfterFirstRender);
 
 const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the Source Control view.'));
 
@@ -131,14 +136,8 @@ viewsRegistry.registerViews([{
 	weight: 40,
 	order: 2,
 	when: ContextKeyExpr.and(
-		// Repository Count
-		ContextKeyExpr.and(
-			ContextKeyExpr.has('scm.providerCount'),
-			ContextKeyExpr.notEquals('scm.providerCount', 0)),
-		// Not Serverless
-		ContextKeyExpr.and(
-			IsWebContext,
-			RemoteNameContext.isEqualTo(''))?.negate()
+		ContextKeyExpr.has('scm.historyProviderCount'),
+		ContextKeyExpr.notEquals('scm.historyProviderCount', 0),
 	),
 	containerIcon: sourceControlViewIcon
 }], viewContainer);
@@ -531,7 +530,12 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 		id: 'scm.openInTerminal',
 		title: localize('open in external terminal', "Open in External Terminal")
 	},
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'external'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+	when: ContextKeyExpr.and(
+		RemoteNameContext.isEqualTo(''),
+		ContextKeyExpr.equals('scmProviderHasRootUri', true),
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'external'),
+			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
 });
 
 MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
@@ -540,7 +544,11 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 		id: 'scm.openInIntegratedTerminal',
 		title: localize('open in integrated terminal', "Open in Integrated Terminal")
 	},
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'integrated'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals('scmProviderHasRootUri', true),
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'integrated'),
+			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -596,3 +604,4 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
 registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);
+registerSingleton(IQuickDiffModelService, QuickDiffModelService, InstantiationType.Delayed);

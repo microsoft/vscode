@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, TextEditorDiffInformation } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, languages, HoverProvider, CancellationToken, Hover, TextDocument } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
-import { BlameInformation } from './git';
+import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
+import { emojify, ensureEmojis } from './emoji';
+import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -51,6 +53,19 @@ function mapModifiedLineNumberToOriginalLineNumber(lineNumber: number, changes: 
 	}
 
 	return lineNumber;
+}
+
+function getEditorDecorationRange(lineNumber: number): Range {
+	const position = new Position(lineNumber, Number.MAX_SAFE_INTEGER);
+	return new Range(position, position);
+}
+
+function isBlameInformation(object: any): object is BlameInformation {
+	return Array.isArray((object as BlameInformation).ranges);
+}
+
+function isResourceSchemeSupported(uri: Uri): boolean {
+	return uri.scheme === 'file' || isGitUri(uri);
 }
 
 type BlameInformationTemplateTokens = {
@@ -143,35 +158,43 @@ class GitBlameInformationCache {
 }
 
 export class GitBlameController {
-	private readonly _onDidChangeBlameInformation = new EventEmitter<TextEditor>();
+	private readonly _subjectMaxLength = 50;
+
+	private readonly _onDidChangeBlameInformation = new EventEmitter<void>();
 	public readonly onDidChangeBlameInformation = this._onDidChangeBlameInformation.event;
 
-	readonly textEditorBlameInformation = new Map<TextEditor, readonly LineBlameInformation[]>();
+	private _textEditorBlameInformation: LineBlameInformation[] | undefined;
+	get textEditorBlameInformation(): readonly LineBlameInformation[] | undefined {
+		return this._textEditorBlameInformation;
+	}
+	private set textEditorBlameInformation(blameInformation: LineBlameInformation[] | undefined) {
+		this._textEditorBlameInformation = blameInformation;
+		this._onDidChangeBlameInformation.fire();
+	}
 
 	private readonly _repositoryBlameCache = new GitBlameInformationCache();
 
+	private _editorDecoration: GitBlameEditorDecoration | undefined;
+	private _statusBarItem: GitBlameStatusBarItem | undefined;
+
 	private _repositoryDisposables = new Map<Repository, IDisposable[]>();
+	private _enablementDisposables: IDisposable[] = [];
 	private _disposables: IDisposable[] = [];
 
 	constructor(private readonly _model: Model) {
-		this._disposables.push(new GitBlameEditorDecoration(this));
-		this._disposables.push(new GitBlameStatusBarItem(this));
-
-		this._model.onDidOpenRepository(this._onDidOpenRepository, this, this._disposables);
-		this._model.onDidCloseRepository(this._onDidCloseRepository, this, this._disposables);
-
-		window.onDidChangeActiveTextEditor(e => this._updateTextEditorBlameInformation(e), this, this._disposables);
-		window.onDidChangeTextEditorSelection(e => this._updateTextEditorBlameInformation(e.textEditor, true), this, this._disposables);
-		window.onDidChangeTextEditorDiffInformation(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
-
-		this._updateTextEditorBlameInformation(window.activeTextEditor);
+		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
+		this._onDidChangeConfiguration();
 	}
 
 	formatBlameInformationMessage(template: string, blameInformation: BlameInformation): string {
+		const subject = blameInformation.subject && blameInformation.subject.length > this._subjectMaxLength
+			? `${blameInformation.subject.substring(0, this._subjectMaxLength)}\u2026`
+			: blameInformation.subject;
+
 		const templateTokens = {
 			hash: blameInformation.hash,
 			hashShort: blameInformation.hash.substring(0, 8),
-			subject: blameInformation.subject ?? '',
+			subject: emojify(subject ?? ''),
 			authorName: blameInformation.authorName ?? '',
 			authorEmail: blameInformation.authorEmail ?? '',
 			authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
@@ -183,34 +206,118 @@ export class GitBlameController {
 		});
 	}
 
-	getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation | string): MarkdownString {
-		if (typeof blameInformation === 'string') {
-			return new MarkdownString(blameInformation, true);
+	async getBlameInformationDetailedHover(documentUri: Uri, blameInformation: BlameInformation): Promise<MarkdownString | undefined> {
+		const repository = this._model.getRepository(documentUri);
+		if (!repository) {
+			return this.getBlameInformationHover(documentUri, blameInformation);
 		}
 
+		try {
+			const commit = await repository.getCommit(blameInformation.hash);
+			return this.getBlameInformationHover(documentUri, commit);
+		} catch {
+			return this.getBlameInformationHover(documentUri, blameInformation);
+		}
+	}
+
+	getBlameInformationHover(documentUri: Uri, blameInformationOrCommit: BlameInformation | Commit): MarkdownString {
 		const markdownString = new MarkdownString();
-		markdownString.supportThemeIcons = true;
 		markdownString.isTrusted = true;
+		markdownString.supportHtml = true;
+		markdownString.supportThemeIcons = true;
 
-		if (blameInformation.authorName) {
-			markdownString.appendMarkdown(`$(account) **${blameInformation.authorName}**`);
+		if (blameInformationOrCommit.authorName) {
+			markdownString.appendMarkdown(`$(account) **${blameInformationOrCommit.authorName}**`);
 
-			if (blameInformation.authorDate) {
-				const dateString = new Date(blameInformation.authorDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformation.authorDate, true, true)} (${dateString})`);
+			if (blameInformationOrCommit.authorDate) {
+				const dateString = new Date(blameInformationOrCommit.authorDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformationOrCommit.authorDate, true, true)} (${dateString})`);
 			}
 
 			markdownString.appendMarkdown('\n\n');
 		}
 
-		markdownString.appendMarkdown(`${blameInformation.subject}\n\n`);
+		markdownString.appendMarkdown(`${emojify(isBlameInformation(blameInformationOrCommit) ? blameInformationOrCommit.subject ?? '' : blameInformationOrCommit.message)}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
-		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.hash]))} "${l10n.t('View Commit')}")`);
-		markdownString.appendMarkdown('&nbsp;&nbsp;&nbsp;&nbsp;');
-		markdownString.appendMarkdown(`[$(copy) ${blameInformation.hash.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.hash))} "${l10n.t('Copy Commit Hash')}")`);
+		if (!isBlameInformation(blameInformationOrCommit) && blameInformationOrCommit.shortStat) {
+			markdownString.appendMarkdown(`<span>${blameInformationOrCommit.shortStat.files === 1 ?
+				l10n.t('{0} file changed', blameInformationOrCommit.shortStat.files) :
+				l10n.t('{0} files changed', blameInformationOrCommit.shortStat.files)}</span>`);
+
+			if (blameInformationOrCommit.shortStat.insertions) {
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${blameInformationOrCommit.shortStat.insertions === 1 ?
+					l10n.t('{0} insertion{1}', blameInformationOrCommit.shortStat.insertions, '(+)') :
+					l10n.t('{0} insertions{1}', blameInformationOrCommit.shortStat.insertions, '(+)')}</span>`);
+			}
+
+			if (blameInformationOrCommit.shortStat.deletions) {
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${blameInformationOrCommit.shortStat.deletions === 1 ?
+					l10n.t('{0} deletion{1}', blameInformationOrCommit.shortStat.deletions, '(-)') :
+					l10n.t('{0} deletions{1}', blameInformationOrCommit.shortStat.deletions, '(-)')}</span>`);
+			}
+
+			markdownString.appendMarkdown(`\n\n---\n\n`);
+		}
+
+		markdownString.appendMarkdown(`[\`$(git-commit) ${blameInformationOrCommit.hash.substring(0, 8)} \`](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformationOrCommit.hash]))} "${l10n.t('View Commit')}")`);
+		markdownString.appendMarkdown('&nbsp;');
+		markdownString.appendMarkdown(`[$(copy)](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformationOrCommit.hash))} "${l10n.t('Copy Commit Hash')}")`);
+		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+		markdownString.appendMarkdown(`[$(gear)](command:workbench.action.openSettings?%5B%22git.blame%22%5D "${l10n.t('Open Settings')}")`);
 
 		return markdownString;
+	}
+
+	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e &&
+			!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
+			!e.affectsConfiguration('git.blame.statusBarItem.enabled')) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const editorDecorationEnabled = config.get<boolean>('blame.editorDecoration.enabled') === true;
+		const statusBarItemEnabled = config.get<boolean>('blame.statusBarItem.enabled') === true;
+
+		// Editor decoration
+		if (editorDecorationEnabled) {
+			if (!this._editorDecoration) {
+				this._editorDecoration = new GitBlameEditorDecoration(this);
+			}
+		} else {
+			this._editorDecoration?.dispose();
+			this._editorDecoration = undefined;
+		}
+
+		// StatusBar item
+		if (statusBarItemEnabled) {
+			if (!this._statusBarItem) {
+				this._statusBarItem = new GitBlameStatusBarItem(this);
+			}
+		} else {
+			this._statusBarItem?.dispose();
+			this._statusBarItem = undefined;
+		}
+
+		// Listeners
+		if (editorDecorationEnabled || statusBarItemEnabled) {
+			if (this._enablementDisposables.length === 0) {
+				this._model.onDidOpenRepository(this._onDidOpenRepository, this, this._enablementDisposables);
+				this._model.onDidCloseRepository(this._onDidCloseRepository, this, this._enablementDisposables);
+				for (const repository of this._model.repositories) {
+					this._onDidOpenRepository(repository);
+				}
+
+				window.onDidChangeActiveTextEditor(e => this._updateTextEditorBlameInformation(e), this, this._enablementDisposables);
+				window.onDidChangeTextEditorSelection(e => this._updateTextEditorBlameInformation(e.textEditor, true), this, this._enablementDisposables);
+				window.onDidChangeTextEditorDiffInformation(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._enablementDisposables);
+			}
+		} else {
+			this._enablementDisposables = dispose(this._enablementDisposables);
+		}
+
+		this._updateTextEditorBlameInformation(window.activeTextEditor);
 	}
 
 	private _onDidOpenRepository(repository: Repository): void {
@@ -242,9 +349,7 @@ export class GitBlameController {
 			this._repositoryBlameCache.deleteBlameInformation(repository, 'file');
 			this._repositoryBlameCache.setRepositoryHEAD(repository, repository.HEAD.commit);
 
-			for (const textEditor of window.visibleTextEditors) {
-				this._updateTextEditorBlameInformation(textEditor);
-			}
+			this._updateTextEditorBlameInformation(window.activeTextEditor);
 		}
 	}
 
@@ -259,6 +364,10 @@ export class GitBlameController {
 			return resourceBlameInformation;
 		}
 
+		// Ensure that the emojis are loaded. We will
+		// use them when formatting the blame information.
+		await ensureEmojis();
+
 		// Get blame information for the resource and cache it
 		const blameInformation = await repository.blame2(resource.fsPath, commit) ?? [];
 		this._repositoryBlameCache.setBlameInformation(repository, resource, commit, blameInformation);
@@ -266,18 +375,25 @@ export class GitBlameController {
 		return blameInformation;
 	}
 
-	private _findDiffInformation(textEditor: TextEditor, ref: string): TextEditorDiffInformation | undefined {
-		return textEditor.diffInformation?.find(diff => diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === ref);
-	}
-
 	@throttle
 	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined, showBlameInformationForPositionZero = false): Promise<void> {
-		if (!textEditor?.diffInformation || textEditor !== window.activeTextEditor) {
+		if (textEditor) {
+			if (!textEditor.diffInformation || textEditor !== window.activeTextEditor) {
+				return;
+			}
+		} else {
+			this.textEditorBlameInformation = undefined;
 			return;
 		}
 
 		const repository = this._model.getRepository(textEditor.document.uri);
 		if (!repository || !repository.HEAD?.commit) {
+			return;
+		}
+
+		// Only support resources with `file` and `git` schemes
+		if (!isResourceSchemeSupported(textEditor.document.uri)) {
+			this.textEditorBlameInformation = undefined;
 			return;
 		}
 
@@ -287,8 +403,7 @@ export class GitBlameController {
 		if (!showBlameInformationForPositionZero && textEditor.selections.length === 1 &&
 			textEditor.selections[0].start.line === 0 && textEditor.selections[0].start.character === 0 &&
 			textEditor.selections[0].end.line === 0 && textEditor.selections[0].end.character === 0) {
-			this.textEditorBlameInformation.set(textEditor, []);
-			this._onDidChangeBlameInformation.fire(textEditor);
+			this.textEditorBlameInformation = undefined;
 			return;
 		}
 
@@ -308,7 +423,7 @@ export class GitBlameController {
 				workingTreeAndIndexChanges = undefined;
 			} else if (ref === '') {
 				// Resource on the right-hand side of the diff editor when viewing a resource from the index.
-				const diffInformationWorkingTreeAndIndex = this._findDiffInformation(textEditor, 'HEAD');
+				const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
 
 				// Working tree + index diff information is present and it is stale
 				if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
@@ -322,7 +437,7 @@ export class GitBlameController {
 			}
 		} else {
 			// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
-			const diffInformationWorkingTree = this._findDiffInformation(textEditor, '~') ?? this._findDiffInformation(textEditor, '');
+			const diffInformationWorkingTree = getWorkingTreeDiffInformation(textEditor);
 
 			// Working tree diff information is not present or it is stale
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
@@ -330,7 +445,7 @@ export class GitBlameController {
 			}
 
 			// Working tree + index diff information
-			const diffInformationWorkingTreeAndIndex = this._findDiffInformation(textEditor, 'HEAD');
+			const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
 
 			// Working tree + index diff information is present and it is stale
 			if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
@@ -389,8 +504,7 @@ export class GitBlameController {
 			}
 		}
 
-		this.textEditorBlameInformation.set(textEditor, lineBlameInformation);
-		this._onDidChangeBlameInformation.fire(textEditor);
+		this.textEditorBlameInformation = lineBlameInformation;
 	}
 
 	dispose() {
@@ -403,175 +517,166 @@ export class GitBlameController {
 	}
 }
 
-class GitBlameEditorDecoration {
-	private readonly _decorationType: TextEditorDecorationType;
+class GitBlameEditorDecoration implements HoverProvider {
+	private _decoration: TextEditorDecorationType;
+
+	private _hoverDisposable: IDisposable | undefined;
 	private _disposables: IDisposable[] = [];
 
 	constructor(private readonly _controller: GitBlameController) {
-		this._decorationType = window.createTextEditorDecorationType({
+		this._decoration = window.createTextEditorDecorationType({
 			after: {
 				color: new ThemeColor('git.blame.editorDecorationForeground')
 			}
 		});
-		this._disposables.push(this._decorationType);
+		this._disposables.push(this._decoration);
 
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
-		this._controller.onDidChangeBlameInformation(e => this._updateDecorations(e), this, this._disposables);
+		window.onDidChangeActiveTextEditor(this._onDidChangeActiveTextEditor, this, this._disposables);
+		this._controller.onDidChangeBlameInformation(() => this._onDidChangeBlameInformation(), this, this._disposables);
+
+		this._onDidChangeConfiguration();
 	}
 
-	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
-			!e.affectsConfiguration('git.blame.editorDecoration.template')) {
+	async provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const textEditor = window.activeTextEditor;
+		if (!textEditor) {
+			return undefined;
+		}
+
+		// Position must be at the end of the line
+		if (position.character !== document.lineAt(position.line).range.end.character) {
+			return undefined;
+		}
+
+		// Get blame information
+		const blameInformation = this._controller.textEditorBlameInformation;
+		const lineBlameInformation = blameInformation?.find(blame => blame.lineNumber === position.line);
+
+		if (!lineBlameInformation || typeof lineBlameInformation.blameInformation === 'string') {
+			return undefined;
+		}
+
+		const contents = await this._controller.getBlameInformationDetailedHover(textEditor.document.uri, lineBlameInformation.blameInformation);
+
+		if (!contents || token.isCancellationRequested) {
+			return undefined;
+		}
+
+		return { range: getEditorDecorationRange(position.line), contents: [contents] };
+	}
+
+	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e && !e.affectsConfiguration('git.blame.editorDecoration.template')) {
 			return;
 		}
 
-		for (const textEditor of window.visibleTextEditors) {
-			if (this._getConfiguration().enabled) {
-				this._updateDecorations(textEditor);
-			} else {
-				textEditor.setDecorations(this._decorationType, []);
-			}
-		}
+		this._registerHoverProvider();
+		this._onDidChangeBlameInformation();
 	}
 
-	private _getConfiguration(): { enabled: boolean; template: string } {
-		const config = workspace.getConfiguration('git');
-		const enabled = config.get<boolean>('blame.editorDecoration.enabled', false);
-		const template = config.get<string>('blame.editorDecoration.template', '${subject}, ${authorName} (${authorDateAgo})');
-
-		return { enabled, template };
-	}
-
-	private _updateDecorations(textEditor: TextEditor): void {
-		const { enabled, template } = this._getConfiguration();
-		if (!enabled) {
-			return;
-		}
-
-		// Clear decorations for the other editors
+	private _onDidChangeActiveTextEditor(): void {
+		// Clear decorations
 		for (const editor of window.visibleTextEditors) {
-			if (editor === textEditor) {
-				continue;
+			if (editor !== window.activeTextEditor) {
+				editor.setDecorations(this._decoration, []);
 			}
-
-			editor.setDecorations(this._decorationType, []);
 		}
 
-		// Only support resources with `file` and `git` schemes
-		if (textEditor.document.uri.scheme !== 'file' && !isGitUri(textEditor.document.uri)) {
-			textEditor.setDecorations(this._decorationType, []);
+		// Register hover provider
+		this._registerHoverProvider();
+	}
+
+	private _onDidChangeBlameInformation(): void {
+		const textEditor = window.activeTextEditor;
+		if (!textEditor) {
 			return;
 		}
 
 		// Get blame information
-		const blameInformation = this._controller.textEditorBlameInformation.get(textEditor);
+		const blameInformation = this._controller.textEditorBlameInformation;
 		if (!blameInformation) {
-			textEditor.setDecorations(this._decorationType, []);
+			textEditor.setDecorations(this._decoration, []);
 			return;
 		}
 
 		// Set decorations for the editor
+		const config = workspace.getConfiguration('git');
+		const template = config.get<string>('blame.editorDecoration.template', '${subject}, ${authorName} (${authorDateAgo})');
+
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation !== 'string'
 				? this._controller.formatBlameInformationMessage(template, blame.blameInformation)
 				: blame.blameInformation;
-			const hoverMessage = typeof blame.blameInformation !== 'string'
-				? this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation)
-				: undefined;
 
-			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
+			return this._createDecoration(blame.lineNumber, contentText);
 		});
 
-		textEditor.setDecorations(this._decorationType, decorations);
+		textEditor.setDecorations(this._decoration, decorations);
 	}
 
-	private _createDecoration(lineNumber: number, contentText: string, hoverMessage: MarkdownString | undefined): DecorationOptions {
-		const position = new Position(lineNumber, Number.MAX_SAFE_INTEGER);
-
+	private _createDecoration(lineNumber: number, contentText: string): DecorationOptions {
 		return {
-			hoverMessage,
-			range: new Range(position, position),
+			range: getEditorDecorationRange(lineNumber),
 			renderOptions: {
 				after: {
-					contentText: `${contentText}`,
+					contentText,
 					margin: '0 0 0 50px'
 				}
 			},
 		};
 	}
 
+	private _registerHoverProvider(): void {
+		this._hoverDisposable?.dispose();
+
+		if (window.activeTextEditor && isResourceSchemeSupported(window.activeTextEditor.document.uri)) {
+			this._hoverDisposable = languages.registerHoverProvider({
+				pattern: window.activeTextEditor.document.uri.fsPath
+			}, this);
+		}
+	}
+
 	dispose() {
+		this._hoverDisposable?.dispose();
+		this._hoverDisposable = undefined;
+
 		this._disposables = dispose(this._disposables);
 	}
 }
 
 class GitBlameStatusBarItem {
-	private _statusBarItem: StatusBarItem | undefined;
-
+	private _statusBarItem: StatusBarItem;
 	private _disposables: IDisposable[] = [];
 
 	constructor(private readonly _controller: GitBlameController) {
-		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
-		window.onDidChangeActiveTextEditor(this._onDidChangeActiveTextEditor, this, this._disposables);
+		this._statusBarItem = window.createStatusBarItem('git.blame', StatusBarAlignment.Right, 200);
+		this._statusBarItem.name = l10n.t('Git Blame Information');
+		this._disposables.push(this._statusBarItem);
 
-		this._controller.onDidChangeBlameInformation(e => this._updateStatusBarItem(e), this, this._disposables);
+		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
+		this._controller.onDidChangeBlameInformation(() => this._onDidChangeBlameInformation(), this, this._disposables);
 	}
 
 	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.statusBarItem.enabled') &&
-			!e.affectsConfiguration('git.blame.statusBarItem.template')) {
+		if (!e.affectsConfiguration('git.blame.statusBarItem.template')) {
 			return;
 		}
 
-		if (this._getConfiguration().enabled) {
-			if (window.activeTextEditor) {
-				this._updateStatusBarItem(window.activeTextEditor);
-			}
-		} else {
-			this._statusBarItem?.dispose();
-			this._statusBarItem = undefined;
-		}
+		this._onDidChangeBlameInformation();
 	}
 
-	private _onDidChangeActiveTextEditor(): void {
-		if (!this._getConfiguration().enabled) {
-			return;
-		}
-
-		if (window.activeTextEditor) {
-			this._updateStatusBarItem(window.activeTextEditor);
-		} else {
-			this._statusBarItem?.hide();
-		}
-	}
-
-	private _getConfiguration(): { enabled: boolean; template: string } {
-		const config = workspace.getConfiguration('git');
-		const enabled = config.get<boolean>('blame.statusBarItem.enabled', false);
-		const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
-
-		return { enabled, template };
-	}
-
-	private _updateStatusBarItem(textEditor: TextEditor): void {
-		const { enabled, template } = this._getConfiguration();
-		if (!enabled || textEditor !== window.activeTextEditor) {
-			return;
-		}
-
-		if (!this._statusBarItem) {
-			this._statusBarItem = window.createStatusBarItem('git.blame', StatusBarAlignment.Right, 200);
-			this._statusBarItem.name = l10n.t('Git Blame Information');
-			this._disposables.push(this._statusBarItem);
-		}
-
-		// Only support resources with `file` and `git` schemes
-		if (textEditor.document.uri.scheme !== 'file' && !isGitUri(textEditor.document.uri)) {
+	private _onDidChangeBlameInformation(): void {
+		if (!window.activeTextEditor) {
 			this._statusBarItem.hide();
 			return;
 		}
 
-		const blameInformation = this._controller.textEditorBlameInformation.get(textEditor);
+		const blameInformation = this._controller.textEditorBlameInformation;
 		if (!blameInformation || blameInformation.length === 0) {
 			this._statusBarItem.hide();
 			return;
@@ -582,12 +687,15 @@ class GitBlameStatusBarItem {
 			this._statusBarItem.tooltip = l10n.t('Git Blame Information');
 			this._statusBarItem.command = undefined;
 		} else {
+			const config = workspace.getConfiguration('git');
+			const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
+
 			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(template, blameInformation[0].blameInformation)}`;
-			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
+			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(window.activeTextEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),
 				command: 'git.blameStatusBarItem.viewCommit',
-				arguments: [textEditor.document.uri, blameInformation[0].blameInformation.hash]
+				arguments: [window.activeTextEditor.document.uri, blameInformation[0].blameInformation.hash]
 			} satisfies Command;
 		}
 
