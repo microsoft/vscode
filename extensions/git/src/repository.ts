@@ -7,6 +7,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
+import * as iconv from '@vscode/iconv-lite-umd';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
@@ -22,8 +23,9 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
+import { detectEncoding } from './encoding';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -558,13 +560,11 @@ class ResourceCommandResolver {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_RENAME:
 			case Status.TYPE_CHANGED:
 				return { original: toGitUri(resource.original, 'HEAD') };
 
 			case Status.MODIFIED:
-			case Status.UNTRACKED:
 				return { original: toGitUri(resource.resourceUri, '~') };
 
 			case Status.DELETED_BY_US:
@@ -1080,15 +1080,15 @@ export class Repository implements Disposable {
 	}
 
 	getConfig(key: string): Promise<string> {
-		return this.run(Operation.Config(true), () => this.repository.config('local', key));
+		return this.run(Operation.Config(true), () => this.repository.config('get', 'local', key));
 	}
 
 	getGlobalConfig(key: string): Promise<string> {
-		return this.run(Operation.Config(true), () => this.repository.config('global', key));
+		return this.run(Operation.Config(true), () => this.repository.config('get', 'global', key));
 	}
 
 	setConfig(key: string, value: string): Promise<string> {
-		return this.run(Operation.Config(false), () => this.repository.config('local', key, value));
+		return this.run(Operation.Config(false), () => this.repository.config('set', 'local', key, value));
 	}
 
 	log(options?: LogOptions & { silent?: boolean }): Promise<Commit[]> {
@@ -1215,7 +1215,17 @@ export class Repository implements Disposable {
 	async stage(resource: Uri, contents: string): Promise<void> {
 		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, async () => {
-			await this.repository.stage(path, contents);
+			const configFiles = workspace.getConfiguration('files', Uri.file(resource.fsPath));
+			let encoding = configFiles.get<string>('encoding') ?? 'utf8';
+			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding') === true;
+			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings') ?? [];
+
+			if (autoGuessEncoding) {
+				encoding = detectEncoding(Buffer.from(contents), candidateGuessEncodings) ?? encoding;
+			}
+
+			encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+			await this.repository.stage(path, contents, encoding);
 
 			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
@@ -1453,7 +1463,10 @@ export class Repository implements Disposable {
 	}
 
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
-		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
+		return this.run(Operation.DeleteBranch, async () => {
+			await this.repository.deleteBranch(name, force);
+			await this.repository.config('unset', 'local', `branch.${name}.vscode-merge-base`);
+		});
 	}
 
 	async renameBranch(name: string): Promise<void> {
@@ -1644,7 +1657,7 @@ export class Repository implements Disposable {
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
-		const refLabel = opts?.detached ? treeish.substring(0, 8) : treeish;
+		const refLabel = opts?.detached ? getCommitShortHash(Uri.file(this.root), treeish) : treeish;
 
 		await this.run(Operation.Checkout(refLabel),
 			async () => {
@@ -1662,7 +1675,7 @@ export class Repository implements Disposable {
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
-		const refLabel = opts.detached ? treeish.substring(0, 8) : treeish;
+		const refLabel = opts.detached ? getCommitShortHash(Uri.file(this.root), treeish) : treeish;
 		await this.run(Operation.CheckoutTracking(refLabel), () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
@@ -2347,24 +2360,26 @@ export class Repository implements Disposable {
 				const yes = { title: l10n.t('Yes') };
 				const no = { title: l10n.t('No') };
 
-				const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, no, neverAgain);
-				if (result === yes) {
-					this.ignore([Uri.file(folderPath)]);
-				} else {
+				window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, no, neverAgain).then(result => {
+					if (result === yes) {
+						this.ignore([Uri.file(folderPath)]);
+					} else {
+						if (result === neverAgain) {
+							config.update('ignoreLimitWarning', true, false);
+						}
+
+						this.didWarnAboutLimit = true;
+					}
+				});
+			} else {
+				const ok = { title: l10n.t('OK') };
+				window.showWarningMessage(gitWarn, ok, neverAgain).then(result => {
 					if (result === neverAgain) {
 						config.update('ignoreLimitWarning', true, false);
 					}
 
 					this.didWarnAboutLimit = true;
-				}
-			} else {
-				const ok = { title: l10n.t('OK') };
-				const result = await window.showWarningMessage(gitWarn, ok, neverAgain);
-				if (result === neverAgain) {
-					config.update('ignoreLimitWarning', true, false);
-				}
-
-				this.didWarnAboutLimit = true;
+				});
 			}
 		}
 

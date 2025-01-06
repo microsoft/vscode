@@ -71,6 +71,8 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 
 suite('InlineChatController', function () {
 
@@ -198,6 +200,7 @@ suite('InlineChatController', function () {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
 			[ITextModelService, new SyncDescriptor(TextModelResolverService)],
+			[ILanguageModelToolsService, new SyncDescriptor(MockLanguageModelToolsService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));

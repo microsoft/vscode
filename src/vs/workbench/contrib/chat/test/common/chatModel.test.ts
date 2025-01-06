@@ -191,10 +191,13 @@ suite('Response', () => {
 
 	test('inline reference', async () => {
 		const response = store.add(new Response([]));
-		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
-		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
-		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('text before '), kind: 'markdownContent' });
+		response.updateContent({ inlineReference: URI.parse('https://microsoft.com/'), kind: 'inlineReference' });
+		response.updateContent({ content: new MarkdownString(' text after'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+
+		assert.strictEqual(response.toString(), 'text before https://microsoft.com/ text after');
+
 	});
 });
 

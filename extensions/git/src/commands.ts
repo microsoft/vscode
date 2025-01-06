@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath, truncate } from './util';
+import { dispose, getCommitShortHash, grep, isDefined, isDescendant, pathEquals, relativePath, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -309,7 +309,7 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
 	const isAnyDeleted = (s: Resource) => s.type === Status.DELETED_BY_THEM || s.type === Status.DELETED_BY_US;
 	const possibleUnresolved = merge.filter(isBothAddedOrModified);
-	const promises = possibleUnresolved.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
+	const promises = possibleUnresolved.map(s => grep(s.resourceUri.fsPath, /^<{7}\s|^={7}$|^>{7}\s/));
 	const unresolvedBothModified = await Promise.all<boolean>(promises);
 	const resolved = possibleUnresolved.filter((_s, i) => !unresolvedBothModified[i]);
 	const deletionConflicts = merge.filter(s => isAnyDeleted(s));
@@ -4286,16 +4286,17 @@ export class CommandCenter {
 
 		let title: string | undefined;
 		let historyItemParentId: string | undefined;
+		const rootUri = Uri.file(repository.root);
 
 		// If historyItem2 is not provided, we are viewing a single commit. If historyItem2 is
 		// provided, we are viewing a range and we have to include both start and end commits.
 		// TODO@lszomoru - handle the case when historyItem2 is the first commit in the repository
 		if (!historyItem2) {
 			const commit = await repository.getCommit(historyItem1.id);
-			title = `${historyItem1.id.substring(0, 8)} - ${truncate(commit.message)}`;
+			title = `${getCommitShortHash(rootUri, historyItem1.id)} - ${truncate(commit.message)}`;
 			historyItemParentId = historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItem1.id}^`;
 		} else {
-			title = l10n.t('All Changes ({0} ↔ {1})', historyItem2.id.substring(0, 8), historyItem1.id.substring(0, 8));
+			title = l10n.t('All Changes ({0} ↔ {1})', getCommitShortHash(rootUri, historyItem2.id), getCommitShortHash(rootUri, historyItem1.id));
 			historyItemParentId = historyItem2.parentIds.length > 0 ? historyItem2.parentIds[0] : `${historyItem2.id}^`;
 		}
 
@@ -4310,8 +4311,9 @@ export class CommandCenter {
 			return;
 		}
 
-		const modifiedShortRef = historyItem.id.substring(0, 8);
-		const originalShortRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0].substring(0, 8) : `${modifiedShortRef}^`;
+		const rootUri = Uri.file(repository.root);
+		const modifiedShortRef = getCommitShortHash(rootUri, historyItem.id);
+		const originalShortRef = historyItem.parentIds.length > 0 ? getCommitShortHash(rootUri, historyItem.parentIds[0]) : `${modifiedShortRef}^`;
 		const title = l10n.t('All Changes ({0} ↔ {1})', originalShortRef, modifiedShortRef);
 
 		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-changes' });
@@ -4350,8 +4352,9 @@ export class CommandCenter {
 			return;
 		}
 
+		const rootUri = Uri.file(repository.root);
 		const commit = await repository.getCommit(historyItemId);
-		const title = `${historyItemId.substring(0, 8)} - ${truncate(commit.message)}`;
+		const title = `${getCommitShortHash(rootUri, historyItemId)} - ${truncate(commit.message)}`;
 		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
