@@ -833,7 +833,8 @@ class EditorStatus extends Disposable {
 		if (editorWidget) {
 
 			// Compute selection(s)
-			info.selections = editorWidget.getSelectionsInVirtualSpace() || [];
+			// TODO!
+			info.selections = editorWidget.getSelections() || [];
 
 			// Compute selection length
 			info.charactersSelected = 0;

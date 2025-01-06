@@ -504,11 +504,9 @@ suite('Editor Controller - Cursor', () => {
 				'Word6 Word7 Word',
 				'Word9 Word10',
 			].join('\n'),
-			null,
-			{ virtualSpace: true },
 		);
 
-		withTestCodeEditor(model, {}, (editor, viewModel) => {
+		withTestCodeEditor(model, { virtualSpace: true }, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 17, 1, 17)]);
 
 			const cursorPositions: any[] = [];

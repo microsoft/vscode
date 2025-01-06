@@ -242,6 +242,7 @@ export class HitTestContext {
 	public readonly viewLinesGpu: ViewLinesGpu | undefined;
 	public readonly lineHeight: number;
 	public readonly stickyTabStops: boolean;
+	public readonly virtualSpaces: boolean;
 	public readonly spaceWidth: number;
 	public readonly lastRenderData: PointerHandlerLastRenderData;
 
@@ -256,6 +257,7 @@ export class HitTestContext {
 		this.viewLinesGpu = viewHelper.viewLinesGpu;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
+		this.virtualSpaces = options.get(EditorOption.virtualSpace);
 		this.spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
 		this.lastRenderData = lastRenderData;
 		this._context = context;
@@ -475,7 +477,7 @@ class HitTestRequest extends BareHitTestRequest {
 				const offset = this.mouseContentHorizontalOffset - lineWidth;
 				const leftoverMouseColumns = Math.max(0, MouseTargetFactory._getMouseColumn(offset, spaceWidth) - 1);
 				const virtualSpace = leftoverMouseColumns > 0
-					&& this._ctx.viewModel.model.getOptions().virtualSpace
+					&& this._ctx.virtualSpaces
 					// If we are on wrapped line, it's the last view line
 					&& this._ctx.viewModel.normalizePosition(new Position(lineNumber, maxColumn), PositionAffinity.Right).lineNumber === lineNumber;
 				const leftoverVisibleColumns = virtualSpace ? leftoverMouseColumns : 0;

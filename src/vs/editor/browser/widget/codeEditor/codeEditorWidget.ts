@@ -739,25 +739,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.getSelection();
 	}
 
-	public getSelectionInVirtualSpace(): Selection | null {
-		if (!this._modelData) {
-			return null;
-		}
-		return this._modelData.viewModel.getSelectionInVirtualSpace();
-	}
-
 	public getSelections(): Selection[] | null {
 		if (!this._modelData) {
 			return null;
 		}
 		return this._modelData.viewModel.getSelections();
-	}
-
-	public getSelectionsInVirtualSpace(): Selection[] | null {
-		if (!this._modelData) {
-			return null;
-		}
-		return this._modelData.viewModel.getSelectionsInVirtualSpace();
 	}
 
 	public setSelection(range: IRange, source?: string): void;
@@ -1739,17 +1725,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					}
 
 					const positions: Position[] = [];
-					const positionsInVirtualSpace: Position[] = [];
 					for (let i = 0, len = e.selections.length; i < len; i++) {
 						positions[i] = e.selections[i].getPosition();
-						positionsInVirtualSpace[i] = e.selectionsInVirtualSpace[i].getPosition();
 					}
 
 					const e1: ICursorPositionChangedEvent = {
 						position: positions[0],
-						positionInVirtualSpace: positionsInVirtualSpace[0],
 						secondaryPositions: positions.slice(1),
-						secondaryPositionsInVirtualSpace: positionsInVirtualSpace.slice(1),
 						reason: e.reason,
 						source: e.source
 					};

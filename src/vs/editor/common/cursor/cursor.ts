@@ -6,7 +6,7 @@
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import * as strings from '../../../base/common/strings.js';
 import { CursorCollection } from './cursorCollection.js';
-import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from '../cursorCommon.js';
+import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel, VirtualSpaceSelection } from '../cursorCommon.js';
 import { CursorContext } from './cursorContext.js';
 import { DeleteOperations } from './cursorDeleteOperations.js';
 import { CursorChangeReason } from '../cursorEvents.js';
@@ -22,7 +22,6 @@ import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequest
 import { dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ICoordinatesConverter } from '../viewModel.js';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
-import { VirtualSpaceRangeExtraData, virtualSpaceRangeExtraData, PositionTripple } from '../virtualSpaceSupport.js';
 
 export class CursorsController extends Disposable {
 
@@ -126,7 +125,7 @@ export class CursorsController extends Disposable {
 		const oldState = CursorModelState.from(this._model, this);
 
 		this._cursors.setStates(states);
-		this._cursors.normalize(this._model);
+		this._cursors.normalize();
 		this._columnSelectData = null;
 
 		this._validateAutoClosedActions();
@@ -219,7 +218,7 @@ export class CursorsController extends Disposable {
 			});
 		}
 
-		this.setStates(eventsCollector, 'restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(this._model, desiredSelections));
+		this.setStates(eventsCollector, 'restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
 		this.revealAll(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
 	}
 
@@ -258,13 +257,13 @@ export class CursorsController extends Disposable {
 				this._emitStateChangedIfNecessary(eventsCollector, 'model', CursorChangeReason.ContentFlush, null, false);
 			} else {
 				if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
-					const cursorState = CursorState.fromModelSelections(this._model, e.resultingSelection);
+					const cursorState = CursorState.fromModelSelections(e.resultingSelection);
 					if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
 						this.revealAll(eventsCollector, 'modelChange', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 					}
 				} else {
 					const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-					this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(this._model, selectionsFromMarkers));
+					this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
 				}
 			}
 		}
@@ -306,8 +305,16 @@ export class CursorsController extends Disposable {
 		return this._cursors.getSelections();
 	}
 
+	public getSelectionsAndVirtualSpaceInfo(): Selection[] {
+		return this._cursors.getSelections();
+	}
+
 	public getSelectionsInVirtualSpace(): Selection[] {
 		return this._cursors.getSelectionsInVirtualSpace();
+	}
+
+	public getSelectionsInVirtualSpace2(): VirtualSpaceSelection[] {
+		return this._cursors.getAll().map(cursorState => cursorState.getVirtualSpaceSelection(this._viewModel));
 	}
 
 	public getPosition(): Position {
@@ -315,7 +322,7 @@ export class CursorsController extends Disposable {
 	}
 
 	public setSelections(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, selections: readonly ISelection[], reason: CursorChangeReason): void {
-		this.setStates(eventsCollector, source, reason, CursorState.fromModelSelections(this._model, selections));
+		this.setStates(eventsCollector, source, reason, CursorState.fromModelSelections(selections));
 	}
 
 	public getPrevEditOperationType(): EditOperationType {
@@ -401,8 +408,8 @@ export class CursorsController extends Disposable {
 		}
 
 		this._columnSelectData = null;
-		this._cursors.setSelections(this._model, cursorState);
-		this._cursors.normalize(this._model);
+		this._cursors.setSelections(cursorState);
+		this._cursors.normalize();
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
@@ -415,7 +422,6 @@ export class CursorsController extends Disposable {
 		}
 
 		const selections = this._cursors.getSelections();
-		const selectionsInVirtualSpace = this._cursors.getSelectionsInVirtualSpace();
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
@@ -427,15 +433,8 @@ export class CursorsController extends Disposable {
 			|| newState.cursorState.some((newCursorState, i) => !newCursorState.modelState.equals(oldState.cursorState[i].modelState))
 		) {
 			const oldSelections = oldState ? oldState.cursorState.map(s => s.modelState.selection) : null;
-			const oldSelectionsInVirtualSpace = oldState ? oldState.cursorState.map(s => s.modelState.selectionInVirtualSpace()) : null;
 			const oldModelVersionId = oldState ? oldState.modelVersionId : 0;
-			eventsCollector.emitOutgoingEvent(
-				new CursorStateChangedEvent(
-					oldSelections, oldSelectionsInVirtualSpace,
-					selections, selectionsInVirtualSpace,
-					oldModelVersionId, newState.modelVersionId, source || 'keyboard', reason, reachedMaxCursorCount
-				)
-			);
+			eventsCollector.emitOutgoingEvent(new CursorStateChangedEvent(oldSelections, selections, oldModelVersionId, newState.modelVersionId, source || 'keyboard', reason, reachedMaxCursorCount));
 		}
 
 		return true;
@@ -579,13 +578,13 @@ export class CursorsController extends Disposable {
 					const chr = text.substr(offset, charLength);
 
 					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelectionsInVirtualSpace(), this.getAutoClosedCharacters(), chr));
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelectionsInVirtualSpace2(), this.getAutoClosedCharacters(), chr));
 
 					offset += charLength;
 				}
 
 			} else {
-				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelectionsInVirtualSpace(), text));
+				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelectionsInVirtualSpace2(), text));
 			}
 		}, eventsCollector, source);
 	}
@@ -745,7 +744,6 @@ interface IExecContext {
 	readonly selectionsBefore: Selection[];
 	readonly trackedRanges: string[];
 	readonly trackedRangesDirection: SelectionDirection[];
-	readonly trackedRangesExtra: (VirtualSpaceRangeExtraData | null)[];
 }
 
 interface ICommandData {
@@ -766,8 +764,7 @@ export class CommandExecutor {
 			model: model,
 			selectionsBefore: selectionsBefore,
 			trackedRanges: [],
-			trackedRangesDirection: [],
-			trackedRangesExtra: [],
+			trackedRangesDirection: []
 		};
 
 		const result = this._innerExecuteCommands(ctx, commands);
@@ -865,8 +862,7 @@ export class CommandExecutor {
 
 						getTrackedSelection: (id: string) => {
 							const idx = parseInt(id, 10);
-							const clippedRange = ctx.model._getTrackedRange(ctx.trackedRanges[idx])!;
-							const range = ctx.trackedRangesExtra[idx]?.restore(ctx.model, clippedRange) ?? clippedRange;
+							const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx])!;
 							if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
 								return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 							}
@@ -961,12 +957,7 @@ export class CommandExecutor {
 		};
 
 		const trackSelection = (_selection: ISelection, trackPreviousOnEmpty?: boolean) => {
-			const initialSelection = Selection.liftSelection(_selection);
-			const initialStart = initialSelection.getSelectionStart();
-			const start = PositionTripple.fromValidatedPosition(initialStart, ctx.model.validatePosition(initialStart));
-			const initialPos = initialSelection.getPosition();
-			const pos = PositionTripple.fromValidatedPosition(initialPos, ctx.model.validatePosition(initialPos));
-			const selection = Selection.fromPositions(start.validPosition, pos.validPosition);
+			const selection = Selection.liftSelection(_selection);
 			let stickiness: TrackedRangeStickiness;
 			if (selection.isEmpty()) {
 				if (typeof trackPreviousOnEmpty === 'boolean') {
@@ -992,7 +983,6 @@ export class CommandExecutor {
 			const id = ctx.model._setTrackedRange(null, selection, stickiness);
 			ctx.trackedRanges[l] = id;
 			ctx.trackedRangesDirection[l] = selection.getDirection();
-			ctx.trackedRangesExtra[l] = virtualSpaceRangeExtraData(ctx.model, initialSelection, selection);
 			return l.toString();
 		};
 

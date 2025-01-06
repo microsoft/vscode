@@ -1942,7 +1942,6 @@ declare namespace monaco.editor {
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
 		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
-		readonly virtualSpace: boolean;
 		get originalIndentSize(): number | 'tabSize';
 	}
 
@@ -1957,7 +1956,6 @@ declare namespace monaco.editor {
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
 		bracketColorizationOptions?: BracketPairColorizationOptions;
-		virtualSpace?: boolean;
 	}
 
 	export class FindMatch {
@@ -2708,14 +2706,6 @@ declare namespace monaco.editor {
 		 */
 		getSelections(): Selection[] | null;
 		/**
-		 * Returns the primary selection of the editor. The column position may be in virtual space.
-		 */
-		getSelectionInVirtualSpace(): Selection | null;
-		/**
-		 * Returns all the selections of the editor. The column position may be in virtual space.
-		 */
-		getSelectionsInVirtualSpace(): Selection[] | null;
-		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
 		 * @param source Source of the call that caused the selection
@@ -3020,17 +3010,9 @@ declare namespace monaco.editor {
 		 */
 		readonly position: Position;
 		/**
-		 * Primary cursor's position. Column may be in virtual space.
-		 */
-		readonly positionInVirtualSpace: Position;
-		/**
 		 * Secondary cursors' position.
 		 */
 		readonly secondaryPositions: Position[];
-		/**
-		 * Secondary cursors' position. Column may be in virtual space.
-		 */
-		readonly secondaryPositionsInVirtualSpace: Position[];
 		/**
 		 * Reason.
 		 */
@@ -3747,6 +3729,10 @@ declare namespace monaco.editor {
 		 * Inserting and deleting whitespace follows tab stops.
 		 */
 		useTabStops?: boolean;
+		/**
+		 * Allow the cursor to sit outside the line contents.
+		 */
+		virtualSpace?: boolean;
 		/**
 		 * The font family
 		 */
@@ -5037,28 +5023,29 @@ declare namespace monaco.editor {
 		unusualLineTerminators = 131,
 		useShadowDOM = 132,
 		useTabStops = 133,
-		wordBreak = 134,
-		wordSegmenterLocales = 135,
-		wordSeparators = 136,
-		wordWrap = 137,
-		wordWrapBreakAfterCharacters = 138,
-		wordWrapBreakBeforeCharacters = 139,
-		wordWrapColumn = 140,
-		wordWrapOverride1 = 141,
-		wordWrapOverride2 = 142,
-		wrappingIndent = 143,
-		wrappingStrategy = 144,
-		showDeprecated = 145,
-		inlayHints = 146,
-		effectiveCursorStyle = 147,
-		editorClassName = 148,
-		pixelRatio = 149,
-		tabFocusMode = 150,
-		layoutInfo = 151,
-		wrappingInfo = 152,
-		defaultColorDecorators = 153,
-		colorDecoratorsActivatedOn = 154,
-		inlineCompletionsAccessibilityVerbose = 155
+		virtualSpace = 134,
+		wordBreak = 135,
+		wordSegmenterLocales = 136,
+		wordSeparators = 137,
+		wordWrap = 138,
+		wordWrapBreakAfterCharacters = 139,
+		wordWrapBreakBeforeCharacters = 140,
+		wordWrapColumn = 141,
+		wordWrapOverride1 = 142,
+		wordWrapOverride2 = 143,
+		wrappingIndent = 144,
+		wrappingStrategy = 145,
+		showDeprecated = 146,
+		inlayHints = 147,
+		effectiveCursorStyle = 148,
+		editorClassName = 149,
+		pixelRatio = 150,
+		tabFocusMode = 151,
+		layoutInfo = 152,
+		wrappingInfo = 153,
+		defaultColorDecorators = 154,
+		colorDecoratorsActivatedOn = 155,
+		inlineCompletionsAccessibilityVerbose = 156
 	}
 
 	export const EditorOptions: {
@@ -5200,6 +5187,7 @@ declare namespace monaco.editor {
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'auto' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
+		virtualSpace: IEditorOption<EditorOption.virtualSpace, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, {}>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;

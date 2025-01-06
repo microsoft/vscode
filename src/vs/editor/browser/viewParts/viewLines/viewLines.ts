@@ -106,6 +106,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 	// --- config
 	private _lineHeight: number;
+	private _virtualSpace: boolean;
 	private _typicalHalfwidthCharacterWidth: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
@@ -135,6 +136,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._virtualSpace = options.get(EditorOption.virtualSpace);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
@@ -195,6 +197,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._virtualSpace = options.get(EditorOption.virtualSpace);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
@@ -634,8 +637,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 				const newScrollLeft = this._computeScrollLeftToReveal(horizontalRevealRequest);
 
 				if (newScrollLeft) {
-					const virtualSpace = this._context.viewModel.model.getOptions().virtualSpace;
-					if (!this._isViewportWrapping || virtualSpace) {
+					if (!this._isViewportWrapping || this._virtualSpace) {
 						// ensure `scrollWidth` is large enough
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}

@@ -6,7 +6,6 @@
 import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from './config/editorOptions.js';
 import { LineTokens } from './tokens/lineTokens.js';
 import { Position } from './core/position.js';
-import { PositionTripple } from './virtualSpaceSupport.js';
 import { Range } from './core/range.js';
 import { ISelection, Selection } from './core/selection.js';
 import { ICommand } from './editorCommon.js';
@@ -124,7 +123,7 @@ export class CursorConfiguration {
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
-		this.virtualSpace = modelOptions.virtualSpace;
+		this.virtualSpace = options.get(EditorOption.virtualSpace);
 		this.lineHeight = fontInfo.lineHeight;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
@@ -238,6 +237,7 @@ export class CursorConfiguration {
 			return minColumn;
 		}
 
+		// TODO: where is this used?
 		if (!this.virtualSpace) {
 			const maxColumn = model.getLineMaxColumn(lineNumber);
 			if (result > maxColumn) {
@@ -281,21 +281,21 @@ export class CursorState {
 		return new PartialViewCursorState(viewState);
 	}
 
-	public static fromModelSelection(model: ICursorSimpleModel, modelSelection: ISelection): PartialModelCursorState {
-		const start = PositionTripple.fromModelPosition(model, new Position(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn));
-		const pos = PositionTripple.fromModelPosition(model, new Position(modelSelection.positionLineNumber, modelSelection.positionColumn));
+	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
+		const selection = Selection.liftSelection(modelSelection);
 		const modelState = new SingleCursorState(
-			Range.fromPositions(start.validPosition),
-			SelectionStartKind.Simple, start.leftoverVisibleColumns,
-			pos.validPosition, pos.leftoverVisibleColumns, null,
+			Range.fromPositions(selection.getSelectionStart()),
+			SelectionStartKind.Simple, 0,
+			selection.getPosition(), 0,
+			null
 		);
 		return CursorState.fromModelState(modelState);
 	}
 
-	public static fromModelSelections(model: ICursorSimpleModel, modelSelections: readonly ISelection[]): PartialModelCursorState[] {
+	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
 		const states: PartialModelCursorState[] = [];
 		for (let i = 0, len = modelSelections.length; i < len; i++) {
-			states[i] = this.fromModelSelection(model, modelSelections[i]);
+			states[i] = this.fromModelSelection(modelSelections[i]);
 		}
 		return states;
 	}
@@ -310,6 +310,13 @@ export class CursorState {
 
 	public equals(other: CursorState): boolean {
 		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
+	}
+
+	public getVirtualSpaceSelection(viewModel: ICursorSimpleModel): VirtualSpaceSelection {
+		const viewSelectionStart = this.viewState.selectionStart.getStartPosition();
+		const lineMaxColumn = viewModel.getLineMaxColumn(viewSelectionStart.lineNumber);
+		const virtualSpacesCount = Math.max(0, viewSelectionStart.column - lineMaxColumn);
+		return new VirtualSpaceSelection(virtualSpacesCount, this.modelState.selection);
 	}
 }
 
@@ -462,6 +469,28 @@ export class EditOperationResult {
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
 	}
+}
+
+export class VirtualSpaceSelection {
+
+	public static selectionWithoutVirtualSpace(arr: VirtualSpaceSelection[]): Selection[] {
+		return arr.map(s => s.selection);
+	}
+
+	public get virtualSpaces(): string {
+		if (!this.virtualSpaceCount) {
+			return '';
+		}
+		return ' '.repeat(this.virtualSpaceCount);
+	}
+
+	constructor(
+		/**
+		 * number of spaces that should be filled in.
+		 */
+		private readonly virtualSpaceCount: number,
+		readonly selection: Selection
+	) { }
 }
 
 export function isQuote(ch: string): boolean {

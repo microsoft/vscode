@@ -5,7 +5,7 @@
 
 import { ShiftCommand } from '../commands/shiftCommand.js';
 import { CompositionSurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
-import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
+import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote, VirtualSpaceSelection } from '../cursorCommon.js';
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
 import { Position } from '../core/position.js';
@@ -162,7 +162,9 @@ export class TypeOperations {
 		return CompositionEndOvertypeOperation.getEdits(config, compositions);
 	}
 
-	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, virtualSpaceSelections: VirtualSpaceSelection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
+
+		const selections = VirtualSpaceSelection.selectionWithoutVirtualSpace(virtualSpaceSelections);
 
 		const enterEdits = EnterOperation.getEdits(config, model, selections, ch, isDoingComposition);
 		if (enterEdits !== undefined) {
@@ -194,11 +196,11 @@ export class TypeOperations {
 			return interceptorElectricCharOperation;
 		}
 
-		return SimpleCharacterTypeOperation.getEdits(config, prevEditOperationType, selections, ch, isDoingComposition);
+		return SimpleCharacterTypeOperation.getEdits(config, prevEditOperationType, virtualSpaceSelections, ch, isDoingComposition);
 	}
 
-	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult {
-		return TypeWithoutInterceptorsOperation.getEdits(prevEditOperationType, selections, str);
+	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, virtualSpaceSelections: VirtualSpaceSelection[], str: string): EditOperationResult {
+		return TypeWithoutInterceptorsOperation.getEdits(prevEditOperationType, virtualSpaceSelections, str);
 	}
 }
 

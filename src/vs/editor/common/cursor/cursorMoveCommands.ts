@@ -11,7 +11,6 @@ import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
 import { IViewModel } from '../viewModel.js';
-import { validVirtualSpacePosition } from '../virtualSpaceSupport.js';
 
 export class CursorMoveCommands {
 
@@ -261,7 +260,8 @@ export class CursorMoveCommands {
 				return this.line(viewModel, cursor, inSelectionMode, _position, _viewPosition);
 			}
 		}
-		const position = validVirtualSpacePosition(_position, viewModel.model.validatePosition(_position));
+		const position = viewModel.model.validatePosition(_position);
+		// const position = validVirtualSpacePosition(_position, viewModel.model.validatePosition(_position));
 		const viewPosition = (
 			_viewPosition
 				? viewModel.coordinatesConverter.validateViewPosition(new Position(_viewPosition.lineNumber, _viewPosition.column), position)

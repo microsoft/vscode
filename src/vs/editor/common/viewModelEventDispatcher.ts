@@ -358,17 +358,23 @@ export class CursorStateChangedEvent {
 
 	public readonly kind = OutgoingViewModelEventKind.CursorStateChanged;
 
-	constructor(
-		public readonly oldSelections: Selection[] | null,
-		public readonly oldSelectionsInVirtualSpace: Selection[] | null,
-		public readonly selections: Selection[],
-		public readonly selectionsInVirtualSpace: Selection[],
-		public readonly oldModelVersionId: number,
-		public readonly modelVersionId: number,
-		public readonly source: string,
-		public readonly reason: CursorChangeReason,
-		public readonly reachedMaxCursorCount: boolean,
-	) { }
+	public readonly oldSelections: Selection[] | null;
+	public readonly selections: Selection[];
+	public readonly oldModelVersionId: number;
+	public readonly modelVersionId: number;
+	public readonly source: string;
+	public readonly reason: CursorChangeReason;
+	public readonly reachedMaxCursorCount: boolean;
+
+	constructor(oldSelections: Selection[] | null, selections: Selection[], oldModelVersionId: number, modelVersionId: number, source: string, reason: CursorChangeReason, reachedMaxCursorCount: boolean) {
+		this.oldSelections = oldSelections;
+		this.selections = selections;
+		this.oldModelVersionId = oldModelVersionId;
+		this.modelVersionId = modelVersionId;
+		this.source = source;
+		this.reason = reason;
+		this.reachedMaxCursorCount = reachedMaxCursorCount;
+	}
 
 	private static _selectionsAreEqual(a: Selection[] | null, b: Selection[] | null): boolean {
 		if (!a && !b) {
@@ -392,7 +398,7 @@ export class CursorStateChangedEvent {
 
 	public isNoOp(): boolean {
 		return (
-			CursorStateChangedEvent._selectionsAreEqual(this.oldSelectionsInVirtualSpace, this.selectionsInVirtualSpace)
+			CursorStateChangedEvent._selectionsAreEqual(this.oldSelections, this.selections)
 			&& this.oldModelVersionId === this.modelVersionId
 		);
 	}
@@ -402,10 +408,7 @@ export class CursorStateChangedEvent {
 			return null;
 		}
 		return new CursorStateChangedEvent(
-			this.oldSelections, this.oldSelectionsInVirtualSpace,
-			other.selections, other.selectionsInVirtualSpace,
-			this.oldModelVersionId, other.modelVersionId,
-			other.source, other.reason, this.reachedMaxCursorCount || other.reachedMaxCursorCount,
+			this.oldSelections, other.selections, this.oldModelVersionId, other.modelVersionId, other.source, other.reason, this.reachedMaxCursorCount || other.reachedMaxCursorCount
 		);
 	}
 }
