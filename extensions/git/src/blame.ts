@@ -227,7 +227,12 @@ export class GitBlameController {
 		markdownString.supportThemeIcons = true;
 
 		if (blameInformationOrCommit.authorName) {
-			markdownString.appendMarkdown(`$(account) **${blameInformationOrCommit.authorName}**`);
+			if (blameInformationOrCommit.authorEmail) {
+				const emailTitle = l10n.t('Email');
+				markdownString.appendMarkdown(`$(account) [**${blameInformationOrCommit.authorName}**](mailto:${blameInformationOrCommit.authorEmail} "${emailTitle} ${blameInformationOrCommit.authorName}")`);
+			} else {
+				markdownString.appendMarkdown(`$(account) **${blameInformationOrCommit.authorName}**`);
+			}
 
 			if (blameInformationOrCommit.authorDate) {
 				const dateString = new Date(blameInformationOrCommit.authorDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });

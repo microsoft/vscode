@@ -63,6 +63,7 @@ export interface ISCMHistoryItem {
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
+	readonly authorEmail?: string;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
 	readonly references?: ISCMHistoryItemRef[];
