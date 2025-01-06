@@ -1167,7 +1167,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			paddingBottom: paddingBottom,
 			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick'),
-			collapseRecursively: () => configurationService.getValue<boolean>(treeCollapseRecursive),
+			inverseCollapseRecursive: () => configurationService.getValue<boolean>(treeCollapseRecursive),
 			contextViewProvider: contextViewService as IContextViewProvider,
 			findWidgetStyles: defaultFindWidgetStyles,
 			enableStickyScroll: Boolean(configurationService.getValue(treeStickyScroll)),
@@ -1484,7 +1484,7 @@ configurationRegistry.registerConfiguration({
 		[treeCollapseRecursive]: {
 			type: 'boolean',
 			default: false,
-			description: localize('collapse recursive', "Controls whether to recursively collapse tree folders or just the folder itself. Recursive collapse is always possible with Alt + Click."),
+			description: localize('collapse recursive', "Inverses the collapse behaviour. When enabled tree folders will be collapsed recursively by default and Alt + Click will only close a single folder itself."),
 		},
 		[treeStickyScroll]: {
 			type: 'boolean',

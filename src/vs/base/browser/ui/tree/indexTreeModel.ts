@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from '../list/list.js';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from './tree.js';
 import { splice, tail2 } from '../../../common/arrays.js';
 import { Delayer } from '../../../common/async.js';
-import { MicrotaskDelay } from '../../../common/symbols.js';
 import { LcsDiff } from '../../../common/diff/diff.js';
 import { Emitter, Event, EventBufferer } from '../../../common/event.js';
 import { Iterable } from '../../../common/iterator.js';
+import { MicrotaskDelay } from '../../../common/symbols.js';
+import { IIdentityProvider } from '../list/list.js';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from './tree.js';
 
 // Exported for tests
 export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFilterData> {
@@ -41,7 +41,7 @@ export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisib
 
 export interface IIndexTreeModelOptions<T, TFilterData> {
 	readonly collapseByDefault?: boolean; // defaults to false
-	collapseRecursively?(): boolean;
+	inverseCollapseRecursive?(): boolean;
 	readonly allowNonCollapsibleParents?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly autoExpandSingleChildren?: boolean;
@@ -109,7 +109,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private readonly _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeRenderNodeCount.event);
 
-	private collapseRecursively?(): boolean;
+	private inverseCollapseRecursive?(): boolean;
 	private collapseByDefault: boolean;
 	private allowNonCollapsibleParents: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
@@ -122,7 +122,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		rootElement: T,
 		options: IIndexTreeModelOptions<T, TFilterData> = {}
 	) {
-		this.collapseRecursively = options.collapseRecursively;
+		this.inverseCollapseRecursive = options.inverseCollapseRecursive;
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.allowNonCollapsibleParents = options.allowNonCollapsibleParents ?? false;
 		this.filter = options.filter;
@@ -383,8 +383,11 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			collapsed = !node.collapsed;
 		}
 
-		const collapseRecursive = collapsed && this.collapseRecursively?.();
-		const update: CollapsedStateUpdate = { collapsed, recursive: recursive || collapseRecursive || false };
+		if (collapsed && this.inverseCollapseRecursive?.()) {
+			recursive = !recursive;
+		}
+
+		const update: CollapsedStateUpdate = { collapsed, recursive: recursive || false };
 		return this.eventBufferer.bufferEvents(() => this._setCollapseState(location, update));
 	}
 
