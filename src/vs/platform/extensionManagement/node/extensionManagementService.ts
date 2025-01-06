@@ -45,7 +45,7 @@ import { ExtensionsManifestCache } from './extensionsManifestCache.js';
 import { DidChangeProfileExtensionsEvent, ExtensionsWatcher } from './extensionsWatcher.js';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { isEngineValid } from '../../extensions/common/extensionValidator.js';
-import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../files/common/files.js';
 import { IInstantiationService, refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -829,10 +829,14 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	private async toLocalExtension(extension: IScannedExtension): Promise<ILocalExtension> {
-		const stat = await this.fileService.resolve(extension.location);
+		let stat: IFileStat | undefined;
+		try {
+			stat = await this.fileService.resolve(extension.location);
+		} catch (error) {/* ignore */ }
+
 		let readmeUrl: URI | undefined;
 		let changelogUrl: URI | undefined;
-		if (stat.children) {
+		if (stat?.children) {
 			readmeUrl = stat.children.find(({ name }) => /^readme(\.txt|\.md|)$/i.test(name))?.resource;
 			changelogUrl = stat.children.find(({ name }) => /^changelog(\.txt|\.md|)$/i.test(name))?.resource;
 		}
