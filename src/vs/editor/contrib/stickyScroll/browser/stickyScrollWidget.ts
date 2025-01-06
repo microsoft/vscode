@@ -19,6 +19,7 @@ import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { foldingCollapsedIcon, foldingExpandedIcon } from '../../folding/browser/foldingDecorations.js';
 import { FoldingModel } from '../../folding/browser/foldingModel.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -65,6 +66,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	public readonly specialLineHeights: Map<number, number> = new Map();
 	public readonly specialLineFontSizes: Map<number, number> = new Map();
+	private _height: number = -1;
+
+	public get height(): number { return this._height; }
+
+	private readonly _onDidChangeStickyScrollHeight = this._register(new Emitter<{ height: number }>());
+	public readonly onDidChangeStickyScrollHeight = this._onDidChangeStickyScrollHeight.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -84,6 +91,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.appendChild(this._lineNumbersDomNode);
 		this._rootDomNode.appendChild(this._linesDomNodeScrollable);
+		this._setHeight(0);
 
 		const updateScrollLeftPosition = () => {
 			this._linesDomNode.style.left = this._editor.getOption(EditorOption.stickyScroll).scrollWithEditor ? `-${this._editor.getScrollLeft()}px` : '0px';
@@ -197,7 +205,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		// Keep the lines that need to be updated
 		this._renderedStickyLines = this._renderedStickyLines.slice(0, clearFromLine);
-		this._rootDomNode.style.display = 'none';
 	}
 
 	private _useFoldingOpacityTransition(requireTransitions: boolean) {
@@ -217,6 +224,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private async _renderRootNode(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, rebuildFromLine: number): Promise<void> {
 		this._clearStickyLinesFromLine(rebuildFromLine);
 		if (!state) {
+			// make sure the dom is 0 height and display:none
+			this._setHeight(0);
 			return;
 		}
 		// For existing sticky lines update the top and z-index
@@ -241,10 +250,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		const widgetHeight = this._getStickyScrollWidgetFullHeight(this._lineNumbers) + this._lastLineRelativePosition;
-		this._rootDomNode.style.display = 'block';
-		this._lineNumbersDomNode.style.height = `${widgetHeight}px`;
-		this._linesDomNodeScrollable.style.height = `${widgetHeight}px`;
-		this._rootDomNode.style.height = `${widgetHeight}px`;
+		this._setHeight(widgetHeight);
 
 		this._rootDomNode.style.marginLeft = '0px';
 		this._minContentWidthInPx = Math.max(...this._renderedStickyLines.map(l => l.scrollWidth)) + layoutInfo.verticalScrollbarWidth;
@@ -259,6 +265,24 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			totalHeight += this.specialLineHeights.get(lineNumber) ?? this._lineHeight;
 		}
 		return totalHeight;
+	}
+
+	private _setHeight(height: number): void {
+		if (this._height === height) {
+			return;
+		}
+		this._height = height;
+
+		if (this._height === 0) {
+			this._rootDomNode.style.display = 'none';
+		} else {
+			this._rootDomNode.style.display = 'block';
+			this._lineNumbersDomNode.style.height = `${this._height}px`;
+			this._linesDomNodeScrollable.style.height = `${this._height}px`;
+			this._rootDomNode.style.height = `${this._height}px`;
+		}
+
+		this._onDidChangeStickyScrollHeight.fire({ height: this._height });
 	}
 
 	private _setFoldingHoverListeners(): void {
@@ -350,11 +374,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		this._editor.applyFontInfo(lineHTMLNode);
-		this._editor.applyFontInfo(innerLineNumberHTML);
+		this._editor.applyFontInfo(lineNumberHTMLNode);
 
 		const defaultFontSize = this._editor.getOption(EditorOption.fontSize);
 		lineHTMLNode.style.fontSize = `${this.specialLineFontSizes.get(line) ?? defaultFontSize}px`;
-
 		lineNumberHTMLNode.style.lineHeight = `${height}px`;
 		lineHTMLNode.style.lineHeight = `${height}px`;
 		lineNumberHTMLNode.style.height = `${height}px`;

@@ -793,7 +793,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			metadata: webExtension.metadata,
 			targetPlatform: TargetPlatform.WEB,
 			validations,
-			isValid
+			isValid,
+			preRelease: !!webExtension.metadata?.preRelease,
 		};
 	}
 

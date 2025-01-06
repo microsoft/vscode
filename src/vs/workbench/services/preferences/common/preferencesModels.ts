@@ -95,7 +95,7 @@ abstract class AbstractSettingsModel extends EditorModel {
 		return undefined;
 	}
 
-	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> {
+	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> | null {
 		const metadata = Object.create(null);
 		let hasMetadata = false;
 		groups.forEach(g => {
@@ -208,7 +208,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,
-			metadata
+			metadata: metadata ?? undefined
 		};
 	}
 }
@@ -849,7 +849,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				allGroups: this.settingsGroups,
 				filteredGroups,
 				matches,
-				metadata
+				metadata: metadata ?? undefined
 			} :
 			undefined;
 	}

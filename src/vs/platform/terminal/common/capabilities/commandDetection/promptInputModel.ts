@@ -33,8 +33,11 @@ export interface IPromptInputModel extends IPromptInputModelState {
 	/**
 	 * Gets the prompt input as a user-friendly string where `|` is the cursor position and `[` and
 	 * `]` wrap any ghost text.
+	 *
+	 * @param emptyStringWhenEmpty If true, an empty string is returned when the prompt input is
+	 * empty (as opposed to '|').
 	 */
-	getCombinedString(): string;
+	getCombinedString(emptyStringWhenEmpty?: boolean): string;
 }
 
 export interface IPromptInputModelState {
@@ -149,7 +152,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 	}
 
-	getCombinedString(): string {
+	getCombinedString(emptyStringWhenEmpty?: boolean): string {
 		const value = this._value.replaceAll('\n', '\u23CE');
 		if (this._cursorIndex === -1) {
 			return value;
@@ -160,6 +163,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			result += `${value.substring(this.ghostTextIndex)}]`;
 		} else {
 			result += value.substring(this.cursorIndex);
+		}
+		if (result === '|' && emptyStringWhenEmpty) {
+			return '';
 		}
 		return result;
 	}

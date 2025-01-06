@@ -18,7 +18,6 @@ import { Range } from '../../../../../common/core/range.js';
 import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from '../../../../../common/model.js';
-import { LineEditWithAdditionalLines } from '../../../../../common/tokenizationTextModelPart.js';
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
@@ -63,16 +62,14 @@ export class GhostTextView extends Disposable {
 		const extraClassName = syntaxHighlightingEnabled ? ' syntax-highlighted' : '';
 		const { inlineTexts, additionalLines, hiddenRange } = computeGhostTextViewData(ghostText, textModel, 'ghost-text' + extraClassName);
 
+		const currentLine = textModel.getLineContent(ghostText.lineNumber);
 		const edit = new OffsetEdit(inlineTexts.map(t => SingleOffsetEdit.insert(t.column - 1, t.text)));
-		const tokens = syntaxHighlightingEnabled ? textModel.tokenization.tokenizeLineWithEdit(ghostText.lineNumber, new LineEditWithAdditionalLines(
-			edit,
-			additionalLines.map(l => l.content)
-		)) : undefined;
+		const tokens = syntaxHighlightingEnabled ? textModel.tokenization.tokenizeLinesAt(ghostText.lineNumber, [edit.apply(currentLine), ...additionalLines.map(l => l.content)]) : undefined;
 		const newRanges = edit.getNewTextRanges();
-		const inlineTextsWithTokens = inlineTexts.map((t, idx) => ({ ...t, tokens: tokens?.mainLineTokens?.getTokensInRange(newRanges[idx]) }));
+		const inlineTextsWithTokens = inlineTexts.map((t, idx) => ({ ...t, tokens: tokens?.[0]?.getTokensInRange(newRanges[idx]) }));
 
 		const tokenizedAdditionalLines: LineData[] = additionalLines.map((l, idx) => ({
-			content: tokens?.additionalLines?.[idx] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec),
+			content: tokens?.[idx + 1] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec),
 			decorations: l.decorations,
 		}));
 

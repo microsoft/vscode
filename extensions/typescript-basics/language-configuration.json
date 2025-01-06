@@ -252,7 +252,7 @@
 				"pattern": "\/\/.*"
 			},
 			"afterText": {
-				"pattern": ".*"
+				"pattern": "^(?!\\s*$).+"
 			},
 			"action": {
 				"indent": "none",

@@ -209,6 +209,12 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				default: false,
 				description: localize('electronFetch', "Controls whether use of Electron's fetch implementation instead of Node.js' should be enabled. All local extensions will get Electron's fetch implementation for the global fetch API."),
 				restricted: true
+			},
+			'http.fetchAdditionalSupport': {
+				type: 'boolean',
+				default: true,
+				markdownDescription: localize('fetchAdditionalSupport', "Controls whether Node.js' fetch implementation should be extended with additional support. Currently proxy support ({0}) and system certificates ({1}) are added when the corresponding settings are enabled.", '`#http.proxySupport#`', '`#http.systemCertificates#`'),
+				restricted: true
 			}
 		}
 	};

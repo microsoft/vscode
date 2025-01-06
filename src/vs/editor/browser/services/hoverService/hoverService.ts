@@ -51,7 +51,7 @@ export class HoverService extends Disposable implements IHoverService {
 	) {
 		super();
 
-		contextMenuService.onDidShowContextMenu(() => this.hideHover());
+		this._register(contextMenuService.onDidShowContextMenu(() => this.hideHover()));
 		this._contextViewHandler = this._register(new ContextViewHandler(this._layoutService));
 	}
 

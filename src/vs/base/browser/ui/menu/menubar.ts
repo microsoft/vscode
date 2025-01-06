@@ -741,6 +741,12 @@ export class MenuBar extends Disposable {
 				}
 
 				if (this.focusedMenu) {
+					// When the menu is toggled on, it may be in compact state and trying to
+					// focus the first menu. In this case we should focus the overflow instead.
+					if (this.focusedMenu.index === 0 && this.numMenusShown === 0) {
+						this.focusedMenu.index = MenuBar.OVERFLOW_INDEX;
+					}
+
 					if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
 						this.overflowMenu.buttonElement.focus();
 					} else {
