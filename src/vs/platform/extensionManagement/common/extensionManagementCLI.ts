@@ -14,7 +14,6 @@ import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, I
 import { areSameExtensions, getExtensionId, getGalleryExtensionId, getIdAndVersion } from './extensionManagementUtil.js';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from '../../extensions/common/extensions.js';
 import { ILogger } from '../../log/common/log.js';
-import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
@@ -29,7 +28,6 @@ export class ExtensionManagementCLI {
 		protected readonly logger: ILogger,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) { }
 
 	protected get location(): string | undefined {
@@ -69,42 +67,6 @@ export class ExtensionManagementCLI {
 				lastId = extension.identifier.id;
 				this.logger.info(showVersions ? `${lastId}@${extension.manifest.version}` : lastId);
 			}
-		}
-	}
-
-	public async downloadExtensions(extensions: string[], target: URI): Promise<void> {
-		if (!extensions.length) {
-			return;
-		}
-
-		this.logger.info(localize('downloadingExtensions', "Downloading extensions..."));
-
-		const extensionsInfo: IExtensionInfo[] = [];
-		for (const extension of extensions) {
-			const [id, version] = getIdAndVersion(extension);
-			extensionsInfo.push({ id, version: version !== 'prerelease' ? version : undefined, preRelease: version === 'prerelease' });
-		}
-
-		try {
-			const galleryExtensions = await this.extensionGalleryService.getExtensions(extensionsInfo, CancellationToken.None);
-			const targetPlatform = await this.extensionManagementService.getTargetPlatform();
-			await Promise.allSettled(extensionsInfo.map(async extensionInfo => {
-				const galleryExtension = galleryExtensions.find(e => areSameExtensions(e.identifier, { id: extensionInfo.id }));
-				if (!galleryExtension) {
-					this.logger.error(`${notFound(extensionInfo.id)}\n${useId}`);
-					return;
-				}
-				const compatible = await this.extensionGalleryService.getCompatibleExtension(galleryExtension, !!extensionInfo.hasPreRelease, targetPlatform);
-				try {
-					await this.extensionGalleryService.download(compatible ?? galleryExtension, this.uriIdentityService.extUri.joinPath(target, `${galleryExtension.identifier.id}-${galleryExtension.version}.vsix`), InstallOperation.None);
-					this.logger.info(localize('successDownload', "Extension '{0}' was successfully downloaded.", extensionInfo.id));
-				} catch (error) {
-					this.logger.error(localize('error while downloading extension', "Error while downloading extension '{0}': {1}", extensionInfo.id, getErrorMessage(error)));
-				}
-			}));
-		} catch (error) {
-			this.logger.error(localize('error while downloading extensions', "Error while downloading extensions: {0}", getErrorMessage(error)));
-			throw error;
 		}
 	}
 

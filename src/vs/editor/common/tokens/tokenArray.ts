@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OffsetRange } from '../core/offsetRange.js';
+import { ILanguageIdCodec } from '../languages.js';
+import { LineTokens } from './lineTokens.js';
 
 /**
  * This class represents a sequence of tokens.
@@ -14,6 +16,14 @@ import { OffsetRange } from '../core/offsetRange.js';
  * TODO: Make this class more efficient (e.g. by using a Int32Array).
 */
 export class TokenArray {
+	public static fromLineTokens(lineTokens: LineTokens): TokenArray {
+		const tokenInfo: TokenInfo[] = [];
+		for (let i = 0; i < lineTokens.getCount(); i++) {
+			tokenInfo.push(new TokenInfo(lineTokens.getEndOffset(i) - lineTokens.getStartOffset(i), lineTokens.getMetadata(i)));
+		}
+		return TokenArray.create(tokenInfo);
+	}
+
 	public static create(tokenInfo: TokenInfo[]): TokenArray {
 		return new TokenArray(tokenInfo);
 	}
@@ -22,6 +32,10 @@ export class TokenArray {
 		private readonly _tokenInfo: TokenInfo[],
 	) { }
 
+	public toLineTokens(lineContent: string, decoder: ILanguageIdCodec): LineTokens {
+		return LineTokens.createFromTextAndMetadata(this.map((r, t) => ({ text: r.substring(lineContent), metadata: t.metadata })), decoder);
+	}
+
 	public forEach(cb: (range: OffsetRange, tokenInfo: TokenInfo) => void): void {
 		let lengthSum = 0;
 		for (const tokenInfo of this._tokenInfo) {
@@ -29,6 +43,17 @@ export class TokenArray {
 			cb(range, tokenInfo);
 			lengthSum += tokenInfo.length;
 		}
+	}
+
+	public map<T>(cb: (range: OffsetRange, tokenInfo: TokenInfo) => T): T[] {
+		const result: T[] = [];
+		let lengthSum = 0;
+		for (const tokenInfo of this._tokenInfo) {
+			const range = new OffsetRange(lengthSum, lengthSum + tokenInfo.length);
+			result.push(cb(range, tokenInfo));
+			lengthSum += tokenInfo.length;
+		}
+		return result;
 	}
 
 	public slice(range: OffsetRange): TokenArray {

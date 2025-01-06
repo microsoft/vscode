@@ -13,13 +13,27 @@
 	opacity: 1;
 }
 
-.chat-diff-change-content-widget .monaco-text-button {
-	padding: 0 2px;
-	z-index: 9;
-	font-size: 11px;
-	line-height: 16px;
+.chat-diff-change-content-widget .monaco-action-bar {
+	padding: 0;
+	border-radius: 2px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 }
 
-.chat-diff-change-content-widget .monaco-text-button .codicon[class*='codicon-'] {
-	font-size: 11px;
+.chat-diff-change-content-widget .monaco-action-bar .action-item .action-label {
+	height: 14px;
+	border-radius: 2px;
+	color: var(--vscode-button-foreground);
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon {
+	width: unset;
+	padding: 2px;
+	font-size: 12px;
+	line-height: 14px;
+	color: var(--vscode-button-foreground);
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon[class*='codicon-'] {
+	font-size: 12px;
 }

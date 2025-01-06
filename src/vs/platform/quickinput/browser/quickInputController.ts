@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
@@ -113,7 +114,7 @@ export class QuickInputController extends Disposable {
 		container.tabIndex = -1;
 		container.style.display = 'none';
 
-		const styleSheet = dom.createStyleSheet(container);
+		const styleSheet = domStylesheetsJs.createStyleSheet(container);
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 

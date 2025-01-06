@@ -219,7 +219,13 @@ export function removeShortMatches(sequence1: ISequence, sequence2: ISequence, s
 	return result;
 }
 
-export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+export function extendDiffsToEntireWordIfAppropriate(
+	sequence1: LinesSliceCharSequence,
+	sequence2: LinesSliceCharSequence,
+	sequenceDiffs: SequenceDiff[],
+	findParent: (seq: LinesSliceCharSequence, idx: number) => OffsetRange | undefined,
+	force: boolean = false,
+): SequenceDiff[] {
 	const equalMappings = SequenceDiff.invert(sequenceDiffs, sequence1.length);
 
 	const additional: SequenceDiff[] = [];
@@ -231,8 +237,8 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 			return;
 		}
 
-		const w1 = sequence1.findWordContaining(pair.offset1);
-		const w2 = sequence2.findWordContaining(pair.offset2);
+		const w1 = findParent(sequence1, pair.offset1);
+		const w2 = findParent(sequence2, pair.offset2);
 		if (!w1 || !w2) {
 			return;
 		}
@@ -252,8 +258,8 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 				break;
 			}
 
-			const v1 = sequence1.findWordContaining(next.seq1Range.start);
-			const v2 = sequence2.findWordContaining(next.seq2Range.start);
+			const v1 = findParent(sequence1, next.seq1Range.start);
+			const v2 = findParent(sequence2, next.seq2Range.start);
 			// Because there is an intersection, we know that the words are not empty.
 			const v = new SequenceDiff(v1!, v2!);
 			const equalPart = v.intersect(next)!;
@@ -271,7 +277,7 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 			}
 		}
 
-		if (equalChars1 + equalChars2 < (w.seq1Range.length + w.seq2Range.length) * 2 / 3) {
+		if ((force && equalChars1 + equalChars2 < w.seq1Range.length + w.seq2Range.length) || equalChars1 + equalChars2 < (w.seq1Range.length + w.seq2Range.length) * 2 / 3) {
 			additional.push(w);
 		}
 

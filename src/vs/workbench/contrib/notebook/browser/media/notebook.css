@@ -449,6 +449,11 @@
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 }
 
+/** Notebook Textual Selection Highlight */
+.nb-selection-highlight {
+	background-color: var(--vscode-editor-selectionBackground);
+}
+
 /** Cell Multi-Cursor Cursor highlight */
 /* -- base selection styling -- */
 .nb-multicursor-selection {

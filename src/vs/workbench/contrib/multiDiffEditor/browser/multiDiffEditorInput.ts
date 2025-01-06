@@ -280,9 +280,9 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	override readonly closeHandler: IEditorCloseHandler = {
 
-		// TODO@bpasero TODO@hediet this is a workaround for
-		// not having a better way to figure out if the
-		// editors this input wraps around are opened or not
+		// This is a workaround for not having a better way
+		// to figure out if the editors this input wraps
+		// around are opened or not
 
 		async confirm() {
 			return ConfirmResult.DONT_SAVE;

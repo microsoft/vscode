@@ -36,6 +36,7 @@ export interface NativeParsedArgs {
 	diff?: boolean;
 	merge?: boolean;
 	add?: boolean;
+	remove?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
 	'reuse-window'?: boolean;
@@ -75,8 +76,6 @@ export interface NativeParsedArgs {
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string[]; // undefined or array of 1 or more
 	'list-extensions'?: boolean;
-	'download-extension'?: string[];
-	'location'?: string;
 	'show-versions'?: boolean;
 	'category'?: string;
 	'install-extension'?: string[]; // undefined or array of 1 or more
@@ -84,6 +83,7 @@ export interface NativeParsedArgs {
 	'install-builtin-extension'?: string[]; // undefined or array of 1 or more
 	'uninstall-extension'?: string[]; // undefined or array of 1 or more
 	'update-extensions'?: boolean;
+	'do-not-include-pack-dependencies'?: boolean;
 	'locate-extension'?: string[]; // undefined or array of 1 or more
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;

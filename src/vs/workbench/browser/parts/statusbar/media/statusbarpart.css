@@ -205,7 +205,17 @@
 	background-color: var(--vscode-statusBarItem-prominentBackground);
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.prominent-kind a:hover:not(.disabled) {
+/**
+ * Using :not(.compact-right):not(.compact-left) here to improve the visual appearance
+ * when a prominent item uses `compact: true` with other items. The presence of the
+ * !important directive for `background-color` otherwise blocks our special hover handling
+ * code here:
+ * https://github.com/microsoft/vscode/blob/c2037f152b2bb3119ce1d87f52987776540dd57f/src/vs/workbench/browser/parts/statusbar/statusbarPart.ts#L483-L505
+ *
+ * Note: this is currently only done for the prominent kind, but needs to be expanded if
+ * other kinds use compact feature.
+ */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.prominent-kind:not(.compact-right):not(.compact-left) a:hover:not(.disabled) {
 	color: var(--vscode-statusBarItem-prominentHoverForeground);
 	background-color: var(--vscode-statusBarItem-prominentHoverBackground) !important;
 }

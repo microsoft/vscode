@@ -68,6 +68,7 @@ import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js
 import { ChatTreeItem } from './chat.js';
 import { IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
+import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 
 const $ = dom.$;
 
@@ -521,7 +522,18 @@ export class CodeCompareBlockPart extends Disposable {
 		this.messageElement.tabIndex = 0;
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, this.contextKeyService],
+			[IEditorProgressService, new class implements IEditorProgressService {
+				_serviceBrand: undefined;
+				show(_total: unknown, _delay?: unknown) {
+					return emptyProgressRunner;
+				}
+				async showWhile(promise: Promise<unknown>, _delay?: number): Promise<void> {
+					await promise;
+				}
+			}],
+		)));
 		const editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
@@ -752,11 +764,11 @@ export class CodeCompareBlockPart extends Disposable {
 
 			let template: string;
 			if (data.edit.state.applied === 1) {
-				template = localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
+				template = localize('chat.edits.1', "Applied 1 change in [[``{0}``]]", uriLabel);
 			} else if (data.edit.state.applied < 0) {
 				template = localize('chat.edits.rejected', "Edits in [[``{0}``]] have been rejected", uriLabel);
 			} else {
-				template = localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
+				template = localize('chat.edits.N', "Applied {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
 			}
 
 			const message = renderFormattedText(template, {
@@ -926,4 +938,6 @@ export class DefaultChatTextEditor {
 
 		response.setEditApplied(item, -1);
 	}
+
+
 }

@@ -28,6 +28,7 @@ import { BulkTextEdits } from './bulkTextEdits.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { OpaqueEdits, ResourceAttachmentEdit } from './opaqueEdits.js';
 
 function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
 	return edits.map(edit => {
@@ -40,6 +41,11 @@ function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
 		if (ResourceNotebookCellEdit.is(edit)) {
 			return ResourceNotebookCellEdit.lift(edit);
 		}
+
+		if (ResourceAttachmentEdit.is(edit)) {
+			return ResourceAttachmentEdit.lift(edit);
+		}
+
 		throw new Error('Unsupported edit');
 	});
 }
@@ -122,6 +128,8 @@ class BulkEdit {
 				resources.push(await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress));
 			} else if (group[0] instanceof ResourceNotebookCellEdit) {
 				resources.push(await this._performCellEdits(<ResourceNotebookCellEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress));
+			} else if (group[0] instanceof ResourceAttachmentEdit) {
+				resources.push(await this._performOpaqueEdits(<ResourceAttachmentEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress));
 			} else {
 				console.log('UNKNOWN EDIT');
 			}
@@ -146,6 +154,12 @@ class BulkEdit {
 	private async _performCellEdits(edits: ResourceNotebookCellEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<readonly URI[]> {
 		this._logService.debug('_performCellEdits', JSON.stringify(edits));
 		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, undoRedoSource, progress, this._token, edits);
+		return await model.apply();
+	}
+
+	private async _performOpaqueEdits(edits: ResourceAttachmentEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<readonly URI[]> {
+		this._logService.debug('_performOpaqueEdits', JSON.stringify(edits));
+		const model = this._instaService.createInstance(OpaqueEdits, undoRedoGroup, undoRedoSource, progress, this._token, edits);
 		return await model.apply();
 	}
 }
