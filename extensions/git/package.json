@@ -2051,8 +2051,18 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInNotebookTextDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
+          "command": "git.stage",
+          "group": "navigation@1",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasUnstagedChanges"
+        },
+        {
+          "command": "git.unstage",
+          "group": "navigation@1",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasStagedChanges"
+        },
+        {
           "command": "git.openChange",
-          "group": "navigation",
+          "group": "navigation@2",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
