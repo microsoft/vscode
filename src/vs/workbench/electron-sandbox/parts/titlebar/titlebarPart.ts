@@ -27,6 +27,7 @@ import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export class NativeTitlebarPart extends BrowserTitlebarPart {
 
@@ -70,7 +71,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@INativeHostService protected readonly nativeHostService: INativeHostService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
@@ -287,9 +288,38 @@ export class MainNativeTitlebarPart extends NativeTitlebarPart {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IProductService productService: IProductService
 	) {
 		super(Parts.TITLEBAR_PART, mainWindow, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService);
+
+		if (isLinux && productService.quality === 'stable') {
+			this.handleDefaultTitlebarStyle(); // TODO@bpasero remove me eventually once settled
+		}
+	}
+
+	private handleDefaultTitlebarStyle(): void {
+		this.updateDefaultTitlebarStyle();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.titleBarStyle')) {
+				this.updateDefaultTitlebarStyle();
+			}
+		}));
+	}
+
+	private updateDefaultTitlebarStyle(): void {
+		const titleBarStyle = this.configurationService.inspect('window.titleBarStyle');
+
+		let titleBarStyleOverride: 'custom' | undefined;
+		if (titleBarStyle.applicationValue || titleBarStyle.userValue || titleBarStyle.userLocalValue) {
+			// configured by user or application: clear override
+			titleBarStyleOverride = undefined;
+		} else {
+			// not configured: set override if experiment is active
+			titleBarStyleOverride = titleBarStyle.defaultValue === 'native' ? undefined : 'custom';
+		}
+
+		this.nativeHostService.overrideDefaultTitlebarStyle(titleBarStyleOverride);
 	}
 }
 
