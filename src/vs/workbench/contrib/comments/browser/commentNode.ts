@@ -457,7 +457,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(this._reactionsActionBar);
 
 		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-		this.comment.commentReactions!.filter(reaction => !!reaction.count).map(reaction => {
+		this.comment.commentReactions?.filter(reaction => !!reaction.count).map(reaction => {
 			const action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
 				try {
 					await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread, this.comment, reaction);

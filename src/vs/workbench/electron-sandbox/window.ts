@@ -14,7 +14,7 @@ import { IFileService } from '../../platform/files/common/files.js';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from '../common/editor.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
-import { WindowMinimumSize, IOpenFileRequest, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from '../../platform/window/common/window.js';
+import { WindowMinimumSize, IOpenFileRequest, IAddRemoveFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from '../../platform/window/common/window.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { IWorkbenchThemeService } from '../services/themes/common/workbenchThemeService.js';
 import { ApplyZoomTarget, applyZoom } from '../../platform/window/electron-sandbox/window.js';
@@ -84,8 +84,9 @@ export class NativeWindow extends BaseWindow {
 
 	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
 
-	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
+	private readonly addRemoveFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddRemoveFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
+	private pendingFoldersToRemove: URI[] = [];
 
 	private isDocumentedEdited = false;
 
@@ -209,11 +210,11 @@ export class NativeWindow extends BaseWindow {
 		// Support openFiles event for existing and new files
 		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
 
-		// Support addFolders event if we have a workspace opened
-		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => { this.onAddFoldersRequest(request); });
+		// Support addRemoveFolders event for workspace management
+		ipcRenderer.on('vscode:addRemoveFolders', (event: unknown, request: IAddRemoveFoldersRequest) => this.onAddRemoveFoldersRequest(request));
 
 		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => { this.notificationService.info(message); });
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
 		// Shell Environment Issue Notifications
 		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => {
@@ -788,20 +789,6 @@ export class NativeWindow extends BaseWindow {
 		});
 	}
 
-	private async openTunnel(address: string, port: number): Promise<RemoteTunnel | string | undefined> {
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
-			getAddress: async (): Promise<IAddress> => {
-				return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
-			}
-		} : undefined;
-		const tunnel = await this.tunnelService.getExistingTunnel(address, port);
-		if (!tunnel || (typeof tunnel === 'string')) {
-			return this.tunnelService.openTunnel(addressProvider, address, port);
-		}
-		return tunnel;
-	}
-
 	async resolveExternalUri(uri: URI, options?: OpenOptions): Promise<IResolvedExternalUri | undefined> {
 		let queryTunnel: RemoteTunnel | string | undefined;
 		if (options?.allowTunneling) {
@@ -826,6 +813,7 @@ export class NativeWindow extends BaseWindow {
 					}
 				}
 			}
+
 			if (portMappingRequest) {
 				const tunnel = await this.openTunnel(portMappingRequest.address, portMappingRequest.port);
 				if (tunnel && (typeof tunnel !== 'string')) {
@@ -859,6 +847,22 @@ export class NativeWindow extends BaseWindow {
 		}
 
 		return undefined;
+	}
+
+	private async openTunnel(address: string, port: number): Promise<RemoteTunnel | string | undefined> {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
+			getAddress: async (): Promise<IAddress> => {
+				return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
+			}
+		} : undefined;
+
+		const tunnel = await this.tunnelService.getExistingTunnel(address, port);
+		if (!tunnel || (typeof tunnel === 'string')) {
+			return this.tunnelService.openTunnel(addressProvider, address, port);
+		}
+
+		return tunnel;
 	}
 
 	private setupOpenHandlers(): void {
@@ -961,27 +965,32 @@ export class NativeWindow extends BaseWindow {
 
 	//#endregion
 
-	private onAddFoldersRequest(request: IAddFoldersRequest): void {
+	private onAddRemoveFoldersRequest(request: IAddRemoveFoldersRequest): void {
 
 		// Buffer all pending requests
 		this.pendingFoldersToAdd.push(...request.foldersToAdd.map(folder => URI.revive(folder)));
+		this.pendingFoldersToRemove.push(...request.foldersToRemove.map(folder => URI.revive(folder)));
 
 		// Delay the adding of folders a bit to buffer in case more requests are coming
-		if (!this.addFoldersScheduler.isScheduled()) {
-			this.addFoldersScheduler.schedule();
+		if (!this.addRemoveFoldersScheduler.isScheduled()) {
+			this.addRemoveFoldersScheduler.schedule();
 		}
 	}
 
-	private doAddFolders(): void {
-		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
-
-		for (const folder of this.pendingFoldersToAdd) {
-			foldersToAdd.push(({ uri: folder }));
-		}
+	private async doAddRemoveFolders(): Promise<void> {
+		const foldersToAdd: IWorkspaceFolderCreationData[] = this.pendingFoldersToAdd.map(folder => ({ uri: folder }));
+		const foldersToRemove = this.pendingFoldersToRemove.slice(0);
 
 		this.pendingFoldersToAdd = [];
+		this.pendingFoldersToRemove = [];
 
-		this.workspaceEditingService.addFolders(foldersToAdd);
+		if (foldersToAdd.length) {
+			await this.workspaceEditingService.addFolders(foldersToAdd);
+		}
+
+		if (foldersToRemove.length) {
+			await this.workspaceEditingService.removeFolders(foldersToRemove);
+		}
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {

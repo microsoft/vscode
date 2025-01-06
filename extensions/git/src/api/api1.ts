@@ -72,7 +72,6 @@ export class ApiRepositoryUIState implements RepositoryUIState {
 }
 
 export class ApiRepository implements Repository {
-
 	#repository: BaseRepository;
 
 	readonly rootUri: Uri;
@@ -311,9 +310,19 @@ export class ApiRepository implements Repository {
 export class ApiGit implements Git {
 	#model: Model;
 
+	private _env: { [key: string]: string } | undefined;
+
 	constructor(model: Model) { this.#model = model; }
 
 	get path(): string { return this.#model.git.path; }
+
+	get env(): { [key: string]: string } {
+		if (this._env === undefined) {
+			this._env = Object.freeze(this.#model.git.env);
+		}
+
+		return this._env;
+	}
 }
 
 export class ApiImpl implements API {

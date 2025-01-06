@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
-import { fontWeightRegex, fontStyleRegex, fontSizeRegex, fontIdRegex, fontCharacterRegex, fontColorRegex, fontCharacterErrorMessage, fontIdErrorMessage } from '../../../../platform/theme/common/iconRegistry.js';
+import { fontWeightRegex, fontStyleRegex, fontSizeRegex, fontIdRegex, fontColorRegex, fontIdErrorMessage } from '../../../../platform/theme/common/iconRegistry.js';
 
 const schemaId = 'vscode://schemas/icon-theme';
 const schema: IJSONSchema = {
@@ -208,9 +208,7 @@ const schema: IJSONSchema = {
 					},
 					fontCharacter: {
 						type: 'string',
-						description: nls.localize('schema.fontCharacter', 'When using a glyph font: The character in the font to use.'),
-						pattern: fontCharacterRegex.source,
-						patternErrorMessage: fontCharacterErrorMessage
+						description: nls.localize('schema.fontCharacter', 'When using a glyph font: The character in the font to use.')
 					},
 					fontColor: {
 						type: 'string',

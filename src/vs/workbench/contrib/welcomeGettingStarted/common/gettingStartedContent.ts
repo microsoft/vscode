@@ -282,7 +282,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				// 	id: 'settings',
 				// 	title: localize('gettingStarted.settings.title', "Tune your settings"),
 				// 	description: localize('gettingStarted.settings.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
-				// 	when: '!config.chat.experimental.offerSetup',
 				// 	media: {
 				// 		type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
 				// 	},
@@ -291,7 +290,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				// 	id: 'settingsSync',
 				// 	title: localize('gettingStarted.settingsSync.title', "Sync settings across devices"),
 				// 	description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Backup and Sync Settings"), 'command:workbench.userDataSync.actions.turnOn')),
-				// 	when: '!config.chat.experimental.offerSetup && syncStatus != uninitialized',
+				// 	when: 'syncStatus != uninitialized',
 				// 	completionEvents: ['onEvent:sync-enabled'],
 				// 	media: {
 				// 		type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
@@ -318,7 +317,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				// 	id: 'pickAFolderTask-Mac',
 				// 	title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
 				// 	description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFileFolder')),
-				// 	when: '!config.chat.experimental.offerSetup && isMac && workspaceFolderCount == 0',
+				// 	when: 'isMac && workspaceFolderCount == 0',
 				// 	media: {
 				// 		type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
 				// 	}
@@ -327,7 +326,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				// 	id: 'pickAFolderTask-Other',
 				// 	title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
 				// 	description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFolder')),
-				// 	when: '!config.chat.experimental.offerSetup && !isMac && workspaceFolderCount == 0',
+				// 	when: '!isMac && workspaceFolderCount == 0',
 				// 	media: {
 				// 		type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
 				// 	}
