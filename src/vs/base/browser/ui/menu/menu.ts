@@ -902,8 +902,6 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			// This allows the menu constructor to calculate the proper max height
 			const computedStyles = getWindow(this.parentData.parent.domNode).getComputedStyle(this.parentData.parent.domNode);
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
-			// this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
-			// this.submenuContainer.style.zIndex = '1';
 			this.submenuContainer.style.position = 'fixed';
 			this.submenuContainer.style.top = '0';
 			this.submenuContainer.style.left = '0';
@@ -1371,13 +1369,10 @@ ${formatRule(Codicon.menuSubmenu)}
 				height: 3px;
 				width: 3px;
 			}
-		`;
-
-		// For z-index of submenus
-		result += `
-		.monaco-menu .action-item .monaco-submenu {
-			z-index: 1;
-		}
+			/* z-index of submenus */
+			.monaco-menu .action-item .monaco-submenu {
+				z-index: 1;
+			}
 		`;
 
 		// Scrollbars
