@@ -1484,7 +1484,7 @@ configurationRegistry.registerConfiguration({
 		[treeCollapseRecursive]: {
 			type: 'boolean',
 			default: false,
-			description: localize('collapse recursive', "Inverts the collapse behaviour. When enabled tree folders will be collapsed recursively by default and Alt + Click will only close a single folder itself."),
+			description: localize('collapse recursive', "Inverts the collapse behaviour. When enabled tree folders will be collapsed recursively by default and Alt + Click will only close the folder itself."),
 		},
 		[treeStickyScroll]: {
 			type: 'boolean',
