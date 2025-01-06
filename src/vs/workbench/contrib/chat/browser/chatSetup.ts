@@ -60,6 +60,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import Severity from '../../../../base/common/severity.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extensions/browser/extensionUrlHandler.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -109,7 +110,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -122,6 +125,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		this.registerChatWelcome();
 		this.registerActions();
+		this.registerUrlLinkHandler();
 	}
 
 	private registerChatWelcome(): void {
@@ -291,6 +295,18 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
+	}
+
+	private registerUrlLinkHandler(): void {
+		this._register(ExtensionUrlHandlerOverrideRegistry.registerHandler(URI.parse(`${this.productService.urlProtocol}://${defaultChat.chatExtensionId}`), {
+			handleURL: async () => {
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: TRIGGER_SETUP_COMMAND_ID, from: 'url' });
+
+				await this.commandService.executeCommand(TRIGGER_SETUP_COMMAND_ID);
+
+				return true;
+			}
+		}));
 	}
 }
 
