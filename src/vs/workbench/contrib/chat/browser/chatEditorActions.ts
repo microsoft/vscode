@@ -217,6 +217,33 @@ class UndoHunkAction extends EditorAction2 {
 	}
 }
 
+class AcceptHunkAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'chatEditor.action.acceptHunk',
+			title: localize2('acceptHunk', 'Accept this Change'),
+			shortTitle: localize2('acceptHunk2', 'Accept'),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			icon: Codicon.check,
+			f1: true,
+			keybinding: {
+				when: EditorContextKeys.focus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
+			},
+			menu: {
+				id: MenuId.ChatEditingEditorHunk,
+				order: 0
+			}
+		});
+	}
+
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		ChatEditorController.get(editor)?.acceptNearestChange(args[0]);
+	}
+}
+
 class OpenDiffFromHunkAction extends EditorAction2 {
 	constructor() {
 		super({
@@ -243,5 +270,6 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
 	registerAction2(UndoHunkAction);
+	registerAction2(AcceptHunkAction);
 	registerAction2(OpenDiffFromHunkAction);
 }
