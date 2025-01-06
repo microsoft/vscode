@@ -8,6 +8,7 @@ import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { Command } from '../../../../editor/common/languages.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from '../../../browser/parts/statusbar/statusbarPart.js';
 
@@ -111,6 +112,19 @@ export interface IStatusbarStyleOverride {
 export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
 export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
 
+export type TooltipContent = string | IMarkdownString | IManagedHoverTooltipMarkdownString | HTMLElement;
+
+export interface ITooltipWithCommands {
+	readonly content: TooltipContent;
+	readonly commands: Command[];
+}
+
+export function isTooltipWithCommands(thing: unknown): thing is ITooltipWithCommands {
+	const candidate = thing as ITooltipWithCommands | undefined;
+
+	return !!candidate?.content && Array.isArray(candidate?.commands);
+}
+
 /**
  * A declarative way of describing a status bar entry
  */
@@ -141,9 +155,11 @@ export interface IStatusbarEntry {
 	readonly role?: string;
 
 	/**
-	 * An optional tooltip text to show when you hover over the entry
+	 * An optional tooltip text to show when you hover over the entry.
+	 *
+	 * Use `ITooltipWithCommands` to show a tooltip with commands in hover footer area.
 	 */
-	readonly tooltip?: string | IMarkdownString | HTMLElement;
+	readonly tooltip?: TooltipContent | ITooltipWithCommands;
 
 	/**
 	 * An optional color to use for the entry.

@@ -200,7 +200,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 				}
 
 				const zoomFactor = getZoomFactor(getWindow(this.element));
-				this.onContextMenu(new MouseEvent('mouseup', { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
+				this.onContextMenu(new MouseEvent(EventType.MOUSE_UP, { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
 			}));
 		}
 

@@ -312,6 +312,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 			} else if (sourceGroup.id !== targetGroup.id) {
 				sourceGroup.copyEditors(editors.map(editor => ({ editor })), targetGroup);
 			}
+
 			targetGroup.focus();
 		}
 	}
@@ -972,8 +973,8 @@ function registerFocusEditorGroupWihoutWrapCommands(): void {
 		CommandsRegistry.registerCommand(command.id, async (accessor: ServicesAccessor) => {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 
-			const group = editorGroupsService.findGroup({ direction: command.direction }, editorGroupsService.activeGroup, false);
-			group?.focus();
+			const group = editorGroupsService.findGroup({ direction: command.direction }, editorGroupsService.activeGroup, false) ?? editorGroupsService.activeGroup;
+			group.focus();
 		});
 	}
 }

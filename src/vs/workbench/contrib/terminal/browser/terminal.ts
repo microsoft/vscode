@@ -1096,6 +1096,11 @@ export interface IXtermTerminal extends IDisposable {
 	readonly isGpuAccelerated: boolean;
 
 	/**
+	 * The last `onData` input event fired by {@link RawXtermTerminal.onData}.
+	 */
+	readonly lastInputEvent: string | undefined;
+
+	/**
 	 * Attached the terminal to the given element
 	 * @param container Container the terminal will be rendered in
 	 * @param options Additional options for mounting the terminal in an element

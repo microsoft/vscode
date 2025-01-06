@@ -369,8 +369,8 @@ class VoiceChatSessions {
 		if (!response) {
 			return;
 		}
-		const autoSynthesize = this.configurationService.getValue<'on' | 'off' | 'auto'>(AccessibilityVoiceSettingId.AutoSynthesize);
-		if (autoSynthesize === 'on' || autoSynthesize === 'auto' && !this.accessibilityService.isScreenReaderOptimized()) {
+		const autoSynthesize = this.configurationService.getValue<'on' | 'off'>(AccessibilityVoiceSettingId.AutoSynthesize);
+		if (autoSynthesize === 'on' || (autoSynthesize !== 'off' && !this.accessibilityService.isScreenReaderOptimized())) {
 			let context: IVoiceChatSessionController | 'focused';
 			if (controller.context === 'inline') {
 				// This is ugly, but the lightweight inline chat turns into

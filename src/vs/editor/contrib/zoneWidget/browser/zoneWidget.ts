@@ -29,7 +29,6 @@ export interface IOptions {
 	frameColor?: Color | string;
 	arrowColor?: Color;
 	keepEditorSelection?: boolean;
-	allowUnlimitedHeight?: boolean;
 	ordinal?: number;
 	showInHiddenAreas?: boolean;
 }
@@ -376,6 +375,11 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		return result;
 	}
 
+	/** Gets the maximum widget height in lines. */
+	protected _getMaximumHeightInLines(): number | undefined {
+		return Math.max(12, (this.editor.getLayoutInfo().height / this.editor.getOption(EditorOption.lineHeight)) * 0.8);
+	}
+
 	private _showImpl(where: Range, heightInLines: number): void {
 		const position = where.getStartPosition();
 		const layoutInfo = this.editor.getLayoutInfo();
@@ -389,8 +393,8 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 
 		// adjust heightInLines to viewport
-		if (!this.options.allowUnlimitedHeight) {
-			const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
+		const maxHeightInLines = this._getMaximumHeightInLines();
+		if (maxHeightInLines !== undefined) {
 			heightInLines = Math.min(heightInLines, maxHeightInLines);
 		}
 
@@ -493,7 +497,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		// implement in subclass
 	}
 
-	protected _relayout(newHeightInLines: number): void {
+	protected _relayout(_newHeightInLines: number): void {
+		const maxHeightInLines = this._getMaximumHeightInLines();
+		const newHeightInLines = maxHeightInLines === undefined ? _newHeightInLines : Math.min(maxHeightInLines, _newHeightInLines);
 		if (this._viewZone && this._viewZone.heightInLines !== newHeightInLines) {
 			this.editor.changeViewZones(accessor => {
 				if (this._viewZone) {

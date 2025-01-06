@@ -7,7 +7,7 @@ import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
 import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -63,7 +63,7 @@ export class InlineCompletionsModel extends Disposable {
 	constructor(
 		public readonly textModel: ITextModel,
 		private readonly _selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
-		public readonly _textModelVersionId: IObservable<number | null, IModelContentChangedEvent | undefined>,
+		public readonly _textModelVersionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _positions: IObservable<readonly Position[]>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		private readonly _enabled: IObservable<boolean>,

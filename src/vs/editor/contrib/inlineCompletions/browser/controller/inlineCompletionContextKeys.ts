@@ -5,6 +5,7 @@
 
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { localize } from '../../../../../nls.js';
+import * as nls from '../../../../../nls.js';
 
 export abstract class InlineCompletionContextKeys {
 
@@ -19,4 +20,6 @@ export abstract class InlineCompletionContextKeys {
 	public static readonly inlineEditVisible = new RawContextKey<boolean>('inlineEditIsVisible', false, localize('inlineEditVisible', "Whether an inline edit is visible"));
 	public static readonly tabShouldJumpToInlineEdit = new RawContextKey<boolean | undefined>('tabShouldJumpToInlineEdit', false, localize('tabShouldJumpToInlineEdit', "Whether tab should jump to an inline edit."));
 	public static readonly tabShouldAcceptInlineEdit = new RawContextKey<boolean | undefined>('tabShouldAcceptInlineEdit', false, localize('tabShouldAcceptInlineEdit', "Whether tab should accept the inline edit."));
+
+	public static readonly inInlineEditsPreviewEditor = new RawContextKey<boolean>('inInlineEditsPreviewEditor', true, nls.localize('inInlineEditsPreviewEditor', "Whether the current code editor is showing an inline edits preview"));
 }
