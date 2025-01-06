@@ -421,7 +421,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 	return options && {
 		...options,
 		collapseByDefault: true,
-		collapseRecursively: options.collapseRecursively,
+		inverseCollapseRecursive: options.inverseCollapseRecursive,
 		identityProvider: options.identityProvider && {
 			getId(el) {
 				return options.identityProvider!.getId(el.element as T);
@@ -496,7 +496,7 @@ export interface IAsyncDataTreeUpdateChildrenOptions<T> extends IObjectTreeSetCh
 
 export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptionsUpdate, Pick<IAbstractTreeOptions<T, TFilterData>, Exclude<keyof IAbstractTreeOptions<T, TFilterData>, 'collapseByDefault'>> {
 	readonly collapseByDefault?: { (e: T): boolean };
-	collapseRecursively?(): boolean;
+	inverseCollapseRecursive?(): boolean;
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly sorter?: ITreeSorter<T>;
 	readonly autoExpandSingleChildren?: boolean;
