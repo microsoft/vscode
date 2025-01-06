@@ -684,6 +684,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				return editIndex;
 			}
 		}
+
 		return 0;
 	}
 }

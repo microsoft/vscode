@@ -145,9 +145,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.createScroll(this._commentDetailsContainer, this._body);
 		this.updateCommentBody(this.comment.body);
 
-		if (this.comment.commentReactions && this.comment.commentReactions.length && this.comment.commentReactions.filter(reaction => !!reaction.count).length) {
-			this.createReactionsContainer(this._commentDetailsContainer);
-		}
+		this.createReactionsContainer(this._commentDetailsContainer);
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${this.commentBodyValue}`);
 		this._domNode.setAttribute('role', 'treeitem');
@@ -339,9 +337,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const actions: IAction[] = [];
 
 		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-
-		if (hasReactionHandler) {
-			const toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
+		const toggleReactionAction = hasReactionHandler ? this.createReactionPicker(this.comment.commentReactions || []) : undefined;
+		if (toggleReactionAction) {
 			actions.push(toggleReactionAction);
 		}
 
@@ -352,7 +349,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			if (!this.toolbar && (primary.length || secondary.length)) {
 				this.createToolbar();
 			}
-
+			if (toggleReactionAction) {
+				primary.unshift(toggleReactionAction);
+			}
 			this.toolbar!.setActions(primary, secondary);
 		}));
 
@@ -458,7 +457,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(this._reactionsActionBar);
 
 		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-		this.comment.commentReactions!.filter(reaction => !!reaction.count).map(reaction => {
+		this.comment.commentReactions?.filter(reaction => !!reaction.count).map(reaction => {
 			const action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
 				try {
 					await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread, this.comment, reaction);
@@ -659,7 +658,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._register(menu);
 		this._register(menu.onDidChange(() => {
-			this._commentEditorActions?.setActions(menu);
+			this._commentEditorActions?.setActions(menu, true);
 		}));
 
 		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, (action: IAction): void => {
@@ -743,9 +742,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._reactionsActionBar?.clear();
 
-		if (this.comment.commentReactions && this.comment.commentReactions.some(reaction => !!reaction.count)) {
-			this.createReactionsContainer(this._commentDetailsContainer);
-		}
+		this.createReactionsContainer(this._commentDetailsContainer);
 
 		if (this.comment.contextValue) {
 			this._commentContextValue.set(this.comment.contextValue);

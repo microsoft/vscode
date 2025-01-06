@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
@@ -46,10 +45,11 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	constructor(
 		readonly fontSize: number,
 		readonly fontFamily: string,
+		readonly devicePixelRatio: number
 	) {
 		super();
 
-		const devicePixelFontSize = Math.ceil(this.fontSize * getActiveWindow().devicePixelRatio);
+		const devicePixelFontSize = Math.ceil(this.fontSize * devicePixelRatio);
 		this._canvas = new OffscreenCanvas(devicePixelFontSize * 3, devicePixelFontSize * 3);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
 			willReadFrequently: true
@@ -98,7 +98,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		charMetadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
-		const devicePixelFontSize = Math.ceil(this.fontSize * getActiveWindow().devicePixelRatio);
+		const devicePixelFontSize = Math.ceil(this.fontSize * this.devicePixelRatio);
 		const canvasDim = devicePixelFontSize * 3;
 		if (this._canvas.width !== canvasDim) {
 			this._canvas.width = canvasDim;

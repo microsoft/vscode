@@ -18,6 +18,8 @@ import { SnippetParser } from '../../../snippet/browser/snippetParser.js';
 import { SnippetSession } from '../../../snippet/browser/snippetSession.js';
 import { CompletionItem } from '../../../suggest/browser/suggest.js';
 import { SuggestController } from '../../../suggest/browser/suggestController.js';
+import { ObservableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { observableFromEvent } from '../../../../../base/common/observable.js';
 
 export class SuggestWidgetAdaptor extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;
@@ -235,4 +237,39 @@ function suggestItemInfoEquals(a: SuggestItemInfo | undefined, b: SuggestItemInf
 		return false;
 	}
 	return a.equals(b);
+}
+
+export class ObservableSuggestWidgetAdapter extends Disposable {
+	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
+		this._editorObs.editor,
+		() => {
+			this._editorObs.forceUpdate();
+			return this._suggestControllerPreselector();
+		},
+		(item) => this._editorObs.forceUpdate(_tx => {
+			/** @description InlineCompletionsController.handleSuggestAccepted */
+			this._handleSuggestAccepted(item);
+		})
+	));
+
+	public readonly selectedItem = observableFromEvent(this, cb => this._suggestWidgetAdaptor.onDidSelectedItemChange(() => {
+		this._editorObs.forceUpdate(_tx => cb(undefined));
+	}), () => this._suggestWidgetAdaptor.selectedItem);
+
+	constructor(
+		private readonly _editorObs: ObservableCodeEditor,
+
+		private readonly _handleSuggestAccepted: (item: SuggestItemInfo) => void,
+		private readonly _suggestControllerPreselector: () => SingleTextEdit | undefined,
+	) {
+		super();
+	}
+
+	public stopForceRenderingAbove(): void {
+		this._suggestWidgetAdaptor.stopForceRenderingAbove();
+	}
+
+	public forceRenderingAbove(): void {
+		this._suggestWidgetAdaptor.forceRenderingAbove();
+	}
 }

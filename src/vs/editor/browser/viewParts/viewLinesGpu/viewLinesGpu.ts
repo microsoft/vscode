@@ -23,6 +23,8 @@ import { FloatHorizontalRange, HorizontalPosition, HorizontalRange, IViewLines, 
 import { ViewPart } from '../../view/viewPart.js';
 import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
 import type * as viewEvents from '../../../common/viewEvents.js';
+import { CursorColumns } from '../../../common/core/cursorColumns.js';
+import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -51,7 +53,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private _vertexBuffer!: GPUBuffer;
 
-	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
+	private _glyphStorageBuffer!: GPUBuffer;
 	private _atlasGpuTexture!: GPUTexture;
 	private readonly _atlasGpuTextureVersions: number[] = [];
 
@@ -189,14 +191,9 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device));
 
-		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer [0]',
-			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		})).object;
-		this._glyphStorageBuffer[1] = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer [1]',
-			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
+		this._glyphStorageBuffer = this._register(GPULifecycle.createBuffer(this._device, {
+			label: 'Monaco glyph storage buffer',
+			size: TextureAtlas.maximumPageCount * (TextureAtlasPage.maximumGlyphCount * GlyphStorageBufferInfo.BytesPerEntry),
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
 		this._atlasGpuTextureVersions[0] = 0;
@@ -204,8 +201,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		this._atlasGpuTexture = this._register(GPULifecycle.createTexture(this._device, {
 			label: 'Monaco atlas texture',
 			format: 'rgba8unorm',
-			// TODO: Dynamically grow/shrink layer count
-			size: { width: atlas.pageSize, height: atlas.pageSize, depthOrArrayLayers: 2 },
+			size: { width: atlas.pageSize, height: atlas.pageSize, depthOrArrayLayers: TextureAtlas.maximumPageCount },
 			dimension: '2d',
 			usage: GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
@@ -280,8 +276,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			layout: this._pipeline.getBindGroupLayout(0),
 			entries: [
 				// TODO: Pass in generically as array?
-				{ binding: BindingId.GlyphInfo0, resource: { buffer: this._glyphStorageBuffer[0] } },
-				{ binding: BindingId.GlyphInfo1, resource: { buffer: this._glyphStorageBuffer[1] } },
+				{ binding: BindingId.GlyphInfo, resource: { buffer: this._glyphStorageBuffer } },
 				{
 					binding: BindingId.TextureSampler, resource: this._device.createSampler({
 						label: 'Monaco atlas sampler',
@@ -313,9 +308,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private _updateAtlasStorageBufferAndTexture() {
 		for (const [layerIndex, page] of ViewGpuContext.atlas.pages.entries()) {
-			if (layerIndex >= 2) {
-				// TODO: Support arbitrary number of layers
-				console.log(`Attempt to upload atlas page [${layerIndex}], only 2 are supported currently`);
+			if (layerIndex >= TextureAtlas.maximumPageCount) {
+				console.log(`Attempt to upload atlas page [${layerIndex}], only ${TextureAtlas.maximumPageCount} are supported currently`);
 				continue;
 			}
 
@@ -326,9 +320,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 			this._logService.trace('Updating atlas page[', layerIndex, '] from version ', this._atlasGpuTextureVersions[layerIndex], ' to version ', page.version);
 
-			// TODO: Reuse buffer instead of reconstructing each time
-			// TODO: Dynamically set buffer size
-			const values = new Float32Array(GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount);
+			const entryCount = GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount;
+			const values = new Float32Array(entryCount);
 			let entryOffset = 0;
 			for (const glyph of page.glyphs) {
 				values[entryOffset + GlyphStorageBufferInfo.Offset_TexturePosition] = glyph.x;
@@ -342,7 +335,13 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			if (entryOffset / GlyphStorageBufferInfo.FloatsPerEntry > TextureAtlasPage.maximumGlyphCount) {
 				throw new Error(`Attempting to write more glyphs (${entryOffset / GlyphStorageBufferInfo.FloatsPerEntry}) than the GPUBuffer can hold (${TextureAtlasPage.maximumGlyphCount})`);
 			}
-			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values);
+			this._device.queue.writeBuffer(
+				this._glyphStorageBuffer,
+				layerIndex * GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount * Float32Array.BYTES_PER_ELEMENT,
+				values,
+				0,
+				GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount
+			);
 			if (page.usedArea.right - page.usedArea.left > 0 && page.usedArea.bottom - page.usedArea.top > 0) {
 				this._device.queue.copyExternalImageToTexture(
 					{ source: page.source },
@@ -527,19 +526,27 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		// Resolve tab widths for this line
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const content = lineData.content;
-		let resolvedStartColumnLeft = 0;
+		let resolvedStartColumn = 0;
 		for (let x = 0; x < startColumn - 1; x++) {
-			resolvedStartColumnLeft += content[x] === '\t' ? lineData.tabSize : 1;
+			if (content[x] === '\t') {
+				resolvedStartColumn = CursorColumns.nextRenderTabStop(resolvedStartColumn, lineData.tabSize);
+			} else {
+				resolvedStartColumn++;
+			}
 		}
-		let resolvedRangeWidth = 0;
+		let resolvedEndColumn = resolvedStartColumn;
 		for (let x = startColumn - 1; x < endColumn - 1; x++) {
-			resolvedRangeWidth += content[x] === '\t' ? lineData.tabSize : 1;
+			if (content[x] === '\t') {
+				resolvedEndColumn = CursorColumns.nextRenderTabStop(resolvedEndColumn, lineData.tabSize);
+			} else {
+				resolvedEndColumn++;
+			}
 		}
 
 		// Visible horizontal range in _scaled_ pixels
 		const result = new VisibleRanges(false, [new FloatHorizontalRange(
-			resolvedStartColumnLeft * viewLineOptions.spaceWidth,
-			resolvedRangeWidth * viewLineOptions.spaceWidth)
+			resolvedStartColumn * viewLineOptions.spaceWidth,
+			(resolvedEndColumn - resolvedStartColumn) * viewLineOptions.spaceWidth)
 		]);
 
 		return result;
@@ -580,15 +587,24 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		}
 		const lineData = this._lastViewportData.getViewLineRenderingData(lineNumber);
 		const content = lineData.content;
-		let visualColumn = Math.ceil(mouseContentHorizontalOffset / this._lastViewLineOptions.spaceWidth);
+		let visualColumnTarget = Math.round(mouseContentHorizontalOffset / this._lastViewLineOptions.spaceWidth);
 		let contentColumn = 0;
-		while (visualColumn > 0) {
-			if (visualColumn - (content[contentColumn] === '\t' ? lineData.tabSize : 1) < 0) {
+		let contentColumnWithTabStops = 0;
+		while (visualColumnTarget > 0) {
+			let columnWithTabStopsSize = 0;
+			if (content[contentColumn] === '\t') {
+				const tabStop = CursorColumns.nextRenderTabStop(contentColumnWithTabStops, lineData.tabSize);
+				columnWithTabStopsSize = tabStop - contentColumnWithTabStops;
+			} else {
+				columnWithTabStopsSize = 1;
+			}
+			if (visualColumnTarget - columnWithTabStopsSize / 2 < 0) {
 				break;
 			}
-			visualColumn -= content[contentColumn] === '\t' ? lineData.tabSize : 1;
+			visualColumnTarget -= columnWithTabStopsSize;
 			contentColumn++;
+			contentColumnWithTabStops += columnWithTabStopsSize;
 		}
-		return new Position(lineNumber, contentColumn);
+		return new Position(lineNumber, Math.floor(contentColumn) + 1);
 	}
 }

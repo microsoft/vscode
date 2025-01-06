@@ -42,7 +42,9 @@ steps:
         libxkbfile-dev \
         libkrb5-dev \
         libgbm1 \
-        rpm
+        rpm \
+        gcc-10 \
+        g++-10
       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
       sudo chmod +x /etc/init.d/xvfb
       sudo update-rc.d xvfb defaults
@@ -83,28 +85,6 @@ steps:
         imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
         containerCommand: uname
 
-  - ${{ if or(eq(parameters.VSCODE_ARCH, 'arm64'), eq(parameters.VSCODE_ARCH, 'armhf')) }}:
-    - script: |
-        set -e
-        includes=$(cat << 'EOF'
-        {
-          "target_defaults": {
-            "conditions": [
-              ["OS=='linux'", {
-                'cflags_cc!': [ '-std=gnu++20' ],
-                'cflags_cc': [ '-std=gnu++2a' ],
-              }]
-            ]
-          }
-        }
-        EOF
-        )
-        if [ ! -d "$HOME/.gyp" ]; then
-          mkdir -p "$HOME/.gyp"
-        fi
-        echo "$includes" > "$HOME/.gyp/include.gypi"
-      displayName: Override gnu target for arm64 and arm
-
   - script: |
       set -e
 
@@ -123,6 +103,8 @@ steps:
       set -e
 
       export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
+      export CC=$(which gcc-10)
+      export CXX=$(which g++-10)
       source ./build/azure-pipelines/linux/setup-env.sh --skip-sysroot
 
       for i in {1..5}; do # try 5 times

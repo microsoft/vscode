@@ -103,6 +103,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
 	addMode?: boolean;
+	removeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;

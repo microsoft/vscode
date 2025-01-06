@@ -8,6 +8,7 @@ import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { localize } from '../../../../nls.js';
 import { TestId } from './testId.js';
 
 export const enum TestResultState {
@@ -51,6 +52,12 @@ export const enum TestRunProfileBitset {
 	HasConfigurable = 1 << 5,
 	SupportsContinuousRun = 1 << 6,
 }
+
+export const testProfileBitset = {
+	[TestRunProfileBitset.Run]: localize('testing.runProfileBitset.run', 'Run'),
+	[TestRunProfileBitset.Debug]: localize('testing.runProfileBitset.debug', 'Debug'),
+	[TestRunProfileBitset.Coverage]: localize('testing.runProfileBitset.coverage', 'Coverage'),
+};
 
 /**
  * List of all test run profile bitset values.

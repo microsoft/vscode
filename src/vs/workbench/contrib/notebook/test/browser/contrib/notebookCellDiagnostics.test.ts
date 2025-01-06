@@ -121,7 +121,7 @@ suite('notebookCellDiagnostics', () => {
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle);
 			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
 
-			assert.strictEqual(cell?.executionError.get()?.message, 'something bad happened');
+			assert.strictEqual(cell?.executionErrorDiagnostic.get()?.message, 'something bad happened');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 1);
 		}, instantiationService);
 	});
@@ -163,8 +163,8 @@ suite('notebookCellDiagnostics', () => {
 
 			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
 
-			assert.strictEqual(cell?.executionError.get(), undefined);
-			assert.strictEqual(cell2?.executionError.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');
+			assert.strictEqual(cell?.executionErrorDiagnostic.get(), undefined);
+			assert.strictEqual(cell2?.executionErrorDiagnostic.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 0);
 			assert.equal(markerService.markers.get(cell2.uri)?.length, 1);
 		}, instantiationService);

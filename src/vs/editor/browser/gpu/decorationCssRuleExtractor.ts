@@ -63,8 +63,17 @@ export class DecorationCssRuleExtractor extends Disposable {
 					// Note that originally `.matches(rule.selectorText)` was used but this would
 					// not pick up pseudo-classes which are important to determine support of the
 					// returned styles.
-					if (rule.selectorText.includes(`.${className}`)) {
-						rules.push(rule);
+					//
+					// Since a selector could contain a class name lookup that is simple a prefix of
+					// the class name we are looking for, we need to also check the character after
+					// it.
+					const searchTerm = `.${className}`;
+					const index = rule.selectorText.indexOf(searchTerm);
+					if (index !== -1) {
+						const endOfResult = index + searchTerm.length;
+						if (rule.selectorText.length === endOfResult || rule.selectorText.substring(endOfResult, endOfResult + 1).match(/[ :]/)) {
+							rules.push(rule);
+						}
 					}
 				}
 			}

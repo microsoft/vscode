@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument, getActiveWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as nls from '../../../../nls.js';
@@ -240,15 +240,14 @@ if (PasteAction) {
 				// Since we can not call execCommand('paste') on a dom node with edit context set
 				// we added a hidden text area that receives the paste execution
 				// see nativeEditContext.ts for more details
-				const textAreaDomNode = NativeEditContextRegistry.getTextArea(focusedEditor.getId());
-				if (textAreaDomNode) {
-					const currentFocusedElement = getActiveWindow().document.activeElement;
-					textAreaDomNode.focus();
+				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
+				if (nativeEditContext) {
+					const textArea = nativeEditContext.textArea;
+					nativeEditContext.onWillPaste();
+					textArea.focus();
 					result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-					textAreaDomNode.textContent = '';
-					if (isHTMLElement(currentFocusedElement)) {
-						currentFocusedElement.focus();
-					}
+					textArea.domNode.textContent = '';
+					nativeEditContext.domNode.focus();
 				} else {
 					result = false;
 				}

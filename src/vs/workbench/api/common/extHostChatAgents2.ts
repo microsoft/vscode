@@ -490,7 +490,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						responseIsIncomplete: true
 					};
 				}
-				if (errorDetails?.responseIsRedacted) {
+				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
@@ -503,7 +503,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				e = e.cause;
 			}
 
-			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true } };
+			const isQuotaExceeded = e instanceof Error && e.name === 'ChatQuotaExceeded';
+			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded } };
 
 		} finally {
 			stream?.close();

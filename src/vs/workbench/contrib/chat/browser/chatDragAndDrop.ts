@@ -23,7 +23,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../common/chatModel.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
 
@@ -285,13 +285,14 @@ export class ChatDragAndDrop extends Themable {
 		return undefined;
 	}
 
-	private resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): IChatRequestVariableEntry[] {
+	private resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): ISymbolVariableEntry[] {
 		return symbols.map(symbol => {
 			const resource = URI.file(symbol.fsPath);
 			return {
 				kind: 'symbol',
 				id: symbolId(resource, symbol.range),
 				value: { uri: resource, range: symbol.range },
+				symbolKind: symbol.kind,
 				fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
 				name: symbol.name,
 				isDynamic: true
@@ -371,7 +372,7 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 				continue;
 			}
 
-			const resolvedFiles = await resolveFilesInDirectory(directory, fileSystemProvider, false);
+			const resolvedFiles = await resolveFilesInDirectory(directory, fileSystemProvider, true);
 			const resolvedFileContext = resolvedFiles.map(file => getResourceAttachContext(file, false)).filter(context => !!context);
 			nonDirectoryContext.push(...resolvedFileContext);
 		}
