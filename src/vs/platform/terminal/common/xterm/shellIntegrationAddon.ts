@@ -469,14 +469,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg1 = args[1]; // Value
 				const arg2 = args[2]; // Nonce
 				if (arg0 !== undefined && arg1 !== undefined) {
-					// const env = deserializeMessage(arg1);
+					const env = deserializeMessage(arg1);
 					// console.log('Inside VSCodeOscPt.EnvSingleVar Key', deserializeMessage(arg0));
 					// console.log('Inside VSCodeOscPt.EnvSingleVar Value', env);
 					// console.log('Check if arg2 is nonce', arg2);
 					// console.log('actual nonce', this._nonce);
 					// console.log("arg0", arg0);
 					// console.log("arg1", arg1);
-					this._createOrGetShellEnvDetection().setSingleEnvironmentVar(arg0, arg1, arg2 === this._nonce);
+					this._createOrGetShellEnvDetection().setSingleEnvironmentVar(arg0, env, arg2 === this._nonce);
 				}
 				return true;
 			}
