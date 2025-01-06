@@ -62,6 +62,7 @@ export interface LogFileOptions {
 	/** Optional. Specifies whether to start retrieving log entries in reverse order. */
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
+	readonly shortStats?: boolean;
 }
 
 function parseVersion(raw: string): string {
@@ -1288,6 +1289,10 @@ export class Repository {
 			} else {
 				args.push(options.hash);
 			}
+		}
+
+		if (options?.shortStats) {
+			args.push('--shortstat');
 		}
 
 		if (options?.sortByAuthorDate) {
