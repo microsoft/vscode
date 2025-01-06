@@ -105,12 +105,12 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.deepStrictEqual(actual[0].manifest, manifest);
 	});
 
-	test('scan user extension', async () => {
+	test('scan user extensions', async () => {
 		const manifest: Partial<IScannedExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub', __metadata: { id: 'uuid' } });
 		const extensionLocation = await aUserExtension(manifest);
 		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-		const actual = await testObject.scanUserExtensions({});
+		const actual = await testObject.scanAllUserExtensions();
 
 		assert.deepStrictEqual(actual.length, 1);
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name', uuid: 'uuid' });
@@ -175,24 +175,24 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.deepStrictEqual(actual[1].identifier, { id: 'pub.name2' });
 	});
 
-	test('scan user extension with different versions', async () => {
+	test('scan all user extensions with different versions', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.1' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.2' }));
-		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-		const actual = await testObject.scanUserExtensions({});
+		const actual = await testObject.scanAllUserExtensions({ includeAllVersions: false, includeInvalid: false });
 
 		assert.deepStrictEqual(actual.length, 1);
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
 		assert.deepStrictEqual(actual[0].manifest.version, '1.0.2');
 	});
 
-	test('scan user extension include all versions', async () => {
+	test('scan all user extensions include all versions', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.1' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.2' }));
-		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-		const actual = await testObject.scanUserExtensions({ includeAllVersions: true });
+		const actual = await testObject.scanAllUserExtensions();
 
 		assert.deepStrictEqual(actual.length, 2);
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
@@ -201,35 +201,35 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.deepStrictEqual(actual[1].manifest.version, '1.0.2');
 	});
 
-	test('scan user extension with different versions and higher version is not compatible', async () => {
+	test('scan all user extensions with different versions and higher version is not compatible', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.1' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.2', engines: { vscode: '^1.67.0' } }));
-		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-		const actual = await testObject.scanUserExtensions({});
+		const actual = await testObject.scanAllUserExtensions({ includeAllVersions: false, includeInvalid: false });
 
 		assert.deepStrictEqual(actual.length, 1);
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
 		assert.deepStrictEqual(actual[0].manifest.version, '1.0.1');
 	});
 
-	test('scan exclude invalid extensions', async () => {
+	test('scan all user extensions exclude invalid extensions', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub', engines: { vscode: '^1.67.0' } }));
-		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-		const actual = await testObject.scanUserExtensions({});
+		const actual = await testObject.scanAllUserExtensions({ includeAllVersions: false, includeInvalid: false });
 
 		assert.deepStrictEqual(actual.length, 1);
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
 	});
 
-	test('scan include invalid extensions', async () => {
+	test('scan all user extensions include invalid extensions', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub', engines: { vscode: '^1.67.0' } }));
-		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-		const actual = await testObject.scanUserExtensions({ includeInvalid: true });
+		const actual = await testObject.scanAllUserExtensions({ includeAllVersions: false, includeInvalid: true });
 
 		assert.deepStrictEqual(actual.length, 2);
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
@@ -257,12 +257,12 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.deepStrictEqual(actual[0].manifest.version, '1.0.0');
 	});
 
-	test('scan extension with default nls replacements', async () => {
+	test('scan all user extensions with default nls replacements', async () => {
 		const extensionLocation = await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', displayName: '%displayName%' }));
 		await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.nls.json'), VSBuffer.fromString(JSON.stringify({ displayName: 'Hello World' })));
-		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-		const actual = await testObject.scanUserExtensions({});
+		const actual = await testObject.scanAllUserExtensions();
 
 		assert.deepStrictEqual(actual.length, 1);
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
@@ -277,11 +277,11 @@ suite('NativeExtensionsScanerService Test', () => {
 		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		translations = { 'pub.name': nlsLocation.fsPath };
-		const actual = await testObject.scanUserExtensions({ language: 'en' });
+		const actual = await testObject.scanExistingExtension(extensionLocation, ExtensionType.User, { language: 'en' });
 
-		assert.deepStrictEqual(actual.length, 1);
-		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
-		assert.deepStrictEqual(actual[0].manifest.displayName, 'Hello World EN');
+		assert.ok(actual !== null);
+		assert.deepStrictEqual(actual!.identifier, { id: 'pub.name' });
+		assert.deepStrictEqual(actual!.manifest.displayName, 'Hello World EN');
 	});
 
 	test('scan extension falls back to default nls replacements', async () => {
@@ -292,11 +292,11 @@ suite('NativeExtensionsScanerService Test', () => {
 		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		translations = { 'pub.name2': nlsLocation.fsPath };
-		const actual = await testObject.scanUserExtensions({ language: 'en' });
+		const actual = await testObject.scanExistingExtension(extensionLocation, ExtensionType.User, { language: 'en' });
 
-		assert.deepStrictEqual(actual.length, 1);
-		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
-		assert.deepStrictEqual(actual[0].manifest.displayName, 'Hello World');
+		assert.ok(actual !== null);
+		assert.deepStrictEqual(actual!.identifier, { id: 'pub.name' });
+		assert.deepStrictEqual(actual!.manifest.displayName, 'Hello World');
 	});
 
 	async function aUserExtension(manifest: Partial<IScannedExtensionManifest>): Promise<URI> {
