@@ -318,6 +318,7 @@ type EntitlementClassification = {
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
 	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
 	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
+	quotaResetDate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The date the quota will reset' };
 	owner: 'bpasero';
 	comment: 'Reporting chat setup entitlements';
 };
@@ -326,6 +327,7 @@ type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	quotaChat: number | undefined;
 	quotaCompletions: number | undefined;
+	quotaResetDate: string | undefined;
 };
 
 interface IEntitlementsResponse {
@@ -536,7 +538,8 @@ class ChatSetupRequests extends Disposable {
 		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
 			entitlement: entitlements.entitlement,
 			quotaChat: entitlementsResponse.limited_user_quotas?.chat,
-			quotaCompletions: entitlementsResponse.limited_user_quotas?.completions
+			quotaCompletions: entitlementsResponse.limited_user_quotas?.completions,
+			quotaResetDate: entitlementsResponse.limited_user_reset_date
 		});
 
 		return entitlements;
