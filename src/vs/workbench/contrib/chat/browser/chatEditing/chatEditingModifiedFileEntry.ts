@@ -362,7 +362,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return true;
 	}
 
-	async discardHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+	async rejectHunk(change: DetailedLineRangeMapping): Promise<boolean> {
 		if (!this._diffInfo.get().changes.includes(change)) {
 			return false;
 		}

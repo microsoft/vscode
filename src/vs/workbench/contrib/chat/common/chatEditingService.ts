@@ -122,7 +122,7 @@ export interface IModifiedFileEntry {
 	readonly maxLineNumber: IObservable<number>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
 	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
-	discardHunk(change: DetailedLineRangeMapping): Promise<boolean>;
+	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
 	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;

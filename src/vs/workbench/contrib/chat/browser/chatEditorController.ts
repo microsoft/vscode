@@ -511,7 +511,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	undoNearestChange(closestWidget: DiffHunkWidget | undefined): void {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
-			closestWidget.undo();
+			closestWidget.reject();
 			this.revealNext();
 		}
 	}
@@ -648,9 +648,9 @@ class DiffHunkWidget implements IOverlayWidget {
 
 	// ---
 
-	undo(): void {
+	reject(): void {
 		if (this._versionId === this._editor.getModel()?.getVersionId()) {
-			this.entry.discardHunk(this._change);
+			this.entry.rejectHunk(this._change);
 		}
 	}
 
