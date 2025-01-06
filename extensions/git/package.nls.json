@@ -125,7 +125,6 @@
 	"command.viewChanges": "View Changes",
 	"command.viewStagedChanges": "View Staged Changes",
 	"command.viewUntrackedChanges": "View Untracked Changes",
-	"command.viewAllChanges": "View All Changes",
 	"command.viewCommit": "View Commit",
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
