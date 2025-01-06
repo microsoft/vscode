@@ -240,8 +240,6 @@ const enum VSCodeOscPt {
 	 */
 	Env = 'Env',
 
-	EnvSingleVar = 'EnvSingleVar',
-
 	EnvStart = 'EnvStart',
 
 	EnvEntry = 'EnvEntry',
@@ -470,12 +468,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const arg2 = args[2]; // Nonce
 				if (arg0 !== undefined && arg1 !== undefined) {
 					const env = deserializeMessage(arg1);
-					// console.log('Inside VSCodeOscPt.EnvSingleVar Key', deserializeMessage(arg0));
-					// console.log('Inside VSCodeOscPt.EnvSingleVar Value', env);
-					// console.log('Check if arg2 is nonce', arg2);
-					// console.log('actual nonce', this._nonce);
-					// console.log("arg0", arg0);
-					// console.log("arg1", arg1);
 					this._createOrGetShellEnvDetection().setSingleEnvironmentVar(arg0, env, arg2 === this._nonce);
 				}
 				return true;
@@ -484,21 +476,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetShellEnvDetection().endSingleEnvironmentVar(args[0] === this._nonce);
 				return true;
 			}
-			// Now Broken down into EnvStart, EnvEntry, EnvEnd
-			// case VSCodeOscPt.EnvSingleVar: {
-			// 	const arg0 = args[0];
-			// 	const arg1 = args[1];
-			// 	if (arg0 !== undefined && arg1 !== undefined) {
-			// 		const env = deserializeMessage(arg1);
-			// 		if (arg0 === 'PS1') {
-			// 			console.log("Take a very close look at PS1");
-			// 		}
-			// 		console.log('Inside VSCodeOscPt.EnvSingleVar Key?', deserializeMessage(arg0));
-			// 		console.log('Inside VSCodeOscPt.EnvSingleVar Value', env);
-			// 		// this._createOrGetShellEnvDetection().setSingleEnvironmentVariable(env, arg1 === this._nonce);
-			// 	}
-			// 	return true;
-			// }
 			case VSCodeOscPt.RightPromptStart: {
 				this._createOrGetCommandDetection(this._terminal).handleRightPromptStart();
 				return true;

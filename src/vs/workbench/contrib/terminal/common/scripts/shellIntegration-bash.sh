@@ -215,7 +215,6 @@ __vsc_update_cwd() {
 }
 
 __vsc_update_env() {
-	# TODO: EnvStart with nonce
 	builtin printf '\e]633;EnvStart;%s;\a' $__vsc_nonce
 	for var in $(compgen -v); do
 		if printenv "$var" >/dev/null 2>&1; then
@@ -223,7 +222,6 @@ __vsc_update_env() {
 			builtin printf '\e]633;EnvEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
 		fi
 	done
-	# TODO: EnvEnd with nonce
 	builtin printf '\e]633;EnvEnd;%s;\a' $__vsc_nonce
 }
 
