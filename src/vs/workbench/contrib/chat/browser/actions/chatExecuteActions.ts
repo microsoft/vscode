@@ -85,7 +85,9 @@ export class ToggleAgentModeAction extends Action2 {
 			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode"),
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+				ChatContextKeys.Editing.hasToolsAgent),
 			icon: Codicon.edit,
 			toggled: {
 				condition: ChatContextKeys.Editing.agentMode,
@@ -104,7 +106,9 @@ export class ToggleAgentModeAction extends Action2 {
 				{
 					id: MenuId.ChatExecute,
 					order: 1,
-					when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+						ChatContextKeys.Editing.hasToolsAgent),
 					group: 'navigation',
 				},
 			]
