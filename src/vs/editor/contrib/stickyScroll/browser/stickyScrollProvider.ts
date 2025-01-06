@@ -21,6 +21,8 @@ export class StickyLineCandidate {
 		public readonly startLineNumber: number,
 		public readonly endLineNumber: number,
 		public readonly nestingDepth: number,
+		public readonly topOfElement: number,
+		public readonly height: number,
 	) { }
 }
 
@@ -150,7 +152,8 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		outlineModel: StickyElement,
 		result: StickyLineCandidate[],
 		depth: number,
-		lastStartLineNumber: number
+		lastStartLineNumber: number,
+		topOfElement: number,
 	): void {
 		if (outlineModel.children.length === 0) {
 			return;
@@ -177,11 +180,12 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				const childEndLine = child.range.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
-					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
-					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, childStartLine);
+					const lineHeight = this._editor.getLineHeightForLineNumber(childStartLine);
+					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1, topOfElement, lineHeight));
+					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, childStartLine, topOfElement + lineHeight);
 				}
 			} else {
-				this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth, lastStartLineNumber);
+				this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth, lastStartLineNumber, topOfElement);
 			}
 		}
 	}
@@ -191,7 +195,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			return [];
 		}
 		let stickyLineCandidates: StickyLineCandidate[] = [];
-		this.getCandidateStickyLinesIntersectingFromStickyModel(range, this._model.element, stickyLineCandidates, 0, -1);
+		this.getCandidateStickyLinesIntersectingFromStickyModel(range, this._model.element, stickyLineCandidates, 0, -1, 0);
 		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
 
 		if (hiddenRanges) {

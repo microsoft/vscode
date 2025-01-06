@@ -16,7 +16,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { hotClassGetOriginalInstance } from '../../../../../platform/observable/common/wrapInHotClass.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
@@ -36,10 +36,24 @@ import { ObservableContextKeyService } from '../utils.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsView } from '../view/inlineCompletionsView.js';
+import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 
 export class InlineCompletionsController extends Disposable {
+	private static readonly _instances = new Set<InlineCompletionsController>();
+
 	public static hot = createHotClass(InlineCompletionsController);
 	public static ID = 'editor.contrib.inlineCompletionsController';
+
+	/**
+	 * Find the controller in the focused editor or in the outer editor (if applicable)
+	 */
+	public static getInFocusedEditorOrParent(accessor: ServicesAccessor): InlineCompletionsController | null {
+		const outerEditor = getOuterEditor(accessor);
+		if (!outerEditor) {
+			return null;
+		}
+		return InlineCompletionsController.get(outerEditor);
+	}
 
 	public static get(editor: ICodeEditor): InlineCompletionsController | null {
 		return hotClassGetOriginalInstance(editor.getContribution<InlineCompletionsController>(InlineCompletionsController.ID));
@@ -116,7 +130,29 @@ export class InlineCompletionsController extends Disposable {
 	) {
 		super();
 
+		InlineCompletionsController._instances.add(this);
+		this._register(toDisposable(() => InlineCompletionsController._instances.delete(this)));
+
+		this._register(autorun(reader => {
+			// Cancel all other inline completions when a new one starts
+			const model = this.model.read(reader);
+			if (!model) { return; }
+			if (model.state.read(reader) !== undefined) {
+				for (const ctrl of InlineCompletionsController._instances) {
+					if (ctrl !== this) {
+						ctrl.reject();
+					}
+				}
+			}
+		}));
+
 		this._register(runOnChange(this._editorObs.onDidType, (_value, _changes) => {
+			if (this._enabled.get()) {
+				this.model.get()?.trigger();
+			}
+		}));
+
+		this._register(runOnChange(this._editorObs.onDidPaste, (_value, _changes) => {
 			if (this._enabled.get()) {
 				this.model.get()?.trigger();
 			}
@@ -146,7 +182,7 @@ export class InlineCompletionsController extends Disposable {
 				}
 				const m = this.model.get();
 				if (!m) { return; }
-				if (m.inlineCompletionState.get()?.primaryGhostText) {
+				if (m.state.get()?.kind === 'ghostText') {
 					this.model.get()?.stop();
 				} else if (m.state.get()?.inlineCompletion) {
 					this.model.get()?.collapseInlineEdit();
@@ -163,14 +199,16 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
-			if (this.model.get()?.inlineEditAvailable.get()) {
-				// dont hide inline edits on blur
+			const model = this.model.get();
+			if (!model) { return; }
+			if (model.state.get()?.inlineCompletion?.request.isExplicitRequest && model.inlineEditAvailable.get()) {
+				// dont hide inline edits on blur when requested explicitly
 				return;
 			}
 
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidBlurEditorWidget */
-				this.model.get()?.stop('automatic', tx);
+				model.stop('automatic', tx);
 			});
 		}));
 

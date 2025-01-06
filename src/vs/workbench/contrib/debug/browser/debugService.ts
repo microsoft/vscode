@@ -207,7 +207,7 @@ export class DebugService implements IDebugService {
 		this.disposables.add(extensionService.onWillStop(evt => {
 			evt.veto(
 				this.model.getSessions().length > 0,
-				nls.localize('active debug session', 'A debug session is still running.'),
+				nls.localize('active debug session', 'A debug session is still running that would terminate.'),
 			);
 		}));
 

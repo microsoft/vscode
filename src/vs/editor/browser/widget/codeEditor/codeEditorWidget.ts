@@ -290,6 +290,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
+		if (codeEditorWidgetOptions.contextKeyValues) {
+			for (const [key, value] of Object.entries(codeEditorWidgetOptions.contextKeyValues)) {
+				this._contextKeyService.createKey(key, value);
+			}
+		}
 		this._notificationService = notificationService;
 		this._codeEditorService = codeEditorService;
 		this._commandService = commandService;
@@ -391,7 +396,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getId(): string {
-		return this.getEditorType() + ':' + this._id;
+		return this.getEditorType() + ':' + this.getIdNumber();
+	}
+
+	public getIdNumber(): number {
+		return this._id;
 	}
 
 	public getEditorType(): string {
@@ -587,6 +596,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const maxCol = this._modelData.model.getLineMaxColumn(lineNumber);
 		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
+	}
+
+	public getLineHeightForLineNumber(lineNumber: number): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(lineNumber);
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
@@ -1590,11 +1606,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const top = CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, position.lineNumber, position.column) - this.getScrollTop();
 		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this.getScrollLeft();
-
+		const height = this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(position.lineNumber);
 		return {
 			top: top,
 			left: left,
-			height: options.get(EditorOption.lineHeight)
+			height
 		};
 	}
 
@@ -1988,6 +2004,12 @@ export interface ICodeEditorWidgetOptions {
 	 * Defaults to MenuId.SimpleEditorContext or MenuId.EditorContext depending on whether the widget is simple.
 	 */
 	contextMenuId?: MenuId;
+
+	/**
+	 * Define extra context keys that will be defined in the context service
+	 * for the editor.
+	 */
+	contextKeyValues?: Record<string, ContextKeyValue>;
 }
 
 class ModelData {

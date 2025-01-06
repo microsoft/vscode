@@ -97,6 +97,7 @@ export class LinesLayout {
 	private _lineHeight: number;
 	private _paddingTop: number;
 	private _paddingBottom: number;
+	private _specialLineHeights = new Map<number, number>();
 
 	constructor(lineCount: number, lineHeight: number, paddingTop: number, paddingBottom: number) {
 		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
@@ -395,16 +396,44 @@ export class LinesLayout {
 	}
 
 	/**
+	 * Add special line height
+	 */
+	public addSpecialLineHeight(lineNumber: number, height: number): void {
+		this._specialLineHeights.set(lineNumber, height);
+	}
+
+	/**
+	 * Remove special line height
+	 */
+	public removeSpecialLineHeight(lineNumber: number): void {
+		this._specialLineHeights.delete(lineNumber);
+	}
+
+	/**
 	 * Get the sum of heights for all objects.
 	 *
 	 * @return The sum of heights for all objects.
 	 */
 	public getLinesTotalHeight(): number {
 		this._checkPendingChanges();
-		const linesHeight = this._lineHeight * this._lineCount;
+		const linesHeight = this._linesHeight();
 		const whitespacesHeight = this.getWhitespacesTotalHeight();
 
 		return linesHeight + whitespacesHeight + this._paddingTop + this._paddingBottom;
+	}
+
+	private _linesHeight(_untilLineNumber?: number): number {
+		const untilLineNumber = _untilLineNumber ?? this._lineCount;
+		let specialLinesHeight = 0;
+		let numberOfSpecialLines = 0;
+		this._specialLineHeights.forEach((height, lineNumber) => {
+			if (lineNumber <= untilLineNumber) {
+				specialLinesHeight += height;
+				numberOfSpecialLines++;
+			}
+		});
+		const nonSpecialLinesHeight = (untilLineNumber - numberOfSpecialLines) * this._lineHeight;
+		return specialLinesHeight + nonSpecialLinesHeight;
 	}
 
 	/**
@@ -488,7 +517,7 @@ export class LinesLayout {
 
 		let previousLinesHeight: number;
 		if (lineNumber > 1) {
-			previousLinesHeight = this._lineHeight * (lineNumber - 1);
+			previousLinesHeight = this._linesHeight(lineNumber - 1);
 		} else {
 			previousLinesHeight = 0;
 		}
@@ -496,6 +525,13 @@ export class LinesLayout {
 		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber - (includeViewZones ? 1 : 0));
 
 		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
+	}
+
+	public getLineHeightForLineNumber(lineNumber: number): number {
+		if (this._specialLineHeights.has(lineNumber)) {
+			return this._specialLineHeights.get(lineNumber)!;
+		}
+		return this._lineHeight;
 	}
 
 	/**
@@ -507,7 +543,7 @@ export class LinesLayout {
 	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones = false): number {
 		this._checkPendingChanges();
 		lineNumber = lineNumber | 0;
-		const previousLinesHeight = this._lineHeight * lineNumber;
+		const previousLinesHeight = this._linesHeight(lineNumber);
 		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber + (includeViewZones ? 1 : 0));
 		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
 	}
@@ -578,13 +614,13 @@ export class LinesLayout {
 		}
 
 		const linesCount = this._lineCount | 0;
-		const lineHeight = this._lineHeight;
 		let minLineNumber = 1;
 		let maxLineNumber = linesCount;
 
 		while (minLineNumber < maxLineNumber) {
 			const midLineNumber = ((minLineNumber + maxLineNumber) / 2) | 0;
 
+			const lineHeight = this.getLineHeightForLineNumber(midLineNumber);
 			const midLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(midLineNumber) | 0;
 
 			if (verticalOffset >= midLineNumberVerticalOffset + lineHeight) {
@@ -617,7 +653,6 @@ export class LinesLayout {
 		this._checkPendingChanges();
 		verticalOffset1 = verticalOffset1 | 0;
 		verticalOffset2 = verticalOffset2 | 0;
-		const lineHeight = this._lineHeight;
 
 		// Find first line number
 		// We don't live in a perfect world, so the line number might start before or after verticalOffset1
@@ -650,7 +685,7 @@ export class LinesLayout {
 		if (startLineNumberVerticalOffset >= STEP_SIZE) {
 			// Compute a delta that guarantees that lines are positioned at `lineHeight` increments
 			bigNumbersDelta = Math.floor(startLineNumberVerticalOffset / STEP_SIZE) * STEP_SIZE;
-			bigNumbersDelta = Math.floor(bigNumbersDelta / lineHeight) * lineHeight;
+			bigNumbersDelta = Math.floor(bigNumbersDelta / this._lineHeight) * this._lineHeight;
 
 			currentLineRelativeOffset -= bigNumbersDelta;
 		}
@@ -662,7 +697,7 @@ export class LinesLayout {
 
 		// Figure out how far the lines go
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-
+			const lineHeight = this.getLineHeightForLineNumber(lineNumber);
 			if (centeredLineNumber === -1) {
 				const currentLineTop = currentVerticalOffset;
 				const currentLineBottom = currentVerticalOffset + lineHeight;
@@ -715,7 +750,8 @@ export class LinesLayout {
 			}
 		}
 		if (completelyVisibleStartLineNumber < completelyVisibleEndLineNumber) {
-			if (endLineNumberVerticalOffset + lineHeight > verticalOffset2) {
+			const endLineHeight = this.getLineHeightForLineNumber(endLineNumber);
+			if (endLineNumberVerticalOffset + endLineHeight > verticalOffset2) {
 				completelyVisibleEndLineNumber--;
 			}
 		}
@@ -728,7 +764,7 @@ export class LinesLayout {
 			centeredLineNumber: centeredLineNumber,
 			completelyVisibleStartLineNumber: completelyVisibleStartLineNumber,
 			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber,
-			lineHeight: this._lineHeight,
+			lineHeight: this._lineHeight
 		};
 	}
 
@@ -740,7 +776,7 @@ export class LinesLayout {
 
 		let previousLinesHeight: number;
 		if (afterLineNumber >= 1) {
-			previousLinesHeight = this._lineHeight * afterLineNumber;
+			previousLinesHeight = this._linesHeight(afterLineNumber);
 		} else {
 			previousLinesHeight = 0;
 		}

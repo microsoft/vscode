@@ -37,6 +37,8 @@
 .monaco-editor .sticky-line-number .codicon-folding-collapsed {
 	float: right;
 	transition: var(--vscode-editorStickyScroll-foldingOpacityTransition);
+	display: flex;
+	align-items: center;
 }
 
 .monaco-editor .sticky-line-content {
@@ -48,6 +50,9 @@
 .monaco-editor .sticky-line-number-inner {
 	display: inline-block;
 	text-align: right;
+	line-height: normal;
+	position: absolute;
+	bottom: 0;
 }
 
 .monaco-editor .sticky-widget {

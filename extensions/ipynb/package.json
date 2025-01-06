@@ -10,7 +10,6 @@
     "vscode": "^1.57.0"
   },
   "enabledApiProposals": [
-    "documentPaste",
     "diffContentOptions"
   ],
   "activationEvents": [

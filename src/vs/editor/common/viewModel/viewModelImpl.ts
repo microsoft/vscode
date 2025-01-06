@@ -415,6 +415,21 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._handleVisibleLinesChanged();
 		}));
 
+		this._register(this.model.onDidChangeSpecialLineHeight((e) => {
+			e.changes.forEach((change) => {
+				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
+					return;
+				}
+				const lineNumber = change.lineNumber;
+				const lineHeight = change.lineHeight;
+				if (lineHeight !== null) {
+					this.viewLayout.addSpecialLineHeight(lineNumber, lineHeight);
+				} else {
+					this.viewLayout.removeSpecialLineHeight(lineNumber);
+				}
+			});
+		}));
+
 		this._register(this.model.onDidChangeTokens((e) => {
 			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
 			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
@@ -715,6 +730,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
 	}
 
+	public getSpecialFontInfoForPosition(position: Position): { fontFamily?: string; fontWeight?: string; fontSize?: number } | null {
+		return this._decorations.getSpecialFontInfoForPosition(position);
+	}
+
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
@@ -735,6 +754,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
 		const lineData = this._lines.getViewLineData(lineNumber);
+		const affectedBySpecialFontInfo = this.model.affectedBySpecialFontInfo(lineNumber);
 
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
@@ -755,7 +775,8 @@ export class ViewModel extends Disposable implements IViewModel {
 			lineData.tokens,
 			inlineDecorations,
 			tabSize,
-			lineData.startVisibleColumn
+			lineData.startVisibleColumn,
+			affectedBySpecialFontInfo
 		);
 	}
 

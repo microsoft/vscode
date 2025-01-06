@@ -46,6 +46,7 @@ import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/
 import { DropIntoEditorController } from '../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -84,6 +85,7 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, Work
 import { IChatRequestVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart } from '../common/chatParserTypes.js';
 import { IChatFollowup } from '../common/chatService.js';
+import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
@@ -99,6 +101,7 @@ import { ChatEditingRemoveAllFilesAction, ChatEditingShowChangesAction } from '.
 import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
+import { ChatFileReference } from './contrib/chatDynamicVariables/chatFileReference.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 
 const $ = dom.$;
@@ -150,10 +153,51 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
-	public getAttachedAndImplicitContext(): IChatRequestVariableEntry[] {
+	public getAttachedAndImplicitContext(sessionId: string): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
 			contextArr.push(this.implicitContext.toBaseEntry());
+		}
+
+		// retrieve links from the input editor
+		const linkOccurrences = this.inputEditor.getContribution<LinkDetector>(LinkDetector.ID)?.getAllLinkOccurrences() ?? [];
+		const linksSeen = new Set<string>();
+		for (const linkOccurrence of linkOccurrences) {
+			const link = linkOccurrence.link;
+			const uri = URI.isUri(link.url) ? link.url : link.url ? URI.parse(link.url) : undefined;
+			if (!uri || linksSeen.has(uri.toString())) {
+				continue;
+			}
+
+			linksSeen.add(uri.toString());
+			contextArr.push({
+				kind: 'link',
+				id: uri.toString(),
+				name: uri.fsPath,
+				value: uri,
+				isFile: false,
+				isDynamic: true,
+			});
+		}
+
+		// factor in nested file references into the implicit context
+		const variables = this.variableService.getDynamicVariables(sessionId);
+		for (const variable of variables) {
+			if (!(variable instanceof ChatFileReference)) {
+				continue;
+			}
+
+			for (const childUri of variable.validFileReferenceUris) {
+				contextArr.push({
+					id: variable.id,
+					name: basename(childUri.path),
+					value: childUri,
+					isSelection: false,
+					enabled: true,
+					isFile: true,
+					isDynamic: true,
+				});
+			}
 		}
 
 		return contextArr;
@@ -287,6 +331,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IChatVariablesService private readonly variableService: IChatVariablesService,
 	) {
 		super();
 
@@ -626,7 +671,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputEditorElement = dom.append(editorContainer!, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID, LinkDetector.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 
@@ -980,7 +1025,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const clearButton = new Button(widget, {
 			supportIcons: true,
 			hoverDelegate,
-			title: localize('chat.attachment.clearButton', "Remove from context"),
+			title: localize('chat.attachment.clearButton', "Remove from context")
 		});
 
 		// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
@@ -1166,6 +1211,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			suggestedFilesInWorkingSetCount = entries.filter(e => e.kind === 'reference' && e.state === WorkingSetEntryState.Suggested).length;
 		}
+		overviewTitle.ariaLabel = overviewTitle.textContent;
+		overviewTitle.tabIndex = 0;
 
 		if (excludedEntries.length > 0) {
 			overviewFileCount.textContent = ' ' + localize('chatEditingSession.excludedFiles', '({0}/{1} files)', this.chatEditingService.editingSessionFileLimit + excludedEntries.length, this.chatEditingService.editingSessionFileLimit);
@@ -1282,7 +1329,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		dom.append(addFilesElement, button.element);
 
-		// REALTED files (after Add Files...)
+		// RELATED files (after Add Files...)
 		for (const [uri, metadata] of chatEditingSession.workingSet) {
 			if (metadata.state !== WorkingSetEntryState.Suggested) {
 				continue;

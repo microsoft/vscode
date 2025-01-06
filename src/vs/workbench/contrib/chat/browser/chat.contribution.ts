@@ -37,7 +37,7 @@ import { ILanguageModelStatsService, LanguageModelStatsService } from '../common
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
-import { PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
+import { EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { ChatCommandCenterRendering, registerChatActions } from './actions/chatActions.js';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from './actions/chatClearActions.js';
 import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
@@ -81,6 +81,8 @@ import { Extensions, IConfigurationMigrationRegistry } from '../../../common/con
 import { ChatEditorOverlayController } from './chatEditorOverlay.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from './chatQuotasService.js';
+import { BuiltinToolsContribution } from './tools/tools.js';
+import { ChatSetupContribution } from './chatSetup.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -120,12 +122,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview'],
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control Copilot (requires {0}).", '`#window.commandCenter#`'),
 			default: true
-		},
-		'chat.experimental.offerSetup': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize('chat.experimental.offerSetup', "Controls whether setup is offered for Chat if not done already."),
-			tags: ['experimental', 'onExP']
 		},
 		'chat.editing.alwaysSaveWithGeneratedChanges': {
 			type: 'boolean',
@@ -211,6 +207,7 @@ class ChatResolverContribution extends Disposable {
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
 AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
+AccessibleViewRegistry.register(new EditsChatAccessibilityHelp());
 
 registerEditorFeature(ChatInputBoxContentProvider);
 
@@ -322,7 +319,9 @@ registerWorkbenchContribution2(ChatEditorSaving.ID, ChatEditorSaving, WorkbenchP
 registerWorkbenchContribution2(ChatEditorAutoSaveDisabler.ID, ChatEditorAutoSaveDisabler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatQuotasStatusBarEntry.ID, ChatQuotasStatusBarEntry, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();

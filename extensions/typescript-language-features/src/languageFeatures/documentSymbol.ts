@@ -35,6 +35,16 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 
 class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
+	private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
+	private readonly _interfaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
+	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
+	private readonly _fieldLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
+
+	private readonly _classFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 80, fontWeight: 'bold', fontFamily: 'Arial' });
+	private readonly _interfaceFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 80, fontWeight: 'bold', fontFamily: 'Times New Roman' });
+	private readonly _methodFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 50, fontWeight: 'italic', fontFamily: 'Courier New' });
+	private readonly _fieldFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 20, fontWeight: 'italic', fontFamily: 'Georgia' });
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly cachedResponse: CachedResponse<Proto.NavTreeResponse>,
@@ -56,6 +66,53 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		const result: vscode.DocumentSymbol[] = [];
 		for (const item of response.body.childItems) {
 			TypeScriptDocumentSymbolProvider.convertNavTree(document.uri, result, item);
+		}
+
+		const activeTextEditor = vscode.window.activeTextEditor;
+		if (activeTextEditor) {
+			const classRanges: vscode.Range[] = [];
+			const classRangesFonts: vscode.Range[] = [];
+			const interfaceRanges: vscode.Range[] = [];
+			const interfaceRangesFonts: vscode.Range[] = [];
+			const functionRanges: vscode.Range[] = [];
+			const functionRangesFonts: vscode.Range[] = [];
+			const fieldRanges: vscode.Range[] = [];
+			const fieldRangesFonts: vscode.Range[] = [];
+
+			for (const res of result) {
+				switch (res.kind) {
+					case (vscode.SymbolKind.Class): {
+						classRanges.push(new vscode.Range(res.range.start.line, 0, res.range.start.line, 0));
+						classRangesFonts.push(activeTextEditor.document.validateRange(new vscode.Range(res.range.start.line, 0, res.range.start.line, Infinity)));
+						break;
+					}
+					case (vscode.SymbolKind.Interface): {
+						interfaceRanges.push(new vscode.Range(res.range.start.line, 0, res.range.start.line, 0));
+						interfaceRangesFonts.push(activeTextEditor.document.validateRange(new vscode.Range(res.range.start.line, 0, res.range.start.line, Infinity)));
+						break;
+					}
+					case (vscode.SymbolKind.Function): {
+						functionRanges.push(new vscode.Range(res.range.start.line, 0, res.range.start.line, 0));
+						functionRangesFonts.push(activeTextEditor.document.validateRange(new vscode.Range(res.range.start.line, 0, res.range.start.line, Infinity)));
+						break;
+					}
+					case (vscode.SymbolKind.Field): {
+						fieldRanges.push(new vscode.Range(res.range.start.line, 0, res.range.start.line, 0));
+						fieldRangesFonts.push(activeTextEditor.document.validateRange(new vscode.Range(res.range.start.line, 0, res.range.start.line, Infinity)));
+						break;
+					}
+				}
+			}
+
+			activeTextEditor.setDecorations(this._classLineHeightDecorationType, classRanges);
+			activeTextEditor.setDecorations(this._interfaceLineHeightDecorationType, interfaceRanges);
+			activeTextEditor.setDecorations(this._methodLineHeightDecorationType, functionRanges);
+			activeTextEditor.setDecorations(this._fieldLineHeightDecorationType, fieldRanges);
+
+			activeTextEditor.setDecorations(this._classFontSizeDecorationType, classRangesFonts);
+			activeTextEditor.setDecorations(this._interfaceFontSizeDecorationType, interfaceRangesFonts);
+			activeTextEditor.setDecorations(this._methodFontSizeDecorationType, functionRangesFonts);
+			activeTextEditor.setDecorations(this._fieldFontSizeDecorationType, fieldRangesFonts);
 		}
 		return result;
 	}

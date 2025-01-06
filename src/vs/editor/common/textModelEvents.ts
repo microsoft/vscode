@@ -234,6 +234,32 @@ export class ModelRawLineChanged {
 	}
 }
 
+
+/**
+ * An event describing that a line height has changed in the model.
+ * @internal
+ */
+export class ModelLineHeightChanged {
+	/**
+	 * Editor owner ID
+	 */
+	public readonly ownerId: number;
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+	/**
+	 * The line height on the line.
+	 */
+	public readonly lineHeight: number | null;
+
+	constructor(ownerId: number, lineNumber: number, lineHeight: number | null) {
+		this.ownerId = ownerId;
+		this.lineNumber = lineNumber;
+		this.lineHeight = lineHeight;
+	}
+}
+
 /**
  * An event describing that line(s) have been deleted in a model.
  * @internal
@@ -357,6 +383,19 @@ export class ModelInjectedTextChangedEvent {
 	public readonly changes: ModelRawLineChanged[];
 
 	constructor(changes: ModelRawLineChanged[]) {
+		this.changes = changes;
+	}
+}
+
+/**
+ * An event describing a change of a line height.
+ * @internal
+ */
+export class ModelLineHeightChangedEvent {
+
+	public readonly changes: ModelLineHeightChanged[];
+
+	constructor(changes: ModelLineHeightChanged[]) {
 		this.changes = changes;
 	}
 }

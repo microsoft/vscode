@@ -63,6 +63,9 @@ const serverResourceIncludes = [
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
 
+	// External Terminal
+	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+
 	// Terminal shell integration
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1',

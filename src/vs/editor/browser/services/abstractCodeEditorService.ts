@@ -458,6 +458,11 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public afterContentClassName: string | undefined;
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
+	public lineHeight?: number;
+	public fontFamily?: string;
+	public fontSize?: number;
+	public fontWeight?: string;
+	public fontStyle?: string;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
@@ -518,7 +523,12 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 		const options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
+		this.lineHeight = options.lineHeight;
 		this.stickiness = options.rangeBehavior;
+		this.fontFamily = options.fontFamily;
+		this.fontSize = options.fontSize;
+		this.fontWeight = options.fontWeight;
+		this.fontStyle = options.fontStyle;
 
 		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
 		const darkOverviewRulerColor = options.dark && options.dark.overviewRulerColor || options.overviewRulerColor;
@@ -547,10 +557,14 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			className: this.className,
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
+			lineHeight: this.lineHeight,
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
 			before: this.beforeInjectedText,
-			after: this.afterInjectedText
+			after: this.afterInjectedText,
+			fontFamily: this.fontFamily,
+			fontSize: this.fontSize,
+			fontWeight: this.fontWeight
 		};
 	}
 
@@ -754,7 +768,10 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		if (typeof opts.fontSize === 'number') {
+			cssTextArr.push(strings.format(_CSS_MAP.fontSize, opts.fontSize + 'px'));
+		}
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}

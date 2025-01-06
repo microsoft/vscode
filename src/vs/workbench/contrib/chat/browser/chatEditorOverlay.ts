@@ -203,25 +203,24 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 		this._showStore.add(autorun(r => {
 
-			const position = ChatEditorController.get(this._editor)?.currentChange.read(r);
+			const ctrl = ChatEditorController.get(this._editor);
+
+			const entryIndex = ctrl?.currentEntryIndex.read(r);
+			const changeIndex = ctrl?.currentChangeIndex.read(r);
+
 			const entries = session.entries.read(r);
 
+			let activeIdx = entryIndex !== undefined && changeIndex !== undefined
+				? changeIndex
+				: -1;
+
 			let changes = 0;
-			let activeIdx = -1;
-			for (const entry of entries) {
-				const diffInfo = entry.diffInfo.read(r);
+			for (let i = 0; i < entries.length; i++) {
+				const diffInfo = entries[i].diffInfo.read(r);
+				changes += diffInfo.changes.length;
 
-				if (activeIdx !== -1 || entry !== activeEntry) {
-					// just add up
-					changes += diffInfo.changes.length;
-
-				} else {
-					for (const change of diffInfo.changes) {
-						if (position && change.modified.includes(position.lineNumber)) {
-							activeIdx = changes;
-						}
-						changes += 1;
-					}
+				if (entryIndex !== undefined && i < entryIndex) {
+					activeIdx += diffInfo.changes.length;
 				}
 			}
 
@@ -311,6 +310,10 @@ export class ChatEditorOverlayController implements IEditorContribution {
 			}
 
 			const entry = entries[idx];
+			if (entry.state.read(r) === WorkingSetEntryState.Accepted || entry.state.read(r) === WorkingSetEntryState.Rejected) {
+				widget.hide();
+				return;
+			}
 			widget.show(session, entry, entries[(idx + 1) % entries.length]);
 
 		}));

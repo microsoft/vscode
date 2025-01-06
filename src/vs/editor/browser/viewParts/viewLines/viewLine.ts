@@ -163,7 +163,8 @@ export class ViewLine implements IVisibleLine {
 			options.renderWhitespace,
 			options.renderControlCharacters,
 			options.fontLigatures !== EditorFontLigatures.OFF,
-			selectionsOnLine
+			selectionsOnLine,
+			lineHeight
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -175,6 +176,8 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
 		sb.appendString(String(lineHeight));
+		sb.appendString('px;line-height:');
+		sb.appendString(String(lineHeight));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
@@ -184,7 +187,8 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		if (monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
+		const affectedBySpecialFontInfo = lineData.affectedBySpecialFontInfo;
+		if (!affectedBySpecialFontInfo && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
 				renderLineInput,

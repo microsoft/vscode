@@ -45,7 +45,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
 import { safeStringify } from '../../base/common/objects.js';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
-import { isBigSurOrNewer, isCI, isMacintosh } from '../../base/common/platform.js';
+import { isBigSurOrNewer, isCI, isLinux, isMacintosh } from '../../base/common/platform.js';
 import { Schemas } from '../../base/common/network.js';
 import { DiskFileSystemProvider } from '../services/files/electron-sandbox/diskFileSystemProvider.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
@@ -61,6 +61,8 @@ import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-san
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-sandbox/window.js';
 import { mainWindow } from '../../base/browser/window.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions } from '../../platform/configuration/common/configurationRegistry.js';
 
 export class DesktopMain extends Disposable {
 
@@ -79,6 +81,12 @@ export class DesktopMain extends Disposable {
 
 		// Apply fullscreen early if configured
 		setFullscreen(!!this.configuration.fullscreen, mainWindow);
+
+		// Apply custom title override to defaults if any
+		if (isLinux && product.quality === 'stable' && this.configuration.overrideDefaultTitlebarStyle === 'custom') {
+			const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+			configurationRegistry.registerDefaultConfigurations([{ overrides: { 'window.titleBarStyle': 'custom' } }]);
+		}
 	}
 
 	private reviveUris() {

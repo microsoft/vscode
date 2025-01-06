@@ -39,9 +39,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
-import * as coverUtils from './codeCoverageDisplayUtils.js';
-import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from './icons.js';
-import { ManagedTestCoverageBars } from './testCoverageBars.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
+import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
 import { TestCommandId } from '../common/constants.js';
 import { FileCoverage } from '../common/testCoverage.js';
@@ -50,6 +49,9 @@ import { TestId } from '../common/testId.js';
 import { ITestService } from '../common/testService.js';
 import { CoverageDetails, DetailType, IDeclarationCoverage, IStatementCoverage } from '../common/testTypes.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
+import * as coverUtils from './codeCoverageDisplayUtils.js';
+import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from './icons.js';
+import { ManagedTestCoverageBars } from './testCoverageBars.js';
 
 const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
@@ -772,6 +774,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 						TestingContextKeys.isTestCoverageOpen,
 						TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true),
 						TestingContextKeys.hasPerTestCoverage,
+						ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
 					),
 					group: 'navigation',
 				},

@@ -773,6 +773,7 @@ declare namespace monaco {
 		 * Moves the range by the given amount of lines.
 		 */
 		delta(lineCount: number): Range;
+		isSingleLine(): boolean;
 		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
 		 * Create a `Range` from an `IRange`.
@@ -1743,6 +1744,10 @@ declare namespace monaco.editor {
 		 */
 		glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 		/**
+		 * If set, the decoration will override the line height of the lines it spans.
+		 */
+		lineHeight?: number | null;
+		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
 		linesDecorationsClassName?: string | null;
@@ -1996,6 +2001,10 @@ declare namespace monaco.editor {
 		 * A unique identifier associated with this model.
 		 */
 		readonly id: string;
+		/**
+		 * If true, the corresponding line is affected by special font info
+		 */
+		affectedBySpecialFontInfo(lineNumber: number): boolean;
 		/**
 		 * Get the resolved options for this model.
 		 */
@@ -2610,6 +2619,10 @@ declare namespace monaco.editor {
 		 * Get a unique id for this editor instance.
 		 */
 		getId(): string;
+		/**
+		* Get the id number for this editor instance.
+		*/
+		getIdNumber(): number;
 		/**
 		 * Get the editor type. Please see `EditorType`.
 		 * This is to avoid an instanceof check
@@ -4602,9 +4615,12 @@ declare namespace monaco.editor {
 		edits?: {
 			experimental?: {
 				enabled?: boolean;
-				useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
+				useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+				useWordInsertionView?: 'never' | 'whenPossible';
+				useWordReplacementView?: 'never' | 'whenPossible';
 				onlyShowWhenCloseToCursor?: boolean;
+				useGutterIndicator?: boolean;
 			};
 		};
 	}
@@ -6090,6 +6106,10 @@ declare namespace monaco.editor {
 		 */
 		getTopForPosition(lineNumber: number, column: number): number;
 		/**
+		 * Get the line height for the line number.
+		 */
+		getLineHeightForLineNumber(lineNumber: number): number;
+		/**
 		 * Write the screen reader content to be the current selection
 		 */
 		writeScreenReaderContent(reason: string): void;
@@ -7102,9 +7122,6 @@ declare namespace monaco.languages {
 		insertTextRules?: CompletionItemInsertTextRule;
 		/**
 		 * A range of text that should be replaced by this completion item.
-		 *
-		 * Defaults to a range from the start of the {@link TextDocument.getWordRangeAtPosition current word} to the
-		 * current position.
 		 *
 		 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
 		 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
