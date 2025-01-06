@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
-import { insertInto, splice } from '../../../common/arrays.js';
-import { CancelablePromise, createCancelablePromise, Promises, ThrottledDelayer, timeout } from '../../../common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../common/cancellation.js';
-import { Codicon } from '../../../common/codicons.js';
-import { isCancellationError, onUnexpectedError } from '../../../common/errors.js';
-import { Emitter, Event } from '../../../common/event.js';
-import { FuzzyScore } from '../../../common/filters.js';
-import { Iterable } from '../../../common/iterator.js';
-import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
-import { ScrollEvent } from '../../../common/scrollable.js';
-import { ThemeIcon } from '../../../common/themables.js';
-import { isIterable } from '../../../common/types.js';
 import { IDragAndDropData } from '../../dnd.js';
-import { IContextViewProvider } from '../contextview/contextview.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListStyles } from '../list/listWidget.js';
-import { AbstractTreePart, ComposedTreeDelegate, FindController, FindFilter, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, IFindControllerOptions, ITreeFindToggleChangeEvent, LabelFuzzyScore, TreeFindMatchType, TreeFindMode } from './abstractTree.js';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions } from './abstractTree.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
 import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
+import { CancelablePromise, createCancelablePromise, Promises, ThrottledDelayer, timeout } from '../../../common/async.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { isCancellationError, onUnexpectedError } from '../../../common/errors.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Iterable } from '../../../common/iterator.js';
+import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { ScrollEvent } from '../../../common/scrollable.js';
+import { isIterable } from '../../../common/types.js';
+import { CancellationToken, CancellationTokenSource } from '../../../common/cancellation.js';
+import { IContextViewProvider } from '../contextview/contextview.js';
+import { FuzzyScore } from '../../../common/filters.js';
+import { insertInto, splice } from '../../../common/arrays.js';
+import { localize } from '../../../../nls.js';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -421,7 +421,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 	return options && {
 		...options,
 		collapseByDefault: true,
-		inverseCollapseRecursive: options.inverseCollapseRecursive,
+		collapseRecursively: options.collapseRecursively,
 		identityProvider: options.identityProvider && {
 			getId(el) {
 				return options.identityProvider!.getId(el.element as T);
@@ -496,7 +496,7 @@ export interface IAsyncDataTreeUpdateChildrenOptions<T> extends IObjectTreeSetCh
 
 export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptionsUpdate, Pick<IAbstractTreeOptions<T, TFilterData>, Exclude<keyof IAbstractTreeOptions<T, TFilterData>, 'collapseByDefault'>> {
 	readonly collapseByDefault?: { (e: T): boolean };
-	inverseCollapseRecursive?(): boolean;
+	collapseRecursively?(): boolean;
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly sorter?: ITreeSorter<T>;
 	readonly autoExpandSingleChildren?: boolean;

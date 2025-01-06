@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
-import { Action } from '../../../common/actions.js';
-import { distinct, equals, insertInto, range } from '../../../common/arrays.js';
-import { Delayer, disposableTimeout, timeout } from '../../../common/async.js';
-import { Codicon } from '../../../common/codicons.js';
-import { Emitter, Event, EventBufferer, Relay } from '../../../common/event.js';
-import { fuzzyScore, FuzzyScore } from '../../../common/filters.js';
-import { KeyCode } from '../../../common/keyCodes.js';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
-import { SetMap } from '../../../common/map.js';
-import { clamp } from '../../../common/numbers.js';
-import { autorun, constObservable } from '../../../common/observable.js';
-import { ScrollEvent } from '../../../common/scrollable.js';
-import { ThemeIcon } from '../../../common/themables.js';
-import { asCssValueWithDefault } from '../../cssValue.js';
 import { IDragAndDropData } from '../../dnd.js';
-import { $, addDisposableListener, append, clearNode, h, hasParentWithClass, isActiveElement, isEditableElement, isKeyboardEvent } from '../../dom.js';
+import { $, append, clearNode, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
+import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
-import { alert } from '../aria/aria.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { FindInput } from '../findinput/findInput.js';
-import { IHoverDelegate } from '../hover/hoverDelegate.js';
-import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IInputBoxStyles, IMessage, MessageType, unthemedInboxStyles } from '../inputbox/inputBox.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListAccessibilityProvider, IListOptions, IListStyles, isActionItem, isButton, isMonacoCustomToggle, isMonacoEditor, isStickyScrollContainer, isStickyScrollElement, List, MouseController, TypeNavigationMode } from '../list/listWidget.js';
 import { IToggleStyles, Toggle, unthemedToggleStyles } from '../toggle/toggle.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
-import './media/tree.css';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from './tree.js';
+import { Action } from '../../../common/actions.js';
+import { distinct, equals, insertInto, range } from '../../../common/arrays.js';
+import { Delayer, disposableTimeout, timeout } from '../../../common/async.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { SetMap } from '../../../common/map.js';
+import { Emitter, Event, EventBufferer, Relay } from '../../../common/event.js';
+import { fuzzyScore, FuzzyScore } from '../../../common/filters.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { clamp } from '../../../common/numbers.js';
+import { ScrollEvent } from '../../../common/scrollable.js';
+import './media/tree.css';
+import { localize } from '../../../../nls.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { autorun, constObservable } from '../../../common/observable.js';
+import { alert } from '../aria/aria.js';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -2179,7 +2179,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly fastScrollSensitivity?: number;
 	readonly expandOnDoubleClick?: boolean;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
-	inverseCollapseRecursive?(): boolean;
+	collapseRecursively?(): boolean;
 	readonly enableStickyScroll?: boolean;
 	readonly stickyScrollMaxItemCount?: number;
 	readonly paddingTop?: number;
@@ -2188,7 +2188,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
 	readonly contextViewProvider?: IContextViewProvider;
 	readonly collapseByDefault?: boolean; // defaults to false
-	inverseCollapseRecursive?(): boolean;
+	collapseRecursively?(): boolean;
 	readonly allowNonCollapsibleParents?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
