@@ -33,7 +33,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow } from '../../window/electron-main/window.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable, overrideDefaultTitlebarStyle } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -48,6 +48,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
+import { IStateService } from '../../state/node/state.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -70,7 +71,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStateService private readonly stateService: IStateService
 	) {
 		super();
 	}
@@ -322,6 +324,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): Promise<void> {
 		this.themeMainService.saveWindowSplash(windowId, splash);
+	}
+
+	async overrideDefaultTitlebarStyle(windowId: number | undefined, style: 'native' | 'custom' | undefined): Promise<void> {
+		if (typeof style === 'string') {
+			this.stateService.setItem('window.titleBarStyleOverride', style);
+		} else {
+			this.stateService.removeItem('window.titleBarStyleOverride');
+		}
+		overrideDefaultTitlebarStyle(style);
 	}
 
 	//#endregion
@@ -697,6 +708,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async getScreenshot(windowId: number | undefined, options?: INativeHostOptions): Promise<ArrayBufferLike | undefined> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		const captured = await window?.win?.webContents.capturePage();
+
 		return captured?.toJPEG(95);
 	}
 

@@ -348,10 +348,15 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
-// https://github.com/microsoft/vscode/issues/89373
-// https://github.com/git-for-windows/git/issues/2478
 function sanitizePath(path: string): string {
-	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
+	return path
+		// Drive letter
+		// https://github.com/microsoft/vscode/issues/89373
+		// https://github.com/git-for-windows/git/issues/2478
+		.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`)
+		// Shell-sensitive characters
+		// https://github.com/microsoft/vscode/issues/133566
+		.replace(/(["'\\\$!><#()\[\]*&^| ;{}?`])/g, '\\$1');
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
@@ -1166,11 +1171,11 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
-	async config(scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
-		const args = ['config'];
+	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
+		const args = ['config', command];
 
 		if (scope) {
-			args.push('--' + scope);
+			args.push(`--${scope}`);
 		}
 
 		args.push(key);

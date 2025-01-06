@@ -16,7 +16,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { hotClassGetOriginalInstance } from '../../../../../platform/observable/common/wrapInHotClass.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
@@ -36,12 +36,24 @@ import { ObservableContextKeyService } from '../utils.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsView } from '../view/inlineCompletionsView.js';
+import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 
 export class InlineCompletionsController extends Disposable {
 	private static readonly _instances = new Set<InlineCompletionsController>();
 
 	public static hot = createHotClass(InlineCompletionsController);
 	public static ID = 'editor.contrib.inlineCompletionsController';
+
+	/**
+	 * Find the controller in the focused editor or in the outer editor (if applicable)
+	 */
+	public static getInFocusedEditorOrParent(accessor: ServicesAccessor): InlineCompletionsController | null {
+		const outerEditor = getOuterEditor(accessor);
+		if (!outerEditor) {
+			return null;
+		}
+		return InlineCompletionsController.get(outerEditor);
+	}
 
 	public static get(editor: ICodeEditor): InlineCompletionsController | null {
 		return hotClassGetOriginalInstance(editor.getContribution<InlineCompletionsController>(InlineCompletionsController.ID));

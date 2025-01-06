@@ -39,7 +39,7 @@ interface IChangeInformation {
 }
 
 export interface IObservableLogger {
-	handleObservableChanged(observable: IObservable<any, any>, info: IChangeInformation): void;
+	handleObservableChanged(observable: IObservable<any>, info: IChangeInformation): void;
 	handleFromEventObservableTriggered(observable: FromEventObservable<any, any>, info: IChangeInformation): void;
 
 	handleAutorunCreated(autorun: AutorunObserver): void;
@@ -48,6 +48,7 @@ export interface IObservableLogger {
 
 	handleDerivedCreated(observable: Derived<any>): void;
 	handleDerivedRecomputed(observable: Derived<any>, info: IChangeInformation): void;
+	handleDerivedCleared(observable: Derived<any>): void;
 
 	handleBeginTransaction(transaction: TransactionImpl): void;
 	handleEndTransaction(): void;
@@ -101,7 +102,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			: [normalText(` (unchanged)`)];
 	}
 
-	handleObservableChanged(observable: IObservable<unknown, unknown>, info: IChangeInformation): void {
+	handleObservableChanged(observable: IObservable<unknown>, info: IChangeInformation): void {
 		if (!this._isIncluded(observable)) { return; }
 		console.log(...this.textToConsoleArgs([
 			formatKind('observable value changed'),
@@ -110,9 +111,9 @@ export class ConsoleObservableLogger implements IObservableLogger {
 		]));
 	}
 
-	private readonly changedObservablesSets = new WeakMap<object, Set<IObservable<any, any>>>();
+	private readonly changedObservablesSets = new WeakMap<object, Set<IObservable<any>>>();
 
-	formatChanges(changes: Set<IObservable<any, any>>): ConsoleText | undefined {
+	formatChanges(changes: Set<IObservable<any>>): ConsoleText | undefined {
 		if (changes.size === 0) {
 			return undefined;
 		}
@@ -168,6 +169,15 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			{ data: [{ fn: derived._debugNameData.referenceFn ?? derived._computeFn }] }
 		]));
 		changedObservables.clear();
+	}
+
+	handleDerivedCleared(derived: Derived<unknown>): void {
+		if (!this._isIncluded(derived)) { return; }
+
+		console.log(...this.textToConsoleArgs([
+			formatKind('derived cleared'),
+			styled(derived.debugName, { color: 'BlueViolet' }),
+		]));
 	}
 
 	handleFromEventObservableTriggered(observable: FromEventObservable<any, any>, info: IChangeInformation): void {

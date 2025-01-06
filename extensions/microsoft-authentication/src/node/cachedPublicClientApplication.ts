@@ -133,11 +133,11 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				cancellable: true,
 				title: l10n.t('Signing in to Microsoft...')
 			},
-			(_process, token) => raceCancellationAndTimeoutError(
-				this._sequencer.queue(() => this._pca.acquireTokenInteractive(request)),
+			(_process, token) => this._sequencer.queue(() => raceCancellationAndTimeoutError(
+				this._pca.acquireTokenInteractive(request),
 				token,
 				1000 * 60 * 5
-			)
+			))
 		);
 		// this._setupRefresh(result);
 		if (this._isBrokerAvailable) {

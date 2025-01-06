@@ -229,7 +229,6 @@ export default tseslint.config(
 						'src/vs/workbench/api/test/node/extHostTunnelService.test.ts',
 						'src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts',
 						'src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts',
-						'src/vs/workbench/contrib/editSessions/test/browser/editSessions.test.ts',
 						'src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts',
 						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts',
 						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts',

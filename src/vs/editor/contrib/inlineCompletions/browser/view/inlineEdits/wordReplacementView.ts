@@ -19,7 +19,7 @@ import { ILanguageService } from '../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../common/tokens/tokenArray.js';
 import { mapOutFalsy, n, rectToProps } from './utils.js';
-
+import { localize } from '../../../../../../nls.js';
 export const transparentHoverBackground = registerColor(
 	'inlineEdit.wordReplacementView.background',
 	{
@@ -28,7 +28,7 @@ export const transparentHoverBackground = registerColor(
 		hcLight: transparent(editorHoverStatusBarBackground, 0.1),
 		hcDark: transparent(editorHoverStatusBarBackground, 0.1),
 	},
-	'Background color for the inline edit word replacement view.'
+	localize('inlineEdit.wordReplacementView.background', 'Background color for the inline edit word replacement view.')
 );
 
 export class WordReplacementView extends Disposable {

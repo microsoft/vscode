@@ -16,7 +16,6 @@ import * as objects from '../../../../base/common/objects.js';
 import './media/peekViewWidget.css';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
-import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
@@ -25,7 +24,7 @@ import * as nls from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { activeContrastBorder, contrastBorder, editorForeground, editorInfoForeground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
@@ -78,14 +77,6 @@ class PeekContextController implements IEditorContribution {
 }
 
 registerEditorContribution(PeekContextController.ID, PeekContextController, EditorContributionInstantiation.Eager); // eager because it needs to define a context key
-
-export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
-	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-	if (editor instanceof EmbeddedCodeEditorWidget) {
-		return editor.getParentEditor();
-	}
-	return editor;
-}
 
 export interface IPeekViewStyles extends IStyles {
 	headerBackgroundColor?: Color;

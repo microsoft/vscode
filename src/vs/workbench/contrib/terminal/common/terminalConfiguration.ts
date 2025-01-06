@@ -549,6 +549,11 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'never'
 		},
+		[TerminalSettingId.HideOnLastClosed]: {
+			description: localize('terminal.integrated.hideOnLastClosed', "Whether to hide the terminal view when the last terminal is closed. This will only happen when the terminal is the only visible view in the view container."),
+			type: 'boolean',
+			default: true
+		},
 		[TerminalSettingId.CustomGlyphs]: {
 			markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
