@@ -5,7 +5,7 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, languages, HoverProvider, CancellationToken, Hover, TextDocument } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable } from './util';
+import { dispose, fromNow, getCommitShortHash, IDisposable } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation, Commit } from './git';
@@ -186,14 +186,14 @@ export class GitBlameController {
 		this._onDidChangeConfiguration();
 	}
 
-	formatBlameInformationMessage(template: string, blameInformation: BlameInformation): string {
+	formatBlameInformationMessage(documentUri: Uri, template: string, blameInformation: BlameInformation): string {
 		const subject = blameInformation.subject && blameInformation.subject.length > this._subjectMaxLength
 			? `${blameInformation.subject.substring(0, this._subjectMaxLength)}\u2026`
 			: blameInformation.subject;
 
 		const templateTokens = {
 			hash: blameInformation.hash,
-			hashShort: blameInformation.hash.substring(0, 8),
+			hashShort: getCommitShortHash(documentUri, blameInformation.hash),
 			subject: emojify(subject ?? ''),
 			authorName: blameInformation.authorName ?? '',
 			authorEmail: blameInformation.authorEmail ?? '',
@@ -260,7 +260,7 @@ export class GitBlameController {
 			markdownString.appendMarkdown(`\n\n---\n\n`);
 		}
 
-		markdownString.appendMarkdown(`[\`$(git-commit) ${blameInformationOrCommit.hash.substring(0, 8)} \`](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformationOrCommit.hash]))} "${l10n.t('View Commit')}")`);
+		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, blameInformationOrCommit.hash)} \`](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformationOrCommit.hash]))} "${l10n.t('View Commit')}")`);
 		markdownString.appendMarkdown('&nbsp;');
 		markdownString.appendMarkdown(`[$(copy)](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformationOrCommit.hash))} "${l10n.t('Copy Commit Hash')}")`);
 		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
@@ -571,7 +571,9 @@ class GitBlameEditorDecoration implements HoverProvider {
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
-		if (e && !e.affectsConfiguration('git.blame.editorDecoration.template')) {
+		if (e &&
+			!e.affectsConfiguration('git.commitShortHashLength') &&
+			!e.affectsConfiguration('git.blame.editorDecoration.template')) {
 			return;
 		}
 
@@ -610,7 +612,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation !== 'string'
-				? this._controller.formatBlameInformationMessage(template, blame.blameInformation)
+				? this._controller.formatBlameInformationMessage(textEditor.document.uri, template, blame.blameInformation)
 				: blame.blameInformation;
 
 			return this._createDecoration(blame.lineNumber, contentText);
@@ -663,7 +665,8 @@ class GitBlameStatusBarItem {
 	}
 
 	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.statusBarItem.template')) {
+		if (!e.affectsConfiguration('git.commitShortHashLength') &&
+			!e.affectsConfiguration('git.blame.statusBarItem.template')) {
 			return;
 		}
 
@@ -690,7 +693,7 @@ class GitBlameStatusBarItem {
 			const config = workspace.getConfiguration('git');
 			const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
 
-			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(template, blameInformation[0].blameInformation)}`;
+			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(window.activeTextEditor.document.uri, template, blameInformation[0].blameInformation)}`;
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(window.activeTextEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),

@@ -3229,6 +3229,14 @@
           "type": "string",
           "default": "${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameStatusBarItem.template%"
+        },
+        "git.commitShortHashLength": {
+          "type": "number",
+          "default": 7,
+          "minimum": 7,
+          "maximum": 40,
+          "markdownDescription": "%config.commitShortHashLength%",
+          "scope": "resource"
         }
       }
     },
