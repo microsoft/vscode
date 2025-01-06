@@ -452,7 +452,7 @@ class CellInfoContentProvider {
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
 				const cellIndex = ref.object.notebook.cells.indexOf(cell);
-				const metadataSource = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
+				const metadataSource = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language, true);
 				result = this._modelService.createModel(
 					metadataSource,
 					mode,
@@ -460,9 +460,9 @@ class CellInfoContentProvider {
 				);
 				this._disposables.push(disposables.add(ref.object.notebook.onDidChangeContent(e => {
 					if (result && e.rawEvents.some(event => (event.kind === NotebookCellsChangeType.ChangeCellMetadata || event.kind === NotebookCellsChangeType.ChangeCellLanguage) && event.index === cellIndex)) {
-						const value = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
+						const value = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language, true);
 						if (result.getValue() !== value) {
-							result.setValue(getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language));
+							result.setValue(value);
 						}
 					}
 				})));
