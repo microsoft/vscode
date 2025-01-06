@@ -187,10 +187,23 @@ export const enum CustomTitleBarVisibility {
 	NEVER = 'never',
 }
 
+export let titlebarStyleDefaultOverride: TitlebarStyle | undefined = undefined;
+export function overrideDefaultTitlebarStyle(style: 'native' | 'custom' | undefined): void {
+	switch (style) {
+		case 'native':
+			titlebarStyleDefaultOverride = TitlebarStyle.NATIVE;
+			break;
+		case 'custom':
+			titlebarStyleDefaultOverride = TitlebarStyle.CUSTOM;
+			break;
+		default:
+			titlebarStyleDefaultOverride = undefined;
+	}
+}
+
 export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
 	// Returns if it possible to have a custom title bar in the curren session
 	// Does not imply that the title bar is visible
-
 	return true;
 }
 
@@ -198,6 +211,7 @@ export function hasNativeTitlebar(configurationService: IConfigurationService, t
 	if (!titleBarStyle) {
 		titleBarStyle = getTitleBarStyle(configurationService);
 	}
+
 	return titleBarStyle === TitlebarStyle.NATIVE;
 }
 
@@ -222,6 +236,10 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 		if (style === TitlebarStyle.NATIVE || style === TitlebarStyle.CUSTOM) {
 			return style;
 		}
+	}
+
+	if (titlebarStyleDefaultOverride) {
+		return titlebarStyleDefaultOverride;
 	}
 
 	return isLinux && product.quality === 'stable' ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all OS except Linux stable (for now)
