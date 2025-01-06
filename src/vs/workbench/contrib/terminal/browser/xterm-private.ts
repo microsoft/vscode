@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBufferCell } from '@xterm/xterm';
+import type { IBufferCell } from '@xterm/xterm';
 
 export type XtermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XtermAttributes };
 
 export interface IXtermCore {
 	viewport?: {
 		readonly scrollBarWidth: number;
+		// eslint-disable-next-line @typescript-eslint/naming-convention
 		_innerRefresh(): void;
 	};
 
@@ -23,9 +24,9 @@ export interface IXtermCore {
 				cell: {
 					width: number;
 					height: number;
-				}
-			}
-		},
+				};
+			};
+		};
 		_renderer: {
 			value?: unknown;
 		};
