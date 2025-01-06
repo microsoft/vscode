@@ -1369,7 +1369,7 @@ ${formatRule(Codicon.menuSubmenu)}
 				height: 3px;
 				width: 3px;
 			}
-			/* z-index of submenus */
+			/* Fix for https://github.com/microsoft/vscode/issues/103170 */
 			.monaco-menu .action-item .monaco-submenu {
 				z-index: 1;
 			}
