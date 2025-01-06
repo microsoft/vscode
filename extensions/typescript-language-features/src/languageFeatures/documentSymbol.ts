@@ -35,6 +35,10 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 
 class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
+	private readonly _namespaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
+	private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
+	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50 });
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly cachedResponse: CachedResponse<Proto.NavTreeResponse>,
@@ -56,6 +60,33 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		const result: vscode.DocumentSymbol[] = [];
 		for (const item of response.body.childItems) {
 			TypeScriptDocumentSymbolProvider.convertNavTree(document.uri, result, item);
+		}
+
+		const activeTextEditor = vscode.window.activeTextEditor;
+		if (activeTextEditor) {
+			const namespaceRanges: vscode.Range[] = [];
+			const classRanges: vscode.Range[] = [];
+			const methodRanges: vscode.Range[] = [];
+
+			for (const res of result) {
+				switch (res.kind) {
+					case (vscode.SymbolKind.Namespace): {
+						namespaceRanges.push(new vscode.Range(res.range.start.line, 1, res.range.start.line, 1));
+						break;
+					}
+					case (vscode.SymbolKind.Class): {
+						classRanges.push(new vscode.Range(res.range.start.line, 1, res.range.start.line, 1));
+						break;
+					}
+					case (vscode.SymbolKind.Method): {
+						methodRanges.push(new vscode.Range(res.range.start.line, 1, res.range.start.line, 1));
+						break;
+					}
+				}
+			}
+			activeTextEditor.setDecorations(this._namespaceLineHeightDecorationType, namespaceRanges);
+			activeTextEditor.setDecorations(this._classLineHeightDecorationType, classRanges);
+			activeTextEditor.setDecorations(this._methodLineHeightDecorationType, methodRanges);
 		}
 		return result;
 	}
