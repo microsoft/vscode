@@ -4346,8 +4346,8 @@ export class CommandCenter {
 		env.clipboard.writeText(historyItem.message);
 	}
 
-	@command('git.blameStatusBarItem.viewCommit', { repository: true })
-	async viewStatusBarCommit(repository: Repository, historyItemId: string): Promise<void> {
+	@command('git.viewCommit2', { repository: true })
+	async viewCommit2(repository: Repository, historyItemId: string): Promise<void> {
 		if (!repository || !historyItemId) {
 			return;
 		}
@@ -4365,8 +4365,8 @@ export class CommandCenter {
 		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
-	@command('git.blameStatusBarItem.copyContent')
-	async blameStatusBarCopyContent(content: string): Promise<void> {
+	@command('git.copyContentToClipboard')
+	async copyContentToClipboard(content: string): Promise<void> {
 		if (typeof content !== 'string') {
 			return;
 		}
