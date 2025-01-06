@@ -260,6 +260,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					parentIds: commit.parents,
 					message: emojify(commit.message),
 					author: commit.authorName,
+					authorEmail: commit.authorEmail,
 					icon: new ThemeIcon('git-commit'),
 					displayId: getCommitShortHash(Uri.file(this.repository.root), commit.hash),
 					timestamp: commit.authorDate?.getTime(),
