@@ -23,9 +23,21 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 	readonly onDidLogMessage = Event.any(this._onDidLogMessage.event, this.recursiveWatcher.onDidLogMessage, this.nonRecursiveWatcher.onDidLogMessage);
 
 	private requests: IUniversalWatchRequest[] = [];
+	private failedRecursiveRequests = 0;
+
+	constructor() {
+		super();
+
+		this._register(this.recursiveWatcher.onDidError(e => {
+			if (e.request) {
+				this.failedRecursiveRequests++;
+			}
+		}));
+	}
 
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
 		this.requests = requests;
+		this.failedRecursiveRequests = 0;
 
 		// Watch recursively first to give recursive watchers a chance
 		// to step in for non-recursive watch requests, thus reducing
@@ -55,7 +67,7 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
 		// Log stats
 		if (enabled && this.requests.length > 0) {
-			this._onDidLogMessage.fire({ type: 'trace', message: computeStats(this.requests, this.recursiveWatcher, this.nonRecursiveWatcher) });
+			this._onDidLogMessage.fire({ type: 'trace', message: computeStats(this.requests, this.failedRecursiveRequests, this.recursiveWatcher, this.nonRecursiveWatcher) });
 		}
 
 		// Forward to watchers

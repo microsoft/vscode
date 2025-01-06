@@ -188,6 +188,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
+		key: 'scm/historyItemRef/context',
+		id: MenuId.SCMHistoryItemRefContext,
+		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
 		key: 'statusBar/remoteIndicator',
 		id: MenuId.StatusBarRemoteIndicatorMenu,
 		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),
@@ -240,7 +246,7 @@ const apiMenus: IAPIMenu[] = [
 		key: 'comments/commentThread/additionalActions',
 		id: MenuId.CommentThreadAdditionalActions,
 		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
-		supportsSubmenus: false,
+		supportsSubmenus: true,
 		proposed: 'contribCommentThreadAdditionalMenu'
 	},
 	{
@@ -306,8 +312,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'issue/reporter',
 		id: MenuId.IssueReporter,
-		description: localize('issue.reporter', "The contributed issue reporter menu"),
-		proposed: 'contribIssueReporter'
+		description: localize('issue.reporter', "The contributed issue reporter menu")
 	},
 	{
 		key: 'testing/item/context',
@@ -392,13 +397,6 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
 		supportsSubmenus: false,
 		proposed: 'inlineCompletionsAdditions'
-	},
-	{
-		key: 'editor/inlineEdit/actions',
-		id: MenuId.InlineEditActions,
-		description: localize('inlineEdit.actions', "The actions shown when hovering on an inline edit"),
-		supportsSubmenus: false,
-		proposed: 'inlineEdit'
 	},
 	{
 		key: 'editor/content',
@@ -1043,12 +1041,36 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		const menus = manifest.contributes?.menus || {};
 
+		// Add to commandPalette array any commands not explicitly contributed to it
+		const implicitlyOnCommandPalette = index(commands, c => c.id);
+		if (menus['commandPalette']) {
+			for (const command of menus['commandPalette']) {
+				delete implicitlyOnCommandPalette[command.command];
+			}
+		}
+
+		if (Object.keys(implicitlyOnCommandPalette).length) {
+			if (!menus['commandPalette']) {
+				menus['commandPalette'] = [];
+			}
+			for (const command in implicitlyOnCommandPalette) {
+				menus['commandPalette'].push({ command });
+			}
+		}
+
 		for (const context in menus) {
 			for (const menu of menus[context]) {
+
+				// This typically happens for the commandPalette context
+				if (menu.when === 'false') {
+					continue;
+				}
 				if (menu.command) {
 					let command = byId[menu.command];
 					if (command) {
-						command.menus.push(context);
+						if (!command.menus.includes(context)) {
+							command.menus.push(context);
+						}
 					} else {
 						command = { id: menu.command, title: '', keybindings: [], menus: [context] };
 						byId[command.id] = command;
@@ -1095,7 +1117,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 					new MarkdownString().appendMarkdown(`\`${command.id}\``),
 					typeof command.title === 'string' ? command.title : command.title.value,
 					command.keybindings,
-					new MarkdownString().appendMarkdown(`${command.menus.map(menu => `\`${menu}\``).join('&nbsp;')}`),
+					new MarkdownString().appendMarkdown(`${command.menus.sort((a, b) => a.localeCompare(b)).map(menu => `\`${menu}\``).join('&nbsp;')}`),
 				];
 			});
 

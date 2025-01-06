@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
 import { isLinux, isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
@@ -14,6 +15,7 @@ import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { FileType } from '../../files/common/files.js';
 import { ILoggerResource, LogLevel } from '../../log/common/log.js';
 import { PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
+import product from '../../product/common/product.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -61,6 +63,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly noRecentEntry?: boolean;
 
 	readonly addMode?: boolean;
+	readonly removeMode?: boolean;
 
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
@@ -69,8 +72,9 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly waitMarkerFileURI?: URI;
 }
 
-export interface IAddFoldersRequest {
+export interface IAddRemoveFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
+	readonly foldersToRemove: UriComponents[];
 }
 
 interface IOpenedWindow {
@@ -183,10 +187,23 @@ export const enum CustomTitleBarVisibility {
 	NEVER = 'never',
 }
 
+export let titlebarStyleDefaultOverride: TitlebarStyle | undefined = undefined;
+export function overrideDefaultTitlebarStyle(style: 'native' | 'custom' | undefined): void {
+	switch (style) {
+		case 'native':
+			titlebarStyleDefaultOverride = TitlebarStyle.NATIVE;
+			break;
+		case 'custom':
+			titlebarStyleDefaultOverride = TitlebarStyle.CUSTOM;
+			break;
+		default:
+			titlebarStyleDefaultOverride = undefined;
+	}
+}
+
 export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
 	// Returns if it possible to have a custom title bar in the curren session
 	// Does not imply that the title bar is visible
-
 	return true;
 }
 
@@ -194,6 +211,7 @@ export function hasNativeTitlebar(configurationService: IConfigurationService, t
 	if (!titleBarStyle) {
 		titleBarStyle = getTitleBarStyle(configurationService);
 	}
+
 	return titleBarStyle === TitlebarStyle.NATIVE;
 }
 
@@ -220,7 +238,11 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 		}
 	}
 
-	return isLinux ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all macOS and Windows
+	if (titlebarStyleDefaultOverride) {
+		return titlebarStyleDefaultOverride;
+	}
+
+	return isLinux && product.quality === 'stable' ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all OS except Linux stable (for now)
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
@@ -354,6 +376,7 @@ export interface IOSConfiguration {
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
+	handle?: VSBuffer;
 
 	machineId: string;
 	sqmId: string;

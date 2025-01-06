@@ -15,7 +15,7 @@ import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollCon
 
 // #region Terminal Contributions
 
-registerTerminalContribution(TerminalStickyScrollContribution.ID, TerminalStickyScrollContribution, true);
+registerTerminalContribution(TerminalStickyScrollContribution.ID, TerminalStickyScrollContribution);
 
 // #endregion
 

@@ -159,8 +159,8 @@ export class ChatRequestParser {
 		}
 
 		const tool = this.toolsService.getToolByName(name);
-		if (tool && tool.canBeInvokedManually && (!usedAgent || usedAgent.agent.supportsToolReferences)) {
-			return new ChatRequestToolPart(varRange, varEditorRange, name, tool.id);
+		if (tool && tool.canBeReferencedInPrompt) {
+			return new ChatRequestToolPart(varRange, varEditorRange, name, tool.id, tool.displayName, tool.icon);
 		}
 
 		return;
@@ -228,7 +228,7 @@ export class ChatRequestParser {
 			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
 			const text = message.substring(0, length);
 			const range = new OffsetRange(offset, offset + length);
-			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data);
+			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data, refAtThisPosition.fullName, refAtThisPosition.icon, refAtThisPosition.isFile);
 		}
 
 		return;

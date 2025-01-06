@@ -25,7 +25,7 @@ import { AbstractTokens, AttachedViewHandler, AttachedViews } from './tokens.js'
 import { TreeSitterTokens } from './treeSitterTokens.js';
 import { ITreeSitterParserService } from '../services/treeSitterParserService.js';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from '../textModelEvents.js';
-import { BackgroundTokenizationState, ITokenizationTextModelPart, ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
+import { BackgroundTokenizationState, ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { ContiguousMultilineTokens } from '../tokens/contiguousMultilineTokens.js';
 import { ContiguousMultilineTokensBuilder } from '../tokens/contiguousMultilineTokensBuilder.js';
 import { ContiguousTokensStore } from '../tokens/contiguousTokensStore.js';
@@ -58,12 +58,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 	) {
 		super();
-
-		this._register(this._languageConfigurationService.onDidChange(e => {
-			if (e.affects(this._languageId)) {
-				this._onDidChangeLanguageConfiguration.fire({});
-			}
-		}));
 
 		// We just look at registry changes to determine whether to use tree sitter.
 		// This means that removing a language from the setting will not cause a switch to textmate and will require a reload.
@@ -208,8 +202,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return this._tokens.getTokenTypeIfInsertingCharacter(lineNumber, column, character);
 	}
 
-	public tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult {
-		return this._tokens.tokenizeLineWithEdit(lineNumber, edit);
+	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
+		return this._tokens.tokenizeLinesAt(lineNumber, lines);
 	}
 
 	// #endregion
@@ -654,12 +648,13 @@ class GrammarTokens extends AbstractTokens {
 		return this._tokenizer.getTokenTypeIfInsertingCharacter(position, character);
 	}
 
-	public tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult {
+
+	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
 		if (!this._tokenizer) {
-			return { mainLineTokens: null, additionalLines: null };
+			return null;
 		}
 		this.forceTokenization(lineNumber);
-		return this._tokenizer.tokenizeLineWithEdit(lineNumber, edit);
+		return this._tokenizer.tokenizeLinesAt(lineNumber, lines);
 	}
 
 	public get hasTokens(): boolean {

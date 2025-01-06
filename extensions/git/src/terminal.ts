@@ -71,7 +71,7 @@ export class TerminalShellExecutionManager {
 		const [executable, subcommand] = execution.commandLine.value.split(/\s+/);
 		const cwd = execution.cwd ?? shellIntegration.cwd;
 
-		if (executable.toLowerCase() !== 'git' || !this.subcommands.has(subcommand.toLowerCase()) || !cwd || exitCode !== 0) {
+		if (executable.toLowerCase() !== 'git' || !this.subcommands.has(subcommand?.toLowerCase()) || !cwd || exitCode !== 0) {
 			return;
 		}
 

@@ -255,7 +255,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 	private _strategy: EditStrategy | undefined;
 	private _sessionCtor: CancelablePromise<void> | undefined;
-	private _warmupRequestCts?: CancellationTokenSource;
 	private _activeRequestCts?: CancellationTokenSource;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private readonly _ctxCellWidgetFocused: IContextKey<boolean>;
@@ -442,10 +441,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		inlineChatWidget.placeholder = localize('default.placeholder', "Ask a question");
 		inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		widgetContainer.appendChild(inlineChatWidget.domNode);
-		this._widgetDisposableStore.add(inlineChatWidget.onDidChangeInput(() => {
-			this._warmupRequestCts?.dispose(true);
-			this._warmupRequestCts = undefined;
-		}));
+
 
 		this._notebookEditor.changeViewZones(accessor => {
 			const notebookViewZone = {

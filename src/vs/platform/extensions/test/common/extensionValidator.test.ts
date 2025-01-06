@@ -436,6 +436,7 @@ suite('Extension Version Validator', () => {
 		assert.strictEqual(areApiProposalsCompatible(['proposal1', 'proposal2'], {}), true);
 		assert.strictEqual(areApiProposalsCompatible(['proposal1', 'proposal2'], { 'proposal1': { proposal: '' } }), true);
 
+		assert.strictEqual(areApiProposalsCompatible(['proposal2@1'], { 'proposal1': { proposal: '' } }), false);
 		assert.strictEqual(areApiProposalsCompatible(['proposal1@1'], { 'proposal1': { proposal: '', version: 2 } }), false);
 		assert.strictEqual(areApiProposalsCompatible(['proposal1@1'], { 'proposal1': { proposal: '' } }), false);
 	});

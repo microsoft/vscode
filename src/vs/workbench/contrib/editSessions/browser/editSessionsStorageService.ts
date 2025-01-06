@@ -89,7 +89,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));
 
 		// If another window changes the preferred session storage, reset our cached auth state in memory
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._register(new DisposableStore()))(() => this.onDidChangeStorage()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._store)(() => this.onDidChangeStorage()));
 
 		this.registerSignInAction();
 		this.registerResetAuthenticationAction();
@@ -455,6 +455,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	private registerSignInAction() {
+		if (!this.serverConfiguration?.url) {
+			return;
+		}
 		const that = this;
 		const id = 'workbench.editSessions.actions.signIn';
 		const when = ContextKeyExpr.and(ContextKeyExpr.equals(EDIT_SESSIONS_PENDING_KEY, false), ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false));

@@ -280,9 +280,9 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	override readonly closeHandler: IEditorCloseHandler = {
 
-		// TODO@bpasero TODO@hediet this is a workaround for
-		// not having a better way to figure out if the
-		// editors this input wraps around are opened or not
+		// This is a workaround for not having a better way
+		// to figure out if the editors this input wraps
+		// around are opened or not
 
 		async confirm() {
 			return ConfirmResult.DONT_SAVE;
@@ -313,7 +313,7 @@ class FastEventDispatcher<T, TKey> {
 	) {
 	}
 
-	public filteredEvent(filter: TKey): (listener: (e: T) => any) => IDisposable {
+	public filteredEvent(filter: TKey): (listener: (e: T) => unknown) => IDisposable {
 		return listener => {
 			const key = this._keyToString(filter);
 			let bucket = this._buckets.get(key);

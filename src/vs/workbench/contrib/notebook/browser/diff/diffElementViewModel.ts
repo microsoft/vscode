@@ -394,11 +394,11 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		return this.layoutInfo.totalHeight;
 	}
 
-	private get ignoreOutputs() {
+	protected get ignoreOutputs() {
 		return this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(this.mainDocumentTextModel?.transientOptions.transientOutputs);
 	}
 
-	private get ignoreMetadata() {
+	protected get ignoreMetadata() {
 		return this.configurationService.getValue<boolean>('notebook.diff.ignoreMetadata');
 	}
 
@@ -764,7 +764,7 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		};
 	}
 	checkIfOutputsModified() {
-		if (this.mainDocumentTextModel.transientOptions.transientOutputs) {
+		if (this.mainDocumentTextModel.transientOptions.transientOutputs || this.ignoreOutputs) {
 			return false;
 		}
 
@@ -781,6 +781,9 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 	}
 
 	checkMetadataIfModified() {
+		if (this.ignoreMetadata) {
+			return false;
+		}
 		const modified = hash(getFormattedMetadataJSON(this.mainDocumentTextModel.transientOptions.transientCellMetadata, this.original?.metadata || {}, this.original?.language)) !== hash(getFormattedMetadataJSON(this.mainDocumentTextModel.transientOptions.transientCellMetadata, this.modified?.metadata ?? {}, this.modified?.language));
 		if (modified) {
 			return { reason: undefined };

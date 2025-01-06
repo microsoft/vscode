@@ -5,6 +5,8 @@
 
 import './media/review.css';
 import * as dom from '../../../../base/browser/dom.js';
+import * as nls from '../../../../nls.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,7 +29,6 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from './commentColors.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
@@ -36,8 +37,9 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
-import { DomEmitter } from '../../../../base/browser/event.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../../base/common/severity.js';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -68,18 +70,19 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _contextKeyService: IContextKeyService,
 		private _scopedInstantiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingComment: string | undefined,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingComment: languages.PendingComment | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		private _markdownOptions: IMarkdownRendererOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
 			actionRunner: (() => void) | null;
 			collapse: () => void;
 		},
-		@ICommentService private commentService: ICommentService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@ICommentService private readonly commentService: ICommentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		super();
 
@@ -89,16 +92,14 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._register(this._header = new CommentThreadHeader<T>(
+		this._register(this._header = this._scopedInstantiationService.createInstance(
+			CommentThreadHeader,
 			container,
 			{
-				collapse: this.collapse.bind(this)
+				collapse: this.collapseAction.bind(this)
 			},
 			this._commentMenus,
-			this._commentThread,
-			this._contextKeyService,
-			this._scopedInstantiationService,
-			contextMenuService
+			this._commentThread
 		));
 
 		this._header.updateCommentThread(this._commentThread);
@@ -143,7 +144,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
 		this._setAriaLabel();
-		this._styleElement = dom.createStyleSheet(this.container);
+		this._styleElement = domStylesheets.createStyleSheet(this.container);
 
 
 		this._commentThreadContextValue = CommentContextKeys.commentThreadContext.bindTo(this._contextKeyService);
@@ -157,14 +158,21 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
-		this._register(new DomEmitter(this.container, 'keydown').event(e => {
-			if (dom.isKeyboardEvent(e) && e.key === 'Escape') {
-				if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
-					this._parentEditor.setSelection(this.commentThread.range);
-				}
-				this.collapse();
-			}
-		}));
+	}
+
+	private async confirmCollapse(): Promise<boolean> {
+		const confirmSetting = this._configurationService.getValue<'whenHasUnsubmittedComments' | 'never'>('comments.thread.confirmOnCollapse');
+
+		const hasUnsubmitted = !!this._commentReply?.commentEditor.getValue() || this._body.hasCommentsInEditMode();
+		if (confirmSetting === 'whenHasUnsubmittedComments' && hasUnsubmitted) {
+			const result = await this._dialogService.confirm({
+				message: nls.localize('confirmCollapse', "This comment thread has unsubmitted comments. Do you want to collapse it?"),
+				primaryButton: nls.localize('collapse', "Collapse"),
+				type: Severity.Warning
+			});
+			return result.confirmed;
+		}
+		return true;
 	}
 
 	private _setAriaLabel(): void {
@@ -333,11 +341,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return this._body.getCommentCoords(commentUniqueId);
 	}
 
-	getPendingEdits(): { [key: number]: string } {
+	getPendingEdits(): { [key: number]: languages.PendingComment } {
 		return this._body.getPendingEdits();
 	}
 
-	getPendingComment(): string | undefined {
+	getPendingComment(): languages.PendingComment | undefined {
 		if (this._commentReply) {
 			return this._commentReply.getPendingComment();
 		}
@@ -345,9 +353,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return undefined;
 	}
 
-	setPendingComment(comment: string) {
-		this._pendingComment = comment;
-		this._commentReply?.setPendingComment(comment);
+	setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
+		this._commentReply?.setPendingComment(pending);
 	}
 
 	getDimensions() {
@@ -370,20 +378,29 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
 	}
 
-	focus() {
-		this._body.focus();
+	focus(commentUniqueId: number | undefined) {
+		this._body.focus(commentUniqueId);
 	}
 
 	async submitComment() {
 		const activeComment = this._body.activeComment;
 		if (activeComment) {
 			return activeComment.submitComment();
-		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
+		} else if ((this._commentReply?.getPendingComment()?.body.length ?? 0) > 0) {
 			return this._commentReply?.submitComment();
 		}
 	}
 
+	private async collapseAction() {
+		if (await this.confirmCollapse()) {
+			this.collapse();
+		}
+	}
+
 	collapse() {
+		if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
+			this._parentEditor.setSelection(this.commentThread.range);
+		}
 		this._containerDelegate.collapse();
 	}
 

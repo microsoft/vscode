@@ -9,7 +9,7 @@ import { onUnexpectedError } from './errors.js';
 import { createSingleCallFunction } from './functional.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 import { LinkedList } from './linkedList.js';
-import { IObservable, IObserver } from './observable.js';
+import { IObservable, IObservableWithChange, IObserver } from './observable.js';
 import { StopWatch } from './stopwatch.js';
 import { MicrotaskDelay } from './symbols.js';
 
@@ -40,7 +40,7 @@ const _enableSnapshotPotentialLeakWarning = false
  * An event with zero or one parameters that can be subscribed to. The event is a function itself.
  */
 export interface Event<T> {
-	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
+	(listener: (e: T) => unknown, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
 }
 
 export namespace Event {
@@ -501,7 +501,7 @@ export namespace Event {
 	const HaltChainable = Symbol('HaltChainable');
 
 	class ChainableSynthesis implements IChainableSythensis<any> {
-		private readonly steps: ((input: any) => any)[] = [];
+		private readonly steps: ((input: any) => unknown)[] = [];
 
 		map<O>(fn: (i: any) => O): this {
 			this.steps.push(fn);
@@ -652,9 +652,9 @@ export namespace Event {
 	 * runAndSubscribe(dataChangeEvent, () => this._updateUI());
 	 * ```
 	 */
-	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T) => any, initial: T): IDisposable;
-	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable;
-	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any, initial?: T): IDisposable {
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T) => unknown, initial: T): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => unknown): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => unknown, initial?: T): IDisposable {
 		handler(initial);
 		return event(e => handler(e));
 	}
@@ -666,7 +666,7 @@ export namespace Event {
 		private _counter = 0;
 		private _hasChanged = false;
 
-		constructor(readonly _observable: IObservable<T, any>, store: DisposableStore | undefined) {
+		constructor(readonly _observable: IObservable<T>, store: DisposableStore | undefined) {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
 					_observable.addObserver(this);
@@ -687,21 +687,21 @@ export namespace Event {
 			}
 		}
 
-		beginUpdate<T>(_observable: IObservable<T, void>): void {
+		beginUpdate<T>(_observable: IObservable<T>): void {
 			// assert(_observable === this.obs);
 			this._counter++;
 		}
 
-		handlePossibleChange<T>(_observable: IObservable<T, unknown>): void {
+		handlePossibleChange<T>(_observable: IObservable<T>): void {
 			// assert(_observable === this.obs);
 		}
 
-		handleChange<T, TChange>(_observable: IObservable<T, TChange>, _change: TChange): void {
+		handleChange<T, TChange>(_observable: IObservableWithChange<T, TChange>, _change: TChange): void {
 			// assert(_observable === this.obs);
 			this._hasChanged = true;
 		}
 
-		endUpdate<T>(_observable: IObservable<T, void>): void {
+		endUpdate<T>(_observable: IObservable<T>): void {
 			// assert(_observable === this.obs);
 			this._counter--;
 			if (this._counter === 0) {
@@ -718,7 +718,7 @@ export namespace Event {
 	 * Creates an event emitter that is fired when the observable changes.
 	 * Each listeners subscribes to the emitter.
 	 */
-	export function fromObservable<T>(obs: IObservable<T, any>, store?: DisposableStore): Event<T> {
+	export function fromObservable<T>(obs: IObservable<T>, store?: DisposableStore): Event<T> {
 		const observer = new EmitterObserver(obs, store);
 		return observer.emitter.event;
 	}
@@ -726,7 +726,7 @@ export namespace Event {
 	/**
 	 * Each listener is attached to the observable directly.
 	 */
-	export function fromObservableLight(observable: IObservable<any>): Event<void> {
+	export function fromObservableLight(observable: IObservable<unknown>): Event<void> {
 		return (listener, thisArgs, disposables) => {
 			let count = 0;
 			let didChange = false;
@@ -1109,7 +1109,7 @@ export class Emitter<T> {
 	 * to events from this Emitter
 	 */
 	get event(): Event<T> {
-		this._event ??= (callback: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore) => {
+		this._event ??= (callback: (e: T) => unknown, thisArgs?: any, disposables?: IDisposable[] | DisposableStore) => {
 			if (this._leakageMon && this._size > this._leakageMon.threshold ** 2) {
 				const message = `[${this._leakageMon.name}] REFUSES to accept new listeners because it exceeded its threshold by far (${this._size} vs ${this._leakageMon.threshold})`;
 				console.warn(message);
@@ -1155,6 +1155,7 @@ export class Emitter<T> {
 			} else {
 				this._listeners.push(contained);
 			}
+			this._options?.onDidAddListener?.(this);
 
 			this._size++;
 
@@ -1216,7 +1217,7 @@ export class Emitter<T> {
 			for (let i = 0; i < listeners.length; i++) {
 				if (listeners[i]) {
 					listeners[n++] = listeners[i];
-				} else if (adjustDeliveryQueue) {
+				} else if (adjustDeliveryQueue && n < this._deliveryQueue!.end) {
 					this._deliveryQueue!.end--;
 					if (n < this._deliveryQueue!.i) {
 						this._deliveryQueue!.i--;
@@ -1354,6 +1355,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			const [listener, data] = this._asyncDeliveryQueue.shift()!;
 			const thenables: Promise<unknown>[] = [];
 
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			const event = <T>{
 				...data,
 				token,

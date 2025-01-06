@@ -697,4 +697,149 @@ suite('AsyncDataTree', function () {
 		await tree.updateChildren(model.root, true);
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'b.txt', 'c', 'c.txt']);
 	});
+
+	test('Tree Navigation: AsyncDataTree', async () => {
+		const container = document.createElement('div');
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{
+					id: 'aa', children: [{ id: 'aa.txt' }]
+				}, {
+					id: 'ab', children: [{ id: 'ab.txt' }]
+				}]
+			}, {
+				id: 'b', children: [{
+					id: 'ba', children: [{ id: 'ba.txt' }]
+				}, {
+					id: 'bb', children: [{ id: 'bb.txt' }]
+				}]
+			}, {
+				id: 'c', children: [{
+					id: 'ca', children: [{ id: 'ca.txt' }]
+				}, {
+					id: 'cb', children: [{ id: 'cb.txt' }]
+				}]
+			}]
+		});
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'c']);
+
+		assert.strictEqual(tree.navigate().current(), null);
+		assert.strictEqual(tree.navigate().first()?.id, 'a');
+		assert.strictEqual(tree.navigate().last()?.id, 'c');
+
+		assert.strictEqual(tree.navigate(model.get('b')).previous()?.id, 'a');
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'c');
+
+		await tree.expand(model.get('a'));
+		await tree.expand(model.get('aa'));
+		await tree.expand(model.get('ab'));
+
+		await tree.expand(model.get('b'));
+		await tree.expand(model.get('ba'));
+		await tree.expand(model.get('bb'));
+
+		await tree.expand(model.get('c'));
+		await tree.expand(model.get('ca'));
+		await tree.expand(model.get('cb'));
+
+		// Only the first 10 elements are rendered (total height is 200px, each element is 20px)
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'aa', 'aa.txt', 'ab', 'ab.txt', 'b', 'ba', 'ba.txt', 'bb', 'bb.txt']);
+
+		assert.strictEqual(tree.navigate().first()?.id, 'a');
+		assert.strictEqual(tree.navigate().last()?.id, 'cb.txt');
+
+		assert.strictEqual(tree.navigate(model.get('b')).previous()?.id, 'ab.txt');
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'ba');
+
+		assert.strictEqual(tree.navigate(model.get('ab.txt')).previous()?.id, 'ab');
+		assert.strictEqual(tree.navigate(model.get('ab.txt')).next()?.id, 'b');
+
+		assert.strictEqual(tree.navigate(model.get('bb.txt')).next()?.id, 'c');
+
+		tree.collapse(model.get('b'), false);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'aa', 'aa.txt', 'ab', 'ab.txt', 'b', 'c', 'ca', 'ca.txt', 'cb']);
+
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'c');
+	});
+
+	test('Test Navigation: CompressibleAsyncDataTree', async () => {
+		const container = document.createElement('div');
+
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element) {
+				return element.children ?? Iterable.empty();
+			}
+		};
+
+		const compressionDelegate = new class implements ITreeCompressionDelegate<Element> {
+			isIncompressible(element: Element): boolean {
+				return !dataSource.hasChildren(element);
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [
+				{
+					id: 'a', children: [{ id: 'aa', children: [{ id: 'aa.txt' }] }]
+				}, {
+					id: 'b', children: [{ id: 'ba', children: [{ id: 'ba.txt' }] }]
+				}, {
+					id: 'c', children: [{
+						id: 'ca', children: [{ id: 'ca.txt' }]
+					}, {
+						id: 'cb', children: [{ id: 'cb.txt' }]
+					}]
+				}
+			]
+		});
+
+		const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'c']);
+
+		assert.strictEqual(tree.navigate().current(), null);
+		assert.strictEqual(tree.navigate().first()?.id, 'a');
+		assert.strictEqual(tree.navigate().last()?.id, 'c');
+
+		assert.strictEqual(tree.navigate(model.get('b')).previous()?.id, 'a');
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'c');
+
+		await tree.expand(model.get('a'));
+		await tree.expand(model.get('aa'));
+
+		await tree.expand(model.get('b'));
+		await tree.expand(model.get('ba'));
+
+		await tree.expand(model.get('c'));
+		await tree.expand(model.get('ca'));
+		await tree.expand(model.get('cb'));
+
+		// Only the first 10 elements are rendered (total height is 200px, each element is 20px)
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a/aa', 'aa.txt', 'b/ba', 'ba.txt', 'c', 'ca', 'ca.txt', 'cb', 'cb.txt']);
+
+		assert.strictEqual(tree.navigate().first()?.id, 'aa');
+		assert.strictEqual(tree.navigate().last()?.id, 'cb.txt');
+
+		assert.strictEqual(tree.navigate(model.get('b')).previous()?.id, 'aa.txt');
+		assert.strictEqual(tree.navigate(model.get('ba')).previous()?.id, 'aa.txt');
+
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'ba.txt');
+		assert.strictEqual(tree.navigate(model.get('ba')).next()?.id, 'ba.txt');
+
+		assert.strictEqual(tree.navigate(model.get('aa.txt')).previous()?.id, 'aa');
+		assert.strictEqual(tree.navigate(model.get('aa.txt')).next()?.id, 'ba');
+	});
 });

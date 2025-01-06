@@ -26,7 +26,7 @@ declare module 'vscode' {
 		 */
 		onDidChangeHistoryItemRefs: Event<SourceControlHistoryItemRefsChangeEvent>;
 
-		provideHistoryItemRefs(token: CancellationToken): ProviderResult<SourceControlHistoryItemRef[]>;
+		provideHistoryItemRefs(historyItemRefs: string[] | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemRef[]>;
 		provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
 		provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 

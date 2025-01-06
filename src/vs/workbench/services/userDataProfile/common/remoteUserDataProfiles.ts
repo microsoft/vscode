@@ -15,6 +15,7 @@ import { IUserDataProfileService } from './userDataProfile.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { UserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfileIpc.js';
+import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 
 const associatedRemoteProfilesKey = 'associatedRemoteProfiles';
 
@@ -81,7 +82,7 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 		await this.initPromise;
 
 		if (!this.remoteUserDataProfilesService) {
-			throw new Error('Remote profiles service not available in the current window');
+			throw new ErrorNoTelemetry('Remote profiles service not available in the current window');
 		}
 
 		return this.remoteUserDataProfilesService.profiles;
@@ -91,7 +92,7 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 		await this.initPromise;
 
 		if (!this.remoteUserDataProfilesService) {
-			throw new Error('Remote profiles service not available in the current window');
+			throw new ErrorNoTelemetry('Remote profiles service not available in the current window');
 		}
 
 		return this.getAssociatedRemoteProfile(localProfile, this.remoteUserDataProfilesService);
@@ -106,7 +107,6 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 		let profile = remoteUserDataProfilesService.profiles.find(p => p.id === localProfile.id);
 		if (!profile) {
 			profile = await remoteUserDataProfilesService.createProfile(localProfile.id, localProfile.name, {
-				shortName: localProfile.shortName,
 				transient: localProfile.isTransient,
 				useDefaultFlags: localProfile.useDefaultFlags,
 			});
@@ -161,8 +161,8 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 			}
 			const localProfile = this.userDataProfilesService.profiles.find(p => p.id === profileId);
 			if (localProfile) {
-				if (localProfile.name !== remoteProfile.name || localProfile.shortName !== remoteProfile.shortName) {
-					await this.remoteUserDataProfilesService?.updateProfile(remoteProfile, { name: localProfile.name, shortName: localProfile.shortName });
+				if (localProfile.name !== remoteProfile.name) {
+					await this.remoteUserDataProfilesService?.updateProfile(remoteProfile, { name: localProfile.name });
 				}
 				associatedRemoteProfiles.push(profileId);
 				continue;

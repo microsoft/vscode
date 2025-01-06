@@ -283,7 +283,7 @@ async function destroyAttachServer() {
 
 interface CachedIpcState {
 	ipcAddress: string;
-	jsDebugPath: string;
+	jsDebugPath: string | undefined;
 	settingsValue: string;
 }
 
@@ -388,7 +388,7 @@ async function getIpcAddress(context: vscode.ExtensionContext) {
 		ipcAddress,
 		jsDebugPath,
 		settingsValue,
-	} as CachedIpcState);
+	} satisfies CachedIpcState);
 
 	return ipcAddress;
 }

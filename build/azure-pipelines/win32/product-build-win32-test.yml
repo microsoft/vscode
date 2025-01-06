@@ -12,9 +12,6 @@ parameters:
   - name: PUBLISH_TASK_NAME
     type: string
     default: PublishPipelineArtifact@0
-  - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
 
 steps:
   - powershell: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
@@ -25,48 +22,26 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
-        - powershell: .\scripts\test-amd.bat --tfs "Unit Tests"
-          displayName: Run unit tests (Electron) [AMD]
-          timeoutInMinutes: 15
-        - powershell: npm run test-node-amd
-          displayName: Run unit tests (node.js) [AMD]
-          timeoutInMinutes: 15
-        - powershell: node test/unit/browser/index.amd.js --sequential --browser chromium --tfs "Browser Unit Tests"
-          displayName: Run unit tests (Browser, Chromium) [AMD]
-          timeoutInMinutes: 20
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-        - powershell: .\scripts\test.bat --tfs "Unit Tests"
-          displayName: Run unit tests (Electron)
-          timeoutInMinutes: 15
-        - powershell: npm run test-node
-          displayName: Run unit tests (node.js)
-          timeoutInMinutes: 15
-        - powershell: node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests"
-          displayName: Run unit tests (Browser, Chromium)
-          timeoutInMinutes: 20
+      - powershell: .\scripts\test.bat --tfs "Unit Tests"
+        displayName: Run unit tests (Electron)
+        timeoutInMinutes: 15
+      - powershell: npm run test-node
+        displayName: Run unit tests (node.js)
+        timeoutInMinutes: 15
+      - powershell: node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests"
+        displayName: Run unit tests (Browser, Chromium)
+        timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
-        - powershell: .\scripts\test-amd.bat --build --tfs "Unit Tests"
-          displayName: Run unit tests (Electron) [AMD]
-          timeoutInMinutes: 15
-        - script: npm run test-node-amd -- --build
-          displayName: Run unit tests (node.js) [AMD]
-          timeoutInMinutes: 15
-        - powershell: npm run test-browser-amd-no-install -- --sequential --build --browser chromium --tfs "Browser Unit Tests"
-          displayName: Run unit tests (Browser, Chromium) [AMD]
-          timeoutInMinutes: 20
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-        - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
-          displayName: Run unit tests (Electron)
-          timeoutInMinutes: 15
-        - powershell: npm run test-node -- --build
-          displayName: Run unit tests (node.js)
-          timeoutInMinutes: 15
-        - powershell: npm run test-browser-no-install -- --sequential --build --browser chromium --tfs "Browser Unit Tests"
-          displayName: Run unit tests (Browser, Chromium)
-          timeoutInMinutes: 20
+      - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
+        displayName: Run unit tests (Electron)
+        timeoutInMinutes: 15
+      - powershell: npm run test-node -- --build
+        displayName: Run unit tests (node.js)
+        timeoutInMinutes: 15
+      - powershell: npm run test-browser-no-install -- --sequential --build --browser chromium --tfs "Browser Unit Tests"
+        displayName: Run unit tests (Browser, Chromium)
+        timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - powershell: |
@@ -88,6 +63,7 @@ steps:
           compile-extension:typescript-language-features `
           compile-extension:vscode-api-tests `
           compile-extension:vscode-colorize-tests `
+          compile-extension:vscode-colorize-perf-tests `
           compile-extension:vscode-test-resolver `
         }
       displayName: Build integration tests
@@ -98,14 +74,9 @@ steps:
       condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
-        - powershell: .\scripts\test-integration-amd.bat --tfs "Integration Tests"
-          displayName: Run integration tests (Electron) [AMD]
-          timeoutInMinutes: 20
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-        - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
-          displayName: Run integration tests (Electron)
-          timeoutInMinutes: 20
+      - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
+        displayName: Run integration tests (Electron)
+        timeoutInMinutes: 20
 
       - powershell: .\scripts\test-web-integration.bat --browser chromium
         displayName: Run integration tests (Browser, Chromium)
@@ -116,36 +87,20 @@ steps:
         timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
-        - powershell: |
-            # Figure out the full absolute path of the product we just built
-            # including the remote server and configure the integration tests
-            # to run with these builds instead of running out of sources.
-            . build/azure-pipelines/win32/exec.ps1
-            $ErrorActionPreference = "Stop"
-            $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-            $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
-            $AppNameShort = $AppProductJson.nameShort
-            $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
-            $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
-            exec { .\scripts\test-integration-amd.bat --build --tfs "Integration Tests" }
-          displayName: Run integration tests (Electron) [AMD]
-          timeoutInMinutes: 20
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-        - powershell: |
-            # Figure out the full absolute path of the product we just built
-            # including the remote server and configure the integration tests
-            # to run with these builds instead of running out of sources.
-            . build/azure-pipelines/win32/exec.ps1
-            $ErrorActionPreference = "Stop"
-            $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-            $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
-            $AppNameShort = $AppProductJson.nameShort
-            $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
-            $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
-            exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
-          displayName: Run integration tests (Electron)
-          timeoutInMinutes: 20
+      - powershell: |
+          # Figure out the full absolute path of the product we just built
+          # including the remote server and configure the integration tests
+          # to run with these builds instead of running out of sources.
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+          $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
+          $AppNameShort = $AppProductJson.nameShort
+          $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+          $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+          exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+        displayName: Run integration tests (Electron)
+        timeoutInMinutes: 20
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1

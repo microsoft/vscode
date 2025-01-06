@@ -639,6 +639,6 @@ export function allowsTrueInlineDiffRendering(mapping: DetailedLineRangeMapping)
 	);
 }
 
-function rangeIsSingleLine(range: Range): boolean {
+export function rangeIsSingleLine(range: Range): boolean {
 	return range.startLineNumber === range.endLineNumber;
 }

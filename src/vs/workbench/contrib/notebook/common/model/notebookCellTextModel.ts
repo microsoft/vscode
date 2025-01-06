@@ -19,6 +19,8 @@ import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutp
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { splitLines } from '../../../../../base/common/strings.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -27,8 +29,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputItems = this._register(new Emitter<void>());
 	readonly onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
 
-	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime'>());
-	readonly onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime' | { type: 'model'; event: IModelContentChangedEvent }>());
+	readonly onDidChangeContent: Event<'content' | 'language' | 'mime' | { type: 'model'; event: IModelContentChangedEvent }> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
 	readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
@@ -105,7 +107,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._onDidChangeContent.fire('mime');
 	}
 
-	private _textBuffer!: model.IReadonlyTextBuffer;
+	private _textBuffer!: model.ITextBuffer;
 
 	get textBuffer() {
 		if (this._textBuffer) {
@@ -153,13 +155,14 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			// Listen to language changes on the model
 			this._textModelDisposables.add(this._textModel.onDidChangeLanguage((e) => this.setRegisteredLanguage(this._languageService, e.newLanguage, this.language)));
 			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
-			this._textModelDisposables.add(this._textModel.onDidChangeContent(() => {
+			this._textModelDisposables.add(this._textModel.onDidChangeContent((e) => {
 				if (this._textModel) {
 					this._versionId = this._textModel.getVersionId();
 					this._alternativeId = this._textModel.getAlternativeVersionId();
 				}
 				this._textBufferHash = null;
 				this._onDidChangeContent.fire('content');
+				this._onDidChangeContent.fire({ type: 'model', event: e });
 			}));
 
 			this._textModel._overwriteVersionId(this._versionId);
@@ -427,10 +430,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	 * - language
 	 * - mime
 	 * - cellKind
-	 * - internal metadata
+	 * - internal metadata (conditionally)
 	 * - source
 	 */
-	fastEqual(b: ICellDto2): boolean {
+	fastEqual(b: ICellDto2, ignoreMetadata: boolean): boolean {
 		if (this.language !== b.language) {
 			return false;
 		}
@@ -443,21 +446,38 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
-		if (this.internalMetadata?.executionOrder !== b.internalMetadata?.executionOrder
-			|| this.internalMetadata?.lastRunSuccess !== b.internalMetadata?.lastRunSuccess
-			|| this.internalMetadata?.runStartTime !== b.internalMetadata?.runStartTime
-			|| this.internalMetadata?.runStartTimeAdjustment !== b.internalMetadata?.runStartTimeAdjustment
-			|| this.internalMetadata?.runEndTime !== b.internalMetadata?.runEndTime) {
-			return false;
+		if (!ignoreMetadata) {
+			if (this.internalMetadata?.executionOrder !== b.internalMetadata?.executionOrder
+				|| this.internalMetadata?.lastRunSuccess !== b.internalMetadata?.lastRunSuccess
+				|| this.internalMetadata?.runStartTime !== b.internalMetadata?.runStartTime
+				|| this.internalMetadata?.runStartTimeAdjustment !== b.internalMetadata?.runStartTimeAdjustment
+				|| this.internalMetadata?.runEndTime !== b.internalMetadata?.runEndTime) {
+				return false;
+			}
 		}
 
 		// Once we attach the cell text buffer to an editor, the source of truth is the text buffer instead of the original source
-		if (this._textBuffer && this.getValue() !== b.source) {
-			return false;
+		if (this._textBuffer) {
+			if (!NotebookCellTextModel.linesAreEqual(this.textBuffer.getLinesContent(), b.source)) {
+				return false;
+			}
 		} else if (this._source !== b.source) {
 			return false;
 		}
 
+		return true;
+	}
+
+	private static linesAreEqual(aLines: string[], b: string) {
+		const bLines = splitLines(b);
+		if (aLines.length !== bLines.length) {
+			return false;
+		}
+		for (let i = 0; i < aLines.length; i++) {
+			if (aLines[i] !== bLines[i]) {
+				return false;
+			}
+		}
 		return true;
 	}
 
@@ -496,7 +516,7 @@ function computeRunStartTimeAdjustment(oldMetadata: NotebookCellInternalMetadata
 }
 
 
-export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMetadata | undefined, metadata: NotebookCellMetadata, language?: string) {
+export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMetadata | undefined, metadata: NotebookCellMetadata, language?: string, sortKeys?: boolean): string {
 	let filteredMetadata: { [key: string]: any } = {};
 
 	if (transientCellMetadata) {
@@ -521,7 +541,28 @@ export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMet
 	if (language) {
 		obj.language = language;
 	}
-	const metadataSource = toFormattedString(obj, {});
+	const metadataSource = toFormattedString(sortKeys ? sortObjectPropertiesRecursively(obj) : obj, {});
 
 	return metadataSource;
+}
+
+
+/**
+ * Sort the JSON to ensure when diffing, the JSON keys are sorted & matched correctly in diff view.
+ */
+export function sortObjectPropertiesRecursively(obj: any): any {
+	if (Array.isArray(obj)) {
+		return obj.map(sortObjectPropertiesRecursively);
+	}
+	if (obj !== undefined && obj !== null && typeof obj === 'object' && Object.keys(obj).length > 0) {
+		return (
+			Object.keys(obj)
+				.sort()
+				.reduce<Record<string, any>>((sortedObj, prop) => {
+					sortedObj[prop] = sortObjectPropertiesRecursively(obj[prop]);
+					return sortedObj;
+				}, {}) as any
+		);
+	}
+	return obj;
 }

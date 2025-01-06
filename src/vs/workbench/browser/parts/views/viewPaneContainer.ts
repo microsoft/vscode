@@ -41,6 +41,7 @@ import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { isHorizontal, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
@@ -380,6 +381,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		@IStorageService protected storageService: IStorageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
+		@ILogService protected readonly logService: ILogService,
 	) {
 
 		super(id, themeService, storageService);
@@ -793,7 +795,12 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 					singleViewPaneContainerTitle: viewDescriptor.singleViewPaneContainerTitle,
 				});
 
-			pane.render();
+			try {
+				pane.render();
+			} catch (error) {
+				this.logService.error(`Fail to render view ${viewDescriptor.id}`, error);
+				continue;
+			}
 			const contextMenuDisposable = addDisposableListener(pane.draggableElement, 'contextmenu', e => {
 				e.stopPropagation();
 				e.preventDefault();
@@ -1176,14 +1183,15 @@ export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> exte
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: any[]): unknown {
 		const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(this.desc.viewPaneContainerId);
 		if (viewPaneContainer) {
 			return this.runInViewPaneContainer(accessor, <T>viewPaneContainer, ...args);
 		}
+		return undefined;
 	}
 
-	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: any[]): any;
+	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: any[]): unknown;
 }
 
 class MoveViewPosition extends Action2 {

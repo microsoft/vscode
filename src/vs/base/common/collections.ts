@@ -84,7 +84,7 @@ export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
 export class SetWithKey<T> implements Set<T> {
 	private _map = new Map<any, T>();
 
-	constructor(values: T[], private toKey: (t: T) => any) {
+	constructor(values: T[], private toKey: (t: T) => unknown) {
 		for (const value of values) {
 			this.add(value);
 		}

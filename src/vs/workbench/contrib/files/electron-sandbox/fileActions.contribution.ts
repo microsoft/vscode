@@ -97,6 +97,15 @@ appendToCommandPalette({
 	category: category
 }, REVEAL_IN_OS_WHEN_CONTEXT);
 
+// Menu registration - chat attachments context
+
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
+	group: 'navigation',
+	order: 20,
+	command: revealInOsCommand,
+	when: REVEAL_IN_OS_WHEN_CONTEXT
+});
+
 // Menu registration - chat inline anchor
 
 MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {

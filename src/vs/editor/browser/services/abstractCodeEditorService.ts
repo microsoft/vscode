@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheets from '../../../base/browser/domStylesheets.js';
+import * as cssJs from '../../../base/browser/cssValue.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IDisposable, DisposableStore, Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
@@ -127,7 +129,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 
 	protected _createGlobalStyleSheet(): GlobalStyleSheet {
-		return new GlobalStyleSheet(dom.createStyleSheet());
+		return new GlobalStyleSheet(domStylesheets.createStyleSheet());
 	}
 
 	private _getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
@@ -140,7 +142,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		}
 		const editorId = editor.getId();
 		if (!this._editorStyleSheets.has(editorId)) {
-			const refCountedStyleSheet = new RefCountedStyleSheet(this, editorId, dom.createStyleSheet(domNode));
+			const refCountedStyleSheet = new RefCountedStyleSheet(this, editorId, domStylesheets.createStyleSheet(domNode));
 			this._editorStyleSheets.set(editorId, refCountedStyleSheet);
 		}
 		return this._editorStyleSheets.get(editorId)!;
@@ -347,11 +349,11 @@ class RefCountedStyleSheet {
 	}
 
 	public insertRule(selector: string, rule: string): void {
-		dom.createCSSRule(selector, rule, this._styleSheet);
+		domStylesheets.createCSSRule(selector, rule, this._styleSheet);
 	}
 
 	public removeRulesContainingSelector(ruleName: string): void {
-		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
+		domStylesheets.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
 	}
 }
 
@@ -373,11 +375,11 @@ export class GlobalStyleSheet {
 	}
 
 	public insertRule(selector: string, rule: string): void {
-		dom.createCSSRule(selector, rule, this._styleSheet);
+		domStylesheets.createCSSRule(selector, rule, this._styleSheet);
 	}
 
 	public removeRulesContainingSelector(ruleName: string): void {
-		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
+		domStylesheets.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
 	}
 }
 
@@ -771,7 +773,7 @@ class DecorationCSSRules {
 		if (typeof opts !== 'undefined') {
 			this.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, dom.asCSSUrl(URI.revive(opts.contentIconPath))));
+				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, cssJs.asCSSUrl(URI.revive(opts.contentIconPath))));
 			}
 			if (typeof opts.contentText === 'string') {
 				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
@@ -798,7 +800,7 @@ class DecorationCSSRules {
 		const cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, dom.asCSSUrl(URI.revive(opts.gutterIconPath))));
+			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, cssJs.asCSSUrl(URI.revive(opts.gutterIconPath))));
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(_CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}

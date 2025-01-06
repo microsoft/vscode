@@ -955,7 +955,7 @@ class KeybindingsJsonSchema {
 		for (const [commandId, command] of allCommands) {
 			const commandMetadata = command.metadata;
 
-			addKnownCommand(commandId, commandMetadata?.description);
+			addKnownCommand(commandId, commandMetadata?.description ?? MenuRegistry.getCommand(commandId)?.title);
 
 			if (!commandMetadata || !commandMetadata.args || commandMetadata.args.length !== 1 || !commandMetadata.args[0].schema) {
 				continue;

@@ -38,6 +38,7 @@ import { SelectionClipboardContributionID } from '../../codeEditor/browser/selec
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 export const MIN_EDITOR_HEIGHT = 5 * 18;
@@ -84,6 +85,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 					SelectionClipboardContributionID,
 					InlineCompletionsController.ID,
 					CodeActionController.ID,
+					PlaceholderTextContribution.ID
 				])
 			],
 			contextMenuId: MenuId.SimpleEditorContext
@@ -108,6 +110,11 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 
 	protected _getActions(): Iterable<EditorAction> {
 		return EditorExtensionsRegistry.getEditorActions();
+	}
+
+	public override updateOptions(newOptions: Readonly<IEditorOptions> | undefined): void {
+		const withLineNumberRemoved: Readonly<IEditorOptions> = { ...newOptions, lineNumbers: 'off' };
+		super.updateOptions(withLineNumberRemoved);
 	}
 
 	public static getEditorOptions(configurationService: IConfigurationService): IEditorOptions {
@@ -140,6 +147,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			quickSuggestions: false,
 			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
 			fontFamily: configurationService.getValue('editor.fontFamily'),
+			fontSize: configurationService.getValue('editor.fontSize'),
 		};
 	}
 }

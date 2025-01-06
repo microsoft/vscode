@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import { createCancelablePromise, firstParallel, timeout } from '../../../base/common/async.js';
-import { IDisposable } from '../../../base/common/lifecycle.js';
+import * as vscode from 'vscode';
+import { createCancelablePromise, disposableTimeout, firstParallel, RunOnceScheduler, timeout } from '../../../base/common/async.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as nls from '../../../nls.js';
 import { IExternalTerminalService } from '../../../platform/externalTerminal/common/externalTerminal.js';
@@ -27,6 +27,7 @@ import { IExtHostTesting } from '../common/extHostTesting.js';
 import { DebugAdapterExecutable, DebugAdapterNamedPipeServer, DebugAdapterServer, ThemeIcon } from '../common/extHostTypes.js';
 import { IExtHostVariableResolverProvider } from '../common/extHostVariableResolverService.js';
 import { IExtHostWorkspace } from '../common/extHostWorkspace.js';
+import { IExtHostTerminalShellIntegration } from '../common/extHostTerminalShellIntegration.js';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -41,6 +42,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
+		@IExtHostTerminalShellIntegration private _terminalShellIntegrationService: IExtHostTerminalShellIntegration,
 		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
 		@IExtHostCommands commands: IExtHostCommands,
@@ -123,10 +125,34 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			const shellProcessId = await terminal.processId;
 
 			if (giveShellTimeToInitialize) {
-				// give a new terminal some time to initialize the shell
-				await new Promise(resolve => setTimeout(resolve, 1000));
+				// give a new terminal some time to initialize the shell (most recently, #228191)
+				// - If shell integration is available, use that as a deterministic signal
+				// - Debounce content being written to known when the prompt is available
+				// - Give a longer timeout otherwise
+				const enum Timing {
+					DataDebounce = 500,
+					MaxDelay = 5000,
+				}
+
+				const ds = new DisposableStore();
+				await new Promise<void>(resolve => {
+					const scheduler = ds.add(new RunOnceScheduler(resolve, Timing.DataDebounce));
+					ds.add(this._terminalService.onDidWriteTerminalData(e => {
+						if (e.terminal === terminal) {
+							scheduler.schedule();
+						}
+					}));
+					ds.add(this._terminalShellIntegrationService.onDidChangeTerminalShellIntegration(e => {
+						if (e.terminal === terminal) {
+							resolve();
+						}
+					}));
+					ds.add(disposableTimeout(resolve, Timing.MaxDelay));
+				});
+
+				ds.dispose();
 			} else {
-				if (terminal.state.isInteractedWith) {
+				if (terminal.state.isInteractedWith && !terminal.shellIntegration) {
 					terminal.sendText('\u0003'); // Ctrl+C for #106743. Not part of the same command for #107969
 					await timeout(200); // mirroring https://github.com/microsoft/vscode/blob/c67ccc70ece5f472ec25464d3eeb874cfccee9f1/src/vs/workbench/contrib/terminal/browser/terminalInstance.ts#L852-L857
 				}
@@ -146,7 +172,12 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			}
 
 			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand, args.env);
-			terminal.sendText(command);
+
+			if (terminal.shellIntegration) {
+				terminal.shellIntegration.executeCommand(command);
+			} else {
+				terminal.sendText(command);
+			}
 
 			// Mark terminal as unused when its session ends, see #112055
 			const sessionListener = this.onDidTerminateDebugSession(s => {

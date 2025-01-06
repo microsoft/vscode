@@ -9,6 +9,10 @@ import { localize } from '../../../../../../nls.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { INotebookKernel, INotebookKernelService, VariablesResult, variablePageSize } from '../../../common/notebookKernelService.js';
 
+export interface IEmptyScope {
+	kind: 'empty';
+}
+
 export interface INotebookScope {
 	kind: 'root';
 	readonly notebook: NotebookTextModel;
@@ -49,8 +53,10 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		this.cancellationTokenSource = new CancellationTokenSource();
 	}
 
-	async getChildren(element: INotebookScope | INotebookVariableElement): Promise<Array<INotebookVariableElement>> {
-		if (element.kind === 'root') {
+	async getChildren(element: INotebookScope | INotebookVariableElement | IEmptyScope): Promise<Array<INotebookVariableElement>> {
+		if (element.kind === 'empty') {
+			return [];
+		} else if (element.kind === 'root') {
 			return this.getRootVariables(element.notebook);
 		} else {
 			return this.getVariables(element);

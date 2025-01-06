@@ -156,12 +156,26 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 		return view as vscode.TreeView<T>;
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined> {
+	async $getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(number | ITreeItem)[][] | undefined> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new NoTreeViewError(treeViewId));
 		}
-		return treeView.getChildren(treeItemHandle);
+		if (!treeItemHandles) {
+			const children = await treeView.getChildren();
+			return children ? [[0, ...children]] : undefined;
+		}
+		// Keep order of treeItemHandles in case extension trees already depend on this
+		const result = [];
+		for (let i = 0; i < treeItemHandles.length; i++) {
+			const treeItemHandle = treeItemHandles[i];
+			const children = await treeView.getChildren(treeItemHandle);
+			if (children) {
+				result.push([i, ...children]);
+			}
+
+		}
+		return result;
 	}
 
 	async $handleDrop(destinationViewId: string, requestId: number, treeDataTransferDTO: DataTransferDTO, targetItemHandle: string | undefined, token: CancellationToken,
