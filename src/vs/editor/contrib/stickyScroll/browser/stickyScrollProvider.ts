@@ -53,7 +53,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private _stickyModelProvider: IStickyModelProvider | null = null;
 
 	public readonly specialLineHeights: Map<number, number> = new Map();
-	public readonly specialLineFontSizes: Map<number, number> = new Map();
 
 	constructor(
 		editor: ICodeEditor,
@@ -80,17 +79,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 						this.specialLineHeights.set(lineNumber, lineHeight);
 					} else {
 						this.specialLineHeights.delete(lineNumber);
-					}
-				});
-			}));
-			this._register(model.onDidChangeSpecialLineFontSize((e) => {
-				e.changes.forEach((a) => {
-					const lineNumber = a.lineNumber;
-					const lineFontSize = a.lineFontSize;
-					if (lineFontSize !== null) {
-						this.specialLineFontSizes.set(lineNumber, lineFontSize);
-					} else {
-						this.specialLineFontSizes.delete(lineNumber);
 					}
 				});
 			}));

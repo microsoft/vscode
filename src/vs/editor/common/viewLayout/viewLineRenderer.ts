@@ -62,10 +62,7 @@ export class RenderLineInput {
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
 	public readonly fontLigatures: boolean;
-
 	public readonly lineHeight: number;
-
-	public readonly fontSize: number;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -93,8 +90,7 @@ export class RenderLineInput {
 		renderControlCharacters: boolean,
 		fontLigatures: boolean,
 		selectionsOnLine: LineRange[] | null,
-		lineHeight: number,
-		fontSize: number
+		lineHeight: number
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -124,7 +120,6 @@ export class RenderLineInput {
 		this.fontLigatures = fontLigatures;
 		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.startOffset < b.startOffset ? -1 : 1);
 		this.lineHeight = lineHeight;
-		this.fontSize = fontSize;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -181,7 +176,6 @@ export class RenderLineInput {
 			&& this.lineTokens.equals(other.lineTokens)
 			&& this.sameSelection(other.selectionsOnLine)
 			&& this.lineHeight === other.lineHeight
-			&& this.fontSize === other.fontSize
 		);
 	}
 }

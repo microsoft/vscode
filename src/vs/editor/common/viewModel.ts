@@ -127,7 +127,6 @@ export interface IViewLayout {
 	getWhitespaces(): IEditorWhitespace[];
 
 	getSpecialLinesHeights(): Map<number, number>;
-	getSpecialLinesFontSizes(): Map<number, number>;
 
 	isAfterLines(verticalOffset: number): boolean;
 	isInTopPadding(verticalOffset: number): boolean;
@@ -194,19 +193,9 @@ export interface IPartialViewLinesViewportData {
 	readonly lineHeight: number;
 
 	/**
-	 * The height of a line.
-	 */
-	readonly fontSize: number;
-
-	/**
 	 * The special line heights
 	 */
 	readonly specialLineHeights: Map<number, number>;
-
-	/**
-	 * The special line font sizes
-	 */
-	readonly specialLineFontSizes: Map<number, number>;
 }
 
 export interface IViewWhitespaceViewportData {
@@ -414,8 +403,7 @@ export class InlineDecoration {
 		public readonly range: Range,
 		public readonly inlineClassName: string,
 		public readonly type: InlineDecorationType,
-		public readonly lineHeight?: number | undefined,
-		public readonly fontSize?: number | undefined,
+		public readonly lineHeight?: number | undefined
 	) {
 	}
 }
@@ -426,8 +414,7 @@ export class SingleLineInlineDecoration {
 		public readonly endOffset: number,
 		public readonly inlineClassName: string,
 		public readonly inlineClassNameAffectsLetterSpacing: boolean,
-		public readonly lineHeight: number | undefined,
-		public readonly fontSize: number | undefined
+		public readonly lineHeight: number | undefined
 	) {
 	}
 
@@ -437,7 +424,6 @@ export class SingleLineInlineDecoration {
 			this.inlineClassName,
 			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular,
 			this.lineHeight,
-			this.fontSize
 		);
 	}
 }

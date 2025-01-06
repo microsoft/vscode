@@ -105,7 +105,6 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					const atlas = ViewGpuContext.atlas;
 					const fontFamily = configurationService.getValue<string>('editor.fontFamily');
 					const fontSize = configurationService.getValue<number>('editor.fontSize');
-					console.log('fontSize:', fontSize);
 					const rasterizer = new GlyphRasterizer(fontSize, fontFamily, getActiveWindow().devicePixelRatio);
 					let chars = await quickInputService.input({
 						prompt: 'Enter a character to draw (prefix with 0x for code point))'

@@ -171,7 +171,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const padding = options.get(EditorOption.padding);
 
-		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), options.get(EditorOption.fontSize), padding.top, padding.bottom);
+		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom);
 		this._maxLineWidth = 0;
 		this._overlayWidgetsMinWidth = 0;
 
@@ -214,18 +214,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return this._linesLayout.getSpecialLinesHeights();
 	}
 
-	public addSpecialLineFontSize(lineNumber: number, height: number): void {
-		this._linesLayout.addSpecialLineFontSize(lineNumber, height);
-	}
-
-	public removeSpecialLineFontSize(lineNumber: number): void {
-		this._linesLayout.removeSpecialLineFontSize(lineNumber);
-	}
-
-	public getSpecialLinesFontSizes(): Map<number, number> {
-		return this._linesLayout.getSpecialLinesFontSizes();
-	}
-
 	private _configureSmoothScrollDuration(): void {
 		this._scrollable.setSmoothScrollDuration(this._configuration.options.get(EditorOption.smoothScrolling) ? SMOOTH_SCROLLING_TIME : 0);
 	}
@@ -236,9 +224,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const options = this._configuration.options;
 		if (e.hasChanged(EditorOption.lineHeight)) {
 			this._linesLayout.setLineHeight(options.get(EditorOption.lineHeight));
-		}
-		if (e.hasChanged(EditorOption.fontSize)) {
-			this._linesLayout.setLineFontSize(options.get(EditorOption.fontSize));
 		}
 		if (e.hasChanged(EditorOption.padding)) {
 			const padding = options.get(EditorOption.padding);

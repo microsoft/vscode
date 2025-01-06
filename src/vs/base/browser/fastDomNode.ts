@@ -159,9 +159,6 @@ export class FastDomNode<T extends HTMLElement> {
 	}
 
 	public setFontSize(_fontSize: number | string): void {
-		console.log('setFontSize', _fontSize);
-		console.log('_fontSize', this._fontSize);
-		console.log('this.domNode : ', this.domNode);
 		const fontSize = numberAsPixels(_fontSize);
 		if (this._fontSize === fontSize) {
 			return;

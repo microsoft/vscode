@@ -97,10 +97,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, fontSize: number, viewportData: ViewportData, sb: StringBuilder): boolean {
-		console.log('renderLine');
-		console.log('lineNumber : ', lineNumber);
-		console.log('fontSize', fontSize);
+	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
@@ -169,8 +166,7 @@ export class ViewLine implements IVisibleLine {
 			options.renderControlCharacters,
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
-			lineHeight,
-			fontSize
+			lineHeight
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -185,8 +181,6 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
-		sb.appendString('px;font-size:');
-		sb.appendString(String(fontSize));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
@@ -220,7 +214,6 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
-		console.log('layoutLine');
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);

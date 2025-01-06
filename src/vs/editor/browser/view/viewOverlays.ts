@@ -126,7 +126,6 @@ export class ViewOverlays extends ViewPart {
 	}
 
 	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
-		// console.log('_viewOverlaysRender');
 		this._visibleLines.renderLines(ctx.viewportData);
 	}
 }
@@ -161,13 +160,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		// Nothing
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, fontSize: number, viewportData: ViewportData, sb: StringBuilder): boolean {
-		// console.log('renderLine');
-		// console.log('lineNumber:', lineNumber);
-		// console.log('deltaTop:', deltaTop);
-		// console.log('lineHeight:', lineHeight);
-		// console.log('fontSize:', fontSize);
-
+	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			const dynamicOverlay = this._dynamicOverlays[i];

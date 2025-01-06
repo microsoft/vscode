@@ -47,12 +47,7 @@ export class ViewportData {
 	private readonly _model: IViewModel;
 
 	public readonly lineHeight: number;
-
-	public readonly fontSize: number;
-
 	public readonly specialLineHeights: Map<number, number>;
-
-	public readonly specialLineFontSizes: Map<number, number>;
 
 	constructor(
 		selections: Selection[],
@@ -66,9 +61,7 @@ export class ViewportData {
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
 		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
 		this.lineHeight = partialData.lineHeight | 0;
-		this.fontSize = partialData.fontSize | 0;
 		this.specialLineHeights = partialData.specialLineHeights;
-		this.specialLineFontSizes = partialData.specialLineFontSizes;
 		this.whitespaceViewportData = whitespaceViewportData;
 
 		this._model = model;

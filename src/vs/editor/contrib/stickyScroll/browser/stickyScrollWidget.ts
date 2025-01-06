@@ -65,7 +65,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _isOnGlyphMargin: boolean = false;
 
 	public readonly specialLineHeights: Map<number, number> = new Map();
-	public readonly specialLineFontSizes: Map<number, number> = new Map();
+
 	private _height: number = -1;
 
 	public get height(): number { return this._height; }
@@ -322,7 +322,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-			1, 1, 1, 500, 'none', true, true, null, 1, 1
+			1, 1, 1, 500, 'none', true, true, null, 1
 		);
 
 		const sb = new StringBuilder(2000);
@@ -376,8 +376,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(lineNumberHTMLNode);
 
-		const defaultFontSize = this._editor.getOption(EditorOption.fontSize);
-		lineHTMLNode.style.fontSize = `${this.specialLineFontSizes.get(line) ?? defaultFontSize}px`;
 		lineNumberHTMLNode.style.lineHeight = `${height}px`;
 		lineHTMLNode.style.lineHeight = `${height}px`;
 		lineNumberHTMLNode.style.height = `${height}px`;

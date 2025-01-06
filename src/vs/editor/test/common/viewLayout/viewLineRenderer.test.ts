@@ -74,7 +74,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -130,7 +129,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -188,7 +186,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -250,7 +247,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -324,7 +320,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -391,7 +386,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -450,7 +444,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -497,7 +490,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -554,7 +546,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -619,7 +610,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -673,7 +663,6 @@ suite('viewLineRenderer.renderLine', () => {
 				false,
 				false,
 				null,
-				0,
 				0
 			));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
@@ -779,7 +768,6 @@ suite('viewLineRenderer.renderLine', () => {
 				false,
 				true,
 				null,
-				0,
 				0
 			));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
@@ -822,7 +810,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -854,7 +841,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -889,7 +875,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), ({
@@ -939,7 +924,6 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -1024,7 +1008,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			selections,
-			0,
 			0
 		));
 		return inflateRenderLineOutput(actual);
@@ -1052,7 +1035,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -1098,7 +1080,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -1791,7 +1772,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -1845,7 +1825,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			true,
 			null,
-			0,
 			0
 		));
 
@@ -1885,7 +1864,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			true,
 			null,
-			0,
 			0
 		));
 
@@ -1927,7 +1905,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			true,
 			null,
-			0,
 			0
 		));
 
@@ -1963,7 +1940,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2004,7 +1980,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2046,7 +2021,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2088,7 +2062,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2130,7 +2103,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			true,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2172,7 +2144,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2209,7 +2180,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2257,7 +2227,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2300,7 +2269,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2351,7 +2319,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2403,7 +2370,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2448,7 +2414,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			true,
 			null,
-			0,
 			0
 		));
 
@@ -2518,7 +2483,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			true,
 			null,
-			0,
 			0
 		));
 
@@ -2595,7 +2559,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			[new LineRange(0, 47)],
-			0,
 			0
 		));
 
@@ -2698,7 +2661,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			true,
 			true,
 			null,
-			0,
 			0
 		));
 
@@ -2733,7 +2695,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			true,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2783,7 +2744,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -2824,7 +2784,6 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 

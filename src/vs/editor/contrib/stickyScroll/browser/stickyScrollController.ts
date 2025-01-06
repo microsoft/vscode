@@ -147,20 +147,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					}
 				});
 			}));
-			this._register(model.onDidChangeSpecialLineFontSize((e) => {
-				e.changes.forEach((a) => {
-					const lineNumber = a.lineNumber;
-					const lineFontSize = a.lineFontSize;
-					if (lineFontSize !== null) {
-						this._stickyScrollWidget.specialLineFontSizes.set(lineNumber, lineFontSize);
-					} else {
-						this._stickyScrollWidget.specialLineFontSizes.delete(lineNumber);
-					}
-					if (this._widgetState.startLineNumbers.includes(lineNumber)) {
-						this._renderStickyScroll(0);
-					}
-				});
-			}));
 		}
 	}
 
@@ -601,7 +587,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._minRebuildFromLine = undefined;
 		this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? undefined;
 		this._widgetState = this.findScrollWidgetState();
-		console.log('this._widgetState', this._widgetState);
 		const stickyWidgetHasLines = this._widgetState.startLineNumbers.length > 0;
 		this._stickyScrollVisibleContextKey.set(stickyWidgetHasLines);
 		this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, rebuildFromLine);

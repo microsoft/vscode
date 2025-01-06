@@ -95,7 +95,6 @@ export class Colorizer {
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 		return renderResult.html;
@@ -168,7 +167,6 @@ function _fakeColorize(lines: string[], tabSize: number, languageIdCodec: ILangu
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
@@ -210,7 +208,6 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 			false,
 			false,
 			null,
-			0,
 			0
 		));
 
