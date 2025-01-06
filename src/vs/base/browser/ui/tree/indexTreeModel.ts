@@ -41,7 +41,7 @@ export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisib
 
 export interface IIndexTreeModelOptions<T, TFilterData> {
 	readonly collapseByDefault?: boolean; // defaults to false
-	inverseCollapseRecursive?(): boolean;
+	invertCollapseRecursive?(): boolean;
 	readonly allowNonCollapsibleParents?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly autoExpandSingleChildren?: boolean;
@@ -109,7 +109,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private readonly _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeRenderNodeCount.event);
 
-	private inverseCollapseRecursive?(): boolean;
+	private invertCollapseRecursive?(): boolean;
 	private collapseByDefault: boolean;
 	private allowNonCollapsibleParents: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
@@ -122,7 +122,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		rootElement: T,
 		options: IIndexTreeModelOptions<T, TFilterData> = {}
 	) {
-		this.inverseCollapseRecursive = options.inverseCollapseRecursive;
+		this.invertCollapseRecursive = options.invertCollapseRecursive;
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.allowNonCollapsibleParents = options.allowNonCollapsibleParents ?? false;
 		this.filter = options.filter;
@@ -383,7 +383,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			collapsed = !node.collapsed;
 		}
 
-		if (collapsed && this.inverseCollapseRecursive?.()) {
+		if (collapsed && this.invertCollapseRecursive?.()) {
 			recursive = !recursive;
 		}
 
