@@ -12,7 +12,7 @@ import * as crypto from 'crypto';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { getMediaMime } from '../../base/common/mime.js';
 import { isLinux } from '../../base/common/platform.js';
-import { ILogService } from '../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { IServerEnvironmentService } from './serverEnvironmentService.js';
 import { extname, dirname, join, normalize, posix } from '../../base/common/path.js';
 import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from '../../base/common/network.js';
@@ -307,6 +307,17 @@ export class WebClientServer {
 
 		// Prefix routes with basePath for clients
 		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			['x-original-host', 'x-forwarded-host', 'x-forwarded-port', 'host'].forEach(header => {
+				const value = getFirstHeader(header);
+				if (value) {
+					this._logService.trace(`[WebClientServer] ${header}: ${value}`);
+				}
+			});
+			this._logService.trace(`[WebClientServer] Request URL: ${req.url}, basePath: ${basePath}, remoteAuthority: ${remoteAuthority}`);
+		}
+
 		const staticRoute = posix.join(basePath, this._productPath, STATIC_PATH);
 		const callbackRoute = posix.join(basePath, this._productPath, CALLBACK_PATH);
 		const webExtensionRoute = posix.join(basePath, this._productPath, WEB_EXTENSION_PATH);
