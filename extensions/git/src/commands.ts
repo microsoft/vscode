@@ -4271,63 +4271,6 @@ export class CommandCenter {
 		});
 	}
 
-	@command('git.viewCommit', { repository: true })
-	async viewCommit(repository: Repository, historyItem1: SourceControlHistoryItem, historyItem2?: SourceControlHistoryItem): Promise<void> {
-		if (!repository || !historyItem1) {
-			return;
-		}
-
-		if (historyItem2) {
-			const mergeBase = await repository.getMergeBase(historyItem1.id, historyItem2.id);
-			if (!mergeBase || (mergeBase !== historyItem1.id && mergeBase !== historyItem2.id)) {
-				return;
-			}
-		}
-
-		let title: string | undefined;
-		let historyItemParentId: string | undefined;
-		const rootUri = Uri.file(repository.root);
-
-		// If historyItem2 is not provided, we are viewing a single commit. If historyItem2 is
-		// provided, we are viewing a range and we have to include both start and end commits.
-		// TODO@lszomoru - handle the case when historyItem2 is the first commit in the repository
-		if (!historyItem2) {
-			const commit = await repository.getCommit(historyItem1.id);
-			title = `${getCommitShortHash(rootUri, historyItem1.id)} - ${truncate(commit.message)}`;
-			historyItemParentId = historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItem1.id}^`;
-		} else {
-			title = l10n.t('All Changes ({0} ↔ {1})', getCommitShortHash(rootUri, historyItem2.id), getCommitShortHash(rootUri, historyItem1.id));
-			historyItemParentId = historyItem2.parentIds.length > 0 ? historyItem2.parentIds[0] : `${historyItem2.id}^`;
-		}
-
-		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItem1.id}` });
-
-		await this._viewChanges(repository, historyItem1.id, historyItemParentId, multiDiffSourceUri, title);
-	}
-
-	@command('git.viewAllChanges', { repository: true })
-	async viewAllChanges(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
-		if (!repository || !historyItem) {
-			return;
-		}
-
-		const rootUri = Uri.file(repository.root);
-		const modifiedShortRef = getCommitShortHash(rootUri, historyItem.id);
-		const originalShortRef = historyItem.parentIds.length > 0 ? getCommitShortHash(rootUri, historyItem.parentIds[0]) : `${modifiedShortRef}^`;
-		const title = l10n.t('All Changes ({0} ↔ {1})', originalShortRef, modifiedShortRef);
-
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-changes' });
-
-		await this._viewChanges(repository, modifiedShortRef, originalShortRef, multiDiffSourceUri, title);
-	}
-
-	async _viewChanges(repository: Repository, historyItemId: string, historyItemParentId: string, multiDiffSourceUri: Uri, title: string): Promise<void> {
-		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
-		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
-
-		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
-	}
-
 	@command('git.copyCommitId', { repository: true })
 	async copyCommitId(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
 		if (!repository || !historyItem) {
@@ -4346,8 +4289,8 @@ export class CommandCenter {
 		env.clipboard.writeText(historyItem.message);
 	}
 
-	@command('git.blameStatusBarItem.viewCommit', { repository: true })
-	async viewStatusBarCommit(repository: Repository, historyItemId: string): Promise<void> {
+	@command('git.viewCommit', { repository: true })
+	async viewCommit(repository: Repository, historyItemId: string): Promise<void> {
 		if (!repository || !historyItemId) {
 			return;
 		}
@@ -4365,8 +4308,8 @@ export class CommandCenter {
 		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
-	@command('git.blameStatusBarItem.copyContent')
-	async blameStatusBarCopyContent(content: string): Promise<void> {
+	@command('git.copyContentToClipboard')
+	async copyContentToClipboard(content: string): Promise<void> {
 		if (typeof content !== 'string') {
 			return;
 		}

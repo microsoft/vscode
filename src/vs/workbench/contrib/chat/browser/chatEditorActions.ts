@@ -126,7 +126,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasRequestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification)),
+			precondition: ContextKeyExpr.and(ctxHasRequestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,

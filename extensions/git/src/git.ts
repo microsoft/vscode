@@ -62,6 +62,7 @@ export interface LogFileOptions {
 	/** Optional. Specifies whether to start retrieving log entries in reverse order. */
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
+	readonly shortStats?: boolean;
 }
 
 function parseVersion(raw: string): string {
@@ -348,15 +349,10 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
+// https://github.com/microsoft/vscode/issues/89373
+// https://github.com/git-for-windows/git/issues/2478
 function sanitizePath(path: string): string {
-	return path
-		// Drive letter
-		// https://github.com/microsoft/vscode/issues/89373
-		// https://github.com/git-for-windows/git/issues/2478
-		.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`)
-		// Shell-sensitive characters
-		// https://github.com/microsoft/vscode/issues/133566
-		.replace(/(["'\\\$!><#()\[\]*&^| ;{}?`])/g, '\\$1');
+	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
@@ -1172,7 +1168,7 @@ export class Repository {
 	}
 
 	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
-		const args = ['config', command];
+		const args = ['config', `--${command}`];
 
 		if (scope) {
 			args.push(`--${scope}`);
@@ -1288,6 +1284,10 @@ export class Repository {
 			} else {
 				args.push(options.hash);
 			}
+		}
+
+		if (options?.shortStats) {
+			args.push('--shortstat');
 		}
 
 		if (options?.sortByAuthorDate) {
