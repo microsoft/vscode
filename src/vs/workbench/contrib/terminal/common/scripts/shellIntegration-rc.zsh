@@ -82,13 +82,6 @@ __vsc_escape_value() {
 			token="\\x3b"
 		elif [ "$byte" = $'\n' ]; then
 			token="\x0a"
-		elif [ "$byte" = "%" ] && [ "${str:$((i+1)):1}" = "{" ]; then
-			token="\\x25\\x7b"
-			# token="\\x25\\x7b\"}"
-			((i++))  # Case %{ Not sure if it is right thing to insert " and } at the end..
-		elif [ "$byte" = "%" ] && [ "${str:$((i+1)):1}" = "}" ]; then
-			token="\\x25\\x7d"
-			((i++))  # Case %}
 		else
 			token="$byte"
 		fi
@@ -116,32 +109,6 @@ __vsc_prompt_end() {
 
 __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "${PWD}")"
-}
-
-
-__vsc_update_env() {
-	builtin local env_json="{"
-	builtin local first=1
-	for var in ${(k)parameters}; do
-		# Check if the variable is in the environment using 'printenv'
-		if printenv "$var" >/dev/null 2>&1; then # only exported env vars are included
-			# Add comma if not the first item
-			if [ $first -eq 1 ]; then
-				first=0
-			else
-				env_json+=","
-			fi
-			# Retrieve the value without executing it, and escape it for JSON
-			env_json+="\"$var\":\""
-			env_json+="${(P)var//\"/\\\"}"
-			env_json+="\""
-		fi
-	done
-	env_json+="}"
-	# Investigation: I think } is somehow getting wrongly escaped for trailing PS1
-	# In zsh %{ marks the start of non-printing characters
-	# %} marks end of non-printing characters
-	builtin printf '\e]633;Env;%s;%s\a' "$(__vsc_escape_value "${env_json}")" $__vsc_nonce # changing this to EnvSingle doesnt JSON.parse crash
 }
 
 __vsc_command_output_start() {
@@ -172,7 +139,6 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
-	__vsc_update_env
 }
 if [[ -o NOUNSET ]]; then
 	if [ -z "${RPROMPT-}" ]; then
@@ -207,7 +173,6 @@ __vsc_precmd() {
 		__vsc_update_prompt
 	fi
 
-	__vsc_update_env
 }
 
 __vsc_preexec() {
