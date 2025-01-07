@@ -257,7 +257,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	private readonly _defaultAgentRegistered: IContextKey<boolean>;
 	private readonly _editingAgentRegistered: IContextKey<boolean>;
 	private readonly _agentModeContextKey: IContextKey<boolean>;
-	private readonly _hasAgentContextKey: IContextKey<boolean>;
+	private readonly _hasToolsAgentContextKey: IContextKey<boolean>;
 
 	private _chatParticipantDetectionProviders = new Map<number, IChatParticipantDetectionProvider>();
 
@@ -276,7 +276,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		}));
 
 		this._agentModeContextKey = ChatContextKeys.Editing.agentMode.bindTo(contextKeyService);
-		this._hasAgentContextKey = ChatContextKeys.Editing.hasToolsAgent.bindTo(contextKeyService);
+		this._hasToolsAgentContextKey = ChatContextKeys.Editing.hasToolsAgent.bindTo(contextKeyService);
 		this._agentModeContextKey.set(
 			this.storageService.getBoolean(ChatToolsAgentModeStorageKey, StorageScope.WORKSPACE, false));
 		this._register(
@@ -340,8 +340,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		}
 		this._editingAgentRegistered.set(editingAgentRegistered);
 		this._defaultAgentRegistered.set(defaultAgentRegistered);
-		if (toolsAgentRegistered !== this._hasAgentContextKey.get()) {
-			this._hasAgentContextKey.set(toolsAgentRegistered);
+		if (toolsAgentRegistered !== this._hasToolsAgentContextKey.get()) {
+			this._hasToolsAgentContextKey.set(toolsAgentRegistered);
 			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.EditingSession));
 		}
 	}
@@ -418,7 +418,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	public get toolsAgentModeEnabled(): boolean {
-		return !!this._hasAgentContextKey.get() && !!this._agentModeContextKey.get();
+		return !!this._hasToolsAgentContextKey.get() && !!this._agentModeContextKey.get();
 	}
 
 	toggleToolsAgentMode(): void {
