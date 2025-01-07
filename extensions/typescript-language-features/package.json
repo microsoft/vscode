@@ -13,7 +13,6 @@
     "mappedEditsProvider",
     "codeActionAI",
     "codeActionRanges",
-    "documentPaste",
     "editorHoverVerbosityLevel"
   ],
   "capabilities": {
