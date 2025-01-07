@@ -136,7 +136,6 @@ class EditTool implements IToolData, IToolImpl {
 		model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
 
 		if (result?.errorMessage) {
-			// ?
 			throw new Error(result.errorMessage);
 		}
 
