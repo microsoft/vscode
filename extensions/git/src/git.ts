@@ -1173,7 +1173,7 @@ export class Repository {
 	}
 
 	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
-		const args = ['config', command];
+		const args = ['config', `--${command}`];
 
 		if (scope) {
 			args.push(`--${scope}`);
