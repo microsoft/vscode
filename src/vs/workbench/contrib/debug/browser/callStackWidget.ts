@@ -119,8 +119,16 @@ export class CallStackWidget extends Disposable {
 	private readonly currentFramesDs = this._register(new DisposableStore());
 	private cts?: CancellationTokenSource;
 
+	public get onDidChangeContentHeight() {
+		return this.list.onDidChangeContentHeight;
+	}
+
 	public get onDidScroll() {
 		return this.list.onDidScroll;
+	}
+
+	public get contentHeight() {
+		return this.list.contentHeight;
 	}
 
 	constructor(
@@ -149,6 +157,7 @@ export class CallStackWidget extends Disposable {
 				mouseSupport: false,
 				keyboardSupport: false,
 				setRowLineHeight: false,
+				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: instantiationService.createInstance(StackAccessibilityProvider),
 			}
 		) as WorkbenchList<ListItem>);

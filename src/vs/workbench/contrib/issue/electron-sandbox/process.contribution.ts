@@ -13,10 +13,9 @@ import { INativeEnvironmentService } from '../../../../platform/environment/comm
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
-import { IProcessMainService } from '../../../../platform/issue/common/issue.js';
+import { IProcessMainService } from '../../../../platform/process/common/process.js';
 import './processService.js';
-import './issueMainService.js';
-
+import './processMainService.js';
 
 //#region Commands
 

@@ -40,7 +40,7 @@ suite('ChatVariables', function () {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(ILanguageModelToolsService, new MockLanguageModelToolsService());
-		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 	});
 
 	test('ChatVariables - resolveVariables', async function () {

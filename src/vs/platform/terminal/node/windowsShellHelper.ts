@@ -23,13 +23,20 @@ const SHELL_EXECUTABLES = [
 	'powershell.exe',
 	'pwsh.exe',
 	'bash.exe',
+	'git-cmd.exe',
 	'wsl.exe',
 	'ubuntu.exe',
 	'ubuntu1804.exe',
 	'kali.exe',
 	'debian.exe',
 	'opensuse-42.exe',
-	'sles-12.exe'
+	'sles-12.exe',
+	'julia.exe',
+	'nu.exe',
+];
+
+const SHELL_EXECUTABLE_REGEXES = [
+	/^python(\d(\.\d{0,2})?)?\.exe$/,
 ];
 
 let windowsProcessTree: typeof WindowsProcessTreeType;
@@ -90,6 +97,11 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (SHELL_EXECUTABLES.indexOf(tree.name) === -1) {
 			return tree.name;
 		}
+		for (const regex of SHELL_EXECUTABLE_REGEXES) {
+			if (tree.name.match(regex)) {
+				return tree.name;
+			}
+		}
 		if (!tree.children || tree.children.length === 0) {
 			return tree.name;
 		}
@@ -143,7 +155,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			case 'bash.exe':
 			case 'git-cmd.exe':
 				return WindowsShellType.GitBash;
-			case 'julialauncher.exe':
+			case 'julia.exe':
 				return GeneralShellType.Julia;
 			case 'nu.exe':
 				return GeneralShellType.NuShell;

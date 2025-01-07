@@ -16,7 +16,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IDebugSession, IExpressionValue } from '../common/debug.js';
 import { Expression, ExpressionContainer, Variable } from '../common/debugModel.js';
 import { ReplEvaluationResult } from '../common/replModel.js';
-import { IVariableTemplateData } from './baseDebugView.js';
+import { IVariableTemplateData, splitExpressionOrScopeHighlights } from './baseDebugView.js';
 import { handleANSIOutput } from './debugANSIHandling.js';
 import { COPY_EVALUATE_PATH_ID, COPY_VALUE_ID } from './debugCommands.js';
 import { DebugLinkHoverBehavior, DebugLinkHoverBehaviorTypeData, ILinkDetector, LinkDetector } from './linkDetector.js';
@@ -32,8 +32,14 @@ export interface IRenderValueOptions {
 	/** If not false, a rich hover will be shown on the element. */
 	hover?: false | IValueHoverOptions;
 	colorize?: boolean;
+	highlights?: IHighlight[];
 
-	/** @deprecated */
+	/**
+	 * Indicates areas where VS Code implicitly always supported ANSI escape
+	 * sequences. These should be rendered as ANSI when the DA does not specify
+	 * any value of `supportsANSIStyling`.
+	 * @deprecated
+	 */
 	wasANSI?: boolean;
 	session?: IDebugSession;
 	locationReference?: number;
@@ -85,6 +91,7 @@ export class DebugExpressionRenderer {
 
 	renderVariable(data: IVariableTemplateData, variable: Variable, options: IRenderVariableOptions = {}): IDisposable {
 		const displayType = this.displayType.get();
+		const highlights = splitExpressionOrScopeHighlights(variable, options.highlights || []);
 
 		if (variable.available) {
 			data.type.textContent = '';
@@ -98,7 +105,7 @@ export class DebugExpressionRenderer {
 				}
 			}
 
-			data.label.set(text, options.highlights, variable.type && !displayType ? variable.type : variable.name);
+			data.label.set(text, highlights.name, variable.type && !displayType ? variable.type : variable.name);
 			data.name.classList.toggle('virtual', variable.presentationHint?.kind === 'virtual');
 			data.name.classList.toggle('internal', variable.presentationHint?.visibility === 'internal');
 		} else if (variable.value && typeof variable.name === 'string' && variable.name) {
@@ -117,6 +124,7 @@ export class DebugExpressionRenderer {
 			showChanged: options.showChanged,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 			hover: { commands },
+			highlights: highlights.value,
 			colorize: true,
 			session: variable.getSession(),
 		});
@@ -125,7 +133,7 @@ export class DebugExpressionRenderer {
 	renderValue(container: HTMLElement, expressionOrValue: IExpressionValue | string, options: IRenderValueOptions = {}): IDisposable {
 		const store = new DisposableStore();
 		// Use remembered capabilities so REPL elements can render even once a session ends
-		const supportsANSI = !!options.session?.rememberedCapabilities?.supportsANSIStyling;
+		const supportsANSI: boolean = options.session?.rememberedCapabilities?.supportsANSIStyling ?? options.wasANSI ?? false;
 
 		let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
@@ -179,9 +187,9 @@ export class DebugExpressionRenderer {
 		}
 
 		if (supportsANSI) {
-			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined));
+			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined, options.highlights));
 		} else {
-			container.appendChild(linkDetector.linkify(value, false, session?.root, true, hoverBehavior));
+			container.appendChild(linkDetector.linkify(value, false, session?.root, true, hoverBehavior, options.highlights));
 		}
 
 		if (options.hover !== false) {
@@ -194,7 +202,7 @@ export class DebugExpressionRenderer {
 				if (supportsANSI) {
 					// note: intentionally using `this.linkDetector` so we don't blindly linkify the
 					// entire contents and instead only link file paths that it contains.
-					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined));
+					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined, options.highlights));
 				} else {
 					hoverContentsPre.textContent = value;
 				}

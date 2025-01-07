@@ -5,8 +5,7 @@
 
 type DOMString = string;
 
-declare class EditContext extends EventTarget {
-	constructor(options?: EditContextInit);
+interface EditContext extends EventTarget {
 
 	updateText(rangeStart: number, rangeEnd: number, text: DOMString): void;
 	updateSelection(start: number, end: number): void;
@@ -60,7 +59,7 @@ interface EditContextEventHandlersEventMap {
 type EventHandler<TEvent extends Event = Event> = (event: TEvent) => void;
 
 declare class TextUpdateEvent extends Event {
-	new(type: DOMString, options?: TextUpdateEventInit): TextUpdateEvent;
+	constructor(type: DOMString, options?: TextUpdateEventInit);
 
 	readonly updateRangeStart: number;
 	readonly updateRangeEnd: number;
@@ -79,7 +78,7 @@ interface TextUpdateEventInit extends EventInit {
 	compositionEnd: number;
 }
 
-declare class TextFormat {
+interface TextFormat {
 	new(options?: TextFormatInit): TextFormat;
 
 	readonly rangeStart: number;
@@ -95,10 +94,10 @@ interface TextFormatInit {
 	underlineThickness: UnderlineThickness;
 }
 
-type UnderlineStyle = "none" | "solid" | "dotted" | "dashed" | "wavy";
-type UnderlineThickness = "none" | "thin" | "thick";
+type UnderlineStyle = 'none' | 'solid' | 'dotted' | 'dashed' | 'wavy';
+type UnderlineThickness = 'none' | 'thin' | 'thick';
 
-declare class TextFormatUpdateEvent extends Event {
+interface TextFormatUpdateEvent extends Event {
 	new(type: DOMString, options?: TextFormatUpdateEventInit): TextFormatUpdateEvent;
 	getTextFormats(): TextFormat[];
 }
@@ -107,7 +106,7 @@ interface TextFormatUpdateEventInit extends EventInit {
 	textFormats: TextFormat[];
 }
 
-declare class CharacterBoundsUpdateEvent extends Event {
+interface CharacterBoundsUpdateEvent extends Event {
 	new(type: DOMString, options?: CharacterBoundsUpdateEventInit): CharacterBoundsUpdateEvent;
 
 	readonly rangeStart: number;

@@ -40,8 +40,6 @@ export class SimpleCompletionModel {
 	constructor(
 		private readonly _items: SimpleCompletionItem[],
 		private _lineContext: LineContext,
-		readonly replacementIndex: number,
-		readonly replacementLength: number,
 	) {
 	}
 
@@ -108,7 +106,7 @@ export class SimpleCompletionModel {
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
 			// TODO: Fix
-			const overwriteBefore = this.replacementLength; // item.position.column - item.editStart.column;
+			const overwriteBefore = item.completion.replacementLength; // item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
@@ -116,9 +114,8 @@ export class SimpleCompletionModel {
 			}
 
 			// remember the word against which this item was
-			// scored
+			// scored. If word is undefined, then match against the empty string.
 			item.word = word;
-
 			if (wordLen === 0) {
 				// when there is nothing to score against, don't
 				// event try to do. Use a const rank and rely on
@@ -167,13 +164,13 @@ export class SimpleCompletionModel {
 				} else {
 					// by default match `word` against the `label`
 					const match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, this._fuzzyScoreOptions);
-					if (!match) {
+					if (!match && word !== '') {
 						continue; // NO match
 					}
-					item.score = match;
+					// Use default sorting when word is empty
+					item.score = match || FuzzyScore.Default;
 				}
 			}
-
 			item.idx = i;
 			target.push(item);
 

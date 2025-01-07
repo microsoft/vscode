@@ -273,6 +273,7 @@ export class KeybindingsEditorModel extends EditorModel {
 			const extensionId = keybindingItem.extensionId ?? (keybindingItem.resolvedKeybinding ? undefined : menuCommand?.source?.id);
 			source = extensionId ? extensions.get(extensionId) ?? SOURCE_EXTENSION : SOURCE_SYSTEM;
 		}
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,

@@ -120,7 +120,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension) {
 	"GalleryExtensionTelemetryData" : {
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"extensionVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -137,7 +137,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension) {
 	return {
 		id: new TelemetryTrustedValue(extension.identifier.id),
 		name: new TelemetryTrustedValue(extension.name),
-		version: extension.version,
+		extensionVersion: extension.version,
 		galleryId: extension.identifier.uuid,
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,

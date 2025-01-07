@@ -298,13 +298,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		// update parent's visible children count
 		parentNode.visibleChildrenCount += insertedVisibleChildrenCount - deletedVisibleChildrenCount;
 
-		if (revealed && visible) {
-			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + (node.visible ? node.renderNodeCount : 0), 0);
-
-			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
-			this._onDidSpliceRenderedNodes.fire({ start: listIndex, deleteCount: visibleDeleteCount, elements: treeListElementsToInsert });
-		}
-
 		if (deletedNodes.length > 0 && onDidDeleteNode) {
 			const visit = (node: ITreeNode<T, TFilterData>) => {
 				onDidDeleteNode(node);
@@ -312,6 +305,13 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			};
 
 			deletedNodes.forEach(visit);
+		}
+
+		if (revealed && visible) {
+			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + (node.visible ? node.renderNodeCount : 0), 0);
+
+			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
+			this._onDidSpliceRenderedNodes.fire({ start: listIndex, deleteCount: visibleDeleteCount, elements: treeListElementsToInsert });
 		}
 
 		this._onDidSpliceModel.fire({ insertedNodes: nodesToInsert, deletedNodes });

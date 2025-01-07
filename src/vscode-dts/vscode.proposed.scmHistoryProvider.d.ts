@@ -51,6 +51,7 @@ declare module 'vscode' {
 		readonly message: string;
 		readonly displayId?: string;
 		readonly author?: string;
+		readonly authorEmail?: string;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
 		readonly references?: SourceControlHistoryItemRef[];

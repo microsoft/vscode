@@ -9,7 +9,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { CONTEXT_RESPONSE_FILTERED } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 
 export function registerChatCopyActions() {
@@ -22,7 +22,7 @@ export function registerChatCopyActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext,
-					when: CONTEXT_RESPONSE_FILTERED.toNegated(),
+					when: ChatContextKeys.responseIsFiltered.toNegated(),
 					group: 'copy',
 				}
 			});
@@ -54,7 +54,7 @@ export function registerChatCopyActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext,
-					when: CONTEXT_RESPONSE_FILTERED.toNegated(),
+					when: ChatContextKeys.responseIsFiltered.toNegated(),
 					group: 'copy',
 				}
 			});

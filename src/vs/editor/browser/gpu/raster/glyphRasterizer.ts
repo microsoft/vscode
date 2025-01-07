@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
 import { ensureNonNullable } from '../gpuUtils.js';
-import type { IBoundingBox, IGlyphRasterizer, IRasterizedGlyph } from './raster.js';
+import { type IBoundingBox, type IGlyphRasterizer, type IRasterizedGlyph } from './raster.js';
 
 let nextId = 0;
 
@@ -18,11 +17,13 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 	@memoize
 	public get cacheKey(): string {
-		return `${this._fontFamily}_${this._fontSize}px`;
+		return `${this.fontFamily}_${this.fontSize}px`;
 	}
 
 	private _canvas: OffscreenCanvas;
 	private _ctx: OffscreenCanvasRenderingContext2D;
+
+	private readonly _textMetrics: TextMetrics;
 
 	private _workGlyph: IRasterizedGlyph = {
 		source: null!,
@@ -35,23 +36,28 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		originOffset: {
 			x: 0,
 			y: 0,
-		}
+		},
+		fontBoundingBoxAscent: 0,
+		fontBoundingBoxDescent: 0,
 	};
-	private _workGlyphConfig: { chars: string | undefined; metadata: number } = { chars: undefined, metadata: 0 };
+	private _workGlyphConfig: { chars: string | undefined; tokenMetadata: number; charMetadata: number } = { chars: undefined, tokenMetadata: 0, charMetadata: 0 };
 
 	constructor(
-		private readonly _fontSize: number,
-		private readonly _fontFamily: string,
+		readonly fontSize: number,
+		readonly fontFamily: string,
+		readonly devicePixelRatio: number
 	) {
 		super();
 
-		const devicePixelFontSize = Math.ceil(this._fontSize * getActiveWindow().devicePixelRatio);
+		const devicePixelFontSize = Math.ceil(this.fontSize * devicePixelRatio);
 		this._canvas = new OffscreenCanvas(devicePixelFontSize * 3, devicePixelFontSize * 3);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
 			willReadFrequently: true
 		}));
 		this._ctx.textBaseline = 'top';
 		this._ctx.fillStyle = '#FFFFFF';
+		this._ctx.font = `${devicePixelFontSize}px ${this.fontFamily}`;
+		this._textMetrics = this._ctx.measureText('A');
 	}
 
 	// TODO: Support drawing multiple fonts and sizes
@@ -61,33 +67,38 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	 */
 	public rasterizeGlyph(
 		chars: string,
-		metadata: number,
+		tokenMetadata: number,
+		charMetadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
 		if (chars === '') {
 			return {
 				source: this._canvas,
 				boundingBox: { top: 0, left: 0, bottom: -1, right: -1 },
-				originOffset: { x: 0, y: 0 }
+				originOffset: { x: 0, y: 0 },
+				fontBoundingBoxAscent: 0,
+				fontBoundingBoxDescent: 0,
 			};
 		}
 		// Check if the last glyph matches the config, reuse if so. This helps avoid unnecessary
 		// work when the rasterizer is called multiple times like when the glyph doesn't fit into a
 		// page.
-		if (this._workGlyphConfig.chars === chars && this._workGlyphConfig.metadata === metadata) {
+		if (this._workGlyphConfig.chars === chars && this._workGlyphConfig.tokenMetadata === tokenMetadata && this._workGlyphConfig.charMetadata === charMetadata) {
 			return this._workGlyph;
 		}
 		this._workGlyphConfig.chars = chars;
-		this._workGlyphConfig.metadata = metadata;
-		return this._rasterizeGlyph(chars, metadata, colorMap);
+		this._workGlyphConfig.tokenMetadata = tokenMetadata;
+		this._workGlyphConfig.charMetadata = charMetadata;
+		return this._rasterizeGlyph(chars, tokenMetadata, charMetadata, colorMap);
 	}
 
 	public _rasterizeGlyph(
 		chars: string,
 		metadata: number,
+		charMetadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
-		const devicePixelFontSize = Math.ceil(this._fontSize * getActiveWindow().devicePixelRatio);
+		const devicePixelFontSize = Math.ceil(this.fontSize * this.devicePixelRatio);
 		const canvasDim = devicePixelFontSize * 3;
 		if (this._canvas.width !== canvasDim) {
 			this._canvas.width = canvasDim;
@@ -105,7 +116,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		if (fontStyle & FontStyle.Bold) {
 			fontSb.appendString('bold ');
 		}
-		fontSb.appendString(`${devicePixelFontSize}px ${this._fontFamily}`);
+		fontSb.appendString(`${devicePixelFontSize}px ${this.fontFamily}`);
 		this._ctx.font = fontSb.build();
 
 		// TODO: Support FontStyle.Strikethrough and FontStyle.Underline text decorations, these
@@ -114,10 +125,13 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 		const originX = devicePixelFontSize;
 		const originY = devicePixelFontSize;
-		this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(metadata)];
-		// TODO: This might actually be slower
-		// const textMetrics = this._ctx.measureText(chars);
+		if (charMetadata) {
+			this._ctx.fillStyle = `#${charMetadata.toString(16).padStart(8, '0')}`;
+		} else {
+			this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(metadata)];
+		}
 		this._ctx.textBaseline = 'top';
+
 		this._ctx.fillText(chars, originX, originY);
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
@@ -136,6 +150,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		this._workGlyph.source = this._canvas;
 		this._workGlyph.originOffset.x = this._workGlyph.boundingBox.left - originX;
 		this._workGlyph.originOffset.y = this._workGlyph.boundingBox.top - originY;
+		this._workGlyph.fontBoundingBoxAscent = this._textMetrics.fontBoundingBoxAscent;
+		this._workGlyph.fontBoundingBoxDescent = this._textMetrics.fontBoundingBoxDescent;
+
 		// const result2: IRasterizedGlyph = {
 		// 	source: this._canvas,
 		// 	boundingBox: {

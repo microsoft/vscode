@@ -33,9 +33,6 @@
 	z-index: 600 !important;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .overlayWidgets {
-	z-index: 638 !important;
-}
 
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div.parameter-hints-widget {
 	z-index: 639 !important;
@@ -450,6 +447,11 @@
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-symbolHighlight .cell-focus-indicator,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-symbolHighlight {
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
+}
+
+/** Notebook Textual Selection Highlight */
+.nb-selection-highlight {
+	background-color: var(--vscode-editor-selectionBackground);
 }
 
 /** Cell Multi-Cursor Cursor highlight */

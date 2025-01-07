@@ -24,11 +24,11 @@ export interface IExtensionSignatureVerificationService {
 
 	/**
 	 * Verifies an extension file (.vsix) against a signature archive file.
-	 * @param { string } extensionId The extension identifier.
-	 * @param { string } version The extension version.
-	 * @param { string } vsixFilePath The extension file path.
-	 * @param { string } signatureArchiveFilePath The signature archive file path.
-	 * @returns { Promise<IExtensionSignatureVerificationResult | undefined> } returns the verification result or undefined if the verification was not executed.
+	 * @param extensionId The extension identifier.
+	 * @param version The extension version.
+	 * @param vsixFilePath The extension file path.
+	 * @param signatureArchiveFilePath The signature archive file path.
+	 * @returns returns the verification result or undefined if the verification was not executed.
 	 */
 	verify(extensionId: string, version: string, vsixFilePath: string, signatureArchiveFilePath: string, clientTargetPlatform?: TargetPlatform): Promise<IExtensionSignatureVerificationResult | undefined>;
 }
