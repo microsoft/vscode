@@ -406,7 +406,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	private async scanDefaultSystemExtensions(language: string | undefined): Promise<IRelaxedScannedExtension[]> {
 		this.logService.trace('Started scanning system extensions');
 		const extensionsScannerInput = await this.createExtensionScannerInput(this.systemExtensionsLocation, false, ExtensionType.System, language, true, undefined, this.getProductVersion());
-		const extensionsScanner = !extensionsScannerInput.devMode ? this.systemExtensionsCachedScanner : this.extensionsScanner;
+		const extensionsScanner = extensionsScannerInput.devMode ? this.extensionsScanner : this.systemExtensionsCachedScanner;
 		const result = await extensionsScanner.scanExtensions(extensionsScannerInput);
 		this.logService.trace('Scanned system extensions:', result.length);
 		return result;
@@ -609,16 +609,15 @@ class ExtensionsScanner extends Disposable {
 		if (!scannedProfileExtensions.length) {
 			return [];
 		}
-		const extensions: IRelaxedScannedExtension[] = [];
-		await Promise.all(scannedProfileExtensions.map(async extensionInfo => {
-			if (!filter(extensionInfo)) {
-				return;
-			}
-			const extensionScannerInput = new ExtensionScannerInput(extensionInfo.location, input.mtime, input.applicationExtensionslocation, input.applicationExtensionslocationMtime, input.profile, input.profileScanOptions, input.type, input.validate, input.productVersion, input.productDate, input.productCommit, input.devMode, input.language, input.translations);
-			const extension = await this.scanExtension(extensionScannerInput, extensionInfo);
-			extensions.push(extension);
-		}));
-		return extensions;
+		const extensions = await Promise.all<IRelaxedScannedExtension | null>(
+			scannedProfileExtensions.map(async extensionInfo => {
+				if (filter(extensionInfo)) {
+					const extensionScannerInput = new ExtensionScannerInput(extensionInfo.location, input.mtime, input.applicationExtensionslocation, input.applicationExtensionslocationMtime, input.profile, input.profileScanOptions, input.type, input.validate, input.productVersion, input.productDate, input.productCommit, input.devMode, input.language, input.translations);
+					return this.scanExtension(extensionScannerInput, extensionInfo);
+				}
+				return null;
+			}));
+		return coalesce(extensions);
 	}
 
 	async scanOneOrMultipleExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
