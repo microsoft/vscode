@@ -287,7 +287,7 @@ class CollapsedCodeBlock extends Disposable {
 		return this._uri;
 	}
 
-	private readonly _progressStore = new DisposableStore();
+	private readonly _progressStore = this._store.add(new DisposableStore());
 
 	constructor(
 		sessionId: string,
