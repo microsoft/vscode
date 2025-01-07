@@ -317,22 +317,7 @@
           "when": "view == references-view.tree && viewItem == call-item"
         },
         {
-          "command": "references-view.copyCallHierarchy",
-          "group": "1",
-          "when": "view == references-view.tree && viewItem == call-item"
-        },
-        {
-          "command": "references-view.copyCallHierarchyShort",
-          "group": "1",
-          "when": "view == references-view.tree && viewItem == call-item"
-        },
-        {
-          "command": "references-view.copyCallHierarchyReversed",
-          "group": "1",
-          "when": "view == references-view.tree && viewItem == call-item"
-        },
-        {
-          "command": "references-view.copyCallHierarchyReversedShort",
+          "submenu": "references-view.copyCallHierarchyMenu",
           "group": "1",
           "when": "view == references-view.tree && viewItem == call-item"
         },
@@ -355,6 +340,28 @@
           "command": "references-view.showSubtypes",
           "group": "1",
           "when": "view == references-view.tree && viewItem == type-item"
+        }
+      ],
+      "references-view.copyCallHierarchyMenu": [
+        {
+          "command": "references-view.copyCallHierarchy",
+          "group": "1",
+          "when": "view == references-view.tree && viewItem == call-item"
+        },
+        {
+          "command": "references-view.copyCallHierarchyShort",
+          "group": "1",
+          "when": "view == references-view.tree && viewItem == call-item"
+        },
+        {
+          "command": "references-view.copyCallHierarchyReversed",
+          "group": "1",
+          "when": "view == references-view.tree && viewItem == call-item"
+        },
+        {
+          "command": "references-view.copyCallHierarchyReversedShort",
+          "group": "1",
+          "when": "view == references-view.tree && viewItem == call-item"
         }
       ],
       "commandPalette": [
@@ -436,6 +443,12 @@
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "references-view.copyCallHierarchyMenu",
+        "label": "Copy Hierarchy"
+      }
+    ],
     "keybindings": [
       {
         "command": "references-view.findReferences",
