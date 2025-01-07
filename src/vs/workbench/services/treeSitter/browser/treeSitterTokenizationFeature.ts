@@ -140,12 +140,12 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 
 	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): Parser.QueryCapture[] {
 		const tree = this._getTree(textModel);
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), tree?.tree);
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column + 1), tree?.tree);
 		return captures;
 	}
 
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[] {
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), tree);
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column + 1), tree);
 		return captures;
 	}
 
