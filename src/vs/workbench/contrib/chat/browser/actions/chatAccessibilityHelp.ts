@@ -80,8 +80,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chatEditing.review', 'Once the edits are applied, focus the editor(s) to review, accept, and discard changes.'));
 		content.push(localize('chatEditing.sections', 'Navigate between file edits with navigate previous{0} and next{1}', '<keybinding:chatEditor.action.navigatePrevious>', '<keybinding:chatEditor.action.navigateNext>'));
 		content.push(localize('chatEditing.helpfulCommands', 'Helpful commands include:'));
-		content.push(localize('chatEditing.acceptHunk', '- Accept this Change{0}.', '<keybinding:chatEditing.acceptHunk>'));
-		content.push(localize('chatEditing.rejectHunk', '- Reject this Change{0}.', '<keybinding:chatEditing.reject>'));
+		content.push(localize('chatEditing.acceptHunk', '- Accept this Change{0}.', '<keybinding:chatEditor.action.acceptHunk>'));
+		content.push(localize('chatEditing.rejectHunk', '- Reject this Change{0}.', '<keybinding:chatEditor.action.reject>'));
 		content.push(localize('chatEditing.acceptFile', '- Accept File{0}.', '<keybinding:chatEditing.acceptFile>'));
 		content.push(localize('chatEditing.discardFile', '- Discard File{0}.', '<keybinding:chatEditing.discardFile>'));
 		content.push(localize('chatEditing.saveAllFiles', '- Save All Files{0}.', '<keybinding:chatEditing.saveAllFiles>'));
