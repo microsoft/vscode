@@ -199,7 +199,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					if (providerDescriptor.isDefault && !isProposedApiEnabled(extension.description, 'defaultChatParticipant')) {
+					if ((providerDescriptor.isDefault || providerDescriptor.isAgent) && !isProposedApiEnabled(extension.description, 'defaultChatParticipant')) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: defaultChatParticipant.`);
 						continue;
 					}
@@ -245,6 +245,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								name: providerDescriptor.name,
 								fullName: providerDescriptor.fullName,
 								isDefault: providerDescriptor.isDefault,
+								isToolsAgent: providerDescriptor.isAgent,
 								locations: isNonEmptyArray(providerDescriptor.locations) ?
 									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 									[ChatAgentLocation.Panel],

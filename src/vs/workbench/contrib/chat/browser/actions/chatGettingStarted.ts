@@ -16,6 +16,7 @@ import { IDefaultChatAgent } from '../../../../../base/common/product.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ensureSideBarChatViewSize } from '../chat.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
@@ -32,6 +33,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		@IStorageService private readonly storageService: IStorageService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -60,14 +62,25 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 				if (ExtensionIdentifier.equals(defaultChatAgent.extensionId, ext.value)) {
 					const extensionStatus = this.extensionService.getExtensionsStatus();
 					if (extensionStatus[ext.value].activationTimes && this.recentlyInstalled) {
-						await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID);
-						ensureSideBarChatViewSize(400, this.viewDescriptorService, this.layoutService);
-						this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-						this.recentlyInstalled = false;
+						this.onDidInstallChat();
 						return;
 					}
 				}
 			}
 		}));
+	}
+
+	private async onDidInstallChat() {
+
+		// Enable chat command center if previously disabled
+		this.configurationService.updateValue('chat.commandCenter.enabled', true);
+
+		// Open and configure chat view
+		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+		ensureSideBarChatViewSize(400, this.viewDescriptorService, this.layoutService);
+
+		// Only do this once
+		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.recentlyInstalled = false;
 	}
 }

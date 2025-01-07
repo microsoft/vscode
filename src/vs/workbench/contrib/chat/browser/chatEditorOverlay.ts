@@ -310,6 +310,10 @@ export class ChatEditorOverlayController implements IEditorContribution {
 			}
 
 			const entry = entries[idx];
+			if (entry.state.read(r) === WorkingSetEntryState.Accepted || entry.state.read(r) === WorkingSetEntryState.Rejected) {
+				widget.hide();
+				return;
+			}
 			widget.show(session, entry, entries[(idx + 1) % entries.length]);
 
 		}));
