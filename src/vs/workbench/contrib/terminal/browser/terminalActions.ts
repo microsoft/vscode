@@ -319,9 +319,6 @@ export function registerTerminalActions() {
 				c.service.setActiveInstance(instance);
 				await focusActiveTerminal(instance, c);
 			}
-			else {
-				await c.groupService.showPanel(true);
-			}
 		}
 	});
 
