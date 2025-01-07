@@ -85,7 +85,13 @@ export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariab
 	readonly isDynamic: true;
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
+export interface ILinkVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'link';
+	readonly isDynamic: true;
+	readonly value: URI;
+}
+
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | ILinkVariableEntry | IBaseChatRequestVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -93,6 +99,10 @@ export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is 
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
+}
+
+export function isLinkVariableEntry(obj: IChatRequestVariableEntry): obj is ILinkVariableEntry {
+	return obj.kind === 'link';
 }
 
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {

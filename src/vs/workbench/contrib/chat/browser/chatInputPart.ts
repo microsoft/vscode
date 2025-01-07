@@ -46,6 +46,7 @@ import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/
 import { DropIntoEditorController } from '../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -156,6 +157,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
 			contextArr.push(this.implicitContext.toBaseEntry());
+		}
+
+		// retrieve links from the input editor
+		const linkOccurrences = this.inputEditor.getContribution<LinkDetector>(LinkDetector.ID)?.getAllLinkOccurrences() ?? [];
+		const linksSeen = new Set<string>();
+		for (const linkOccurrence of linkOccurrences) {
+			const link = linkOccurrence.link;
+			const uri = URI.isUri(link.url) ? link.url : link.url ? URI.parse(link.url) : undefined;
+			if (!uri || linksSeen.has(uri.toString())) {
+				continue;
+			}
+
+			linksSeen.add(uri.toString());
+			contextArr.push({
+				kind: 'link',
+				id: uri.toString(),
+				name: uri.fsPath,
+				value: uri,
+				isFile: false,
+				isDynamic: true,
+			});
 		}
 
 		// factor in nested file references into the implicit context
@@ -649,7 +671,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputEditorElement = dom.append(editorContainer!, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID, LinkDetector.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 
