@@ -490,7 +490,7 @@ export function registerTerminalActions() {
 		},
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c) => {
-			const instance = c.service.activeInstance || await c.service.createTerminal({ location: TerminalLocation.Panel });
+			const instance = c.service.activeInstance || await c.service.createTerminal();
 			if (!instance) {
 				return;
 			}
