@@ -57,7 +57,7 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 			}
 		} else if (item.kind === 'codeblockUri') {
 			if (previousItem?.kind === 'markdownContent') {
-				const markdownText = `<vscode_codeblock_uri>${item.uri.toString()}</vscode_codeblock_uri>`;
+				const markdownText = `\`\`\`\n<vscode_codeblock_uri>${item.uri.toString()}</vscode_codeblock_uri>\n\`\`\``;
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
 				result[previousItemIndex] = { ...previousItem, content: merged };
 			}
