@@ -1593,7 +1593,12 @@ export class Repository implements Disposable {
 
 	private async getDefaultBranch(): Promise<Branch | undefined> {
 		try {
-			const defaultBranch = await this.repository.getDefaultBranch();
+			if (this.remotes.length === 0) {
+				return undefined;
+			}
+
+			const remote = this.remotes.find(r => r.name === 'origin') ?? this.remotes[0];
+			const defaultBranch = await this.repository.getDefaultBranch(remote.name);
 			return defaultBranch;
 		}
 		catch (err) {
