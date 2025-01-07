@@ -617,33 +617,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					const topOfElementAtDepth = range.topOfElement;
 					const bottomOfElementAtDepth = range.bottomOfElement;
 
-					const bottomOfStart = this._editor.getBottomForLineNumber(start);
-					const topForEnd = this._editor.getTopForLineNumber(end);
-					const bottomForEnd = this._editor.getBottomForLineNumber(end);
-					const bottomOfBeginningLine = bottomOfStart - scrollTop;
-					const topOfEndLine = topForEnd - scrollTop;
-					const bottomOfEndLine = bottomForEnd - scrollTop;
+					const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
+					const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
+					const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+					const heightOfEndLine = this._editor.getLineHeightForLineNumber(end);
+					const heightOfStartLine = this._editor.getLineHeightForLineNumber(start);
+					const delta = heightOfEndLine - heightOfStartLine;
 
-					console.log('start', start);
-					console.log('end', end);
-					console.log('topOfElementAtDepth', topOfElementAtDepth);
-					console.log('bottomOfElementAtDepth', bottomOfElementAtDepth);
-					console.log('bottomOfStart', bottomOfStart);
-					console.log('topForEnd', topForEnd);
-					console.log('bottomForEnd', bottomForEnd);
-
-					console.log('bottomOfBeginningLine', bottomOfBeginningLine);
-					console.log('topOfEndLine', topOfEndLine);
-					console.log('bottomOfEndLine', bottomOfEndLine);
-
-					console.log('topOfElementAtDepth > topOfEndLine : ', topOfElementAtDepth > topOfEndLine);
-					console.log('topOfElementAtDepth <= bottomOfEndLine : ', topOfElementAtDepth <= bottomOfEndLine);
-					console.log('bottomOfElementAtDepth > bottomOfBeginningLine : ', bottomOfElementAtDepth > bottomOfBeginningLine);
-					console.log('bottomOfElementAtDepth <= bottomOfEndLine : ', bottomOfElementAtDepth <= bottomOfEndLine);
-
-					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
+					if (topOfElementAtDepth > topOfEndLine + delta && topOfElementAtDepth <= bottomOfEndLine - delta) {
 						startLineNumbers.push(start);
-						console.log('push start 1 : ', start);
 						endLineNumbers.push(end + 1);
 						if (topOfElementAtDepth > bottomOfEndLine - range.height) {
 							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
@@ -652,7 +634,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {
 						startLineNumbers.push(start);
-						console.log('push start 2 : ', start);
 						endLineNumbers.push(end + 1);
 					}
 					if (startLineNumbers.length === maxNumberStickyLines) {
