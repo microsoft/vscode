@@ -112,6 +112,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.setConfig(key, value);
 	}
 
+	unsetConfig(key: string): Promise<string> {
+		return this.#repository.unsetConfig(key);
+	}
+
 	getGlobalConfig(key: string): Promise<string> {
 		return this.#repository.getGlobalConfig(key);
 	}

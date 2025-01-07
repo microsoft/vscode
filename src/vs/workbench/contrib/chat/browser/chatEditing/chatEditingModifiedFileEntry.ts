@@ -14,6 +14,7 @@ import { EditOperation, ISingleEditOperation } from '../../../../../editor/commo
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
@@ -343,6 +344,41 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		});
 	}
 
+	async acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+		if (!this._diffInfo.get().changes.includes(change)) {
+			// diffInfo should have model version ids and check them (instead of the caller doing that)
+			return false;
+		}
+		const edits: ISingleEditOperation[] = [];
+		for (const edit of change.innerChanges ?? []) {
+			const newText = this.modifiedModel.getValueInRange(edit.modifiedRange);
+			edits.push(EditOperation.replace(edit.originalRange, newText));
+		}
+		this.docSnapshot.pushEditOperations(null, edits, _ => null);
+		await this._updateDiffInfoSeq();
+		if (this.diffInfo.get().identical) {
+			this._stateObs.set(WorkingSetEntryState.Accepted, undefined);
+		}
+		return true;
+	}
+
+	async rejectHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+		if (!this._diffInfo.get().changes.includes(change)) {
+			return false;
+		}
+		const edits: ISingleEditOperation[] = [];
+		for (const edit of change.innerChanges ?? []) {
+			const newText = this.docSnapshot.getValueInRange(edit.originalRange);
+			edits.push(EditOperation.replace(edit.modifiedRange, newText));
+		}
+		this.doc.pushEditOperations(null, edits, _ => null);
+		await this._updateDiffInfoSeq();
+		if (this.diffInfo.get().identical) {
+			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+		}
+		return true;
+	}
+
 	private _applyEdits(edits: ISingleEditOperation[]) {
 		// make the actual edit
 		this._isEditFromUs = true;
@@ -358,13 +394,14 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 	}
 
-	private _updateDiffInfoSeq() {
+	private async _updateDiffInfoSeq() {
 		const myDiffOperationId = ++this._diffOperationIds;
-		Promise.resolve(this._diffOperation).then(() => {
-			if (this._diffOperationIds === myDiffOperationId) {
-				this._diffOperation = this._updateDiffInfo();
-			}
-		});
+		await Promise.resolve(this._diffOperation);
+		if (this._diffOperationIds === myDiffOperationId) {
+			const thisDiffOperation = this._updateDiffInfo();
+			this._diffOperation = thisDiffOperation;
+			await thisDiffOperation;
+		}
 	}
 
 	private async _updateDiffInfo(): Promise<void> {

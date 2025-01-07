@@ -913,13 +913,6 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.viewAllChanges",
-        "title": "%command.viewAllChanges%",
-        "icon": "$(diff-multiple)",
-        "category": "Git",
-        "enablement": "!operationInProgress"
-      },
-      {
         "command": "git.copyCommitId",
         "title": "%command.timelineCopyCommitId%",
         "category": "Git"
@@ -1442,10 +1435,6 @@
         },
         {
           "command": "git.viewCommit",
-          "when": "false"
-        },
-        {
-          "command": "git.viewAllChanges",
           "when": "false"
         },
         {
@@ -3229,6 +3218,14 @@
           "type": "string",
           "default": "${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameStatusBarItem.template%"
+        },
+        "git.commitShortHashLength": {
+          "type": "number",
+          "default": 7,
+          "minimum": 7,
+          "maximum": 40,
+          "markdownDescription": "%config.commitShortHashLength%",
+          "scope": "resource"
         }
       }
     },

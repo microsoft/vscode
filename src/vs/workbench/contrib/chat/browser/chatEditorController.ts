@@ -12,7 +12,6 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPosi
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
 import { EditorOption, IEditorStickyScrollOptions } from '../../../../editor/common/config/editorOptions.js';
-import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
@@ -31,6 +30,7 @@ import { Selection } from '../../../../editor/common/core/selection.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/common/quickDiff.js';
+import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
@@ -328,13 +328,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				}
 
 				// Add content widget for each diff change
-				const undoEdits: ISingleEditOperation[] = [];
-				for (const c of diffEntry.innerChanges ?? []) {
-					const oldText = originalModel.getValueInRange(c.originalRange);
-					undoEdits.push(EditOperation.replace(c.modifiedRange, oldText));
-				}
-
-				const widget = this._instantiationService.createInstance(DiffHunkWidget, entry, undoEdits, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
+				const widget = this._instantiationService.createInstance(DiffHunkWidget, entry, diffEntry, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
 				widget.layout(diffEntry.modified.startLineNumber);
 
 				this._diffHunkWidgets.push(widget);
@@ -492,28 +486,41 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		return true;
 	}
 
-	undoNearestChange(closestWidget: DiffHunkWidget | undefined): void {
+	private _findClosestWidget(): DiffHunkWidget | undefined {
 		if (!this._editor.hasModel()) {
-			return;
+			return undefined;
 		}
 		const lineRelativeTop = this._editor.getTopForLineNumber(this._editor.getPosition().lineNumber) - this._editor.getScrollTop();
+		let closestWidget: DiffHunkWidget | undefined;
 		let closestDistance = Number.MAX_VALUE;
 
-		if (!(closestWidget instanceof DiffHunkWidget)) {
-			for (const widget of this._diffHunkWidgets) {
-				const widgetTop = (<IOverlayWidgetPositionCoordinates | undefined>widget.getPosition()?.preference)?.top;
-				if (widgetTop !== undefined) {
-					const distance = Math.abs(widgetTop - lineRelativeTop);
-					if (distance < closestDistance) {
-						closestDistance = distance;
-						closestWidget = widget;
-					}
+		for (const widget of this._diffHunkWidgets) {
+			const widgetTop = (<IOverlayWidgetPositionCoordinates | undefined>widget.getPosition()?.preference)?.top;
+			if (widgetTop !== undefined) {
+				const distance = Math.abs(widgetTop - lineRelativeTop);
+				if (distance < closestDistance) {
+					closestDistance = distance;
+					closestWidget = widget;
 				}
 			}
 		}
 
+		return closestWidget;
+	}
+
+	undoNearestChange(closestWidget: DiffHunkWidget | undefined): void {
+		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
-			closestWidget.undo();
+			closestWidget.reject();
+			this.revealNext();
+		}
+	}
+
+	acceptNearestChange(closestWidget: DiffHunkWidget | undefined): void {
+		closestWidget = closestWidget ?? this._findClosestWidget();
+		if (closestWidget instanceof DiffHunkWidget) {
+			closestWidget.accept();
+			this.revealNext();
 		}
 	}
 
@@ -570,7 +577,7 @@ class DiffHunkWidget implements IOverlayWidget {
 
 	constructor(
 		readonly entry: IModifiedFileEntry,
-		private readonly _undoEdits: ISingleEditOperation[],
+		private readonly _change: DetailedLineRangeMapping,
 		private readonly _versionId: number,
 		private readonly _editor: ICodeEditor,
 		private readonly _lineDelta: number,
@@ -641,9 +648,15 @@ class DiffHunkWidget implements IOverlayWidget {
 
 	// ---
 
-	undo() {
+	reject(): void {
 		if (this._versionId === this._editor.getModel()?.getVersionId()) {
-			this._editor.executeEdits('chatEdits.undo', this._undoEdits);
+			this.entry.rejectHunk(this._change);
+		}
+	}
+
+	accept(): void {
+		if (this._versionId === this._editor.getModel()?.getVersionId()) {
+			this.entry.acceptHunk(this._change);
 		}
 	}
 }
