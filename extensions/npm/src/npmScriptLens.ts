@@ -16,7 +16,7 @@ import {
 	l10n
 } from 'vscode';
 import { readScripts } from './readScripts';
-import { getScriptRunner } from './tasks';
+import { getRunScriptCommand } from './tasks';
 
 
 const enum Constants {
@@ -87,18 +87,20 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 		}
 
 		if (this.lensLocation === 'all') {
-			const scriptRunner = await getScriptRunner(Uri.joinPath(document.uri, '..'));
-			return tokens.scripts.map(
-				({ name, nameRange }) =>
-					new CodeLens(
+			const folder = Uri.joinPath(document.uri, '..');
+			return Promise.all(tokens.scripts.map(
+				async ({ name, nameRange }) => {
+					const runScriptCommand = await getRunScriptCommand(name, folder);
+					return new CodeLens(
 						nameRange,
 						{
 							title,
 							command: 'extension.js-debug.createDebuggerTerminal',
-							arguments: [`${scriptRunner} ${scriptRunner === 'node' ? '--run' : 'run'} ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
+							arguments: [runScriptCommand.join(' '), workspace.getWorkspaceFolder(document.uri), { cwd }],
 						},
-					),
-			);
+					);
+				},
+			));
 		}
 
 		return [];

@@ -308,7 +308,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-function getCommandLine(scope: Uri, cmd: string[]): (string | ShellQuotedString)[] {
+function escapeCommandLine(cmd: string[]): (string | ShellQuotedString)[] {
 	const result: (string | ShellQuotedString)[] = new Array(cmd.length);
 	for (let i = 0; i < cmd.length; i++) {
 		if (/\s/.test(cmd[i])) {
@@ -316,9 +316,6 @@ function getCommandLine(scope: Uri, cmd: string[]): (string | ShellQuotedString)
 		} else {
 			result[i] = cmd[i];
 		}
-	}
-	if (workspace.getConfiguration('npm', scope).get<boolean>('runSilent')) {
-		result.unshift('--silent');
 	}
 	return result;
 }
@@ -328,8 +325,17 @@ function getRelativePath(rootUri: Uri, packageJsonUri: Uri): string {
 	return absolutePath.substring(rootUri.path.length + 1);
 }
 
-export async function createScriptRunnerTask(context: ExtensionContext, script: string, folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, showWarning = true): Promise<Task> {
-	const scriptRunner = await getScriptRunner(folder.uri, context, showWarning);
+export async function getRunScriptCommand(script: string, folder: Uri, context?: ExtensionContext, showWarning = true): Promise<string[]> {
+	const scriptRunner = await getScriptRunner(folder, context, showWarning);
+	const result = [scriptRunner, scriptRunner === 'node' ? '--run' : 'run'];
+	if (workspace.getConfiguration('npm', folder).get<boolean>('runSilent')) {
+		result.push('--silent');
+	}
+	result.push(script);
+	return result;
+}
+
+export async function createScriptRunnerTask(context: ExtensionContext, script: string, folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, showWarning?: boolean): Promise<Task> {
 	const kind: INpmTaskDefinition = { type: 'npm', script };
 
 	const relativePackageJson = getRelativePath(folder.uri, packageJsonUri);
@@ -338,7 +344,9 @@ export async function createScriptRunnerTask(context: ExtensionContext, script: 
 	}
 	const taskName = getTaskName(script, relativePackageJson);
 	const cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(scriptRunner, getCommandLine(folder.uri, [scriptRunner === 'node' ? '--run' : 'run', script]), { cwd: cwd }));
+	const args = await getRunScriptCommand(script, folder.uri, context, showWarning);
+	const scriptRunner = args.shift()!;
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(scriptRunner, escapeCommandLine(args), { cwd: cwd }));
 	task.detail = scriptValue;
 
 	const lowerCaseTaskName = script.toLowerCase();
@@ -355,8 +363,16 @@ export async function createScriptRunnerTask(context: ExtensionContext, script: 
 	return task;
 }
 
-export async function createInstallationTask(context: ExtensionContext, folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, showWarning = true): Promise<Task> {
-	const packageManager = await getPackageManager(folder.uri, context, showWarning);
+async function getInstallDependenciesCommand(folder: Uri, context?: ExtensionContext, showWarning = true): Promise<string[]> {
+	const packageManager = await getPackageManager(folder, context, showWarning);
+	const result = [packageManager, INSTALL_SCRIPT];
+	if (workspace.getConfiguration('npm', folder).get<boolean>('runSilent')) {
+		result.push('--silent');
+	}
+	return result;
+}
+
+export async function createInstallationTask(context: ExtensionContext, folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, showWarning?: boolean): Promise<Task> {
 	const kind: INpmTaskDefinition = { type: 'npm', script: INSTALL_SCRIPT };
 
 	const relativePackageJson = getRelativePath(folder.uri, packageJsonUri);
@@ -365,7 +381,9 @@ export async function createInstallationTask(context: ExtensionContext, folder: 
 	}
 	const taskName = getTaskName(INSTALL_SCRIPT, relativePackageJson);
 	const cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(folder.uri, [INSTALL_SCRIPT]), { cwd: cwd }));
+	const args = await getInstallDependenciesCommand(folder.uri, context, showWarning);
+	const packageManager = args.shift()!;
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, escapeCommandLine(args), { cwd: cwd }));
 	task.detail = scriptValue;
 	task.group = TaskGroup.Clean;
 
@@ -431,11 +449,11 @@ export async function runScript(context: ExtensionContext, script: string, docum
 }
 
 export async function startDebugging(context: ExtensionContext, scriptName: string, cwd: string, folder: WorkspaceFolder) {
-	const scriptRunner = await getScriptRunner(folder.uri, context, true);
+	const runScriptCommand = await getRunScriptCommand(scriptName, folder.uri, context, true);
 
 	commands.executeCommand(
 		'extension.js-debug.createDebuggerTerminal',
-		`${scriptRunner} ${scriptRunner === 'node' ? '--run' : 'run'} ${scriptName}`,
+		runScriptCommand.join(' '),
 		folder,
 		{ cwd },
 	);
