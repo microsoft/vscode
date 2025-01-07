@@ -365,7 +365,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		innerLineNumberHTML.style.lineHeight = `${height}px`;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
 		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
-		innerLineNumberHTML.style.verticalAlign = 'bottom';
 
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 		const foldingIcon = this._renderFoldingIconForLine(foldingModel, line);
