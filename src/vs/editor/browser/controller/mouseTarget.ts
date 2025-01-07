@@ -52,7 +52,11 @@ type HitTestResult = UnknownHitTestResult | ContentHitTestResult;
 
 namespace HitTestResult {
 	export function createFromDOMInfo(ctx: HitTestContext, spanNode: HTMLElement, offset: number): HitTestResult {
+		// console.log('createFromDOMInfo');
+		// console.log('spanNode : ', spanNode);
+		// console.log('offset : ', offset);
 		const position = ctx.getPositionFromDOMInfo(spanNode, offset);
+		// console.log('position : ', position);
 		if (position) {
 			return new ContentHitTestResult(position, spanNode, null);
 		}
@@ -536,6 +540,10 @@ export class MouseTargetFactory {
 	}
 
 	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null): IMouseTarget {
+		// console.log('createMouseTarget');
+		// console.log('pos : ', pos);
+		// console.log('relativePos : ', relativePos);
+		// console.log('editorPos : ', editorPos);
 		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
 		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target);
 		try {
@@ -576,6 +584,7 @@ export class MouseTargetFactory {
 			// We only render dom nodes inside the overflow guard or in the overflowing content widgets
 			result = result || request.fulfillUnknown();
 		}
+		// console.log('result before : ', result);
 
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, resolvedRequest);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, resolvedRequest);
@@ -588,6 +597,10 @@ export class MouseTargetFactory {
 		result = result || MouseTargetFactory._hitTestViewLines(ctx, resolvedRequest);
 		result = result || MouseTargetFactory._hitTestScrollbar(ctx, resolvedRequest);
 
+		// console.log('result after: ', result);
+		// if (result === null) {
+		// 	console.log('result is null');
+		// }
 		return (result || request.fulfillUnknown());
 	}
 
@@ -724,6 +737,7 @@ export class MouseTargetFactory {
 	}
 
 	private static _hitTestViewLines(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
+		// console.log('_hitTestViewLines');
 		if (!ElementPath.isChildOfViewLines(request.targetPath)) {
 			return null;
 		}
@@ -787,8 +801,10 @@ export class MouseTargetFactory {
 
 		// Do the hit test (if not already done)
 		const hitTestResult = request.hitTestResult.value;
+		// console.log('hitTestResult : ', hitTestResult);
 
 		if (hitTestResult.type === HitTestResultType.Content) {
+			// console.log('return -3');
 			return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.spanNode, hitTestResult.position, hitTestResult.injectedText);
 		}
 
@@ -796,9 +812,11 @@ export class MouseTargetFactory {
 		if (request.wouldBenefitFromHitTestTargetSwitch) {
 			// We actually hit something different... Give it one last change by trying again with this new target
 			request.switchToHitTestTarget();
+			// console.log('return -2');
 			return this._createMouseTarget(ctx, request);
 		}
 
+		// console.log('return -1');
 		// We have tried everything...
 		return request.fulfillUnknown();
 	}
@@ -854,6 +872,8 @@ export class MouseTargetFactory {
 	}
 
 	private static createMouseTargetFromHitTestPosition(ctx: HitTestContext, request: HitTestRequest, spanNode: HTMLElement, pos: Position, injectedText: InjectedText | null): IMouseTarget {
+		// console.log('createMouseTargetFromHitTestPosition');
+		// console.log('pos : ', pos);
 		const lineNumber = pos.lineNumber;
 		const column = pos.column;
 
@@ -933,7 +953,7 @@ export class MouseTargetFactory {
 	 * Most probably WebKit browsers and Edge
 	 */
 	private static _doHitTestWithCaretRangeFromPoint(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
-
+		// console.log('_doHitTestWithCaretRangeFromPoint');
 		// In Chrome, especially on Linux it is possible to click between lines,
 		// so try to adjust the `hity` below so that it lands in the center of a line
 		const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
@@ -969,17 +989,31 @@ export class MouseTargetFactory {
 	}
 
 	private static _actualDoHitTestWithCaretRangeFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
+		// console.log('_actualDoHitTestWithCaretRangeFromPoint');
+		// console.log('coords : ', coords);
 		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		let range: Range;
 		if (shadowRoot) {
 			if (typeof (<any>shadowRoot).caretRangeFromPoint === 'undefined') {
+				// console.log('range 1');
 				range = shadowCaretRangeFromPoint(shadowRoot, coords.clientX, coords.clientY);
 			} else {
+				// console.log('range 2');
 				range = (<any>shadowRoot).caretRangeFromPoint(coords.clientX, coords.clientY);
 			}
 		} else {
+			// console.log('range 3');
 			range = (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint(coords.clientX, coords.clientY);
+			// const range1: CaretPosition = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
+			// console.log('range1 : ', range1);
+			// console.log('range1.offsetNode ', range1.offsetNode);
+			// console.log('range1.offset ', range1.offset);
 		}
+		// console.log('range : ', range);
+		// console.log('range.startContainer ', range.startContainer);
+		// console.log('range.startOffset ', range.startOffset);
+		// console.log('range.endContainer ', range.endContainer);
+		// console.log('range.endOffset ', range.endOffset);
 
 		if (!range || !range.startContainer) {
 			return new UnknownHitTestResult();
@@ -1020,6 +1054,7 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
+		// console.log('_doHitTestWithCaretPositionFromPoint');
 		const hitResult: { offsetNode: Node; offset: number } = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
@@ -1070,7 +1105,7 @@ export class MouseTargetFactory {
 	}
 
 	public static doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
-
+		// console.log('doHitTest');
 		let result: HitTestResult = new UnknownHitTestResult();
 		if (typeof (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
@@ -1078,9 +1113,11 @@ export class MouseTargetFactory {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates(dom.getWindow(ctx.viewDomNode)));
 		}
 		if (result.type === HitTestResultType.Content) {
+			// console.log('result.position : ', result.position);
 			const injectedText = ctx.viewModel.getInjectedTextAt(result.position);
 
 			const normalizedPosition = ctx.viewModel.normalizePosition(result.position, PositionAffinity.None);
+			// console.log('normalizedPosition : ', normalizedPosition);
 			if (injectedText || !normalizedPosition.equals(result.position)) {
 				result = new ContentHitTestResult(normalizedPosition, result.spanNode, injectedText);
 			}

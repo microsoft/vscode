@@ -429,7 +429,7 @@ export class LinesLayout {
 	private _linesHeight(untilLineNumber?: number): number {
 		if (untilLineNumber === undefined) {
 			let specialLinesHeight = 0;
-			this._specialLineHeights.forEach((height) => {
+			this._specialLineHeights.forEach((height, lineNumber) => {
 				specialLinesHeight += height;
 			});
 			const nonSpecialLinesHeight = (this._lineCount - this._specialLineHeights.size) * this._lineHeight;
@@ -524,9 +524,6 @@ export class LinesLayout {
 	 * @return The sum of heights for all objects above `lineNumber`.
 	 */
 	public getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones = false): number {
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('getVerticalOffsetForLineNumber');
-		}
 		this._checkPendingChanges();
 		lineNumber = lineNumber | 0;
 
@@ -540,6 +537,16 @@ export class LinesLayout {
 		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber - (includeViewZones ? 1 : 0));
 
 		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
+	}
+
+	public getLineHeightForLineNumber(lineNumber: number): number {
+		let lineHeight = 0;
+		if (this._specialLineHeights.has(lineNumber)) {
+			lineHeight = this._specialLineHeights.get(lineNumber)!;
+		} else {
+			lineHeight = this._lineHeight;
+		}
+		return lineHeight;
 	}
 
 	/**
@@ -631,7 +638,7 @@ export class LinesLayout {
 		while (minLineNumber < maxLineNumber) {
 			const midLineNumber = ((minLineNumber + maxLineNumber) / 2) | 0;
 
-			const lineHeight = this._lineHeightForLineNumber(midLineNumber);
+			const lineHeight = this.getLineHeightForLineNumber(midLineNumber);
 			const midLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(midLineNumber) | 0;
 
 			if (verticalOffset >= midLineNumberVerticalOffset + lineHeight) {
@@ -651,16 +658,6 @@ export class LinesLayout {
 		}
 
 		return minLineNumber;
-	}
-
-	private _lineHeightForLineNumber(lineNumber: number): number {
-		let lineHeight = 0;
-		if (this._specialLineHeights.has(lineNumber)) {
-			lineHeight = this._specialLineHeights.get(lineNumber)!;
-		} else {
-			lineHeight = this._lineHeight;
-		}
-		return lineHeight;
 	}
 
 	/**
@@ -721,7 +718,7 @@ export class LinesLayout {
 
 		// Figure out how far the lines go
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const lineHeight = this._lineHeightForLineNumber(lineNumber);
+			const lineHeight = this.getLineHeightForLineNumber(lineNumber);
 			if (centeredLineNumber === -1) {
 				const currentLineTop = currentVerticalOffset;
 				const currentLineBottom = currentVerticalOffset + lineHeight;
@@ -777,7 +774,7 @@ export class LinesLayout {
 			}
 		}
 		if (completelyVisibleStartLineNumber < completelyVisibleEndLineNumber) {
-			const endLineHeight = this._lineHeightForLineNumber(endLineNumber);
+			const endLineHeight = this.getLineHeightForLineNumber(endLineNumber);
 			if (endLineNumberVerticalOffset + endLineHeight > verticalOffset2) {
 				completelyVisibleEndLineNumber--;
 			}
