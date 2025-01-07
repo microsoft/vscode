@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
@@ -258,7 +259,11 @@ class AgentCompletions extends Disposable {
 
 				return {
 					suggestions: justAgents.concat(
-						agents.flatMap(agent => agent.slashCommands.map((c, i) => {
+						coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
+							if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location)?.id !== agent.id) {
+								return;
+							}
+
 							const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 							const label = `${agentLabel} ${chatSubcommandLeader}${c.name}`;
 							const item: CompletionItem = {
@@ -284,7 +289,7 @@ class AgentCompletions extends Disposable {
 							}
 
 							return item;
-						})))
+						}))))
 				};
 			}
 		}));
@@ -313,7 +318,11 @@ class AgentCompletions extends Disposable {
 					.filter(a => a.locations.includes(widget.location));
 
 				return {
-					suggestions: agents.flatMap(agent => agent.slashCommands.map((c, i) => {
+					suggestions: coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
+						if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location)?.id !== agent.id) {
+							return;
+						}
+
 						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						const withSlash = `${chatSubcommandLeader}${c.name}`;
 						const extraSortText = agent.id === 'github.copilot.terminalPanel' ? `z` : ``;
@@ -338,7 +347,7 @@ class AgentCompletions extends Disposable {
 						}
 
 						return item;
-					}))
+					})))
 				};
 			}
 		}));
