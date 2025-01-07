@@ -34,27 +34,6 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		// Convert to event and fire event
 		this._onDidChangeEnv.fire(this._env);
 	}
-	// Clear out the current WIP env
-	startSingleEnvironmentVar(isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
-		this._env.clear();
-	}
-	setSingleEnvironmentVar(key: string, value: string | undefined, isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
-		if (key !== undefined && value !== undefined) { // Is this enough of a check
-			this._env.set(key, value);
-		}
-	}
-	endSingleEnvironmentVar(isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
-		this._onDidChangeEnv.fire(this._env);
-	}
 
 	applyEnvironmentDiff(env: { [key: string]: string | undefined }): void {
 		// TODO: Implement
