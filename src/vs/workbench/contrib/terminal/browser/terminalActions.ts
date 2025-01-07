@@ -317,8 +317,11 @@ export function registerTerminalActions() {
 					return;
 				}
 				c.service.setActiveInstance(instance);
+				await focusActiveTerminal(instance, c);
 			}
-			await c.groupService.showPanel(true);
+			else {
+				await c.groupService.showPanel(true);
+			}
 		}
 	});
 
