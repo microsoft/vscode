@@ -1088,7 +1088,7 @@ export class Repository implements Disposable {
 	}
 
 	setConfig(key: string, value: string): Promise<string> {
-		return this.run(Operation.Config(false), () => this.repository.config('set', 'local', key, value));
+		return this.run(Operation.Config(false), () => this.repository.config('add', 'local', key, value));
 	}
 
 	log(options?: LogOptions & { silent?: boolean }): Promise<Commit[]> {
