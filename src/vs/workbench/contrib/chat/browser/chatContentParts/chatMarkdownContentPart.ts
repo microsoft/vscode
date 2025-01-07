@@ -154,7 +154,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
 							// Update the existing object's codemapperUri
-							// Why does this throw
 							this.codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 							this._onDidChangeHeight.fire();
 						});
