@@ -1091,6 +1091,10 @@ export class Repository implements Disposable {
 		return this.run(Operation.Config(false), () => this.repository.config('add', 'local', key, value));
 	}
 
+	unsetConfig(key: string): Promise<string> {
+		return this.run(Operation.Config(false), () => this.repository.config('unset', 'local', key));
+	}
+
 	log(options?: LogOptions & { silent?: boolean }): Promise<Commit[]> {
 		const showProgress = !options || options.silent !== true;
 		return this.run(Operation.Log(showProgress), () => this.repository.log(options));
