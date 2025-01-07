@@ -41,6 +41,11 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 				}), () => instance
 			);
 		})).event;
+		for (const terminal of this._terminalService.instances.filter(i => !!i.shellLaunchConfig.attachPersistentProcess)) {
+			if (terminal.capabilities.has(TerminalCapability.CommandDetection) || terminal.capabilities.has(TerminalCapability.CwdDetection)) {
+				this._proxy.$shellIntegrationChange(terminal.instanceId);
+			}
+		}
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
 
 		// onDidStartTerminalShellExecution
