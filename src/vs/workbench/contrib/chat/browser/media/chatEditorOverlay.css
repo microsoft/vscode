@@ -12,6 +12,7 @@
 	display: flex;
 	align-items: center;
 	z-index: 10;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
 .chat-editor-overlay-widget .chat-editor-overlay-progress {
