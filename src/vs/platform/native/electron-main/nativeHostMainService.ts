@@ -33,7 +33,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow } from '../../window/electron-main/window.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable, overrideDefaultTitlebarStyle } from '../../window/common/window.js';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -326,13 +326,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.themeMainService.saveWindowSplash(windowId, splash);
 	}
 
-	async overrideDefaultTitlebarStyle(windowId: number | undefined, style: 'native' | 'custom' | undefined): Promise<void> {
-		if (typeof style === 'string') {
+	async overrideDefaultTitlebarStyle(windowId: number | undefined, style: 'custom' | undefined): Promise<void> {
+		if (style === 'custom') {
 			this.stateService.setItem('window.titleBarStyleOverride', style);
 		} else {
 			this.stateService.removeItem('window.titleBarStyleOverride');
 		}
-		overrideDefaultTitlebarStyle(style);
 	}
 
 	//#endregion

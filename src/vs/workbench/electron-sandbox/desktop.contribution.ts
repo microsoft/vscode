@@ -29,6 +29,8 @@ import { ModifierKeyEmitter } from '../../base/browser/dom.js';
 import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from '../common/configuration.js';
 import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-sandbox/window.js';
 import product from '../../platform/product/common/product.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contributions.js';
+import { LinuxCustomTitlebarExperiment } from './parts/titlebar/titlebarPart.js';
 
 // Actions
 (function registerActions(): void {
@@ -234,7 +236,6 @@ import product from '../../platform/product/common/product.js';
 				'type': 'string',
 				'enum': ['native', 'custom'],
 				'default': isLinux && product.quality === 'stable' ? 'native' : 'custom',
-				'tags': isLinux && product.quality === 'stable' ? ['onExP'] : undefined,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
 			},
@@ -424,3 +425,6 @@ import product from '../../platform/product/common/product.js';
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
 })();
+
+// Workbench Contributions
+registerWorkbenchContribution2(LinuxCustomTitlebarExperiment.ID, LinuxCustomTitlebarExperiment, WorkbenchPhase.Eventually);

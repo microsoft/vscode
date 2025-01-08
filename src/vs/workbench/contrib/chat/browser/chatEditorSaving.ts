@@ -26,7 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorIdentifier, SaveReason } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { AutoSaveMode, IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
@@ -116,6 +116,7 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		@IConfigurationService configService: IConfigurationService,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService chatAgentService: IChatAgentService,
+		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IDialogService dialogService: IDialogService,
@@ -141,13 +142,11 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 			}));
 		}));
 
-		const store = this._store.add(new DisposableStore());
+		const alwaysSaveConfig = observableConfigValue<boolean>(ChatEditorSaving._config, false, configService);
+		this._store.add(autorunWithStore((r, store) => {
 
-		const update = () => {
+			const alwaysSave = alwaysSaveConfig.read(r);
 
-			store.clear();
-
-			const alwaysSave = configService.getValue<boolean>(ChatEditorSaving._config);
 			if (alwaysSave) {
 				return;
 			}
@@ -235,14 +234,27 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 					return saveJobs.add(entry.modifiedURI);
 				}
 			}));
-		};
+		}));
 
-		configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatEditorSaving._config)) {
-				update();
+		// autosave: OFF & alwaysSaveWithAIChanges - save files after accept
+		this._store.add(autorun(r => {
+			const saveConfig = fileConfigService.getAutoSaveMode(undefined);
+			if (saveConfig.mode !== AutoSaveMode.OFF) {
+				return;
 			}
-		});
-		update();
+			if (!alwaysSaveConfig.read(r)) {
+				return;
+			}
+			const session = chatEditingService.currentEditingSessionObs.read(r);
+			if (!session) {
+				return;
+			}
+			for (const entry of session.entries.read(r)) {
+				if (entry.state.read(r) === WorkingSetEntryState.Accepted) {
+					textFileService.save(entry.modifiedURI);
+				}
+			}
+		}));
 	}
 
 	private _reportSaved(entry: IModifiedFileEntry) {
@@ -277,13 +289,11 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 
 export class ChatEditingSaveAllAction extends Action2 {
 	static readonly ID = 'chatEditing.saveAllFiles';
-	static readonly LABEL = localize('save.allFiles', 'Save All');
 
 	constructor() {
 		super({
 			id: ChatEditingSaveAllAction.ID,
-			title: ChatEditingSaveAllAction.LABEL,
-			tooltip: ChatEditingSaveAllAction.LABEL,
+			title: localize('save.allFiles', 'Save All'),
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.saveAll,
 			menu: [
