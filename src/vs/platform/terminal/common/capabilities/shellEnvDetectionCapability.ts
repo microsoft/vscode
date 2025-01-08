@@ -9,6 +9,7 @@ import { Emitter } from '../../../../base/common/event.js';
 
 export class ShellEnvDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
 	readonly type = TerminalCapability.ShellEnvDetection;
+
 	private readonly _env: Map<string, string> = new Map();
 	get envs(): Map<string, string> { return this._env; }
 
