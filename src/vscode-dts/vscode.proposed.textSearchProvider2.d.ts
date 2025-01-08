@@ -89,11 +89,11 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
-				 */
+				* Use ignore files at the parent directory. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
+				*/
 				parent: boolean;
 				/**
-				 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 * Use global ignore files. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
 				 */
 				global: boolean;
 			};
@@ -145,7 +145,7 @@ declare module 'vscode' {
 	export interface TextSearchComplete2 {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on {@linkcode TextSearchProviderOptions} specifies the max number of results.
+		 * `maxResults` on {@link TextSearchProviderOptions} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -248,8 +248,6 @@ declare module 'vscode' {
 	 */
 	export interface TextSearchProvider2 {
 		/**
-		 * WARNING: VERY EXPERIMENTAL.
-		 *
 		 * Provide results that match the given text pattern.
 		 * @param query The parameters for this query.
 		 * @param options A set of options to consider while searching.

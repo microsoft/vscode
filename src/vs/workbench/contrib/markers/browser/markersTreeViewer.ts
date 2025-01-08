@@ -201,6 +201,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 
 	disposeTemplate(templateData: IResourceMarkersTemplateData): void {
 		templateData.resourceLabel.dispose();
+		templateData.count.dispose();
 	}
 
 	private onDidChangeRenderNodeCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {

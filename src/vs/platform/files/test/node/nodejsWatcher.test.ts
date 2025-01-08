@@ -630,7 +630,7 @@ suite.skip('File Watcher (node.js)', function () {
 		await basicCrudTest(filePath, undefined, null, undefined, true);
 	});
 
-	test('watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
+	(isWindows /* Windows: does not seem to report this */ ? test.skip : test)('watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
 		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 
 		const folderPath = join(testDir, 'not-found');

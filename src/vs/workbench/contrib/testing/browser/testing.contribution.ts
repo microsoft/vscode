@@ -33,12 +33,12 @@ import { TestCommandId, Testing } from '../common/constants.js';
 import { ITestCoverageService, TestCoverageService } from '../common/testCoverageService.js';
 import { ITestExplorerFilterState, TestExplorerFilterState } from '../common/testExplorerFilterState.js';
 import { TestId, TestPosition } from '../common/testId.js';
-import { ITestProfileService, TestProfileService } from '../common/testProfileService.js';
+import { canUseProfileWithTest, ITestProfileService, TestProfileService } from '../common/testProfileService.js';
 import { ITestResultService, TestResultService } from '../common/testResultService.js';
 import { ITestResultStorage, TestResultStorage } from '../common/testResultStorage.js';
 import { ITestService } from '../common/testService.js';
 import { TestService } from '../common/testServiceImpl.js';
-import { ITestItem, TestRunProfileBitset } from '../common/testTypes.js';
+import { ITestItem, ITestRunProfileReference, TestRunProfileBitset } from '../common/testTypes.js';
 import { TestingContentProvider } from '../common/testingContentProvider.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService, TestingContinuousRunService } from '../common/testingContinuousRunService.js';
@@ -153,6 +153,34 @@ CommandsRegistry.registerCommand({
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId, focus);
 	}
 });
+CommandsRegistry.registerCommand({
+	id: TestCommandId.StartContinousRunFromExtension,
+	handler: async (accessor: ServicesAccessor, profileRef: ITestRunProfileReference, tests: readonly ITestItem[]) => {
+		const profiles = accessor.get(ITestProfileService);
+		const collection = accessor.get(ITestService).collection;
+		const profile = profiles.getControllerProfiles(profileRef.controllerId).find(p => p.profileId === profileRef.profileId);
+		if (!profile?.supportsContinuousRun) {
+			return;
+		}
+
+		const crService = accessor.get(ITestingContinuousRunService);
+		for (const test of tests) {
+			const found = collection.getNodeById(test.extId);
+			if (found && canUseProfileWithTest(profile, found)) {
+				crService.start([profile], found.item.extId);
+			}
+		}
+	}
+});
+CommandsRegistry.registerCommand({
+	id: TestCommandId.StopContinousRunFromExtension,
+	handler: async (accessor: ServicesAccessor, tests: readonly ITestItem[]) => {
+		const crService = accessor.get(ITestingContinuousRunService);
+		for (const test of tests) {
+			crService.stop(test.extId);
+		}
+	}
+});
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.peekTestError',
@@ -180,7 +208,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTest',
-	handler: async (accessor: ServicesAccessor, extId: string) => {
+	handler: async (accessor: ServicesAccessor, extId: string, opts?: { preserveFocus?: boolean; openToSide?: boolean }) => {
 		const test = accessor.get(ITestService).collection.getNodeById(extId);
 		if (!test) {
 			return;
@@ -217,7 +245,13 @@ CommandsRegistry.registerCommand({
 
 		await openerService.open(position
 			? uri.with({ fragment: `L${position.lineNumber}:${position.column}` })
-			: uri
+			: uri,
+			{
+				openToSide: opts?.openToSide,
+				editorOptions: {
+					preserveFocus: opts?.preserveFocus,
+				}
+			}
 		);
 	}
 });

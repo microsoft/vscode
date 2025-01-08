@@ -96,164 +96,31 @@ const defaultMarkedRenderers = Object.freeze({
 /**
  * Low-level way create a html element from a markdown string.
  *
- * **Note** that for most cases you should be using [`MarkdownRenderer`](./src/vs/editor/contrib/markdownRenderer/browser/markdownRenderer.ts)
+ * **Note** that for most cases you should be using {@link import('../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js').MarkdownRenderer MarkdownRenderer}
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement; dispose: () => void } {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: Readonly<MarkedOptions> = {}): { element: HTMLElement; dispose: () => void } {
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
 	const element = createElement(options);
 
-	const _uriMassage = function (part: string): string {
-		let data: any;
-		try {
-			data = parse(decodeURIComponent(part));
-		} catch (e) {
-			// ignore
-		}
-		if (!data) {
-			return part;
-		}
-		data = cloneAndChange(data, value => {
-			if (markdown.uris && markdown.uris[value]) {
-				return URI.revive(markdown.uris[value]);
-			} else {
-				return undefined;
-			}
-		});
-		return encodeURIComponent(JSON.stringify(data));
-	};
-
-	const _href = function (href: string, isDomUri: boolean): string {
-		const data = markdown.uris && markdown.uris[href];
-		let uri = URI.revive(data);
-		if (isDomUri) {
-			if (href.startsWith(Schemas.data + ':')) {
-				return href;
-			}
-			if (!uri) {
-				uri = URI.parse(href);
-			}
-			// this URI will end up as "src"-attribute of a dom node
-			// and because of that special rewriting needs to be done
-			// so that the URI uses a protocol that's understood by
-			// browsers (like http or https)
-			return FileAccess.uriToBrowserUri(uri).toString(true);
-		}
-		if (!uri) {
-			return href;
-		}
-		if (URI.parse(href).toString() === uri.toString()) {
-			return href; // no transformation performed
-		}
-		if (uri.query) {
-			uri = uri.with({ query: _uriMassage(uri.query) });
-		}
-		return uri.toString();
-	};
-
-	const renderer = new marked.Renderer();
-	renderer.image = defaultMarkedRenderers.image;
-	renderer.link = defaultMarkedRenderers.link;
-	renderer.paragraph = defaultMarkedRenderers.paragraph;
-
-	// Will collect [id, renderedElement] tuples
-	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
-	const syncCodeBlocks: [string, HTMLElement][] = [];
-
-	if (options.codeBlockRendererSync) {
-		renderer.code = ({ text, lang, raw }: marked.Tokens.Code) => {
-			const id = defaultGenerator.nextId();
-			const value = options.codeBlockRendererSync!(postProcessCodeBlockLanguageId(lang), text, raw);
-			syncCodeBlocks.push([id, value]);
-			return `<div class="code" data-code="${id}">${escape(text)}</div>`;
-		};
-	} else if (options.codeBlockRenderer) {
-		renderer.code = ({ text, lang }: marked.Tokens.Code) => {
-			const id = defaultGenerator.nextId();
-			const value = options.codeBlockRenderer!(postProcessCodeBlockLanguageId(lang), text);
-			codeBlocks.push(value.then(element => [id, element]));
-			return `<div class="code" data-code="${id}">${escape(text)}</div>`;
-		};
-	}
-
-	if (options.actionHandler) {
-		const _activateLink = function (event: StandardMouseEvent | StandardKeyboardEvent): void {
-			const target = event.target.closest('a[data-href]');
-			if (!DOM.isHTMLElement(target)) {
-				return;
-			}
-
-			try {
-				let href = target.dataset['href'];
-				if (href) {
-					if (markdown.baseUri) {
-						href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
-					}
-					options.actionHandler!.callback(href, event);
-				}
-			} catch (err) {
-				onUnexpectedError(err);
-			} finally {
-				event.preventDefault();
-			}
-		};
-		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
-		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
-		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
-			const mouseEvent = new StandardMouseEvent(DOM.getWindow(element), e);
-			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
-				return;
-			}
-			_activateLink(mouseEvent);
-		}));
-		options.actionHandler.disposables.add(DOM.addDisposableListener(element, 'keydown', (e) => {
-			const keyboardEvent = new StandardKeyboardEvent(e);
-			if (!keyboardEvent.equals(KeyCode.Space) && !keyboardEvent.equals(KeyCode.Enter)) {
-				return;
-			}
-			_activateLink(keyboardEvent);
-		}));
-	}
-
-	if (!markdown.supportHtml) {
-		// Note: we always pass the output through dompurify after this so that we don't rely on
-		// marked for real sanitization.
-		renderer.html = ({ text }) => {
-			if (options.sanitizerOptions?.replaceWithPlaintext) {
-				return escape(text);
-			}
-
-			const match = markdown.isTrusted ? text.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
-			return match ? text : '';
-		};
-	}
-
-	markedOptions.renderer = renderer;
-
-	// values that are too long will freeze the UI
-	let value = markdown.value ?? '';
-	if (value.length > 100_000) {
-		value = `${value.substr(0, 100_000)}…`;
-	}
-	// escape theme icons
-	if (markdown.supportThemeIcons) {
-		value = markdownEscapeEscapedIcons(value);
-	}
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(options, markdown);
+	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
 	if (options.fillInIncompleteTokens) {
 		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
-		const opts = {
+		const opts: MarkedOptions = {
 			...marked.defaults,
-			...markedOptions
+			...markedOptions,
+			renderer
 		};
 		const tokens = marked.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);
 		renderedMarkdown = marked.parser(newTokens, opts);
 	} else {
-		renderedMarkdown = marked.parse(value, { ...markedOptions, async: false });
+		renderedMarkdown = marked.parse(value, { ...markedOptions, renderer, async: false });
 	}
 
 	// Rewrite theme icons
@@ -265,48 +132,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const htmlParser = new DOMParser();
 	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, renderedMarkdown) as unknown as string, 'text/html');
 
-	markdownHtmlDoc.body.querySelectorAll('img, audio, video, source')
-		.forEach(img => {
-			const src = img.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
-			if (src) {
-				let href = src;
-				try {
-					if (markdown.baseUri) { // absolute or relative local path, or file: uri
-						href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
-					}
-				} catch (err) { }
-
-				img.setAttribute('src', _href(href, true));
-
-				if (options.remoteImageIsAllowed) {
-					const uri = URI.parse(href);
-					if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.data && !options.remoteImageIsAllowed(uri)) {
-						img.replaceWith(DOM.$('', undefined, img.outerHTML));
-					}
-				}
-			}
-		});
-
-	markdownHtmlDoc.body.querySelectorAll('a')
-		.forEach(a => {
-			const href = a.getAttribute('href'); // Get the raw 'href' attribute value as text, not the resolved 'href'
-			a.setAttribute('href', ''); // Clear out href. We use the `data-href` for handling clicks instead
-			if (
-				!href
-				|| /^data:|javascript:/i.test(href)
-				|| (/^command:/i.test(href) && !markdown.isTrusted)
-				|| /^command:(\/\/\/)?_workbench\.downloadResource/i.test(href)
-			) {
-				// drop the link
-				a.replaceWith(...a.childNodes);
-			} else {
-				let resolvedHref = _href(href, false);
-				if (markdown.baseUri) {
-					resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), href);
-				}
-				a.dataset.href = resolvedHref;
-			}
-		});
+	rewriteRenderedLinks(markdown, options, markdownHtmlDoc.body);
 
 	element.innerHTML = sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, markdownHtmlDoc.body.innerHTML) as unknown as string;
 
@@ -336,7 +162,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}
 	}
 
-	// signal size changes for image tags
+	// Signal size changes for image tags
 	if (options.asyncRenderCallback) {
 		for (const img of element.getElementsByTagName('img')) {
 			const listener = disposables.add(DOM.addDisposableListener(img, 'load', () => {
@@ -346,6 +172,27 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}
 	}
 
+	// Add event listeners for links
+	if (options.actionHandler) {
+		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
+		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
+		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
+			const mouseEvent = new StandardMouseEvent(DOM.getWindow(element), e);
+			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
+				return;
+			}
+			activateLink(markdown, options, mouseEvent);
+		}));
+
+		options.actionHandler.disposables.add(DOM.addDisposableListener(element, 'keydown', (e) => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (!keyboardEvent.equals(KeyCode.Space) && !keyboardEvent.equals(KeyCode.Enter)) {
+				return;
+			}
+			activateLink(markdown, options, keyboardEvent);
+		}));
+	}
+
 	return {
 		element,
 		dispose: () => {
@@ -353,6 +200,173 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			disposables.dispose();
 		}
 	};
+}
+
+function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRenderOptions, root: HTMLElement) {
+	for (const el of root.querySelectorAll('img, audio, video, source')) {
+		const src = el.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
+		if (src) {
+			let href = src;
+			try {
+				if (markdown.baseUri) { // absolute or relative local path, or file: uri
+					href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+				}
+			} catch (err) { }
+
+			el.setAttribute('src', massageHref(markdown, href, true));
+
+			if (options.remoteImageIsAllowed) {
+				const uri = URI.parse(href);
+				if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.data && !options.remoteImageIsAllowed(uri)) {
+					el.replaceWith(DOM.$('', undefined, el.outerHTML));
+				}
+			}
+		}
+	}
+
+	for (const el of root.querySelectorAll('a')) {
+		const href = el.getAttribute('href'); // Get the raw 'href' attribute value as text, not the resolved 'href'
+		el.setAttribute('href', ''); // Clear out href. We use the `data-href` for handling clicks instead
+		if (!href
+			|| /^data:|javascript:/i.test(href)
+			|| (/^command:/i.test(href) && !markdown.isTrusted)
+			|| /^command:(\/\/\/)?_workbench\.downloadResource/i.test(href)) {
+			// drop the link
+			el.replaceWith(...el.childNodes);
+		} else {
+			let resolvedHref = massageHref(markdown, href, false);
+			if (markdown.baseUri) {
+				resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+			}
+			el.dataset.href = resolvedHref;
+		}
+	}
+}
+
+function createMarkdownRenderer(options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
+	const renderer = new marked.Renderer();
+	renderer.image = defaultMarkedRenderers.image;
+	renderer.link = defaultMarkedRenderers.link;
+	renderer.paragraph = defaultMarkedRenderers.paragraph;
+
+	// Will collect [id, renderedElement] tuples
+	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
+	const syncCodeBlocks: [string, HTMLElement][] = [];
+
+	if (options.codeBlockRendererSync) {
+		renderer.code = ({ text, lang, raw }: marked.Tokens.Code) => {
+			const id = defaultGenerator.nextId();
+			const value = options.codeBlockRendererSync!(postProcessCodeBlockLanguageId(lang), text, raw);
+			syncCodeBlocks.push([id, value]);
+			return `<div class="code" data-code="${id}">${escape(text)}</div>`;
+		};
+	} else if (options.codeBlockRenderer) {
+		renderer.code = ({ text, lang }: marked.Tokens.Code) => {
+			const id = defaultGenerator.nextId();
+			const value = options.codeBlockRenderer!(postProcessCodeBlockLanguageId(lang), text);
+			codeBlocks.push(value.then(element => [id, element]));
+			return `<div class="code" data-code="${id}">${escape(text)}</div>`;
+		};
+	}
+
+	if (!markdown.supportHtml) {
+		// Note: we always pass the output through dompurify after this so that we don't rely on
+		// marked for real sanitization.
+		renderer.html = ({ text }) => {
+			if (options.sanitizerOptions?.replaceWithPlaintext) {
+				return escape(text);
+			}
+
+			const match = markdown.isTrusted ? text.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
+			return match ? text : '';
+		};
+	}
+	return { renderer, codeBlocks, syncCodeBlocks };
+}
+
+function preprocessMarkdownString(markdown: IMarkdownString) {
+	let value = markdown.value;
+
+	// values that are too long will freeze the UI
+	if (value.length > 100_000) {
+		value = `${value.substr(0, 100_000)}…`;
+	}
+
+	// escape theme icons
+	if (markdown.supportThemeIcons) {
+		value = markdownEscapeEscapedIcons(value);
+	}
+
+	return value;
+}
+
+function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent): void {
+	const target = event.target.closest('a[data-href]');
+	if (!DOM.isHTMLElement(target)) {
+		return;
+	}
+
+	try {
+		let href = target.dataset['href'];
+		if (href) {
+			if (markdown.baseUri) {
+				href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+			}
+			options.actionHandler!.callback(href, event);
+		}
+	} catch (err) {
+		onUnexpectedError(err);
+	} finally {
+		event.preventDefault();
+	}
+}
+
+function uriMassage(markdown: IMarkdownString, part: string): string {
+	let data: any;
+	try {
+		data = parse(decodeURIComponent(part));
+	} catch (e) {
+		// ignore
+	}
+	if (!data) {
+		return part;
+	}
+	data = cloneAndChange(data, value => {
+		if (markdown.uris && markdown.uris[value]) {
+			return URI.revive(markdown.uris[value]);
+		} else {
+			return undefined;
+		}
+	});
+	return encodeURIComponent(JSON.stringify(data));
+}
+
+function massageHref(markdown: IMarkdownString, href: string, isDomUri: boolean): string {
+	const data = markdown.uris && markdown.uris[href];
+	let uri = URI.revive(data);
+	if (isDomUri) {
+		if (href.startsWith(Schemas.data + ':')) {
+			return href;
+		}
+		if (!uri) {
+			uri = URI.parse(href);
+		}
+		// this URI will end up as "src"-attribute of a dom node
+		// and because of that special rewriting needs to be done
+		// so that the URI uses a protocol that's understood by
+		// browsers (like http or https)
+		return FileAccess.uriToBrowserUri(uri).toString(true);
+	}
+	if (!uri) {
+		return href;
+	}
+	if (URI.parse(href).toString() === uri.toString()) {
+		return href; // no transformation performed
+	}
+	if (uri.query) {
+		uri = uri.with({ query: uriMassage(markdown, uri.query) });
+	}
+	return uri.toString();
 }
 
 function postProcessCodeBlockLanguageId(lang: string | undefined): string {
@@ -542,8 +556,11 @@ export function renderStringAsPlaintext(string: IMarkdownString | string) {
 }
 
 /**
- * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
- * provide @param withCodeBlocks to retain code blocks
+ * Strips all markdown from `markdown`
+ *
+ * For example `# Header` would be output as `Header`.
+ *
+ * @param withCodeBlocks Include the ``` of code blocks as well
  */
 export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlocks?: boolean) {
 	// values that are too long will freeze the UI
@@ -553,7 +570,10 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlo
 	}
 
 	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString().replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html)
+		.toString()
+		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
+		.trim();
 }
 
 const unescapeInfo = new Map<string, string>([
@@ -569,7 +589,7 @@ function createRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return text;
+		return escape(text);
 	};
 	renderer.blockquote = ({ text }: marked.Tokens.Blockquote): string => {
 		return text + '\n';
@@ -608,7 +628,7 @@ function createRenderer(): marked.Renderer {
 		return text;
 	};
 	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
-		return text;
+		return escape(text);
 	};
 	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';
@@ -627,11 +647,12 @@ function createRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>((withCodeBlocks?: boolean) => createRenderer());
+const plainTextRenderer = new Lazy<marked.Renderer>(createRenderer);
+
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = createRenderer();
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return `\n\`\`\`\n${text}\n\`\`\`\n`;
+		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
 	};
 	return renderer;
 });

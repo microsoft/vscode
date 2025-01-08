@@ -7,6 +7,7 @@ import { disposableTimeout, RunOnceScheduler } from '../../../../../../base/comm
 import { Disposable, dispose, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { language } from '../../../../../../base/common/platform.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { themeColorFromId } from '../../../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -15,7 +16,7 @@ import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebook
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { cellStatusIconError, cellStatusIconSuccess } from '../../notebookEditorWidget.js';
 import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from '../../notebookIcons.js';
-import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from '../../../common/notebookCommon.js';
+import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookSetting } from '../../../common/notebookCommon.js';
 import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 import { INotebookService } from '../../../common/notebookService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -227,17 +228,28 @@ class TimerCellStatusBarItem extends Disposable {
 
 	private _deferredUpdate: IDisposable | undefined;
 
+	private _isVerbose: boolean;
+
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly _cell: ICellViewModel,
 		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService,
 		@INotebookService private readonly _notebookService: INotebookService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+		this._isVerbose = this._configurationService.getValue(NotebookSetting.cellExecutionTimeVerbosity) === 'verbose';
 
 		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarItem.UPDATE_INTERVAL));
 		this._update();
 		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotebookSetting.cellExecutionTimeVerbosity)) {
+				this._isVerbose = this._configurationService.getValue(NotebookSetting.cellExecutionTimeVerbosity) === 'verbose';
+				this._update();
+			}
+		}));
 	}
 
 	private async _update() {
@@ -290,8 +302,9 @@ class TimerCellStatusBarItem extends Disposable {
 
 		let tooltip: IMarkdownString | undefined;
 
+		const lastExecution = new Date(endTime).toLocaleTimeString(language);
+
 		if (runtimeInformation) {
-			const lastExecution = new Date(endTime).toLocaleTimeString(language);
 			const { renderDuration, executionDuration, timerDuration } = runtimeInformation;
 
 			let renderTimes = '';
@@ -318,8 +331,12 @@ class TimerCellStatusBarItem extends Disposable {
 
 		}
 
+		const executionText = this._isVerbose ?
+			localize('notebook.cell.statusBar.timerVerbose', "Last Execution: {0}, Duration: {1}", lastExecution, formatCellDuration(duration, false)) :
+			formatCellDuration(duration, false);
+
 		return {
-			text: formatCellDuration(duration, false),
+			text: executionText,
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 5,
 			tooltip

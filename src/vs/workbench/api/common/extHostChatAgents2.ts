@@ -31,6 +31,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActions.js';
+import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 
 class ChatAgentResponseStream {
 
@@ -217,7 +218,8 @@ class ChatAgentResponseStream {
 					throwIfDone(this.textEdit);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const part = new extHostTypes.ChatResponseTextEditPart(target, edits);
+					const part = new extHostTypes.ChatResponseTextEditPart(target, Array.isArray(edits) ? edits : []);
+					part.isDone = edits === true ? true : undefined;
 					const dto = typeConvert.ChatResponseTextEditPart.from(part);
 					_report(dto);
 					return this;
@@ -304,6 +306,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private static _participantDetectionProviderIdPool = 0;
 	private readonly _participantDetectionProviders = new Map<number, ExtHostParticipantDetector>();
 
+	private static _relatedFilesProviderIdPool = 0;
+	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
+
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
@@ -359,6 +364,26 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			this._participantDetectionProviders.delete(handle);
 			this._proxy.$unregisterChatParticipantDetectionProvider(handle);
 		});
+	}
+
+	registerRelatedFilesProvider(extension: IExtensionDescription, provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata): vscode.Disposable {
+		const handle = ExtHostChatAgents2._relatedFilesProviderIdPool++;
+		this._relatedFilesProviders.set(handle, new ExtHostRelatedFilesProvider(extension, provider));
+		this._proxy.$registerRelatedFilesProvider(handle, metadata);
+		return toDisposable(() => {
+			this._relatedFilesProviders.delete(handle);
+			this._proxy.$unregisterRelatedFilesProvider(handle);
+		});
+	}
+
+	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined> {
+		const provider = this._relatedFilesProviders.get(handle);
+		if (!provider) {
+			return Promise.resolve([]);
+		}
+
+		const extRequestDraft = typeConvert.ChatRequestDraft.to(request);
+		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
@@ -465,7 +490,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						responseIsIncomplete: true
 					};
 				}
-				if (errorDetails?.responseIsRedacted) {
+				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
@@ -478,7 +503,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				e = e.cause;
 			}
 
-			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true } };
+			const isQuotaExceeded = e instanceof Error && e.name === 'ChatQuotaExceeded';
+			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded } };
 
 		} finally {
 			stream?.close();
@@ -635,6 +661,13 @@ class ExtHostParticipantDetector {
 	constructor(
 		public readonly extension: IExtensionDescription,
 		public readonly provider: vscode.ChatParticipantDetectionProvider,
+	) { }
+}
+
+class ExtHostRelatedFilesProvider {
+	constructor(
+		public readonly extension: IExtensionDescription,
+		public readonly provider: vscode.ChatRelatedFilesProvider,
 	) { }
 }
 

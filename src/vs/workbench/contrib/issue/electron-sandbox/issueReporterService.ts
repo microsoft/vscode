@@ -20,6 +20,10 @@ import { IIssueFormService, IssueReporterData, IssueType } from '../common/issue
 // ref https://github.com/microsoft/vscode/issues/159191
 const MAX_URL_LENGTH = 7500;
 
+// Github API and issues on web has a limit of 65536. We chose 65500 to play it safe.
+// ref https://github.com/github/issues/issues/12858
+const MAX_GITHUB_API_LENGTH = 65500;
+
 
 export class IssueReporter extends BaseIssueReporterService {
 	private readonly processMainService: IProcessMainService;
@@ -85,6 +89,10 @@ export class IssueReporter extends BaseIssueReporterService {
 	}
 
 	public override async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
+		if (issueBody.length > MAX_GITHUB_API_LENGTH) {
+			console.error('Issue body is too long.');
+			return false;
+		}
 		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
 		const init = {
 			method: 'POST',
@@ -173,15 +181,19 @@ export class IssueReporter extends BaseIssueReporterService {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
-		if (url.length > MAX_URL_LENGTH) {
-			try {
-				url = await this.writeToClipboard(baseUrl, issueBody);
-			} catch (_) {
-				console.error('Writing to clipboard failed');
-				return false;
+		if (this.data.githubAccessToken && gitHubDetails) {
+			if (await this.submitToGitHub(issueTitle, issueBody, gitHubDetails)) {
+				return true;
 			}
-		} else if (this.data.githubAccessToken && gitHubDetails) {
-			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
+		}
+
+		try {
+			if (url.length > MAX_URL_LENGTH || issueBody.length > MAX_GITHUB_API_LENGTH) {
+				url = await this.writeToClipboard(baseUrl, issueBody);
+			}
+		} catch (_) {
+			console.error('Writing to clipboard failed');
+			return false;
 		}
 
 		await this.nativeHostService.openExternal(url);

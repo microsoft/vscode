@@ -9,9 +9,9 @@ declare module 'vscode' {
 
 	export interface FindTextInFilesOptions2 {
 		/**
-		 * An array of {@link GlobPattern GlobPattern} that defines the files to search for.
-		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link baseUri GlobPattern.baseUri} if applicable.
-		 * Use a {@link RelativePattern RelativePattern} to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 * An array of {@link GlobPattern} that defines the files to search for.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link GlobPattern}'s `baseUri` if applicable.
+		 * Use a {@link RelativePattern} to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 *
 		 * If more than one value is used, the values are combined with a logical OR.
 		 *
@@ -28,8 +28,8 @@ declare module 'vscode' {
 		include?: GlobPattern[];
 
 		/**
-		 * An array of {@link GlobPattern GlobPattern} that defines files to exclude.
-		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern.baseUri} if applicable.
+		 * An array of {@link GlobPattern} that defines files to exclude.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern}'s `baseUri` if applicable.
 		 *
 		 * If more than one value is used, the values are combined with a logical AND.
 		 * For example, consider the following code:
@@ -45,7 +45,7 @@ declare module 'vscode' {
 		exclude?: GlobPattern[];
 
 		/**
-		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
+		 * Which settings to follow when searching for files. Defaults to `ExcludeSettingOptions.searchAndFilesExclude`.
 		 */
 		useExcludeSettings?: ExcludeSettingOptions;
 
@@ -73,12 +73,12 @@ declare module 'vscode' {
 			 */
 			local?: boolean;
 			/**
-			 * Use ignore files at the parent directory. When set to `true`, {@link FindTextInFilesOptions2.useIgnoreFiles.local} must be `true`.
+			 * Use ignore files at the parent directory. When set to `true`, `local` in {@link FindTextInFilesOptions2.useIgnoreFiles} must be `true`.
 			 * May default to `search.useParentIgnoreFiles` setting if not set.
 			 */
 			parent?: boolean;
 			/**
-			 * Use global ignore files. When set to `true`, {@link FindTextInFilesOptions2.useIgnoreFiles.local} must also be `true`.
+			 * Use global ignore files. When set to `true`, `local` in {@link FindTextInFilesOptions2.useIgnoreFiles} must also be `true`.
 			 * May default to `search.useGlobalIgnoreFiles` setting if not set.
 			 */
 			global?: boolean;
@@ -132,8 +132,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * WARNING: VERY EXPERIMENTAL.
-		 *
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param options An optional set of query options.

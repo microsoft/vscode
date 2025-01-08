@@ -12,6 +12,7 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ActiveAuxiliaryContext } from '../../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
@@ -22,7 +23,7 @@ export class PanelChatAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 107;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.inQuickChat.negate(), ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
+	readonly when = ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.inQuickChat.negate(), ActiveAuxiliaryContext.isEqualTo('workbench.panel.chat'), ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');
@@ -40,15 +41,30 @@ export class QuickChatAccessibilityHelp implements IAccessibleViewImplentation {
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat', keybindingService: IKeybindingService): string {
+export class EditsChatAccessibilityHelp implements IAccessibleViewImplentation {
+	readonly priority = 119;
+	readonly name = 'editsView';
+	readonly type = AccessibleViewType.Help;
+	readonly when = ActiveAuxiliaryContext.isEqualTo('workbench.panel.chatEditing');
+	getProvider(accessor: ServicesAccessor) {
+		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'editsView');
+	}
+}
+
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView', keybindingService: IKeybindingService): string {
 	const content = [];
 	if (type === 'panelChat' || type === 'quickChat') {
-		content.push(localize('chat.overview', 'The chat view is comprised of an input box and a request/response list. The input box is used to make requests and the list is used to display responses.'));
-		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
-		content.push(localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}.', '<keybinding:editor.action.accessibleView>'));
+		if (type === 'quickChat') {
+			content.push(localize('chat.overview', 'The quick chat view is comprised of an input box and a request/response list. The input box is used to make requests and the list is used to display responses.'));
+			content.push(localize('chat.differenceQuick', 'The quick chat view is a transient interface for making and viewing requests, while the panel chat view is a persistent interface that also supports navigating suggested follow-up questions.'));
+		}
 		if (type === 'panelChat') {
+			content.push(localize('chat.differencePanel', 'The panel chat view is a persistent interface that also supports navigating suggested follow-up questions, while the quick chat view is a transient interface for making and viewing requests.'));
 			content.push(localize('chat.followUp', 'In the input box, navigate to the suggested follow up question (Shift+Tab) and press Enter to run it.'));
 		}
+		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
+		content.push(localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}.', '<keybinding:editor.action.accessibleView>'));
 		content.push(localize('chat.announcement', 'Chat responses will be announced as they come in. A response will indicate the number of code blocks, if any, and then the rest of the response.'));
 		content.push(localize('workbench.action.chat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke the Focus Chat command{0}.', getChatFocusKeybindingLabel(keybindingService, type, false)));
 		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', getChatFocusKeybindingLabel(keybindingService, type, true)));
@@ -56,6 +72,25 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		if (type === 'panelChat') {
 			content.push(localize('workbench.action.chat.newChat', 'To create a new chat session, invoke the New Chat command{0}.', '<keybinding:workbench.action.chat.new>'));
 		}
+	}
+	if (type === 'editsView') {
+		content.push(localize('chatEditing.overview', 'The chat editing view is used to apply edits across files.'));
+		content.push(localize('chatEditing.format', 'It is comprised of an input box and a file working set (Shift+Tab).'));
+		content.push(localize('chatEditing.expectation', 'When a request is made, a progress indicator will play while the edits are being applied.'));
+		content.push(localize('chatEditing.review', 'Once the edits are applied, focus the editor(s) to review, accept, and discard changes.'));
+		content.push(localize('chatEditing.sections', 'Navigate between edits in the editor with navigate previous{0} and next{1}', '<keybinding:chatEditor.action.navigatePrevious>', '<keybinding:chatEditor.action.navigateNext>'));
+		content.push(localize('chatEditing.acceptHunk', 'In the editor, Accept{0} and Reject the current Change{1}.', '<keybinding:chatEditor.action.acceptHunk>', '<keybinding:chatEditor.action.reject>'));
+		content.push(localize('chatEditing.helpfulCommands', 'When in the edits view, some helpful commands include:'));
+		content.push(localize('workbench.action.chat.undoEdits', '- Undo Edits{0}.', '<keybinding:workbench.action.chat.undoEdits>'));
+		content.push(localize('workbench.action.chat.editing.attachFiles', '- Attach Files{0}.', '<keybinding:workbench.action.chat.editing.attachFiles>'));
+		content.push(localize('chatEditing.removeFileFromWorkingSet', '- Remove File from Working Set{0}.', '<keybinding:chatEditing.removeFileFromWorkingSet>'));
+		content.push(localize('chatEditing.acceptFile', '- Accept{0} and Discard File{1}.', '<keybinding:chatEditing.acceptFile>', '<keybinding:chatEditing.discardFile>'));
+		content.push(localize('chatEditing.saveAllFiles', '- Save All Files{0}.', '<keybinding:chatEditing.saveAllFiles>'));
+		content.push(localize('chatEditing.acceptAllFiles', '- Accept All Edits{0}.', '<keybinding:chatEditing.acceptAllFiles>'));
+		content.push(localize('chatEditing.discardAllFiles', '- Discard All Edits{0}.', '<keybinding:chatEditing.discardAllFiles>'));
+		content.push(localize('chatEditing.openFileInDiff', '- Open File in Diff{0}.', '<keybinding:chatEditing.openFileInDiff>'));
+		content.push(localize('chatEditing.addFileToWorkingSet', '- Add File to Working Set{0}.', '<keybinding:chatEditing.addFileToWorkingSet>'));
+		content.push(localize('chatEditing.viewChanges', '- View Changes{0}.', '<keybinding:chatEditing.viewChanges>'));
 	}
 	else {
 		content.push(localize('inlineChat.overview', "Inline chat occurs within a code editor and takes into account the current selection. It is useful for making changes to the current editor. For example, fixing diagnostics, documenting or refactoring code. Keep in mind that AI generated code may be incorrect."));
@@ -71,10 +106,10 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	return content.join('\n');
 }
 
-export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat') {
+export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView') {
 	const widgetService = accessor.get(IChatWidgetService);
 	const keybindingService = accessor.get(IKeybindingService);
-	const inputEditor: ICodeEditor | undefined = type === 'panelChat' || type === 'quickChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
+	const inputEditor: ICodeEditor | undefined = type === 'panelChat' || type === 'editsView' || type === 'quickChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
 
 	if (!inputEditor) {
 		return;

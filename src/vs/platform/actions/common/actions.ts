@@ -124,6 +124,7 @@ export class MenuId {
 	static readonly SCMSourceControlInline = new MenuId('SCMSourceControlInline');
 	static readonly SCMSourceControlTitle = new MenuId('SCMSourceControlTitle');
 	static readonly SCMHistoryTitle = new MenuId('SCMHistoryTitle');
+	static readonly SCMHistoryItemRefContext = new MenuId('SCMHistoryItemRefContext');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly SearchActionMenu = new MenuId('SearchActionContext');
@@ -138,6 +139,7 @@ export class MenuId {
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
 	static readonly TestCallStack = new MenuId('TestCallStack');
+	static readonly TestCoverageFilterItem = new MenuId('TestCoverageFilterItem');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
@@ -226,7 +228,11 @@ export class MenuId {
 	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
+	static readonly ChatEditingEditorContent = new MenuId('ChatEditingEditorContent');
+	static readonly ChatEditingEditorHunk = new MenuId('ChatEditingEditorHunk');
 	static readonly ChatEditingWidgetModifiedFilesToolbar = new MenuId('ChatEditingWidgetModifiedFilesToolbar');
+	static readonly ChatInputResourceAttachmentContext = new MenuId('ChatInputResourceAttachmentContext');
+	static readonly ChatInputSymbolAttachmentContext = new MenuId('ChatInputSymbolAttachmentContext');
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
 	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');

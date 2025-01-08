@@ -42,11 +42,11 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 * Use ignore files at the parent directory. If set, `local` in {@link FileSearchProviderOptions.useIgnoreFiles} should also be `true`.
 				 */
 				parent: boolean;
 				/**
-				 * Use global ignore files. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 * Use global ignore files. If set, `local` in {@link FileSearchProviderOptions.useIgnoreFiles} should also be `true`.
 				 */
 				global: boolean;
 			};
@@ -75,8 +75,6 @@ declare module 'vscode' {
 	 */
 	export interface FileSearchProvider2 {
 		/**
-		 * WARNING: VERY EXPERIMENTAL.
-		 *
 		 * Provide the set of files that match a certain file path pattern.
 		 * @param pattern The search pattern to match against file paths.
 		 * @param options A set of options to consider while searching files.

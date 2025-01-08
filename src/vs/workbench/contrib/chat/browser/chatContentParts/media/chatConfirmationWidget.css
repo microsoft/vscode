@@ -33,6 +33,7 @@
 	display: flex;
 	gap: 8px;
 	margin-top: 13px;
+	flex-wrap: wrap;
 }
 
 .chat-confirmation-widget.hideButtons .chat-confirmation-buttons-container {

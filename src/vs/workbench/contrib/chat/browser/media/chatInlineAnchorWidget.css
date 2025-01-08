@@ -31,6 +31,8 @@
 	line-height: 1em;
 	font-size: 90% !important;
 	overflow: hidden;
+
+	top: 0 !important;
 }
 
 .show-file-icons.chat-inline-anchor-widget .icon::before {

@@ -342,11 +342,18 @@ function Send-Completions {
 		# immediately after the last whitespace. This allows the client to perform fuzzy filtering
 		# such that requesting completions in the middle of a word should show the same completions
 		# as at the start. This only happens when the last word does not include special characters:
+		# - `-`: Completion change when flags are used.
 		# - `/` and `\`: Completions change when navigating directories.
 		# - `$`: Completions change when variables.
 		$lastWhitespaceIndex = $completionPrefix.LastIndexOf(' ')
 		$lastWord = $completionPrefix.Substring($lastWhitespaceIndex + 1)
-		if ($lastWord -notmatch '[/\\$]') {
+		if ($lastWord -match '^-') {
+			$newCursorIndex = $lastWhitespaceIndex + 2
+			$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+			$prefixCursorDelta = $cursorIndex - $newCursorIndex
+			$cursorIndex = $newCursorIndex
+		}
+		elseif ($lastWord -notmatch '[/\\$]') {
 			if ($lastWhitespaceIndex -ne -1 -and $lastWhitespaceIndex -lt $cursorIndex) {
 				$newCursorIndex = $lastWhitespaceIndex + 1
 				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)

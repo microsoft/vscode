@@ -252,6 +252,7 @@ fn get_release_from_path(path: &str, platform: Platform) -> Option<(Release, Str
 
 	let (quality_commit, remaining) = path.split_at(i);
 	let (quality, commit) = quality_commit.split_at(quality_commit_sep);
+	let commit = &commit[1..];
 
 	if !is_commit_hash(commit) {
 		return None;
@@ -547,9 +548,11 @@ impl ConnectionManager {
 			Err(_) => Quality::Stable,
 		});
 
+		let now = Instant::now();
 		let latest_version = tokio::sync::Mutex::new(cache.get().first().map(|latest_commit| {
 			(
-				Instant::now() - Duration::from_secs(RELEASE_CHECK_INTERVAL),
+				now.checked_sub(Duration::from_secs(RELEASE_CHECK_INTERVAL))
+					.unwrap_or(now), // handle 0-ish instants, #233155
 				Release {
 					name: String::from("0.0.0"), // Version information not stored on cache
 					commit: latest_commit.clone(),

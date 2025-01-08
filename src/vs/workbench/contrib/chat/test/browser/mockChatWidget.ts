@@ -26,11 +26,7 @@ export class MockChatWidgetService implements IChatWidgetService {
 		return undefined;
 	}
 
-	getWidgetByLocation(location: ChatAgentLocation): IChatWidget[] {
-		return [];
-	}
-
-	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
+	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
 		return [];
 	}
 }

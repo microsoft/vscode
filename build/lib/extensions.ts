@@ -170,10 +170,12 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 						// source map handling:
 						// * rewrite sourceMappingURL
 						// * save to disk so that upload-task picks this up
-						const contents = (<Buffer>data.contents).toString('utf8');
-						data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-							return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
-						}), 'utf8');
+						if (path.extname(data.basename) === '.js') {
+							const contents = (<Buffer>data.contents).toString('utf8');
+							data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+								return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
+							}), 'utf8');
+						}
 
 						this.emit('data', data);
 					}));
@@ -275,9 +277,18 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 		.pipe(packageJsonFilter.restore);
 }
 
+/**
+ * All extensions that are known to have some native component and thus must be built on the
+ * platform that is being built.
+ */
+const nativeExtensions = [
+	'microsoft-authentication',
+];
+
 const excludedExtensions = [
 	'vscode-api-tests',
 	'vscode-colorize-tests',
+	'vscode-colorize-perf-tests',
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
@@ -331,7 +342,49 @@ function isWebExtension(manifest: IExtensionManifest): boolean {
 	return true;
 }
 
-export function packageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
+/**
+ * Package local extensions that are known to not have native dependencies. Mutually exclusive to {@link packageNativeLocalExtensionsStream}.
+ * @param forWeb build the extensions that have web targets
+ * @param disableMangle disable the mangler
+ * @returns a stream
+ */
+export function packageNonNativeLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
+	return doPackageLocalExtensionsStream(forWeb, disableMangle, false);
+}
+
+/**
+ * Package local extensions that are known to have native dependencies. Mutually exclusive to {@link packageNonNativeLocalExtensionsStream}.
+ * @note it's possible that the extension does not have native dependencies for the current platform, especially if building for the web,
+ * but we simplify the logic here by having a flat list of extensions (See {@link nativeExtensions}) that are known to have native
+ * dependencies on some platform and thus should be packaged on the platform that they are building for.
+ * @param forWeb build the extensions that have web targets
+ * @param disableMangle disable the mangler
+ * @returns a stream
+ */
+export function packageNativeLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
+	return doPackageLocalExtensionsStream(forWeb, disableMangle, true);
+}
+
+/**
+ * Package all the local extensions... both those that are known to have native dependencies and those that are not.
+ * @param forWeb build the extensions that have web targets
+ * @param disableMangle disable the mangler
+ * @returns a stream
+ */
+export function packageAllLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
+	return es.merge([
+		packageNonNativeLocalExtensionsStream(forWeb, disableMangle),
+		packageNativeLocalExtensionsStream(forWeb, disableMangle)
+	]);
+}
+
+/**
+ * @param forWeb build the extensions that have web targets
+ * @param disableMangle disable the mangler
+ * @param native build the extensions that are marked as having native dependencies
+ */
+function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean, native: boolean): Stream {
+	const nativeExtensionsSet = new Set(nativeExtensions);
 	const localExtensionsDescriptions = (
 		(<string[]>glob.sync('extensions/*/package.json'))
 			.map(manifestPath => {
@@ -340,6 +393,7 @@ export function packageLocalExtensionsStream(forWeb: boolean, disableMangle: boo
 				const extensionName = path.basename(extensionPath);
 				return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
 			})
+			.filter(({ name }) => native ? nativeExtensionsSet.has(name) : !nativeExtensionsSet.has(name))
 			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
 			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))

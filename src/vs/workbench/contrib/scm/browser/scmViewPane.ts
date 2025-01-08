@@ -448,7 +448,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		const actionBar = new WorkbenchToolBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
-		const disposables = combinedDisposable(actionBar);
+		const disposables = combinedDisposable(actionBar, count);
 
 		return { name, count, actionBar, elementDisposables: new DisposableStore(), disposables };
 	}
@@ -964,6 +964,8 @@ export const ContextKeys = {
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
 	SCMHistoryItemCount: new RawContextKey<number>('scmHistoryItemCount', 0),
+	SCMCurrentHistoryItemRefHasRemote: new RawContextKey<boolean>('scmCurrentHistoryItemRefHasRemote', false),
+	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
 	RepositoryVisibility(repository: ISCMRepository) {
@@ -1394,7 +1396,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		this._cancelAction = new MenuItemAction({
 			id: SCMInputWidgetCommandId.CancelAction,
 			title: localize('scmInputCancelAction', "Cancel"),
-			icon: Codicon.debugStop,
+			icon: Codicon.stopCircle,
 		}, undefined, undefined, undefined, undefined, contextKeyService, commandService);
 	}
 
@@ -1475,6 +1477,7 @@ class SCMInputWidgetEditorOptions {
 			e => {
 				return e.affectsConfiguration('editor.accessibilitySupport') ||
 					e.affectsConfiguration('editor.cursorBlinking') ||
+					e.affectsConfiguration('editor.emptySelectionClipboard') ||
 					e.affectsConfiguration('editor.fontFamily') ||
 					e.affectsConfiguration('editor.rulers') ||
 					e.affectsConfiguration('editor.wordWrap') ||
@@ -1488,21 +1491,14 @@ class SCMInputWidgetEditorOptions {
 	}
 
 	getEditorConstructionOptions(): IEditorConstructionOptions {
-		const fontFamily = this._getEditorFontFamily();
-		const fontSize = this._getEditorFontSize();
-		const lineHeight = this._getEditorLineHeight(fontSize);
-
 		return {
 			...getSimpleEditorOptions(this.configurationService),
-			...this._getEditorLanguageConfiguration(),
+			...this.getEditorOptions(),
 			cursorWidth: 1,
 			dragAndDrop: true,
 			dropIntoEditor: { enabled: true },
-			fontFamily: fontFamily,
-			fontSize: fontSize,
 			formatOnType: true,
 			lineDecorationsWidth: 6,
-			lineHeight: lineHeight,
 			overflowWidgetsDomNode: this.overflowWidgetsDomNode,
 			padding: { top: 2, bottom: 2 },
 			quickSuggestions: false,
@@ -1522,8 +1518,9 @@ class SCMInputWidgetEditorOptions {
 		const lineHeight = this._getEditorLineHeight(fontSize);
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
+		const emptySelectionClipboard = this.configurationService.getValue<boolean>('editor.emptySelectionClipboard') === true;
 
-		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, fontFamily, fontSize, lineHeight };
+		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, fontFamily, fontSize, lineHeight, emptySelectionClipboard };
 	}
 
 	private _getEditorFontFamily(): string {
@@ -1955,7 +1952,7 @@ class SCMInputWidget {
 						this.contextViewService.hideContextView();
 					}));
 
-					const renderer = disposables.add(this.instantiationService.createInstance(MarkdownRenderer, {}));
+					const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 					const renderedMarkdown = renderer.render(message, {
 						actionHandler: {
 							callback: (link) => {

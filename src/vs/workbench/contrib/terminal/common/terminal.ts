@@ -157,7 +157,6 @@ export interface ITerminalConfiguration {
 	mouseWheelScrollSensitivity: number;
 	tabStopWidth: number;
 	sendKeybindingsToShell: boolean;
-	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
 	lineHeight: number;
@@ -208,9 +207,11 @@ export interface ITerminalConfiguration {
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
 	rescaleOverlappingGlyphs: boolean;
+	fontLigatures?: boolean;
 	experimental?: {
 		windowsUseConptyDll?: boolean;
 	};
+	hideOnLastClosed: boolean;
 }
 
 export interface ITerminalFont {
@@ -566,6 +567,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.previousPanelView',
 	'workbench.action.nextSideBarView',
 	'workbench.action.previousSideBarView',
+	'workbench.action.debug.disconnect',
 	'workbench.action.debug.start',
 	'workbench.action.debug.stop',
 	'workbench.action.debug.run',
