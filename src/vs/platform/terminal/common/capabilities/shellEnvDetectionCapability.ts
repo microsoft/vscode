@@ -32,6 +32,3 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		this._onDidChangeEnv.fire(this._env);
 	}
 }
-
-// bash, pwsh => capability (env change =>) main thread (env change =>)
-// extension host [(new or changed) .cwd, .env, .shellIntegration SI Change event => ] Extension
