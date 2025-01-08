@@ -177,24 +177,21 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontLigaturesEnabled]: {
 			markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
 			type: 'boolean',
-			tags: ['preview'],
 			default: false
 		},
 		[TerminalSettingId.FontLigaturesFeatureSettings]: {
-			markdownDescription: localize('terminal.integrated.fontLigatures.fontFeatureSettings', "Controls what font feature settings are used when ligatures are enabled, in the format of the `font-feature-settings` CSS property. Some examples which may be valid depending on the font:") + '\n\n- ' + [
+			markdownDescription: localize('terminal.integrated.fontLigatures.featureSettings', "Controls what font feature settings are used when ligatures are enabled, in the format of the `font-feature-settings` CSS property. Some examples which may be valid depending on the font:") + '\n\n- ' + [
 				`\`"calt" off, "ss03"\``,
 				`\`"liga" on"\``,
 				`\`"calt" off, "dlig" on\``
 			].join('\n- '),
 			type: 'string',
-			tags: ['preview'],
 			default: '"calt" on'
 		},
 		[TerminalSettingId.FontLigaturesFallbackLigatures]: {
-			markdownDescription: localize('terminal.integrated.fontLigatures.fallbackLigatures', "When {0} is enabled and the particular {1} cannot be parsed, this is the set of character sequences that will always be drawn together. This lets you leverage ligatures even when the font isn't supported.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.FontFamily}#\``),
+			markdownDescription: localize('terminal.integrated.fontLigatures.fallbackLigatures', "When {0} is enabled and the particular {1} cannot be parsed, this is the set of character sequences that will always be drawn together. This allows the use of a fixed set of ligatures even when the font isn't supported.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.FontFamily}#\``),
 			type: 'array',
 			items: [{ type: 'string' }],
-			tags: ['preview'],
 			default: [
 				'<--', '<---', '<<-', '<-', '->', '->>', '-->', '--->',
 				'<==', '<===', '<<=', '<=', '=>', '=>>', '==>', '===>', '>=', '>>=',
