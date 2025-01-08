@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, env, l10n, workspace } from 'vscode';
+import { Command, Uri, env, l10n, workspace } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
@@ -134,6 +134,20 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 				const link = getBranchLink(url, branch, getVscodeDevHost());
 				env.openExternal(Uri.parse(link));
 			}
+		}];
+	}
+
+	async getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[]> {
+		const repository = getRepositoryFromUrl(url);
+		if (!repository) {
+			return [];
+		}
+
+		return [{
+			title: l10n.t('{0} Open on GitHub', '$(github)'),
+			tooltip: l10n.t('Open on GitHub'),
+			command: 'github.openOnGitHub',
+			arguments: [url]
 		}];
 	}
 }

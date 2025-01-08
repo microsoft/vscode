@@ -693,7 +693,7 @@ type InstallChatClassification = {
 	signUpErrorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error code in case of an error signing up.' };
 };
 type InstallChatEvent = {
-	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp';
+	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted';
 	signedIn: boolean;
 	signUpErrorCode: number | undefined;
 };
@@ -779,6 +779,7 @@ class ChatSetupController extends Disposable {
 				this.setStep(ChatSetupStep.SigningIn);
 				const result = await this.signIn();
 				if (!result.session) {
+					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false, signUpErrorCode: undefined });
 					return; // user cancelled
 				}
 
@@ -789,6 +790,7 @@ class ChatSetupController extends Disposable {
 			if (!session) {
 				session = (await this.authenticationService.getSessions(defaultChat.providerId)).at(0);
 				if (!session) {
+					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false, signUpErrorCode: undefined });
 					return; // unexpected
 				}
 			}
@@ -797,6 +799,7 @@ class ChatSetupController extends Disposable {
 				message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
 			});
 			if (!trusted) {
+				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotTrusted', signedIn: true, signUpErrorCode: undefined });
 				return;
 			}
 
@@ -831,10 +834,6 @@ class ChatSetupController extends Disposable {
 			this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, defaultChat.providerId, session.account);
 		} catch (error) {
 			this.logService.error(`[chat setup] signIn: error ${error}`);
-		}
-
-		if (!session) {
-			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false, signUpErrorCode: undefined });
 		}
 
 		return { session, entitlement };
