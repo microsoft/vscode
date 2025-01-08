@@ -61,6 +61,7 @@ import Severity from '../../../../base/common/severity.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extensions/browser/extensionUrlHandler.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -174,8 +175,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				ensureSideBarChatViewSize(400, viewDescriptorService, layoutService);
 
 				if (startSetup === true) {
-					const controller = that.controller.value;
-					controller.setup();
+					that.controller.value.setup();
 				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
@@ -728,7 +728,8 @@ class ChatSetupController extends Disposable {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		super();
 
@@ -790,6 +791,13 @@ class ChatSetupController extends Disposable {
 				if (!session) {
 					return; // unexpected
 				}
+			}
+
+			const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+				message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
+			});
+			if (!trusted) {
+				return;
 			}
 
 			const activeElement = getActiveElement();
