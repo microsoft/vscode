@@ -123,7 +123,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 					message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(that.quotas.quotaResetDate));
 				}
 
-				const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat messages\n- 30-day free trial");
+				const upgradeToPro = localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to additional models");
 
 				await dialogService.prompt({
 					type: 'none',
