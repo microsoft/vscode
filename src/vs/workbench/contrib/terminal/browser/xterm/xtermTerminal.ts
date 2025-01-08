@@ -706,7 +706,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 					if (this._store.isDisposed) {
 						return;
 					}
-					this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon);
+					this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon, {
+
+					});
 					this.raw.loadAddon(this._ligaturesAddon.value);
 				});
 			}
