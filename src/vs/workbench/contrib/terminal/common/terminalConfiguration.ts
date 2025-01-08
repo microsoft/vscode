@@ -483,6 +483,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ExperimentalWindowsUseConptyDll]: {
 			markdownDescription: localize('terminal.integrated.experimentalWindowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.20.240626001) shipped with VS Code, instead of the one bundled with Windows."),
 			type: 'boolean',
+			tags: ['experimental'],
 			default: false
 		},
 		[TerminalSettingId.SplitCwd]: {
