@@ -101,7 +101,7 @@ export interface ILanguageModelChat {
 
 export interface ILanguageModelChatSelector {
 	readonly name?: string;
-	readonly identifier?: string;
+	readonly id?: string;
 	readonly vendor?: string;
 	readonly version?: string;
 	readonly family?: string;
@@ -264,7 +264,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			if ((selector.vendor === undefined || model.metadata.vendor === selector.vendor)
 				&& (selector.family === undefined || model.metadata.family === selector.family)
 				&& (selector.version === undefined || model.metadata.version === selector.version)
-				&& (selector.identifier === undefined || model.metadata.id === selector.identifier)
+				&& (selector.id === undefined || model.metadata.id === selector.id)
 				&& (!model.metadata.targetExtensions || model.metadata.targetExtensions.some(candidate => ExtensionIdentifier.equals(candidate, selector.extension)))
 			) {
 				result.push(identifier);
