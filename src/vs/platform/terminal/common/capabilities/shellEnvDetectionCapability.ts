@@ -21,6 +21,18 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 			return;
 		}
 
+		let envChanged = false;
+		for (const [key, value] of Object.entries(env)) {
+			if (value !== this._env.get(key)) {
+				envChanged = true;
+				break;
+			}
+		}
+
+		if (!envChanged && this._env.size === Object.keys(env).length) {
+			return;
+		}
+
 		this._env.clear();
 		for (const [key, value] of Object.entries(env)) {
 			if (value !== undefined) {
