@@ -77,6 +77,8 @@ export interface IChatRequestViewModel {
 	readonly isHidden: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly slashCommand: IChatAgentCommand | undefined;
+	readonly agentOrSlashCommandDetected: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -145,7 +147,7 @@ export interface IChatCodeCitations {
 export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations;
 
 export interface IChatLiveUpdateData {
-	firstWordTime: number;
+	totalTime: number;
 	lastUpdateTime: number;
 	impliedWordLoadRate: number;
 	lastWordCount: number;
@@ -387,6 +389,14 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isHidden;
 	}
 
+	get slashCommand(): IChatAgentCommand | undefined {
+		return this._model.response?.slashCommand;
+	}
+
+	get agentOrSlashCommandDetected(): boolean {
+		return this._model.response?.agentOrSlashCommandDetected ?? false;
+	}
+
 	currentRenderedHeight: number | undefined;
 
 	constructor(
@@ -525,7 +535,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			return this._usedReferencesExpanded;
 		}
 
-		return this.response.value.length === 0;
+		return this.response.value.length === 0 && !this.errorDetails;
 	}
 
 	set usedReferencesExpanded(v: boolean) {
@@ -556,10 +566,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 		if (!_model.isComplete) {
 			this._contentUpdateTimings = {
-				firstWordTime: 0,
+				totalTime: 0,
 				lastUpdateTime: Date.now(),
 				impliedWordLoadRate: 0,
-				lastWordCount: 0
+				lastWordCount: 0,
 			};
 		}
 
@@ -569,12 +579,14 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 				const now = Date.now();
 				const wordCount = countWords(_model.response.getMarkdown());
 
-				// Apply a min time difference, or the rate is typically too high for first few words
-				const timeDiff = Math.max(now - this._contentUpdateTimings.firstWordTime, 250);
-				const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (timeDiff / 1000);
-				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
+				const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
+				const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
+				const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (newTotalTime / 1000);
+				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
 				this._contentUpdateTimings = {
-					firstWordTime: this._contentUpdateTimings.firstWordTime === 0 && this.response.value.some(v => v.kind === 'markdownContent') ? now : this._contentUpdateTimings.firstWordTime,
+					totalTime: this._contentUpdateTimings.totalTime !== 0 || this.response.value.some(v => v.kind === 'markdownContent') ?
+						newTotalTime :
+						this._contentUpdateTimings.totalTime,
 					lastUpdateTime: now,
 					impliedWordLoadRate,
 					lastWordCount: wordCount

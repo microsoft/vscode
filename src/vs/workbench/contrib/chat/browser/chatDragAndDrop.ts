@@ -372,7 +372,7 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 				continue;
 			}
 
-			const resolvedFiles = await resolveFilesInDirectory(directory, fileSystemProvider, false);
+			const resolvedFiles = await resolveFilesInDirectory(directory, fileSystemProvider, true);
 			const resolvedFileContext = resolvedFiles.map(file => getResourceAttachContext(file, false)).filter(context => !!context);
 			nonDirectoryContext.push(...resolvedFileContext);
 		}

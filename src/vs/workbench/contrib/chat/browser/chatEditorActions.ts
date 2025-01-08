@@ -10,7 +10,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { ChatEditorController, ctxHasEditorModification } from './chatEditorController.js';
+import { ChatEditorController, ctxHasEditorModification, ctxHasRequestInProgress } from './chatEditorController.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
@@ -19,7 +19,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
+import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditContext.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -100,7 +100,7 @@ abstract class NavigateAction extends Action2 {
 		const newEditorPane = await editorService.openEditor({
 			resource: entry.modifiedURI,
 			options: {
-				selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
+				selection: change && Range.fromPositions({ lineNumber: change.modified.startLineNumber, column: 1 }),
 				revealIfOpened: false,
 				revealIfVisible: false,
 			}
@@ -126,7 +126,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification)),
+			precondition: ContextKeyExpr.and(ctxHasRequestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -159,7 +159,7 @@ abstract class AcceptDiscardAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(uri);
+		const session = chatEditingService.currentEditingSession;
 		if (!session) {
 			return;
 		}
@@ -217,6 +217,33 @@ class UndoHunkAction extends EditorAction2 {
 	}
 }
 
+class AcceptHunkAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'chatEditor.action.acceptHunk',
+			title: localize2('acceptHunk', 'Accept this Change'),
+			shortTitle: localize2('acceptHunk2', 'Accept'),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			icon: Codicon.check,
+			f1: true,
+			keybinding: {
+				when: EditorContextKeys.focus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
+			},
+			menu: {
+				id: MenuId.ChatEditingEditorHunk,
+				order: 0
+			}
+		});
+	}
+
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		ChatEditorController.get(editor)?.acceptNearestChange(args[0]);
+	}
+}
+
 class OpenDiffFromHunkAction extends EditorAction2 {
 	constructor() {
 		super({
@@ -243,5 +270,6 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
 	registerAction2(UndoHunkAction);
+	registerAction2(AcceptHunkAction);
 	registerAction2(OpenDiffFromHunkAction);
 }

@@ -216,6 +216,10 @@ class UpdateRequest {
 				|| this.context.triggerKind === InlineCompletionTriggerKind.Explicit)
 			&& this.versionId === other.versionId;
 	}
+
+	public get isExplicitRequest() {
+		return this.context.triggerKind === InlineCompletionTriggerKind.Explicit;
+	}
 }
 
 class UpdateOperation implements IDisposable {

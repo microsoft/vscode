@@ -6,20 +6,22 @@
 
 import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent } from './util';
+import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, getCommitShortHash } from './util';
 import { toGitUri } from './uri';
 import { Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
 
-function toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
+function toSourceControlHistoryItemRef(repository: Repository, ref: Ref): SourceControlHistoryItemRef {
+	const rootUri = Uri.file(repository.root);
+
 	switch (ref.type) {
 		case RefType.RemoteHead:
 			return {
 				id: `refs/remotes/${ref.name}`,
 				name: ref.name ?? '',
-				description: ref.commit ? l10n.t('Remote branch at {0}', ref.commit.substring(0, 8)) : undefined,
+				description: ref.commit ? l10n.t('Remote branch at {0}', getCommitShortHash(rootUri, ref.commit)) : undefined,
 				revision: ref.commit,
 				icon: new ThemeIcon('cloud'),
 				category: l10n.t('remote branches')
@@ -28,7 +30,7 @@ function toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
 			return {
 				id: `refs/tags/${ref.name}`,
 				name: ref.name ?? '',
-				description: ref.commit ? l10n.t('Tag at {0}', ref.commit.substring(0, 8)) : undefined,
+				description: ref.commit ? l10n.t('Tag at {0}', getCommitShortHash(rootUri, ref.commit)) : undefined,
 				revision: ref.commit,
 				icon: new ThemeIcon('tag'),
 				category: l10n.t('tags')
@@ -37,7 +39,7 @@ function toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
 			return {
 				id: `refs/heads/${ref.name}`,
 				name: ref.name ?? '',
-				description: ref.commit ? ref.commit.substring(0, 8) : undefined,
+				description: ref.commit ? getCommitShortHash(rootUri, ref.commit) : undefined,
 				revision: ref.commit,
 				icon: new ThemeIcon('git-branch'),
 				category: l10n.t('branches')
@@ -178,7 +180,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		// Refs (alphabetically)
 		const historyItemRefs = this.repository.refs
-			.map(ref => toSourceControlHistoryItemRef(ref))
+			.map(ref => toSourceControlHistoryItemRef(this.repository, ref))
 			.sort((a, b) => a.id.localeCompare(b.id));
 
 		// Auto-fetch
@@ -207,13 +209,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		for (const ref of refs) {
 			switch (ref.type) {
 				case RefType.RemoteHead:
-					remoteBranches.push(toSourceControlHistoryItemRef(ref));
+					remoteBranches.push(toSourceControlHistoryItemRef(this.repository, ref));
 					break;
 				case RefType.Tag:
-					tags.push(toSourceControlHistoryItemRef(ref));
+					tags.push(toSourceControlHistoryItemRef(this.repository, ref));
 					break;
 				default:
-					branches.push(toSourceControlHistoryItemRef(ref));
+					branches.push(toSourceControlHistoryItemRef(this.repository, ref));
 					break;
 			}
 		}
@@ -258,8 +260,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					parentIds: commit.parents,
 					message: emojify(commit.message),
 					author: commit.authorName,
+					authorEmail: commit.authorEmail,
 					icon: new ThemeIcon('git-commit'),
-					displayId: commit.hash.substring(0, 8),
+					displayId: getCommitShortHash(Uri.file(this.repository.root), commit.hash),
 					timestamp: commit.authorDate?.getTime(),
 					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
 					references: references.length !== 0 ? references : undefined

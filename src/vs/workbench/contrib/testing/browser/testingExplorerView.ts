@@ -131,6 +131,10 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}));
 
+		this._register(Event.any(crService.onDidChange, testProfileService.onDidChange)(() => {
+			this.updateActions();
+		}));
+
 		this._register(testService.collection.onBusyProvidersChange(busy => {
 			this.updateDiscoveryProgress(busy);
 		}));
@@ -342,6 +346,7 @@ export class TestingExplorerView extends ViewPane {
 		const profileActions: IAction[] = [];
 
 		let participatingGroups = 0;
+		let participatingProfiles = 0;
 		let hasConfigurable = false;
 		const defaults = this.testProfileService.getGroupDefaultProfiles(group);
 		for (const { profiles, controller } of this.testProfileService.all()) {
@@ -359,6 +364,7 @@ export class TestingExplorerView extends ViewPane {
 				}
 
 				hasConfigurable = hasConfigurable || profile.hasConfigurationHandler;
+				participatingProfiles++;
 				profileActions.push(new Action(
 					`${controller.id}.${profile.profileId}`,
 					defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
@@ -398,7 +404,7 @@ export class TestingExplorerView extends ViewPane {
 		const menuActions = getFlatContextMenuActions(menu);
 
 		const postActions: IAction[] = [];
-		if (profileActions.length > 1) {
+		if (participatingProfiles > 1) {
 			postActions.push(new Action(
 				'selectDefaultTestConfigurations',
 				localize('selectDefaultConfigs', 'Select Default Profile'),
@@ -419,9 +425,12 @@ export class TestingExplorerView extends ViewPane {
 		}
 
 		// show menu actions if there are any otherwise don't
-		return menuActions.length > 0
-			? Separator.join(profileActions, menuActions, postActions)
-			: Separator.join(profileActions, postActions);
+		return {
+			numberOfProfiles: participatingProfiles,
+			actions: menuActions.length > 0
+				? Separator.join(profileActions, menuActions, postActions)
+				: Separator.join(profileActions, postActions),
+		};
 	}
 
 	/**
@@ -434,7 +443,7 @@ export class TestingExplorerView extends ViewPane {
 
 	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction, options: IActionViewItemOptions) {
 		const dropdownActions = this.getTestConfigGroupActions(group);
-		if (dropdownActions.length < 2) {
+		if (dropdownActions.numberOfProfiles < 2) {
 			return super.getActionViewItem(defaultAction, options);
 		}
 
@@ -448,7 +457,7 @@ export class TestingExplorerView extends ViewPane {
 
 		return this.instantiationService.createInstance(
 			DropdownWithPrimaryActionViewItem,
-			primaryAction, this.getDropdownAction(), dropdownActions,
+			primaryAction, this.getDropdownAction(), dropdownActions.actions,
 			'',
 			options
 		);
@@ -486,35 +495,30 @@ export class TestingExplorerView extends ViewPane {
 			}
 
 			if (Object.keys(groups).length > 1) {
-				dropdownActions.push(new Action(
-					`${group}.label`,
-					testProfileBitset[group],
-					undefined,
-					false,
-				));
+				dropdownActions.push({
+					id: `${group}.label`,
+					label: testProfileBitset[group],
+					enabled: false,
+					class: undefined,
+					tooltip: testProfileBitset[group],
+					run: () => { },
+				});
 			}
 
 			for (const profile of profiles) {
-				dropdownActions.push(new class extends Action {
-					constructor() {
-						super(
-							`${group}.${profile.profileId}`,
-							profile.label,
-							undefined,
-							true,
-							() => crService.isEnabledForProfile(profile)
-								? crService.stopProfile(profile)
-								: crService.start([profile]),
-						);
-						this.checked = crService.isEnabledForProfile(profile);
-						this._register(crService.onDidChange(() => {
-							this.checked = crService.isEnabledForProfile(profile);
-						}));
-					}
+				dropdownActions.push({
+					id: `${group}.${profile.profileId}`,
+					label: profile.label,
+					enabled: true,
+					class: undefined,
+					tooltip: profile.label,
+					checked: crService.isEnabledForProfile(profile),
+					run: () => crService.isEnabledForProfile(profile)
+						? crService.stopProfile(profile)
+						: crService.start([profile]),
 				});
 			}
 		}
-
 
 		return this.instantiationService.createInstance(
 			DropdownWithPrimaryActionViewItem,
@@ -1527,8 +1531,8 @@ class TestItemRenderer extends Disposable
 	/**
 	 * @inheritdoc
 	 */
-	public renderTemplate(container: HTMLElement): ITestElementTemplateData {
-		const wrapper = dom.append(container, dom.$('.test-item'));
+	public renderTemplate(wrapper: HTMLElement): ITestElementTemplateData {
+		wrapper.classList.add('testing-stdtree-container');
 
 		const icon = dom.append(wrapper, dom.$('.computed-state'));
 		const label = dom.append(wrapper, dom.$('.label'));

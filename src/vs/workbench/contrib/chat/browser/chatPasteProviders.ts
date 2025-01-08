@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { DocumentPasteContext, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../editor/common/languages.js';
+import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -101,7 +101,8 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		return getCustomPaste(model, imageContext, mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
+		const edit = createCustomPasteEdit(model, imageContext, mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
+		return createEditSession(edit);
 	}
 }
 
@@ -224,7 +225,9 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		return getCustomPaste(model, copiedContext, Mimes.text, this.kind, localize('pastedCodeAttachment', 'Pasted Code Attachment'), this.chatWidgetService);
+		const edit = createCustomPasteEdit(model, copiedContext, Mimes.text, this.kind, localize('pastedCodeAttachment', 'Pasted Code Attachment'), this.chatWidgetService);
+		edit.yieldTo = [{ kind: HierarchicalKind.Empty.append('text', 'plain') }];
+		return createEditSession(edit);
 	}
 }
 
@@ -256,7 +259,7 @@ function getCopiedContext(code: string, file: URI, language: string, range: IRan
 	};
 }
 
-async function getCustomPaste(model: ITextModel, context: IChatRequestVariableEntry, handledMimeType: string, kind: HierarchicalKind, title: string, chatWidgetService: IChatWidgetService): Promise<DocumentPasteEditsSession> {
+function createCustomPasteEdit(model: ITextModel, context: IChatRequestVariableEntry, handledMimeType: string, kind: HierarchicalKind, title: string, chatWidgetService: IChatWidgetService): DocumentPasteEdit {
 	const customEdit = {
 		resource: model.uri,
 		variable: context,
@@ -278,13 +281,20 @@ async function getCustomPaste(model: ITextModel, context: IChatRequestVariableEn
 	};
 
 	return {
-		edits: [{
-			insertText: '', title, kind, handledMimeType,
-			additionalEdit: {
-				edits: [customEdit],
-			}
-		}],
-		dispose() { },
+		insertText: '',
+		title,
+		kind,
+		handledMimeType,
+		additionalEdit: {
+			edits: [customEdit],
+		}
+	};
+}
+
+function createEditSession(edit: DocumentPasteEdit): DocumentPasteEditsSession {
+	return {
+		edits: [edit],
+		dispose: () => { },
 	};
 }
 
