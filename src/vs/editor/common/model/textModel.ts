@@ -2116,12 +2116,15 @@ class DecorationsTrees {
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
-	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number {
+	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number | null {
 		const versionId = host.getVersionId();
 		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
-		let lineHeight: number = 0;
+		let lineHeight: number | null = null;
 		result.forEach((res) => {
-			lineHeight = Math.max(lineHeight, res.options.lineHeight ?? 0);
+			const decorationLineHeight = res.options.lineHeight;
+			if (decorationLineHeight !== null) {
+				lineHeight = Math.max(lineHeight ?? decorationLineHeight, decorationLineHeight);
+			}
 		});
 		return lineHeight;
 	}
