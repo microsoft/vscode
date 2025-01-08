@@ -479,7 +479,6 @@ export class ListView<T> implements IListView<T> {
 		}, true);
 	}
 
-
 	private _scrollToActiveElement(element: HTMLElement, container: HTMLElement) {
 		const containerRect = container.getBoundingClientRect();
 		const elementRect = element.getBoundingClientRect();
