@@ -141,13 +141,12 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 			}));
 		}));
 
-		const store = this._store.add(new DisposableStore());
+		const alwaysSaveConfig = observableConfigValue<boolean>(ChatEditorSaving._config, false, configService);
 
-		const update = () => {
+		this._store.add(autorunWithStore((r, store) => {
 
-			store.clear();
+			const alwaysSave = alwaysSaveConfig.read(r);
 
-			const alwaysSave = configService.getValue<boolean>(ChatEditorSaving._config);
 			if (alwaysSave) {
 				return;
 			}
@@ -235,14 +234,7 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 					return saveJobs.add(entry.modifiedURI);
 				}
 			}));
-		};
-
-		configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatEditorSaving._config)) {
-				update();
-			}
-		});
-		update();
+		}));
 	}
 
 	private _reportSaved(entry: IModifiedFileEntry) {
@@ -277,13 +269,11 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 
 export class ChatEditingSaveAllAction extends Action2 {
 	static readonly ID = 'chatEditing.saveAllFiles';
-	static readonly LABEL = localize('save.allFiles', 'Save All');
 
 	constructor() {
 		super({
 			id: ChatEditingSaveAllAction.ID,
-			title: ChatEditingSaveAllAction.LABEL,
-			tooltip: ChatEditingSaveAllAction.LABEL,
+			title: localize('save.allFiles', 'Save All'),
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.saveAll,
 			menu: [
