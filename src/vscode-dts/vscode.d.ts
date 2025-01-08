@@ -1030,11 +1030,6 @@ declare module 'vscode' {
 		borderWidth?: string;
 
 		/**
-		 * Line height
-		 */
-		lineHeight?: number;
-
-		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
 		fontStyle?: string;
