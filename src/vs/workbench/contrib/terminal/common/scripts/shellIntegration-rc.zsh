@@ -140,6 +140,7 @@ __vsc_command_complete() {
 	fi
 	__vsc_update_cwd
 }
+
 if [[ -o NOUNSET ]]; then
 	if [ -z "${RPROMPT-}" ]; then
 		RPROMPT=""
