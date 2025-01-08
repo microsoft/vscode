@@ -43,7 +43,7 @@ const enabledSettingId = 'updateImportsOnPaste.enabled';
 
 class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
-	static readonly kind = vscode.DocumentDropOrPasteEditKind.Text.append('updateImports', 'jsts');
+	static readonly kind = vscode.DocumentDropOrPasteEditKind.TextUpdateImports.append('jsts');
 	static readonly metadataMimeType = 'application/vnd.code.jsts.metadata';
 
 	constructor(
