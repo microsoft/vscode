@@ -63,7 +63,6 @@ function Global:__VSCode-Escape-Value([string]$value) {
 		})
 }
 
-
 function Global:Prompt() {
 	$FakeCode = [int]!$global:?
 	# NOTE: We disable strict mode for the scope of this function because it unhelpfully throws an
