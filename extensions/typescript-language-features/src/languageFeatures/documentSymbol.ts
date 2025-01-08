@@ -35,9 +35,6 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 
 class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
-	private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
-	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50 });
-
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly cachedResponse: CachedResponse<Proto.NavTreeResponse>,
@@ -59,28 +56,6 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		const result: vscode.DocumentSymbol[] = [];
 		for (const item of response.body.childItems) {
 			TypeScriptDocumentSymbolProvider.convertNavTree(document.uri, result, item);
-		}
-
-		const activeTextEditor = vscode.window.activeTextEditor;
-		if (activeTextEditor) {
-			const classRanges: vscode.Range[] = [];
-			const functionRanges: vscode.Range[] = [];
-
-			for (const res of result) {
-				console.log('res.kind', res.kind);
-				switch (res.kind) {
-					case (vscode.SymbolKind.Class): {
-						classRanges.push(new vscode.Range(res.range.start.line, 1, res.range.start.line, 1));
-						break;
-					}
-					case (vscode.SymbolKind.Function): {
-						functionRanges.push(new vscode.Range(res.range.start.line, 1, res.range.start.line, 1));
-						break;
-					}
-				}
-			}
-			activeTextEditor.setDecorations(this._classLineHeightDecorationType, classRanges);
-			activeTextEditor.setDecorations(this._methodLineHeightDecorationType, functionRanges);
 		}
 		return result;
 	}
