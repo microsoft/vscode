@@ -441,8 +441,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				if (arg0 !== undefined) {
 					try {
 						const env = JSON.parse(deserializeMessage(arg0));
-						console.log('In zsh I want to see if arg1 is nonce ---> arg1', arg1);
-						console.log('In zsh I want to see if nonce matches ---> nonce', this._nonce);
 						this._createOrGetShellEnvDetection().setEnvironment(env, arg1 === this._nonce);
 					} catch (e) {
 						console.log('JSON.parse throw', { e, arg0 });
