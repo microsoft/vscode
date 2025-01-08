@@ -172,7 +172,6 @@ __vsc_precmd() {
 		# non null
 		__vsc_update_prompt
 	fi
-
 }
 
 __vsc_preexec() {
