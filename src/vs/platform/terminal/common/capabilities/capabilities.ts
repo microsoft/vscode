@@ -72,7 +72,9 @@ export const enum TerminalCapability {
 	 */
 	BufferMarkDetection,
 
-	// TODO: Shell Environment --> listen to from
+	/**
+	 * The terminal can detect the latest environment of user's current shell.
+	 */
 	ShellEnvDetection,
 
 }
