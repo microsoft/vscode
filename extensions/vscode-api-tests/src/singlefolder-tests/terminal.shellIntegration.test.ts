@@ -212,7 +212,12 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test('executeCommand(executable, args)', async () => {
+	test('executeCommand(executable, args)', async function () {
+		// HACK: This test has flaked before where the `value` was `e`, not `echo hello`. After an
+		// investigation it's not clear how this happened, so in order to keep some of the value
+		// that the test adds, it will retry after a failure.
+		this.retries(3);
+
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const { execution, endEvent } = executeCommandAsync(shellIntegration, 'echo', ['hello']);
 		const executionSync = await execution;
