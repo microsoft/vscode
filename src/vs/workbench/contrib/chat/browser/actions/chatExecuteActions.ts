@@ -52,7 +52,7 @@ export class ChatSubmitAction extends SubmitAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.requestInProgress.negate(), ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
@@ -131,7 +131,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.requestInProgress.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()),
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,

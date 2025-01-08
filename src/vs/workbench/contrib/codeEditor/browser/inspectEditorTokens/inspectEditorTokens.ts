@@ -405,7 +405,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			const tbody = dom.append(table, $('tbody'));
 
 			dom.append(tbody, $('tr', undefined,
-				$('td.tiw-metadata-key', undefined, 'tree-sitter token' as string),
+				$('td.tiw-metadata-key', undefined, `tree-sitter token ${treeSitterTokenInfo.id}` as string),
 				$('td.tiw-metadata-value', undefined, `${treeSitterTokenInfo.text}`)
 			));
 			const scopes = new Array<HTMLElement | string>();
