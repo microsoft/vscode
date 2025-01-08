@@ -157,7 +157,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	private readonly _onDidError = this._register(new Emitter<IWatcherErrorEvent>());
 	readonly onDidError = this._onDidError.event;
 
-	readonly watchers = new Set<ParcelWatcherInstance>();
+	private readonly _watchers = new Map<string /* path */ | number /* correlation ID */, ParcelWatcherInstance>();
+	get watchers() { return this._watchers.values(); }
 
 	// A delay for collecting file changes from Parcel
 	// before collecting them for coalescing and emitting.
@@ -206,7 +207,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		const requestsToStart: IRecursiveWatchRequest[] = [];
 		const watchersToStop = new Set(Array.from(this.watchers));
 		for (const request of requests) {
-			const watcher = this.findWatcher(request);
+			const watcher = this._watchers.get(this.requestToWatcherKey(request));
 			if (watcher && patternsEquals(watcher.request.excludes, request.excludes) && patternsEquals(watcher.request.includes, request.includes) && watcher.request.pollingInterval === request.pollingInterval) {
 				watchersToStop.delete(watcher); // keep watcher
 			} else {
@@ -238,25 +239,12 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		}
 	}
 
-	private findWatcher(request: IRecursiveWatchRequest): ParcelWatcherInstance | undefined {
-		for (const watcher of this.watchers) {
+	private requestToWatcherKey(request: IRecursiveWatchRequest): string | number {
+		return typeof request.correlationId === 'number' ? request.correlationId : this.pathToWatcherKey(request.path);
+	}
 
-			// Requests or watchers with correlation always match on that
-			if (this.isCorrelated(request) || this.isCorrelated(watcher.request)) {
-				if (watcher.request.correlationId === request.correlationId) {
-					return watcher;
-				}
-			}
-
-			// Non-correlated requests or watchers match on path
-			else {
-				if (isEqual(watcher.request.path, request.path, !isLinux /* ignorecase */)) {
-					return watcher;
-				}
-			}
-		}
-
-		return undefined;
+	private pathToWatcherKey(path: string): string {
+		return isLinux ? path : path.toLowerCase() /* ignore path casing */;
 	}
 
 	private startPolling(request: IRecursiveWatchRequest, pollingInterval: number, restarts = 0): void {
@@ -283,7 +271,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				unlinkSync(snapshotFile);
 			}
 		);
-		this.watchers.add(watcher);
+		this._watchers.set(this.requestToWatcherKey(request), watcher);
 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
@@ -352,7 +340,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				await watcherInstance?.unsubscribe();
 			}
 		);
-		this.watchers.add(watcher);
+		this._watchers.set(this.requestToWatcherKey(request), watcher);
 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
@@ -643,7 +631,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	private async stopWatching(watcher: ParcelWatcherInstance, joinRestart?: Promise<void>): Promise<void> {
 		this.trace(`stopping file watcher`, watcher);
 
-		this.watchers.delete(watcher);
+		this._watchers.delete(this.requestToWatcherKey(watcher.request));
 
 		try {
 			await watcher.stop(joinRestart);
@@ -666,7 +654,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				continue; // path is ignored entirely (via `**` glob exclude)
 			}
 
-			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
 
 			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);
 			if (!requestsForCorrelation) {
@@ -674,6 +661,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				mapCorrelationtoRequests.set(request.correlationId, requestsForCorrelation);
 			}
 
+			const path = this.pathToWatcherKey(request.path);
 			if (requestsForCorrelation.has(path)) {
 				this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
 			}
