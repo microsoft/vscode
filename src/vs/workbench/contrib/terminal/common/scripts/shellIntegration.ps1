@@ -95,7 +95,7 @@ function Global:Prompt() {
 		$envMap = @{}
 		Get-ChildItem Env: | ForEach-Object { $envMap[$_.Name] = $_.Value }
 		$envJson = $envMap | ConvertTo-Json -Compress
-		$Result += "$([char]0x1b)]633;Env;$(__VSCode-Escape-Value $envJson);$Nonce`a"
+		$Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$Nonce`a"
 	}
 
 	# Before running the original prompt, put $? back to what it was:

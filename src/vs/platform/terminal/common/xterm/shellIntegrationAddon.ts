@@ -229,16 +229,16 @@ const enum VSCodeOscPt {
 	/**
 	 * Sends the shell's environment.
 	 *
-	 * Format: `OSC 633 ; Env ; <Environment> ; <Nonce>`
+	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce>`
 	 *
+	 * 	 The EnvJson can escape ascii characters in the same way in which CommandLine does.
 	 *	`Environment` - A JSON string containing the shell's environment variables.
-	 *   TODO: Encoding information for commandline sequence.
 	 *  `Nonce` -  An optional nonce can be provided which is may be required by the terminal in order enable
 	 *   some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
-	Env = 'Env',
+	EnvJson = 'EnvJson',
 
 }
 
@@ -434,8 +434,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
 				return true;
 			}
-			// TODO: Name EnvJson
-			case VSCodeOscPt.Env: {
+			case VSCodeOscPt.EnvJson: {
 				const arg0 = args[0];
 				const arg1 = args[1];
 				if (arg0 !== undefined) {
