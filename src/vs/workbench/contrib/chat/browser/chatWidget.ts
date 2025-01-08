@@ -455,8 +455,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register((this.chatWidgetService as ChatWidgetService).register(this));
 	}
 
-
-
 	private scrollToEnd() {
 		if (this.lastItem) {
 			const offset = Math.max(this.lastItem.currentRenderedHeight ?? 0, 1e6);
