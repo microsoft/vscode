@@ -73,13 +73,14 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 			}
 		}
 
-		content.push(AccessibilityHelpNLS.listSignalSounds);
-		content.push(AccessibilityHelpNLS.listAlerts);
-
 		const chatEditInfo = getChatEditInfo(this._keybindingService, this._contextKeyService, this._editor);
 		if (chatEditInfo) {
 			content.push(chatEditInfo);
 		}
+
+		content.push(AccessibilityHelpNLS.listSignalSounds);
+		content.push(AccessibilityHelpNLS.listAlerts);
+
 
 		const chatCommandInfo = getChatCommandInfo(this._keybindingService, this._contextKeyService);
 		if (chatCommandInfo) {
@@ -130,7 +131,7 @@ export function getChatCommandInfo(keybindingService: IKeybindingService, contex
 export function getChatEditInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, editor: ICodeEditor): string | undefined {
 	const editorContext = contextKeyService.getContext(editor.getDomNode()!);
 	if (editorContext.getValue<boolean>(ctxHasEditorModification.key)) {
-		return AccessibilityHelpNLS.chatEditorModification + '\n' + AccessibilityHelpNLS.chatEditNavigation + '\n' + AccessibilityHelpNLS.chatEditActions;
+		return AccessibilityHelpNLS.chatEditorModification + '\n' + AccessibilityHelpNLS.chatEditActions;
 	} else if (editorContext.getValue<boolean>(ctxHasRequestInProgress.key)) {
 		return AccessibilityHelpNLS.chatEditorRequestInProgress;
 	}
