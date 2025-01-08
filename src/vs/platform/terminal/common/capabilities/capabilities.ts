@@ -153,7 +153,6 @@ export interface IShellEnvDetectionCapability {
 	readonly onDidChangeEnv: Event<Map<string, string>>;
 	get envs(): Map<string, string>;
 	setEnvironment(envs: { [key: string]: string | undefined } | undefined, isTrusted: boolean): void;
-	applyEnvironmentDiff(envs: { [key: string]: string | undefined } | undefined): void;
 }
 
 export const enum CommandInvalidationReason {
