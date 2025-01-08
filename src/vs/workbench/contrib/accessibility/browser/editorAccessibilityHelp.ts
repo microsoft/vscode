@@ -130,7 +130,7 @@ export function getChatCommandInfo(keybindingService: IKeybindingService, contex
 export function getChatEditInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, editor: ICodeEditor): string | undefined {
 	const editorContext = contextKeyService.getContext(editor.getDomNode()!);
 	if (editorContext.getValue<boolean>(ctxHasEditorModification.key)) {
-		return AccessibilityHelpNLS.chatEditorModification;
+		return AccessibilityHelpNLS.chatEditorModification + '\n' + AccessibilityHelpNLS.chatEditNavigation + '\n' + AccessibilityHelpNLS.chatEditActions;
 	} else if (editorContext.getValue<boolean>(ctxHasRequestInProgress.key)) {
 		return AccessibilityHelpNLS.chatEditorRequestInProgress;
 	}

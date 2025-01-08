@@ -36,6 +36,8 @@ export namespace AccessibilityHelpNLS {
 	export const debugExecuteSelection = nls.localize('debugConsole.executeSelection', "The Debug: Execute Selection command{0} will execute the selected text in the debug console.", '<keybinding:editor.debug.action.selectionToRepl>');
 	export const chatEditorModification = nls.localize('chatEditorModification', "The editor contains pending modifications that have been made by chat.");
 	export const chatEditorRequestInProgress = nls.localize('chatEditorRequestInProgress', "The editor is currently waiting for modifications to be made by chat.");
+	export const chatEditNavigation = nls.localize('chatEditing.navigation', 'Navigate between edits in the editor with navigate previous{0} and next{1}', '<keybinding:chatEditor.action.navigatePrevious>', '<keybinding:chatEditor.action.navigateNext>');
+	export const chatEditActions = nls.localize('chatEditing.actions', 'In the editor, Accept{0} and Reject the current Change{1}.', '<keybinding:chatEditor.action.acceptHunk>', '<keybinding:chatEditor.action.reject>');
 }
 
 export namespace InspectTokensNLS {
