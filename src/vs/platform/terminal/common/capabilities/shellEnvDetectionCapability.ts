@@ -15,10 +15,6 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 	private readonly _onDidChangeEnv = this._register(new Emitter<Map<string, string>>());
 	readonly onDidChangeEnv = this._onDidChangeEnv.event;
 
-	constructor() {
-		super();
-	}
-
 	setEnvironment(env: { [key: string]: string | undefined }, isTrusted: boolean): void {
 		if (!isTrusted) {
 			return;
