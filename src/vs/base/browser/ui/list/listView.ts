@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from '../../dnd.js';
-import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getDocument, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
+import { $, addDisposableListener, animate, Dimension, getActiveElement, getContentHeight, getContentWidth, getDocument, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
 import { DomEmitter } from '../../event.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
 import { EventType as TouchEventType, Gesture, GestureEvent } from '../../touch.js';
@@ -324,6 +324,7 @@ export class ListView<T> implements IListView<T> {
 	private onDragLeaveTimeout: IDisposable = Disposable.None;
 	private currentSelectionDisposable: IDisposable = Disposable.None;
 	private currentSelectionBounds: IRange | undefined;
+	private activeElement: HTMLElement | undefined;
 
 	private readonly disposables: DisposableStore = new DisposableStore();
 
@@ -465,6 +466,30 @@ export class ListView<T> implements IListView<T> {
 		this.dnd = options.dnd ?? this.disposables.add(DefaultOptions.dnd);
 
 		this.layout(options.initialSize?.height, options.initialSize?.width);
+		this._setupFocusObserver(container);
+	}
+
+	private _setupFocusObserver(container: HTMLElement): void {
+		container.addEventListener('focus', () => {
+			const element = getActiveElement() as HTMLElement | null;
+			if (this.activeElement !== element && element !== null) {
+				this.activeElement = element;
+				this._scrollToActiveElement(this.activeElement, container);
+			}
+		}, true);
+	}
+
+
+	private _scrollToActiveElement(element: HTMLElement, container: HTMLElement) {
+		const containerRect = container.getBoundingClientRect();
+		const elementRect = element.getBoundingClientRect();
+
+		const topOffset = elementRect.top - containerRect.top;
+
+		if (topOffset < 0) {
+			// Scroll up
+			this.setScrollTop(this.scrollTop + topOffset);
+		}
 	}
 
 	updateOptions(options: IListViewOptionsUpdate) {
