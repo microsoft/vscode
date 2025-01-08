@@ -193,7 +193,7 @@ export class ViewCursor {
 			}
 
 			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeightFor(position.lineNumber), textContent, textContentClassName);
+			return new ViewCursorRenderData(top, left, paddingLeft, width, this._heightForLineNumber(position.lineNumber), textContent, textContentClassName);
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);
@@ -223,7 +223,7 @@ export class ViewCursor {
 		}
 
 		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-		let height = this._lineHeightFor(position.lineNumber);
+		let height = this._heightForLineNumber(position.lineNumber);
 
 		// Underline might interfere with clicking
 		if (this._cursorStyle === TextEditorCursorStyle.Underline || this._cursorStyle === TextEditorCursorStyle.UnderlineThin) {
@@ -234,7 +234,7 @@ export class ViewCursor {
 		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName);
 	}
 
-	private _lineHeightFor(lineNumber: number): number {
+	private _heightForLineNumber(lineNumber: number): number {
 		const specialLinesHeights = this._context.viewLayout.getSpecialLinesHeights();
 		if (specialLinesHeights.has(lineNumber)) {
 			return specialLinesHeights.get(lineNumber)!;

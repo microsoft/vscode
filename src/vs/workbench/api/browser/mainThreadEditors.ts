@@ -302,7 +302,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Promise<void> {
-		console.log('MainThreadTextEditors.$trySetDecorations');
 		key = `${this._instanceId}-${key}`;
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {

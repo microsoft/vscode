@@ -524,7 +524,6 @@ export class ExtHostTextEditor {
 				return _proxy.$tryInsertSnippet(id, document.value.version, snippet.value, ranges, options);
 			},
 			setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
-				console.log('setDecorations of ExtHostTextEditor');
 				const willBeEmpty = (ranges.length === 0);
 				if (willBeEmpty && !that._hasDecorationsForKey.has(decorationType.key)) {
 					// avoid no-op call to the renderer

@@ -55,6 +55,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
+	private readonly _specialLineHeights: Map<number, number> = new Map();
 
 	private _previousState: StickyScrollWidgetState | undefined;
 	private _lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
@@ -63,9 +64,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _minContentWidthInPx: number = 0;
 	private _isOnGlyphMargin: boolean = false;
-
-	public readonly specialLineHeights: Map<number, number> = new Map();
-
 	private _height: number = -1;
 
 	public get height(): number { return this._height; }
@@ -131,6 +129,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	get lineNumberCount(): number {
 		return this._lineNumbers.length;
+	}
+
+	setSpecialLineHeight(lineNumber: number, lineHeight: number): void {
+		this._specialLineHeights.set(lineNumber, lineHeight);
+	}
+
+	deleteSpecialLineHeight(lineNumber: number): void {
+		this._specialLineHeights.delete(lineNumber);
 	}
 
 	getRenderedStickyLine(lineNumber: number): RenderedStickyLine | undefined {
@@ -260,8 +266,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		let totalHeight = 0;
 		const indexToSumUntil = untilIndex ?? lineNumbers.length;
 		for (let i = 0; i < indexToSumUntil; i++) {
-			const lineNumber = lineNumbers[i];
-			totalHeight += this.specialLineHeights.get(lineNumber) ?? this._lineHeight;
+			totalHeight += this._specialLineHeights.get(lineNumbers[i]) ?? this._lineHeight;
 		}
 		return totalHeight;
 	}
@@ -334,7 +339,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			newLine = sb.build();
 		}
 
-		const height = this.specialLineHeights.get(line) ?? this._lineHeight;
+		const height = this._specialLineHeights.get(line) ?? this._lineHeight;
 		const lineHTMLNode = document.createElement('span');
 		lineHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
 		lineHTMLNode.setAttribute(STICKY_IS_LINE_ATTR, '');

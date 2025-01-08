@@ -134,13 +134,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const model = this._editor.getModel();
 		if (model) {
 			this._register(model.onDidChangeSpecialLineHeight((e) => {
-				e.changes.forEach((a) => {
-					const lineNumber = a.lineNumber;
-					const lineHeight = a.lineHeight;
+				e.changes.forEach((change) => {
+					const lineNumber = change.lineNumber;
+					const lineHeight = change.lineHeight;
 					if (lineHeight !== null) {
-						this._stickyScrollWidget.specialLineHeights.set(lineNumber, lineHeight);
+						this._stickyScrollWidget.setSpecialLineHeight(lineNumber, lineHeight);
 					} else {
-						this._stickyScrollWidget.specialLineHeights.delete(lineNumber);
+						this._stickyScrollWidget.deleteSpecialLineHeight(lineNumber);
 					}
 					if (this._widgetState.startLineNumbers.includes(lineNumber)) {
 						this._renderStickyScroll(0);

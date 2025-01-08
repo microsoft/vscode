@@ -201,7 +201,7 @@ function renderOriginalLine(
 		options.renderWhitespace,
 		options.renderControlCharacters,
 		options.fontLigatures !== EditorFontLigatures.OFF,
-		null,
+		null, // Send no selections, original line cannot be selected
 		options.lineHeight
 	), sb);
 

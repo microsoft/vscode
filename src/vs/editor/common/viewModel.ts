@@ -126,8 +126,6 @@ export interface IViewLayout {
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
 	getWhitespaces(): IEditorWhitespace[];
 
-	getSpecialLinesHeights(): Map<number, number>;
-
 	isAfterLines(verticalOffset: number): boolean;
 	isInTopPadding(verticalOffset: number): boolean;
 	isInBottomPadding(verticalOffset: number): boolean;
@@ -404,7 +402,7 @@ export class InlineDecoration {
 		public readonly range: Range,
 		public readonly inlineClassName: string,
 		public readonly type: InlineDecorationType,
-		public readonly lineHeight?: number | undefined
+		public readonly lineHeight?: number | null
 	) {
 	}
 }

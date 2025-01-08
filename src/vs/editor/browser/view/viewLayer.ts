@@ -340,8 +340,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	}
 
 	public renderLines(viewportData: ViewportData): void {
-		console.log('renderLines');
-		console.log('viewportData : ', viewportData);
+
 		const inp = this._linesCollection._get();
 
 		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData);
@@ -378,7 +377,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 	public render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
 
-		console.log('ViewLayerRenderer.render');
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inContext.rendLineNumberStart,
 			lines: inContext.lines.slice(0),
@@ -453,18 +451,16 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
-		console.log('_renderUntouchedLines');
 		const rendLineNumberStart = ctx.rendLineNumberStart;
 		const lines = ctx.lines;
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._lineHeight(lineNumber));
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._lineHeightForLineNumber(lineNumber));
 		}
 	}
 
 	private _insertLinesBefore(ctx: IRendererContext<T>, fromLineNumber: number, toLineNumber: number, deltaTop: number[], deltaLN: number): void {
-		console.log('_insertLinesBefore');
 		const newLines: T[] = [];
 		let newLinesLen = 0;
 		for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
@@ -474,7 +470,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _removeLinesBefore(ctx: IRendererContext<T>, removeCount: number): void {
-		console.log('_removeLinesBefore');
 		for (let i = 0; i < removeCount; i++) {
 			const lineDomNode = ctx.lines[i].getDomNode();
 			lineDomNode?.remove();
@@ -483,7 +478,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _insertLinesAfter(ctx: IRendererContext<T>, fromLineNumber: number, toLineNumber: number, deltaTop: number[], deltaLN: number): void {
-		console.log('_insertLinesAfter');
 		const newLines: T[] = [];
 		let newLinesLen = 0;
 		for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
@@ -493,7 +487,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _removeLinesAfter(ctx: IRendererContext<T>, removeCount: number): void {
-		console.log('_removeLinesAfter');
 		const removeIndex = ctx.linesLength - removeCount;
 
 		for (let i = 0; i < removeCount; i++) {
@@ -546,7 +539,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	private static readonly _sb = new StringBuilder(100000);
 
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
-		console.log('_finishRendering');
+
 		const sb = ViewLayerRenderer._sb;
 		const linesLength = ctx.linesLength;
 		const lines = ctx.lines;
@@ -567,7 +560,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._lineHeight(i + rendLineNumberStart), this._viewportData, sb);
+				const renderedLineNumber = i + rendLineNumberStart;
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -597,7 +591,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._lineHeight(i + rendLineNumberStart), this._viewportData, sb);
+				const renderedLineNumber = i + rendLineNumberStart;
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -613,7 +608,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private _lineHeight(lineNumber: number): number {
+	private _lineHeightForLineNumber(lineNumber: number): number {
 		if (this._viewportData.specialLineHeights.has(lineNumber)) {
 			return this._viewportData.specialLineHeights.get(lineNumber)!;
 		}

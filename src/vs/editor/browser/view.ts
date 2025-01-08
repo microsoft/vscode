@@ -562,7 +562,6 @@ export class View extends ViewEventHandler {
 					return null;
 				}
 				const partialViewportData = this._context.viewLayout.getLinesViewportData();
-				console.log('partialViewportData : ', partialViewportData);
 				this._context.viewModel.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
 				const viewportData = new ViewportData(
@@ -571,7 +570,6 @@ export class View extends ViewEventHandler {
 					this._context.viewLayout.getWhitespaceViewportData(),
 					this._context.viewModel
 				);
-				console.log('viewportData', viewportData);
 
 				if (this._contentWidgets.shouldRender()) {
 					// Give the content widgets a chance to set their max width before a possible synchronous layout

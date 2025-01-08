@@ -57,12 +57,12 @@ export abstract class RestrictedRenderingContext {
 		return this._viewLayout.getVerticalOffsetForLineNumber(lineNumber, includeViewZones);
 	}
 
-	public getHeightForLineNumber(lineNumber: number): number {
-		return this._viewLayout.getLineHeightForLineNumber(lineNumber);
-	}
-
 	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number {
 		return this._viewLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
+	}
+
+	public getHeightForLineNumber(lineNumber: number): number {
+		return this._viewLayout.getLineHeightForLineNumber(lineNumber);
 	}
 
 	public getDecorationsInViewport(): ViewModelDecoration[] {

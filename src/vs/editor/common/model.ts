@@ -221,7 +221,7 @@ export interface IModelDecorationOptions {
 	/**
 	 * If set, the decoration will override the line height of the lines it spans. This can only increase the line height, not decrease it.
 	 */
-	lineHeight?: number | undefined;
+	lineHeight?: number | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */

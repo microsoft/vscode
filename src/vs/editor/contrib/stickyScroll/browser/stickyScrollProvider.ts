@@ -72,9 +72,9 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		const model = this._editor.getModel();
 		if (model) {
 			this._register(model.onDidChangeSpecialLineHeight((e) => {
-				e.changes.forEach((a) => {
-					const lineNumber = a.lineNumber;
-					const lineHeight = a.lineHeight;
+				e.changes.forEach((change) => {
+					const lineNumber = change.lineNumber;
+					const lineHeight = change.lineHeight;
 					if (lineHeight !== null) {
 						this.specialLineHeights.set(lineNumber, lineHeight);
 					} else {

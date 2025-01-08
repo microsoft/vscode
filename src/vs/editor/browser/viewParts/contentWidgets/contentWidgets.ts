@@ -417,10 +417,9 @@ class Widget {
 
 			// Left-align widgets that should appear :before content
 			const left = (position.column === 1 && affinity === PositionAffinity.LeftOfInjectedText ? 0 : horizontalPosition.left);
-			const verticalOffset = ctx.getVerticalOffsetForLineNumber(position.lineNumber);
-			const height = ctx.getHeightForLineNumber(position.lineNumber);
-			const top = verticalOffset - ctx.scrollTop;
-			return new AnchorCoordinate(top, left, height);
+			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.scrollTop;
+			const lineHeight = ctx.getHeightForLineNumber(position.lineNumber);
+			return new AnchorCoordinate(top, left, lineHeight);
 		}
 	}
 

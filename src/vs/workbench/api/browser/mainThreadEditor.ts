@@ -421,8 +421,6 @@ export class MainThreadTextEditor {
 	}
 
 	public setDecorations(key: string, ranges: IDecorationOptions[]): void {
-		console.log('setDecorations of MainThreadTextEditor');
-		console.log('ranges : ', ranges);
 		if (!this._codeEditor) {
 			return;
 		}
@@ -430,7 +428,6 @@ export class MainThreadTextEditor {
 	}
 
 	public setDecorationsFast(key: string, _ranges: number[]): void {
-		console.log('setDecorationsFast of MainThreadTextEditor');
 		if (!this._codeEditor) {
 			return;
 		}

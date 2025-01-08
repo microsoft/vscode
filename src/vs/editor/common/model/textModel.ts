@@ -1589,7 +1589,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (specialLineHeights && specialLineHeights.size > 0) {
 			const affectedLinesByLineHeightChange = Array.from(specialLineHeights);
 			const lineHeightChangeEvent = affectedLinesByLineHeightChange.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), [], this._getLineHeightForLine(lineNumber)));
-			console.log('lineHeightChangeEvent : ', lineHeightChangeEvent);
 			this._onDidChangeSpecialLineHeight.fire(new ModelSpecialLineHeightChangedEvent(lineHeightChangeEvent));
 		}
 	}
@@ -1801,7 +1800,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _changeDecorationImpl(decorationId: string, _range: IRange): void {
-		console.log('TextModel._changeDecorationImpl');
 		const node = this._decorations[decorationId];
 		if (!node) {
 			return;
@@ -1845,7 +1843,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _changeDecorationOptionsImpl(decorationId: string, options: ModelDecorationOptions): void {
-		console.log('TextModel._changeDecorationOptionsImpl');
 		const node = this._decorations[decorationId];
 		if (!node) {
 			return;
@@ -1884,7 +1881,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: model.IModelDeltaDecoration[], suppressEvents: boolean = false): string[] {
-		console.log('TextModel._deltaDecorationsImpl');
 		const versionId = this.getVersionId();
 
 		const oldDecorationsLen = oldDecorationsIds.length;
@@ -2107,23 +2103,6 @@ class DecorationsTrees {
 		return this._ensureNodesHaveRanges(host, result);
 	}
 
-	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number | null {
-		const versionId = host.getVersionId();
-		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
-		let lineHeight: number | null = null;
-		for (const res of result) {
-			const resLineHeight = res.options.lineHeight;
-			if (resLineHeight !== undefined) {
-				if (lineHeight === null) {
-					lineHeight = resLineHeight;
-				} else {
-					lineHeight = Math.max(lineHeight, resLineHeight);
-				}
-			}
-		}
-		return lineHeight;
-	}
-
 	private _intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
 		const r0 = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
 		const r1 = this._decorationsTree1.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
@@ -2135,6 +2114,16 @@ class DecorationsTrees {
 		const versionId = host.getVersionId();
 		const result = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
+	}
+
+	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number {
+		const versionId = host.getVersionId();
+		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
+		let lineHeight: number = -1;
+		result.forEach((res) => {
+			lineHeight = Math.max(lineHeight, res.options.lineHeight ?? -1);
+		});
+		return lineHeight;
 	}
 
 	public getAllInjectedText(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
@@ -2369,7 +2358,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly hoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly isWholeLine: boolean;
-	readonly lineHeight?: number | undefined;
+	readonly lineHeight: number | null;
 	readonly showIfCollapsed: boolean;
 	readonly collapseOnReplaceEdit: boolean;
 	readonly overviewRuler: ModelDecorationOverviewRulerOptions | null;
@@ -2405,8 +2394,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
 		this.lineNumberHoverMessage = options.lineNumberHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;
-		console.log('options.lineHeight : ', options.lineHeight);
-		this.lineHeight = options.lineHeight;
+		this.lineHeight = options.lineHeight ?? null;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
 		this.overviewRuler = options.overviewRuler ? new ModelDecorationOverviewRulerOptions(options.overviewRuler) : null;
