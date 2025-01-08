@@ -12,6 +12,7 @@ import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
+import { getRemoteSourceControlHistoryItemCommands } from './remoteSource';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -213,14 +214,22 @@ export class GitBlameController {
 		}
 
 		try {
+			// Commit details
 			const commit = await repository.getCommit(blameInformation.hash);
-			return this.getBlameInformationHover(documentUri, commit);
+
+			// Remote actions
+			const defaultRemote = repository.getDefaultRemote();
+			const commands = defaultRemote?.fetchUrl
+				? await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl) ?? []
+				: [];
+
+			return this.getBlameInformationHover(documentUri, commit, commands);
 		} catch {
 			return this.getBlameInformationHover(documentUri, blameInformation);
 		}
 	}
 
-	getBlameInformationHover(documentUri: Uri, blameInformationOrCommit: BlameInformation | Commit): MarkdownString {
+	getBlameInformationHover(documentUri: Uri, blameInformationOrCommit: BlameInformation | Commit, remoteCommands: Command[] = []): MarkdownString {
 		const markdownString = new MarkdownString();
 		markdownString.isTrusted = true;
 		markdownString.supportHtml = true;
@@ -268,6 +277,16 @@ export class GitBlameController {
 		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, blameInformationOrCommit.hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformationOrCommit.hash]))} "${l10n.t('View Commit')}")`);
 		markdownString.appendMarkdown('&nbsp;');
 		markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(blameInformationOrCommit.hash))} "${l10n.t('Copy Commit Hash')}")`);
+
+		// Remote commands
+		if (remoteCommands.length > 0) {
+			markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+
+			const remoteCommandsMarkdown = remoteCommands
+				.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], blameInformationOrCommit.hash]))} "${command.tooltip}")`);
+			markdownString.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
+		}
+
 		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
 		markdownString.appendMarkdown(`[$(gear)](command:workbench.action.openSettings?%5B%22git.blame%22%5D "${l10n.t('Open Settings')}")`);
 
