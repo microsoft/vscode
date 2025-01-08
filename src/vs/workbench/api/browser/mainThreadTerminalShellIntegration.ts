@@ -33,7 +33,18 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			}
 		}));
 
-		// onDidChangeTerminalShellIntegration
+		// onDidchangeTerminalShellIntegration initial state
+		for (const terminal of this._terminalService.instances) {
+			if (terminal.capabilities.has(TerminalCapability.CommandDetection)) {
+				this._proxy.$shellIntegrationChange(terminal.instanceId);
+				const cwdDetection = terminal.capabilities.get(TerminalCapability.CwdDetection);
+				if (cwdDetection) {
+					this._proxy.$cwdChange(terminal.instanceId, this._convertCwdToUri(cwdDetection.getCwd()));
+				}
+			}
+		}
+
+		// onDidChangeTerminalShellIntegration via command detection
 		const onDidAddCommandDetection = this._store.add(this._terminalService.createOnInstanceEvent(instance => {
 			return Event.map(
 				Event.filter(instance.capabilities.onDidAddCapabilityType, e => {
@@ -42,6 +53,12 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			);
 		})).event;
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
+
+		// onDidChangeTerminalShellIntegration via cwd
+		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
+		this._store.add(cwdChangeEvent.event(e => {
+			this._proxy.$cwdChange(e.instance.instanceId, this._convertCwdToUri(e.data));
+		}));
 
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted));
@@ -73,12 +90,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			setTimeout(() => {
 				this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
 			});
-		}));
-
-		// onDidChangeTerminalShellIntegration via cwd
-		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
-		this._store.add(cwdChangeEvent.event(e => {
-			this._proxy.$cwdChange(e.instance.instanceId, this._convertCwdToUri(e.data));
 		}));
 
 		// Clean up after dispose
