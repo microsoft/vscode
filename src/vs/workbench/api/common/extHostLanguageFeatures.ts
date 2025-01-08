@@ -1577,6 +1577,7 @@ class InlineEditAdapter {
 			pid,
 			text: result.text,
 			range: typeConvert.Range.from(result.range),
+			showRange: typeConvert.Range.from(result.showRange),
 			accepted: acceptCommand,
 			rejected: rejectCommand,
 			shown: shownCommand,

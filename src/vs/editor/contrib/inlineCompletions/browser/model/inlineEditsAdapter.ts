@@ -69,6 +69,7 @@ export class InlineEditsAdapter extends Disposable {
 						items: definedEdits.map(e => {
 							return {
 								range: e.result.range,
+								showRange: e.result.showRange,
 								insertText: e.result.text,
 								command: e.result.accepted,
 								shownCommand: e.result.shown,
