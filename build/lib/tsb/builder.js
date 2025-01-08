@@ -586,6 +586,9 @@ class LanguageServiceHost {
                 // node module?
                 return;
             }
+            if (ref.fileName.endsWith('.css')) {
+                return;
+            }
             const stopDirname = normalize(this.getCurrentDirectory());
             let dirname = filename;
             let found = false;
