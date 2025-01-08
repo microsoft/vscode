@@ -26,7 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorIdentifier, SaveReason } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { AutoSaveMode, IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
@@ -116,6 +116,7 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		@IConfigurationService configService: IConfigurationService,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService chatAgentService: IChatAgentService,
+		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IDialogService dialogService: IDialogService,
@@ -142,7 +143,6 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		}));
 
 		const alwaysSaveConfig = observableConfigValue<boolean>(ChatEditorSaving._config, false, configService);
-
 		this._store.add(autorunWithStore((r, store) => {
 
 			const alwaysSave = alwaysSaveConfig.read(r);
@@ -234,6 +234,26 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 					return saveJobs.add(entry.modifiedURI);
 				}
 			}));
+		}));
+
+		// autosave: OFF & alwaysSaveWithAIChanges - save files after accept
+		this._store.add(autorun(r => {
+			const saveConfig = fileConfigService.getAutoSaveMode(undefined);
+			if (saveConfig.mode !== AutoSaveMode.OFF) {
+				return;
+			}
+			if (!alwaysSaveConfig.read(r)) {
+				return;
+			}
+			const session = chatEditingService.currentEditingSessionObs.read(r);
+			if (!session) {
+				return;
+			}
+			for (const entry of session.entries.read(r)) {
+				if (entry.state.read(r) === WorkingSetEntryState.Accepted) {
+					textFileService.save(entry.modifiedURI);
+				}
+			}
 		}));
 	}
 
