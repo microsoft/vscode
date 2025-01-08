@@ -61,10 +61,6 @@ function getEditorDecorationRange(lineNumber: number): Range {
 	return new Range(position, position);
 }
 
-function isBlameInformation(object: any): object is BlameInformation {
-	return Array.isArray((object as BlameInformation).ranges);
-}
-
 function isResourceSchemeSupported(uri: Uri): boolean {
 	return uri.scheme === 'file' || isGitUri(uri);
 }
@@ -207,83 +203,92 @@ export class GitBlameController {
 		});
 	}
 
-	async getBlameInformationDetailedHover(documentUri: Uri, blameInformation: BlameInformation): Promise<MarkdownString | undefined> {
+	async getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation, includeCommitDetails = false): Promise<MarkdownString> {
+		let commitInformation: Commit | undefined;
+		const remoteSourceCommands: Command[] = [];
+
 		const repository = this._model.getRepository(documentUri);
-		if (!repository) {
-			return this.getBlameInformationHover(documentUri, blameInformation);
-		}
-
-		try {
+		if (repository) {
 			// Commit details
-			const commit = await repository.getCommit(blameInformation.hash);
+			if (includeCommitDetails) {
+				try {
+					commitInformation = await repository.getCommit(blameInformation.hash);
+				} catch { }
+			}
 
-			// Remote actions
+			// Remote commands
 			const defaultRemote = repository.getDefaultRemote();
-			const commands = defaultRemote?.fetchUrl
-				? await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl) ?? []
-				: [];
-
-			return this.getBlameInformationHover(documentUri, commit, commands);
-		} catch {
-			return this.getBlameInformationHover(documentUri, blameInformation);
+			if (defaultRemote?.fetchUrl) {
+				remoteSourceCommands.push(...await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl));
+			}
 		}
-	}
 
-	getBlameInformationHover(documentUri: Uri, blameInformationOrCommit: BlameInformation | Commit, remoteCommands: Command[] = []): MarkdownString {
 		const markdownString = new MarkdownString();
 		markdownString.isTrusted = true;
 		markdownString.supportHtml = true;
 		markdownString.supportThemeIcons = true;
 
-		if (blameInformationOrCommit.authorName) {
-			if (blameInformationOrCommit.authorEmail) {
+		// Author, date
+		const authorName = commitInformation?.authorName ?? blameInformation.authorName;
+		const authorEmail = commitInformation?.authorEmail ?? blameInformation.authorEmail;
+		const authorDate = commitInformation?.authorDate ?? blameInformation.authorDate;
+
+		if (authorName) {
+			if (authorEmail) {
 				const emailTitle = l10n.t('Email');
-				markdownString.appendMarkdown(`$(account) [**${blameInformationOrCommit.authorName}**](mailto:${blameInformationOrCommit.authorEmail} "${emailTitle} ${blameInformationOrCommit.authorName}")`);
+				markdownString.appendMarkdown(`$(account) [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
 			} else {
-				markdownString.appendMarkdown(`$(account) **${blameInformationOrCommit.authorName}**`);
+				markdownString.appendMarkdown(`$(account) **${authorName}**`);
 			}
 
-			if (blameInformationOrCommit.authorDate) {
-				const dateString = new Date(blameInformationOrCommit.authorDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformationOrCommit.authorDate, true, true)} (${dateString})`);
+			if (authorDate) {
+				const dateString = new Date(authorDate).toLocaleString(undefined, {
+					year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'
+				});
+				markdownString.appendMarkdown(`, $(history) ${fromNow(authorDate, true, true)} (${dateString})`);
 			}
 
 			markdownString.appendMarkdown('\n\n');
 		}
 
-		markdownString.appendMarkdown(`${emojify(isBlameInformation(blameInformationOrCommit) ? blameInformationOrCommit.subject ?? '' : blameInformationOrCommit.message)}\n\n`);
+		// Subject | Message
+		markdownString.appendMarkdown(`${emojify(commitInformation?.message ?? blameInformation.subject ?? '')}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
-		if (!isBlameInformation(blameInformationOrCommit) && blameInformationOrCommit.shortStat) {
-			markdownString.appendMarkdown(`<span>${blameInformationOrCommit.shortStat.files === 1 ?
-				l10n.t('{0} file changed', blameInformationOrCommit.shortStat.files) :
-				l10n.t('{0} files changed', blameInformationOrCommit.shortStat.files)}</span>`);
+		// Short stats
+		if (commitInformation?.shortStat) {
+			markdownString.appendMarkdown(`<span>${commitInformation.shortStat.files === 1 ?
+				l10n.t('{0} file changed', commitInformation.shortStat.files) :
+				l10n.t('{0} files changed', commitInformation.shortStat.files)}</span>`);
 
-			if (blameInformationOrCommit.shortStat.insertions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${blameInformationOrCommit.shortStat.insertions === 1 ?
-					l10n.t('{0} insertion{1}', blameInformationOrCommit.shortStat.insertions, '(+)') :
-					l10n.t('{0} insertions{1}', blameInformationOrCommit.shortStat.insertions, '(+)')}</span>`);
+			if (commitInformation.shortStat.insertions) {
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${commitInformation.shortStat.insertions === 1 ?
+					l10n.t('{0} insertion{1}', commitInformation.shortStat.insertions, '(+)') :
+					l10n.t('{0} insertions{1}', commitInformation.shortStat.insertions, '(+)')}</span>`);
 			}
 
-			if (blameInformationOrCommit.shortStat.deletions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${blameInformationOrCommit.shortStat.deletions === 1 ?
-					l10n.t('{0} deletion{1}', blameInformationOrCommit.shortStat.deletions, '(-)') :
-					l10n.t('{0} deletions{1}', blameInformationOrCommit.shortStat.deletions, '(-)')}</span>`);
+			if (commitInformation.shortStat.deletions) {
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${commitInformation.shortStat.deletions === 1 ?
+					l10n.t('{0} deletion{1}', commitInformation.shortStat.deletions, '(-)') :
+					l10n.t('{0} deletions{1}', commitInformation.shortStat.deletions, '(-)')}</span>`);
 			}
 
 			markdownString.appendMarkdown(`\n\n---\n\n`);
 		}
 
-		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, blameInformationOrCommit.hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformationOrCommit.hash]))} "${l10n.t('View Commit')}")`);
+		// Commands
+		const hash = commitInformation?.hash ?? blameInformation.hash;
+
+		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, hash]))} "${l10n.t('View Commit')}")`);
 		markdownString.appendMarkdown('&nbsp;');
-		markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(blameInformationOrCommit.hash))} "${l10n.t('Copy Commit Hash')}")`);
+		markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
 
 		// Remote commands
-		if (remoteCommands.length > 0) {
+		if (remoteSourceCommands.length > 0) {
 			markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
 
-			const remoteCommandsMarkdown = remoteCommands
-				.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], blameInformationOrCommit.hash]))} "${command.tooltip}")`);
+			const remoteCommandsMarkdown = remoteSourceCommands
+				.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], hash]))} "${command.tooltip}")`);
 			markdownString.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
 		}
 
@@ -585,7 +590,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 			return undefined;
 		}
 
-		const contents = await this._controller.getBlameInformationDetailedHover(textEditor.document.uri, lineBlameInformation.blameInformation);
+		const contents = await this._controller.getBlameInformationHover(textEditor.document.uri, lineBlameInformation.blameInformation, true);
 
 		if (!contents || token.isCancellationRequested) {
 			return undefined;
@@ -697,7 +702,7 @@ class GitBlameStatusBarItem {
 		this._onDidChangeBlameInformation();
 	}
 
-	private _onDidChangeBlameInformation(): void {
+	private async _onDidChangeBlameInformation(): Promise<void> {
 		if (!window.activeTextEditor) {
 			this._statusBarItem.hide();
 			return;
@@ -718,7 +723,7 @@ class GitBlameStatusBarItem {
 			const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
 
 			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(window.activeTextEditor.document.uri, template, blameInformation[0].blameInformation)}`;
-			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(window.activeTextEditor.document.uri, blameInformation[0].blameInformation);
+			this._statusBarItem.tooltip = await this._controller.getBlameInformationHover(window.activeTextEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),
 				command: 'git.viewCommit',
