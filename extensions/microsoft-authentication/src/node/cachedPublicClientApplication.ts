@@ -6,44 +6,29 @@
 import { PublicClientApplication, AccountInfo, Configuration, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest } from '@azure/msal-node';
 import { NativeBrokerPlugin } from '@azure/msal-node-extensions';
 import { Disposable, Memento, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter } from 'vscode';
-import { Delayer, raceCancellationAndTimeoutError } from '../common/async';
+import { raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { ScopedAccountAccess } from '../common/accountAccess';
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
+	// Core properties
 	private _pca: PublicClientApplication;
-	private _sequencer = new Sequencer();
-	// private readonly _refreshDelayer = new DelayerByKey<AuthenticationResult>();
-
 	private _accounts: AccountInfo[] = [];
+	private _sequencer = new Sequencer();
 	private readonly _disposable: Disposable;
 
-	private readonly _loggerOptions = new MsalLoggerOptions(this._logger);
+	// Cache properties
 	private readonly _secretStorageCachePlugin = new SecretStorageCachePlugin(
 		this._secretStorage,
 		// Include the prefix as a differentiator to other secrets
 		`pca:${JSON.stringify({ clientId: this._clientId, authority: this._authority })}`
 	);
+
+	// Broker properties
 	private readonly _accountAccess = new ScopedAccountAccess(this._secretStorage, this._cloudName, this._clientId, this._authority);
-	private readonly _config: Configuration = {
-		auth: { clientId: this._clientId, authority: this._authority },
-		system: {
-			loggerOptions: {
-				correlationId: `${this._clientId}] [${this._authority}`,
-				loggerCallback: (level, message, containsPii) => this._loggerOptions.loggerCallback(level, message, containsPii),
-				logLevel: LogLevel.Trace
-			}
-		},
-		broker: {
-			nativeBrokerPlugin: new NativeBrokerPlugin()
-		},
-		cache: {
-			cachePlugin: this._secretStorageCachePlugin
-		}
-	};
-	private readonly _isBrokerAvailable = this._config.broker?.nativeBrokerPlugin?.isBrokerAvailable ?? false;
+	private readonly _isBrokerAvailable: boolean;
 
 	//#region Events
 
@@ -65,7 +50,21 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	) {
 		// TODO:@TylerLeonhardt clean up old use of memento. Remove this in an iteration
 		this._globalMemento.update(`lastRemoval:${this._clientId}:${this._authority}`, undefined);
-		this._pca = new PublicClientApplication(this._config);
+		const loggerOptions = new MsalLoggerOptions(_logger);
+		const nativeBrokerPlugin = new NativeBrokerPlugin();
+		this._isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable ?? false;
+		this._pca = new PublicClientApplication({
+			auth: { clientId: _clientId, authority: _authority },
+			system: {
+				loggerOptions: {
+					correlationId: `${_clientId}] [${_authority}`,
+					loggerCallback: (level, message, containsPii) => loggerOptions.loggerCallback(level, message, containsPii),
+					logLevel: LogLevel.Trace
+				}
+			},
+			broker: { nativeBrokerPlugin },
+			cache: { cachePlugin: this._secretStorageCachePlugin }
+		});
 		this._disposable = Disposable.from(
 			this._registerOnSecretStorageChanged(),
 			this._onDidAccountsChangeEmitter,
@@ -117,7 +116,6 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			}
 		}
 
-		// this._setupRefresh(result);
 		if (result.account && !result.fromCache && this._verifyIfUsingBroker(result)) {
 			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
@@ -139,7 +137,6 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				1000 * 60 * 5
 			))
 		);
-		// this._setupRefresh(result);
 		if (this._isBrokerAvailable) {
 			await this._accountAccess.setAllowedAccess(result.account!, true);
 		}
@@ -226,24 +223,6 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		}
 		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update complete`);
 	}
-
-	// private _setupRefresh(result: AuthenticationResult) {
-	// 	const on = result.refreshOn || result.expiresOn;
-	// 	if (!result.account || !on) {
-	// 		return;
-	// 	}
-
-	// 	const account = result.account;
-	// 	const scopes = result.scopes;
-	// 	const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
-	// 	const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
-	// 	this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
-	// 	this._refreshDelayer.trigger(
-	// 		key,
-	// 		() => this.acquireTokenSilent({ account, scopes, redirectUri: 'https://vscode.dev/redirect', forceRefresh: true }),
-	// 		timeToRefresh > 0 ? timeToRefresh : 0
-	// 	);
-	// }
 }
 
 export class Sequencer {
@@ -254,17 +233,3 @@ export class Sequencer {
 		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
 	}
 }
-
-// class DelayerByKey<T> {
-// 	private _delayers = new Map<string, Delayer<T>>();
-
-// 	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
-// 		let delayer = this._delayers.get(key);
-// 		if (!delayer) {
-// 			delayer = new Delayer<T>(delay);
-// 			this._delayers.set(key, delayer);
-// 		}
-
-// 		return delayer.trigger(fn, delay);
-// 	}
-// }
