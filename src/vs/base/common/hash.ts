@@ -69,12 +69,7 @@ function objectHash(obj: any, initialHashVal: number): number {
 	}, initialHashVal);
 }
 
-// this is shared global between browsers and nodejs
-declare const crypto: {
-	subtle: {
-		digest(a: string, b: ArrayBufferView): Promise<ArrayBuffer>;
-	};
-};
+
 
 /** Hashes the input as SHA-1, returning a hex-encoded string. */
 export const hashAsync = (input: string | ArrayBufferView | VSBuffer) => {
