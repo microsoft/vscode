@@ -1276,7 +1276,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
-		console.log('changeDecorations of CodeEditorWidget');
 		if (!this._modelData) {
 			// callback will not be called
 			return null;
@@ -1324,7 +1323,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
-		console.log('setDecorationsByType of CodeEditorWidget');
+
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
 		this._decorationTypeSubtypes[decorationTypeKey] = newDecorationsSubTypes;

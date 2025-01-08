@@ -29,7 +29,6 @@
 	padding: 4px;
 	cursor: pointer;
 }
-
 .mtkoverflow:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
@@ -40,7 +39,6 @@
 	user-select: none;
 	-webkit-user-select: none;
 }
-
 /* Use user-select: text for lookup feature on macOS */
 /* https://github.com/microsoft/vscode/issues/85632 */
 .monaco-editor.mac .lines-content:hover,
@@ -65,16 +63,11 @@
 	width: 100%;
 }
 
-/** spans should cover all the line height and text should be aligned at the bottom */
 /* There are view-lines in view-zones. We have to make sure this rule does not apply to them, as they don't set a line height */
 .monaco-editor .lines-content > .view-lines > .view-line > span {
 	top: 0;
 	bottom: 0;
 	position: absolute;
-}
-
-.monaco-editor .lines-content > .view-lines > .view-line > span > span {
-	vertical-align: text-top;
 }
 
 .monaco-editor .mtkw {

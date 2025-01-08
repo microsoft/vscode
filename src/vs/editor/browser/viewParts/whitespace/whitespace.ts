@@ -131,6 +131,8 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 	}
 
 	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: LineRange[] | null, lineData: ViewLineData): string {
+
+
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}
@@ -146,7 +148,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		const fauxIndentLength = lineData.minColumn - 1;
 		const onlyBoundary = (this._options.renderWhitespace === 'boundary');
 		const onlyTrailing = (this._options.renderWhitespace === 'trailing');
-		const lineHeight = this._options.lineHeight;
+		const lineHeight = ctx.getHeightForLineNumber(lineNumber);
 		const middotWidth = this._options.middotWidth;
 		const wsmiddotWidth = this._options.wsmiddotWidth;
 		const spaceWidth = this._options.spaceWidth;

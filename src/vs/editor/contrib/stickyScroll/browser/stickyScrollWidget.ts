@@ -142,7 +142,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	setState(_state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, _rebuildFromLine?: number): void {
-		console.log('setState, _state.startLineNumbers : ', _state?.startLineNumbers);
 		if (_rebuildFromLine === undefined &&
 			((!this._previousState && !_state) || (this._previousState && this._previousState.equals(_state)))
 		) {
@@ -335,7 +334,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			newLine = sb.build();
 		}
 
-		// Need to set the line height from the decoration line height and font size
 		const height = this.specialLineHeights.get(line) ?? this._lineHeight;
 		const lineHTMLNode = document.createElement('span');
 		lineHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
@@ -375,6 +373,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(lineNumberHTMLNode);
 
+
 		lineNumberHTMLNode.style.lineHeight = `${height}px`;
 		lineHTMLNode.style.lineHeight = `${height}px`;
 		lineNumberHTMLNode.style.height = `${height}px`;
@@ -395,19 +394,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 		lineNumberHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 
-		// --
-		console.log('index', index);
-		console.log('this._lineNumbers : ', this._lineNumbers);
-		console.log('this._lastLineRelativePosition', this._lastLineRelativePosition);
 		const widgetHeight = this._getStickyScrollWidgetFullHeight(this._lineNumbers, index);
-		console.log('widgetHeight', widgetHeight);
 		const lastLineTop = `${widgetHeight + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
 		const intermediateLineTop = `${index * this._lineHeight}px`;
-		console.log('isLastLine', isLastLine);
-		console.log('lastLineTop', lastLineTop);
-		console.log('intermediateLineTop', intermediateLineTop);
 		const top = isLastLine ? lastLineTop : intermediateLineTop;
-		console.log('top', top);
 		lineHTMLNode.style.top = top;
 		lineNumberHTMLNode.style.top = top;
 		return stickyLine;
