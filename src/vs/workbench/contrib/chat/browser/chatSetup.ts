@@ -591,7 +591,7 @@ class ChatSetupRequests extends Disposable {
 		return this.resolveEntitlement(session, CancellationToken.None);
 	}
 
-	async signUpLimited(session: AuthenticationSession): Promise<true /* signed up */ | false /* already signed up */ | undefined /* error */> {
+	async signUpLimited(session: AuthenticationSession): Promise<true /* signed up */ | false /* already signed up */ | { errorCode: number } /* error */> {
 		const body = {
 			restricted_telemetry: this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? 'disabled' : 'enabled',
 			public_code_suggestions: 'enabled'
@@ -600,7 +600,7 @@ class ChatSetupRequests extends Disposable {
 		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None);
 		if (!response) {
 			this.onUnknownSignUpError('[chat setup] sign-up: no response');
-			return undefined;
+			return { errorCode: 1 };
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
@@ -611,7 +611,7 @@ class ChatSetupRequests extends Disposable {
 						const responseError: { message: string } = JSON.parse(responseText);
 						if (typeof responseError.message === 'string' && responseError.message) {
 							this.onUnprocessableSignUpError(`[chat setup] sign-up: unprocessable entity (${responseError.message})`, responseError.message);
-							return undefined;
+							return { errorCode: response.res.statusCode };
 						}
 					}
 				} catch (error) {
@@ -619,7 +619,7 @@ class ChatSetupRequests extends Disposable {
 				}
 			}
 			this.onUnknownSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
-			return undefined;
+			return { errorCode: response.res.statusCode };
 		}
 
 		let responseText: string | null = null;
@@ -631,7 +631,7 @@ class ChatSetupRequests extends Disposable {
 
 		if (!responseText) {
 			this.onUnknownSignUpError('[chat setup] sign-up: response has no content');
-			return undefined;
+			return { errorCode: 2 };
 		}
 
 		let parsedResult: { subscribed: boolean } | undefined = undefined;
@@ -640,7 +640,7 @@ class ChatSetupRequests extends Disposable {
 			this.logService.trace(`[chat setup] sign-up: response is ${responseText}`);
 		} catch (err) {
 			this.onUnknownSignUpError(`[chat setup] sign-up: error parsing response (${err})`);
-			return undefined;
+			return { errorCode: 3 };
 		}
 
 		// We have made it this far, so the user either did sign-up or was signed-up already.
@@ -690,10 +690,12 @@ type InstallChatClassification = {
 	comment: 'Provides insight into chat installation.';
 	installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
 	signedIn: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user did sign in prior to installing the extension.' };
+	signUpErrorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error code in case of an error signing up.' };
 };
 type InstallChatEvent = {
 	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp';
 	signedIn: boolean;
+	signUpErrorCode: number | undefined;
 };
 
 enum ChatSetupStep {
@@ -824,7 +826,7 @@ class ChatSetupController extends Disposable {
 		}
 
 		if (!session) {
-			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false });
+			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false, signUpErrorCode: undefined });
 		}
 
 		return { session, entitlement };
@@ -835,15 +837,15 @@ class ChatSetupController extends Disposable {
 
 		let installResult: 'installed' | 'cancelled' | 'failedInstall' | undefined = undefined;
 		const wasInstalled = this.context.state.installed;
-		let didSignUp: boolean | undefined = undefined;
+		let didSignUp: boolean | { errorCode: number } | undefined = undefined;
 		try {
 			showCopilotView(this.viewsService, this.layoutService);
 
 			if (entitlement !== ChatEntitlement.Limited && entitlement !== ChatEntitlement.Pro && entitlement !== ChatEntitlement.Unavailable) {
 				didSignUp = await this.requests.signUpLimited(session);
 
-				if (typeof didSignUp === 'undefined' /* error */) {
-					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', signedIn });
+				if (typeof didSignUp !== 'boolean' /* error */) {
+					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', signedIn, signUpErrorCode: didSignUp.errorCode });
 				}
 			}
 
@@ -873,7 +875,7 @@ class ChatSetupController extends Disposable {
 			}
 		}
 
-		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
+		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn, signUpErrorCode: undefined });
 	}
 }
 
