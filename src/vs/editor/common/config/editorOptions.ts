@@ -4233,10 +4233,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enabled: true,
 					useMixedLinesDiff: 'forStableInsertions',
 					useInterleavedLinesDiff: 'never',
-					useWordInsertionView: 'never',
-					useWordReplacementView: 'never',
+					useWordInsertionView: 'whenPossible',
+					useWordReplacementView: 'whenPossible',
 					onlyShowWhenCloseToCursor: true,
-					useGutterIndicator: false,
+					useGutterIndicator: true,
 				},
 			},
 		};
