@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as parcelWatcher from '@parcel/watcher';
+import parcelWatcher from '@parcel/watcher';
 import { statSync, unlinkSync } from 'fs';
 import { tmpdir, homedir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';

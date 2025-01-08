@@ -6,14 +6,14 @@
 import { watch, promises } from 'fs';
 import { RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { isEqualOrParent } from '../../../../../base/common/extpath.js';
+import { isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
 import { basename, dirname, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { realcase } from '../../../../../base/node/extpath.js';
+import { realpath } from '../../../../../base/node/extpath.js';
 import { Promises } from '../../../../../base/node/pfs.js';
 import { FileChangeType, IFileChange } from '../../../common/files.js';
 import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from '../../../common/watcher.js';
@@ -111,18 +111,18 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		try {
 
-			// First check for symbolic link
-			realPath = await Promises.realpath(request.path);
+			// Check for symbolic link
+			realPath = await realpath(request.path);
 
-			// Second check for casing difference
-			// Note: this will be a no-op on Linux platforms
-			if (request.path === realPath) {
-				realPath = await realcase(request.path, this.cts.token) ?? request.path;
-			}
+			// Note: we used to also call `realcase()` here, but
+			// that operation is very expensive for large amounts
+			// of files and is actually not needed for single
+			// file/folder watching where we report on the original
+			// path anyway.
+			// (https://github.com/microsoft/vscode/issues/237351)
 
-			// Correct watch path as needed
 			if (request.path !== realPath) {
-				this.trace(`correcting a path to watch that seems to be a symbolic link or wrong casing (original: ${request.path}, real: ${realPath})`);
+				this.trace(`correcting a path to watch that seems to be a symbolic link (original: ${request.path}, real: ${realPath})`);
 			}
 		} catch (error) {
 			// ignore
@@ -311,7 +311,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							// file watching specifically we want to handle
 							// the atomic-write cases where the file is being
 							// deleted and recreated with different contents.
-							if (changedFileName === pathBasename && !await Promises.exists(realPath)) {
+							if (isEqual(changedFileName, pathBasename, !isLinux) && !await Promises.exists(realPath)) {
 								this.onWatchedPathDeleted(requestResource);
 
 								return;
@@ -374,7 +374,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				else {
 
 					// File added/deleted
-					if (type === 'rename' || changedFileName !== pathBasename) {
+					if (type === 'rename' || !isEqual(changedFileName, pathBasename, !isLinux)) {
 
 						// Depending on the OS the watcher runs on, there
 						// is different behaviour for when the watched
