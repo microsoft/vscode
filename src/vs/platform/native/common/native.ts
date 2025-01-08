@@ -114,7 +114,7 @@ export interface ICommonNativeHostService {
 	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
 
 	// Titlebar default style override
-	overrideDefaultTitlebarStyle(style: 'native' | 'custom' | undefined): Promise<void>;
+	overrideDefaultTitlebarStyle(style: 'custom' | undefined): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;

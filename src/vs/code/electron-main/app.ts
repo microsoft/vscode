@@ -596,7 +596,7 @@ export class CodeApplication extends Disposable {
 		// Linux (stable only): custom title default style override
 		if (isLinux && this.productService.quality === 'stable') {
 			const titleBarDefaultStyleOverride = this.stateService.getItem('window.titleBarStyleOverride');
-			if (titleBarDefaultStyleOverride === TitlebarStyle.CUSTOM || titleBarDefaultStyleOverride === TitlebarStyle.NATIVE) {
+			if (titleBarDefaultStyleOverride === TitlebarStyle.CUSTOM) {
 				overrideDefaultTitlebarStyle(titleBarDefaultStyleOverride);
 			}
 		}
