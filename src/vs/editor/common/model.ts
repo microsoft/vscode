@@ -318,11 +318,6 @@ export interface InjectedTextOptions {
 	 * Defaults to {@link InjectedTextCursorStops.Both}.
 	*/
 	readonly cursorStops?: InjectedTextCursorStops | null;
-
-	/**
-	 * Line height of injected text
-	 */
-	readonly lineHeight?: number;
 }
 
 export enum InjectedTextCursorStops {

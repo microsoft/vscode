@@ -401,8 +401,7 @@ export class InlineDecoration {
 	constructor(
 		public readonly range: Range,
 		public readonly inlineClassName: string,
-		public readonly type: InlineDecorationType,
-		public readonly lineHeight?: number | null
+		public readonly type: InlineDecorationType
 	) {
 	}
 }
@@ -412,8 +411,7 @@ export class SingleLineInlineDecoration {
 		public readonly startOffset: number,
 		public readonly endOffset: number,
 		public readonly inlineClassName: string,
-		public readonly inlineClassNameAffectsLetterSpacing: boolean,
-		public readonly lineHeight: number | undefined
+		public readonly inlineClassNameAffectsLetterSpacing: boolean
 	) {
 	}
 
@@ -421,8 +419,7 @@ export class SingleLineInlineDecoration {
 		return new InlineDecoration(
 			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
 			this.inlineClassName,
-			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular,
-			this.lineHeight,
+			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
 		);
 	}
 }

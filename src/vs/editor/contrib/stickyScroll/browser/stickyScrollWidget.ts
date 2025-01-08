@@ -165,7 +165,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!state) {
 			return true;
 		}
-		const futureWidgetHeight = this._getStickyScrollWidgetFullHeight(state.startLineNumbers) + state.lastLineRelativePosition;
+		const futureWidgetHeight = this._getHeightOfLines(state.startLineNumbers) + state.lastLineRelativePosition;
 		if (futureWidgetHeight > 0) {
 			this._lastLineRelativePosition = state.lastLineRelativePosition;
 			const lineNumbers = [...state.startLineNumbers];
@@ -254,7 +254,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._useFoldingOpacityTransition(!this._isOnGlyphMargin);
 		}
 
-		const widgetHeight = this._getStickyScrollWidgetFullHeight(this._lineNumbers) + this._lastLineRelativePosition;
+		const widgetHeight = this._getHeightOfLines(this._lineNumbers) + this._lastLineRelativePosition;
 		this._setHeight(widgetHeight);
 
 		this._rootDomNode.style.marginLeft = '0px';
@@ -262,9 +262,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.layoutOverlayWidget(this);
 	}
 
-	private _getStickyScrollWidgetFullHeight(lineNumbers: number[], untilIndex?: number): number {
-		let totalHeight = 0;
+	private _getHeightOfLines(lineNumbers: number[], untilIndex?: number): number {
 		const indexToSumUntil = untilIndex ?? lineNumbers.length;
+		let totalHeight = 0;
 		for (let i = 0; i < indexToSumUntil; i++) {
 			totalHeight += this._specialLineHeights.get(lineNumbers[i]) ?? this._lineHeight;
 		}
@@ -399,12 +399,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 		lineNumberHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 
-		const widgetHeight = this._getStickyScrollWidgetFullHeight(this._lineNumbers, index);
+		const widgetHeight = this._getHeightOfLines(this._lineNumbers, index);
 		const lastLineTop = `${widgetHeight + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
 		const intermediateLineTop = `${index * this._lineHeight}px`;
-		const top = isLastLine ? lastLineTop : intermediateLineTop;
-		lineHTMLNode.style.top = top;
-		lineNumberHTMLNode.style.top = top;
+		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
+		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
 		return stickyLine;
 	}
 

@@ -1120,10 +1120,6 @@ declare module 'vscode' {
 		 */
 		borderColor?: string | ThemeColor;
 		/**
-		 * Line height
-		 */
-		lineHeight?: number;
-		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		fontStyle?: string;

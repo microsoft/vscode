@@ -142,8 +142,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					} else {
 						this._stickyScrollWidget.deleteSpecialLineHeight(lineNumber);
 					}
-					if (this._widgetState.startLineNumbers.includes(lineNumber)) {
-						this._renderStickyScroll(0);
+					const indexOfLineNumber = this._widgetState.startLineNumbers.indexOf(lineNumber);
+					if (indexOfLineNumber !== -1) {
+						this._renderStickyScroll(lineNumber);
 					}
 				});
 			}));
@@ -615,7 +616,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				const end = range.endLineNumber;
 				if (end - start > 0) {
 					const topOfElementAtDepth = range.topOfElement;
-					const bottomOfElementAtDepth = range.bottomOfElement;
+					const bottomOfElementAtDepth = topOfElementAtDepth + range.height;
 
 					const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
 					const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
@@ -627,7 +628,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (topOfElementAtDepth > topOfEndLine + delta && topOfElementAtDepth <= bottomOfEndLine - delta) {
 						startLineNumbers.push(start);
 						endLineNumbers.push(end + 1);
-						if (topOfElementAtDepth > bottomOfEndLine - range.height) {
+						if (bottomOfElementAtDepth > bottomOfEndLine) {
 							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
 						}
 						break;

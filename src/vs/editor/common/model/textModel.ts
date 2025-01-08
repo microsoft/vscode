@@ -2119,9 +2119,9 @@ class DecorationsTrees {
 	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number {
 		const versionId = host.getVersionId();
 		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
-		let lineHeight: number = -1;
+		let lineHeight: number = 0;
 		result.forEach((res) => {
-			lineHeight = Math.max(lineHeight, res.options.lineHeight ?? -1);
+			lineHeight = Math.max(lineHeight, res.options.lineHeight ?? 0);
 		});
 		return lineHeight;
 	}

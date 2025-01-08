@@ -141,7 +141,7 @@ export class ViewModelDecorations implements IDisposable {
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
 			if (decorationOptions.inlineClassName) {
-				const inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular, decorationOptions.lineHeight);
+				const inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
 				const intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
@@ -153,8 +153,7 @@ export class ViewModelDecorations implements IDisposable {
 					const inlineDecoration = new InlineDecoration(
 						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn),
 						decorationOptions.beforeContentClassName,
-						InlineDecorationType.Before,
-						decorationOptions.lineHeight
+						InlineDecorationType.Before
 					);
 					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
 				}
@@ -164,8 +163,7 @@ export class ViewModelDecorations implements IDisposable {
 					const inlineDecoration = new InlineDecoration(
 						new Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn),
 						decorationOptions.afterContentClassName,
-						InlineDecorationType.After,
-						decorationOptions.lineHeight
+						InlineDecorationType.After
 					);
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
 				}

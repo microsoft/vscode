@@ -395,16 +395,18 @@ export class LinesLayout {
 		return this._arr[index].prefixSum;
 	}
 
+	/**
+	 * Add special line height
+	 */
 	public addSpecialLineHeight(lineNumber: number, height: number): void {
 		this._specialLineHeights.set(lineNumber, height);
 	}
 
+	/**
+	 * Remove special line height
+	 */
 	public removeSpecialLineHeight(lineNumber: number): void {
 		this._specialLineHeights.delete(lineNumber);
-	}
-
-	public getSpecialLinesHeights(): Map<number, number> {
-		return this._specialLineHeights;
 	}
 
 	/**

@@ -212,8 +212,7 @@ export class DiffEditorViewZones extends Disposable {
 							decorations.push(new InlineDecoration(
 								i.originalRange.delta(-(a.diff.original.startLineNumber - 1)),
 								diffDeleteDecoration.className!,
-								InlineDecorationType.Regular,
-								diffDeleteDecoration.lineHeight
+								InlineDecorationType.Regular
 							));
 						}
 						const result = renderLines(source, renderOptions, decorations, deletedCodeDomNode);

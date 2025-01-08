@@ -22,7 +22,6 @@ export class StickyLineCandidate {
 		public readonly endLineNumber: number,
 		public readonly nestingDepth: number,
 		public readonly topOfElement: number,
-		public readonly bottomOfElement: number,
 		public readonly height: number,
 	) { }
 }
@@ -198,7 +197,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
 					const lineHeight = this.specialLineHeights.get(childStartLine) ?? this._editor.getOption(EditorOption.lineHeight);
-					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1, topOfElement, topOfElement + lineHeight, lineHeight));
+					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1, topOfElement, lineHeight));
 					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, childStartLine, topOfElement + lineHeight);
 				}
 			} else {
