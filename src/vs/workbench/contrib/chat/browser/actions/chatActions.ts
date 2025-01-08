@@ -20,7 +20,7 @@ import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -464,7 +464,7 @@ export function registerChatActions() {
 		}
 	});
 
-	function registerOpenLinkAction(id: string, title: ILocalizedString, url: string, order: number): void {
+	function registerOpenLinkAction(id: string, title: ILocalizedString, url: string, order: number, contextKey: ContextKeyExpression = ChatContextKeys.enabled): void {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -472,11 +472,12 @@ export function registerChatActions() {
 					title,
 					category: CHAT_CATEGORY,
 					f1: true,
-					precondition: ChatContextKeys.enabled,
+					precondition: contextKey,
 					menu: {
 						id: MenuId.ChatCommandCenter,
 						group: 'y_manage',
-						order
+						order,
+						when: contextKey
 					}
 				});
 			}
@@ -488,8 +489,9 @@ export function registerChatActions() {
 		});
 	}
 
-	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage Copilot Plan"), defaultChat.managePlanUrl, 1);
-	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2);
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals('config.github.copilot.advanced.authProvider', 'github-enterprise'));
+	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage Copilot Plan"), defaultChat.managePlanUrl, 1, nonEnterpriseCopilotUsers);
+	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2, nonEnterpriseCopilotUsers);
 	registerOpenLinkAction('workbench.action.chat.learnMore', localize2('learnMore', "Learn More"), defaultChat.documentationUrl, 3);
 
 	registerAction2(class ShowExtensionsUsingCopilit extends Action2 {
