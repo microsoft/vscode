@@ -262,6 +262,7 @@ class InternalTerminalShellIntegration extends Disposable {
 			this._fireChangeEvent();
 		}
 	}
+
 	private _fireChangeEvent() {
 		this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
 	}
