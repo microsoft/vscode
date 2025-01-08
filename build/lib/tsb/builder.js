@@ -521,10 +521,11 @@ class LanguageServiceHost {
         return old;
     }
     removeScriptSnapshot(filename) {
+        filename = normalize(filename);
+        this._log('removeScriptSnapshot', filename);
         this._filesInProject.delete(filename);
         this._filesAdded.delete(filename);
         this._projectVersion++;
-        filename = normalize(filename);
         delete this._fileNameToDeclaredModule[filename];
         return delete this._snapshots[filename];
     }
