@@ -166,8 +166,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private scrollLock = true;
 
-	private _isScrolling = false;
-
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 	private set viewModel(viewModel: ChatViewModel | undefined) {
@@ -457,94 +455,31 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}).filter(isDefined);
 
 		this._register((this.chatWidgetService as ChatWidgetService).register(this));
+
+		this._setupFocusObserver();
 	}
 
 	private _setupFocusObserver(): void {
-		let isObserverEnabled = true;
-		this._isScrolling = false;
-
-		// Define the callback function for the Intersection Observer
-		const callback = (entries: IntersectionObserverEntry[]) => {
-			entries.forEach(entry => {
-				if (!entry.isIntersecting && !this._isScrolling) {
-					// If the element goes out of view, scroll to it
-					// This prevents recursion
-					this._isScrolling = true;
-					this._scrollToActiveElement(entry.target as HTMLElement);
-				}
-			});
-		};
-
-		const observer = new IntersectionObserver(callback, {
-			root: this.listContainer.querySelector('.monaco-scrollable-element'),
-			threshold: 0,
-		});
-
-		const observeActiveElement = () => {
-			// Enable observer only for the active element if it is not already observed
-			if (this._activeElement && isObserverEnabled) {
-				observer.observe(this._activeElement);
-			}
-		};
-
-		// Disconnect observer on mousedown or scroll to avoid interference
-		const disableObserver = () => {
-			if (isObserverEnabled) {
-				observer.disconnect();
-				isObserverEnabled = false;
-			}
-		};
-
-		// Re-enable observer on keyboard interaction only if disabled
-		const enableObserverOnKeydown = () => {
-			if (!isObserverEnabled) {
-				isObserverEnabled = true;
-				observeActiveElement();
-			}
-		};
-
-		this.listContainer.addEventListener('scroll', disableObserver);
-		this.listContainer.addEventListener('mousedown', disableObserver);
-		dom.getActiveWindow().addEventListener('keydown', enableObserverOnKeydown);
-
-		// Listen for changes in the active (focused) element
 		this.listContainer.addEventListener('focus', () => {
 			const element = dom.getActiveElement() as HTMLElement | null;
 			if (this._activeElement !== element && element !== null) {
-				// Unobserve the previous element, if any
-				if (this._activeElement) {
-					observer.unobserve(this._activeElement);
-				}
-
-				// Update the active element and observe it if the observer is enabled
 				this._activeElement = element;
-				if (isObserverEnabled) {
-					observeActiveElement();
-				}
+				this._scrollToActiveElement(this._activeElement);
 			}
 		}, true);
 	}
 
+
 	private _scrollToActiveElement(element: HTMLElement) {
-		const containerRect = this.tree.getHTMLElement().getBoundingClientRect();
-		const fullScrollRect = this.listContainer.querySelector('.monaco-list-rows')!.getBoundingClientRect();
+		const containerRect = this.listContainer.getBoundingClientRect();
 		const elementRect = element.getBoundingClientRect();
 
 		const topOffset = elementRect.top - containerRect.top;
-		const fullBottom = fullScrollRect.bottom - elementRect.bottom;
 
 		if (topOffset < 0) {
 			// Scroll up
 			this.tree.scrollTop += topOffset;
-		} else if (fullBottom > 0) {
-			// Scroll down
-			this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight - fullBottom;
 		}
-
-		// Allow observer to work again after the scroll is complete
-		setTimeout(() => {
-			this._isScrolling = false;
-		}, 100);
 	}
 
 	private scrollToEnd() {
@@ -553,7 +488,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.tree.reveal(this.lastItem, offset);
 		}
 	}
-
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
 		return this.contribs.find(c => c.id === id) as T;
@@ -650,7 +584,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else {
 				this.renderFollowups(undefined);
 			}
-			this._setupFocusObserver();
 		}
 	}
 
