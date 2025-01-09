@@ -2,22 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { coalesce } from '../../../../../base/common/arrays.js';
 import { AsyncIterableObject } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../../base/common/charCode.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import * as strings from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { ConversationRequest, ConversationResponse, DocumentContextItem, IWorkspaceFileEdit, IWorkspaceTextEdit } from '../../../../../editor/common/languages.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../nls.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -29,9 +28,9 @@ import { InlineChatController } from '../../../inlineChat/browser/inlineChatCont
 import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
 import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
-import { getReferencesAsDocumentContext } from '../../common/chatCodeMapperService.js';
+import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatUserAction, IChatService } from '../../common/chatService.js';
-import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { isResponseVM } from '../../common/chatViewModel.js';
 import { ICodeBlockActionContext } from '../codeBlockPart.js';
 
 export class InsertCodeBlockOperation {
@@ -98,7 +97,7 @@ export class InsertCodeBlockOperation {
 	}
 }
 
-type IComputeEditsResult = { readonly edits?: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>; readonly codeMapper?: string };
+type IComputeEditsResult = { readonly editsProposed: boolean; readonly codeMapper?: string };
 
 export class ApplyCodeBlockOperation {
 
@@ -107,15 +106,14 @@ export class ApplyCodeBlockOperation {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IChatService private readonly chatService: IChatService,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IProgressService private readonly progressService: IProgressService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILogService private readonly logService: ILogService,
+		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 	}
 
@@ -166,7 +164,7 @@ export class ApplyCodeBlockOperation {
 			codeBlockIndex: context.codeBlockIndex,
 			totalCharacters: context.code.length,
 			codeMapper: result?.codeMapper,
-			editsProposed: !!result?.edits,
+			editsProposed: !!result?.editsProposed
 		});
 	}
 
@@ -182,64 +180,37 @@ export class ApplyCodeBlockOperation {
 	}
 
 	private async handleTextEditor(codeEditor: IActiveCodeEditor, codeBlockContext: ICodeBlockActionContext): Promise<IComputeEditsResult | undefined> {
-		if (isReadOnly(codeEditor.getModel(), this.textFileService)) {
+		const activeModel = codeEditor.getModel();
+		if (isReadOnly(activeModel, this.textFileService)) {
 			this.notify(localize('applyCodeBlock.readonly', "Cannot apply code block to read-only file."));
 			return undefined;
 		}
 
-		const result = await this.computeEdits(codeEditor, codeBlockContext);
-		if (result.edits) {
-			const showWithPreview = await this.applyWithInlinePreview(result.edits, codeEditor);
-			if (!showWithPreview) {
-				await this.bulkEditService.apply(result.edits, { showPreview: true });
-				const activeModel = codeEditor.getModel();
-				this.codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
-			}
+		const resource = codeBlockContext.codemapperUri ?? activeModel.uri;
+		const codeBlock = { code: codeBlockContext.code, resource, markdownBeforeBlock: undefined };
+
+		const codeMapper = this.codeMapperService.providers[0]?.displayName;
+		if (!codeMapper) {
+			this.notify(localize('applyCodeBlock.noCodeMapper', "No code mapper available."));
+			return undefined;
 		}
-		return result;
-	}
 
-	private async computeEdits(codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult> {
-		const activeModel = codeEditor.getModel();
-
-		const mappedEditsProviders = this.languageFeaturesService.mappedEditsProvider.ordered(activeModel);
-		if (mappedEditsProviders.length > 0) {
-
-			// 0th sub-array - editor selections array if there are any selections
-			// 1st sub-array - array with documents used to get the chat reply
-			const docRefs: DocumentContextItem[][] = [];
-			collectDocumentContextFromSelections(codeEditor, docRefs);
-			collectDocumentContextFromContext(codeBlockActionContext, docRefs);
+		const editorToApply = await this.codeEditorService.openCodeEditor({ resource }, codeEditor);
+		let result = false;
+		if (editorToApply && editorToApply.hasModel()) {
 
 			const cancellationTokenSource = new CancellationTokenSource();
-			let codeMapper; // the last used code mapper
 			try {
-				const result = await this.progressService.withProgress<IComputeEditsResult | undefined>(
+				const iterable = await this.progressService.withProgress<AsyncIterable<TextEdit[]>>(
 					{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
 					async progress => {
-						for (const provider of mappedEditsProviders) {
-							codeMapper = provider.displayName;
-							progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", codeMapper) });
-							const mappedEdits = await provider.provideMappedEdits(
-								activeModel,
-								[codeBlockActionContext.code],
-								{
-									documents: docRefs,
-									conversation: getChatConversation(codeBlockActionContext),
-								},
-								cancellationTokenSource.token
-							);
-							if (mappedEdits) {
-								return { edits: mappedEdits.edits, codeMapper };
-							}
-						}
-						return undefined;
+						progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", codeMapper) });
+						const editsIterable = this.getEdits(codeBlock, cancellationTokenSource.token);
+						return await this.waitForFirstElement(editsIterable);
 					},
 					() => cancellationTokenSource.cancel()
 				);
-				if (result) {
-					return result;
-				}
+				result = await this.applyWithInlinePreview(iterable, editorToApply, cancellationTokenSource);
 			} catch (e) {
 				if (!isCancellationError(e)) {
 					this.notify(localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message));
@@ -247,41 +218,66 @@ export class ApplyCodeBlockOperation {
 			} finally {
 				cancellationTokenSource.dispose();
 			}
-			return { edits: [], codeMapper };
 		}
-		return { edits: [], codeMapper: undefined };
+		return {
+			editsProposed: result,
+			codeMapper
+		};
 	}
 
-	private async applyWithInlinePreview(edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>, codeEditor: IActiveCodeEditor): Promise<boolean> {
-		const firstEdit = edits[0];
-		if (!ResourceTextEdit.is(firstEdit)) {
-			return false;
-		}
-		const resource = firstEdit.resource;
-		const textEdits = coalesce(edits.map(edit => ResourceTextEdit.is(edit) && isEqual(resource, edit.resource) ? edit.textEdit : undefined));
-		if (textEdits.length !== edits.length) { // more than one file has changed, fall back to bulk edit preview
-			return false;
-		}
-		const editorToApply = await this.codeEditorService.openCodeEditor({ resource }, codeEditor);
-		if (editorToApply) {
-			const inlineChatController = InlineChatController.get(editorToApply);
-			if (inlineChatController) {
-				const tokenSource = new CancellationTokenSource();
-				let isOpen = true;
-				const firstEdit = textEdits[0];
-				editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
-				const promise = inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray([textEdits]), tokenSource.token);
-				promise.finally(() => {
-					isOpen = false;
-					tokenSource.dispose();
-				});
-				this.inlineChatPreview = {
-					promise,
-					isOpen: () => isOpen,
-					cancel: () => tokenSource.cancel(),
-				};
-				return true;
+	private getEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken): AsyncIterable<TextEdit[]> {
+		return new AsyncIterableObject<TextEdit[]>(async executor => {
+			const request: ICodeMapperRequest = {
+				codeBlocks: [codeBlock]
+			};
+			const response: ICodeMapperResponse = {
+				textEdit: (target: URI, edit: TextEdit[]) => {
+					executor.emitOne(edit);
+				}
+			};
+			const result = await this.codeMapperService.mapCode(request, response, token);
+			if (result?.errorMessage) {
+				executor.reject(new Error(result.errorMessage));
 			}
+		});
+	}
+
+	private async waitForFirstElement<T>(iterable: AsyncIterable<T>): Promise<AsyncIterable<T>> {
+		const iterator = iterable[Symbol.asyncIterator]();
+		const firstResult = await iterator.next();
+
+		if (firstResult.done) {
+			return {
+				async *[Symbol.asyncIterator]() {
+					return;
+				}
+			};
+		}
+
+		return {
+			async *[Symbol.asyncIterator]() {
+				yield firstResult.value;
+				yield* iterable;
+			}
+		};
+	}
+
+	private async applyWithInlinePreview(edits: AsyncIterable<TextEdit[]>, codeEditor: IActiveCodeEditor, tokenSource: CancellationTokenSource): Promise<boolean> {
+		const inlineChatController = InlineChatController.get(codeEditor);
+		if (inlineChatController) {
+			let isOpen = true;
+			const promise = inlineChatController.reviewEdits(codeEditor.getSelection(), edits, tokenSource.token);
+			promise.finally(() => {
+				isOpen = false;
+				tokenSource.dispose();
+			});
+			this.inlineChatPreview = {
+				promise,
+				isOpen: () => isOpen,
+				cancel: () => tokenSource.cancel(),
+			};
+			return true;
+
 		}
 		return false;
 	}
@@ -358,49 +354,6 @@ function isReadOnly(model: ITextModel, textFileService: ITextFileService): boole
 	// Check if model is editable, currently only support untitled and text file
 	const activeTextModel = textFileService.files.get(model.uri) ?? textFileService.untitled.get(model.uri);
 	return !!activeTextModel?.isReadonly();
-}
-
-function collectDocumentContextFromSelections(codeEditor: IActiveCodeEditor, result: DocumentContextItem[][]): void {
-	const activeModel = codeEditor.getModel();
-	const currentDocUri = activeModel.uri;
-	const currentDocVersion = activeModel.getVersionId();
-	const selections = codeEditor.getSelections();
-	if (selections.length > 0) {
-		result.push([
-			{
-				uri: currentDocUri,
-				version: currentDocVersion,
-				ranges: selections,
-			}
-		]);
-	}
-}
-
-
-function collectDocumentContextFromContext(context: ICodeBlockActionContext, result: DocumentContextItem[][]): void {
-	if (isResponseVM(context.element) && context.element.usedContext?.documents) {
-		result.push(context.element.usedContext.documents);
-	}
-}
-
-function getChatConversation(context: ICodeBlockActionContext): (ConversationRequest | ConversationResponse)[] {
-	// TODO@aeschli for now create a conversation with just the current element
-	// this will be expanded in the future to include the request and any other responses
-
-	if (isResponseVM(context.element)) {
-		return [{
-			type: 'response',
-			message: context.element.response.getMarkdown(),
-			references: getReferencesAsDocumentContext(context.element.contentReferences)
-		}];
-	} else if (isRequestVM(context.element)) {
-		return [{
-			type: 'request',
-			message: context.element.messageText,
-		}];
-	} else {
-		return [];
-	}
 }
 
 function reindent(codeBlockContent: string, model: ITextModel, seletionStartLine: number): string {
