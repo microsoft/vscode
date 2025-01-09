@@ -297,15 +297,13 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 }
 
 function escapeCommandLine(cmd: string[]): (string | ShellQuotedString)[] {
-	const result: (string | ShellQuotedString)[] = new Array(cmd.length);
-	for (let i = 0; i < cmd.length; i++) {
-		if (/\s/.test(cmd[i])) {
-			result[i] = { value: cmd[i], quoting: cmd[i].includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
+	return cmd.map(arg => {
+		if (/\s/.test(arg)) {
+			return { value: arg, quoting: arg.includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
 		} else {
-			result[i] = cmd[i];
+			return arg;
 		}
-	}
-	return result;
+	});
 }
 
 function getRelativePath(rootUri: Uri, packageJsonUri: Uri): string {
