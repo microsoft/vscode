@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IShellEnvDetectionCapability, TerminalCapability } from './capabilities.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { equals } from '../../../../base/common/objects.js';
 
 export class ShellEnvDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
 	readonly type = TerminalCapability.ShellEnvDetection;
@@ -21,15 +22,7 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 			return;
 		}
 
-		let envChanged = false;
-		for (const [key, value] of Object.entries(env)) {
-			if (value !== this._env.get(key)) {
-				envChanged = true;
-				break;
-			}
-		}
-
-		if (!envChanged && this._env.size === Object.keys(env).length) {
+		if (equals(this._env, env)) {
 			return;
 		}
 
