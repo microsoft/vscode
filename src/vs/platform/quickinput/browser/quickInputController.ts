@@ -963,11 +963,13 @@ class QuickInputDragAndDropController extends Disposable {
 					}
 
 					let topCoordinate = e.clientY - dragOffsetY;
+					topCoordinate = Math.max(0, Math.min(topCoordinate, this._container.clientHeight - this._quickInputContainer.clientHeight));
 					topCoordinate = Math.abs(topCoordinate - snapCoordinateYTop) < this._snapThreshold ? snapCoordinateYTop : topCoordinate;
 					topCoordinate = Math.abs(topCoordinate - snapCoordinateY) < this._snapThreshold ? snapCoordinateY : topCoordinate;
 					top = topCoordinate / this._container.clientHeight;
 
 					let leftCoordinate = e.clientX - dragOffsetX;
+					leftCoordinate = Math.max(0, Math.min(leftCoordinate, this._container.clientWidth - this._quickInputContainer.clientWidth));
 					leftCoordinate = Math.abs(leftCoordinate - snapCoordinateX) < this._snapThreshold ? snapCoordinateX : leftCoordinate;
 					left = (leftCoordinate + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth;
 
