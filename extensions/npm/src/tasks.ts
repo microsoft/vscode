@@ -315,12 +315,17 @@ function getRelativePath(rootUri: Uri, packageJsonUri: Uri): string {
 
 export async function getRunScriptCommand(script: string, folder: Uri, context?: ExtensionContext, showWarning = true): Promise<string[]> {
 	const scriptRunner = await getScriptRunner(folder, context, showWarning);
-	const result = [scriptRunner, scriptRunner === 'node' ? '--run' : 'run'];
-	if (workspace.getConfiguration('npm', folder).get<boolean>('runSilent')) {
-		result.push('--silent');
+
+	if (scriptRunner === 'node') {
+		return ['node', '--run', script];
+	} else {
+		const result = [scriptRunner, 'run'];
+		if (workspace.getConfiguration('npm', folder).get<boolean>('runSilent')) {
+			result.push('--silent');
+		}
+		result.push(script);
+		return result;
 	}
-	result.push(script);
-	return result;
 }
 
 export async function createScriptRunnerTask(context: ExtensionContext, script: string, folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, showWarning?: boolean): Promise<Task> {
