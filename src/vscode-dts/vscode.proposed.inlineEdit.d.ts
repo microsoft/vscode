@@ -52,6 +52,8 @@ declare module 'vscode' {
 		 * Describes how the inline edit was triggered.
 		 */
 		triggerKind: InlineEditTriggerKind;
+
+		requestUuid?: string;
 	}
 
 	export enum InlineEditTriggerKind {

@@ -58,6 +58,7 @@ export class InlineEditsAdapter extends Disposable {
 					const inlineEdits = await Promise.all(allInlineEditProvider.map(async provider => {
 						const result = await provider.provideInlineEdit(model, {
 							triggerKind: InlineEditTriggerKind.Automatic,
+							requestUuid: context.requestUuid
 						}, token);
 						if (!result) { return undefined; }
 						return { result, provider };
