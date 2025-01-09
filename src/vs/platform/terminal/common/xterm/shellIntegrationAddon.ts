@@ -227,14 +227,13 @@ const enum VSCodeOscPt {
 	SetMark = 'SetMark',
 
 	/**
-	 * Sends the shell's environment.
+	 * Sends the shell's complete environment in JSON format.
 	 *
 	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce>`
 	 *
-	 * 	 The EnvJson can escape ascii characters in the same way in which {@link CommandLine} does.
-	 *	`Environment` - A JSON string containing the shell's environment variables.
-	 *  `Nonce` -  An optional nonce can be provided which is may be required by the terminal in order enable
-	 *   some features. This helps ensure no malicious command injection has occurred.
+	 * - `Environment` - A stringified JSON object containing the shell's complete environment. The
+	 *    variables and values use the same encoding rules as the {@link CommandLine} sequence.
+	 * - `Nonce` - An _mandatory_ nonce to ensure the sequence is not malicious.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
