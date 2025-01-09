@@ -2407,6 +2407,12 @@ export interface IInlineEdit {
 
 export interface IInlineEditContext {
 	triggerKind: InlineEditTriggerKind;
+
+	/**
+	 * @experimental
+	 * @internal
+	 */
+	requestUuid?: string;
 }
 
 export enum InlineEditTriggerKind {
