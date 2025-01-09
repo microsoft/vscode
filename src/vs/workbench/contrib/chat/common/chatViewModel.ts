@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose } from '../../../../base/common/lifecycle.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -74,7 +74,7 @@ export interface IChatRequestViewModel {
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly workingSet?: ReadonlyArray<URI>;
 	readonly confirmation?: string;
-	readonly isHidden: boolean;
+	readonly shouldBeRemovedOnSend: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
@@ -180,7 +180,7 @@ export interface IChatResponseViewModel {
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
-	readonly isHidden: boolean;
+	readonly shouldBeRemovedOnSend: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
@@ -299,14 +299,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
-		return [...this._items].filter((item) => !item.isHidden);
+		return this._items.filter((item) => !item.shouldBeRemovedOnSend);
 	}
 
 	override dispose() {
 		super.dispose();
-		this._items
-			.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel)
-			.forEach((item: ChatResponseViewModel) => item.dispose());
+		dispose(this._items.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel));
 	}
 
 	updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
@@ -385,8 +383,8 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isCompleteAddedRequest;
 	}
 
-	get isHidden() {
-		return this._model.isHidden;
+	get shouldBeRemovedOnSend() {
+		return this._model.shouldBeRemovedOnSend;
 	}
 
 	get slashCommand(): IChatAgentCommand | undefined {
@@ -486,8 +484,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.isCanceled;
 	}
 
-	get isHidden() {
-		return this._model.isHidden;
+	get shouldBeRemovedOnSend() {
+		return this._model.shouldBeRemovedOnSend;
 	}
 
 	get isCompleteAddedRequest() {

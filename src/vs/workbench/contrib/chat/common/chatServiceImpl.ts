@@ -498,6 +498,14 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
+		const requests = model.getRequests();
+		for (let i = requests.length - 1; i >= 0; i -= 1) {
+			const request = requests[i];
+			if (request.shouldBeRemovedOnSend) {
+				this.removeRequest(sessionId, request.id);
+			}
+		}
+
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
