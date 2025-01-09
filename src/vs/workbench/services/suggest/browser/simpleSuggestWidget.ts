@@ -517,7 +517,7 @@ export class SimpleSuggestWidget extends Disposable {
 		const preferredWidth = this._completionModel ? this._completionModel.stats.pLabelLen * info.typicalHalfwidthCharacterWidth : width;
 
 		// height math
-		const fullHeight = info.statusBarHeight + this._list.contentHeight + info.borderHeight;
+		const fullHeight = info.statusBarHeight + this._list.contentHeight + this._messageElement.clientHeight + info.borderHeight;
 		const minHeight = info.itemHeight + info.statusBarHeight;
 		// const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
 		// const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
