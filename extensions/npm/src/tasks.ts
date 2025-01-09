@@ -165,20 +165,16 @@ export async function hasNpmScripts(): Promise<boolean> {
 	if (!folders) {
 		return false;
 	}
-	try {
-		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
-				const relativePattern = new RelativePattern(folder, '**/package.json');
-				const paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
-				if (paths.length > 0) {
-					return true;
-				}
+	for (const folder of folders) {
+		if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
+			const relativePattern = new RelativePattern(folder, '**/package.json');
+			const paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+			if (paths.length > 0) {
+				return true;
 			}
 		}
-		return false;
-	} catch (error) {
-		return Promise.reject(error);
 	}
+	return false;
 }
 
 async function* findNpmPackages(): AsyncGenerator<Uri> {
@@ -189,21 +185,17 @@ async function* findNpmPackages(): AsyncGenerator<Uri> {
 	if (!folders) {
 		return;
 	}
-	try {
-		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
-				const relativePattern = new RelativePattern(folder, '**/package.json');
-				const paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
-				for (const path of paths) {
-					if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
-						yield path;
-						visitedPackageJsonFiles.add(path.fsPath);
-					}
+	for (const folder of folders) {
+		if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
+			const relativePattern = new RelativePattern(folder, '**/package.json');
+			const paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
+			for (const path of paths) {
+				if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
+					yield path;
+					visitedPackageJsonFiles.add(path.fsPath);
 				}
 			}
 		}
-	} catch (error) {
-		return Promise.reject(error);
 	}
 }
 
@@ -212,25 +204,21 @@ export async function detectNpmScriptsForFolder(context: ExtensionContext, folde
 
 	const folderTasks: IFolderTaskItem[] = [];
 
-	try {
-		if (excludeRegex.test(Utils.basename(folder))) {
-			return folderTasks;
-		}
-		const relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
-		const paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
-
-		const visitedPackageJsonFiles: Set<string> = new Set();
-		for (const path of paths) {
-			if (!visitedPackageJsonFiles.has(path.fsPath)) {
-				const tasks = await provideNpmScriptsForFolder(context, path, true);
-				visitedPackageJsonFiles.add(path.fsPath);
-				folderTasks.push(...tasks.map(t => ({ label: t.task.name, task: t.task })));
-			}
-		}
+	if (excludeRegex.test(Utils.basename(folder))) {
 		return folderTasks;
-	} catch (error) {
-		return Promise.reject(error);
 	}
+	const relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
+	const paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+
+	const visitedPackageJsonFiles: Set<string> = new Set();
+	for (const path of paths) {
+		if (!visitedPackageJsonFiles.has(path.fsPath)) {
+			const tasks = await provideNpmScriptsForFolder(context, path, true);
+			visitedPackageJsonFiles.add(path.fsPath);
+			folderTasks.push(...tasks.map(t => ({ label: t.task.name, task: t.task })));
+		}
+	}
+	return folderTasks;
 }
 
 export async function provideNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<ITaskWithLocation[]> {
