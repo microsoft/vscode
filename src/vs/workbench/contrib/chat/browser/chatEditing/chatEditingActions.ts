@@ -100,7 +100,7 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 			}],
 			keybinding: {
 				primary: KeyCode.Delete,
-				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatInput.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatEditWorkingSet),
 				weight: KeybindingWeight.WorkbenchContrib,
 			}
 		});
