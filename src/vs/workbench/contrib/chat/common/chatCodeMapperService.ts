@@ -34,20 +34,17 @@ export interface ICodeMapperProvider {
 
 export const ICodeMapperService = createDecorator<ICodeMapperService>('codeMapperService');
 
-export interface ICodeMapperServiceResult extends ICodeMapperResult {
-	readonly providerName: string;
-}
-
 export interface ICodeMapperService {
 	readonly _serviceBrand: undefined;
+	readonly providers: ICodeMapperProvider[];
 	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable;
-	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperServiceResult | undefined>;
+	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
 }
 
 export class CodeMapperService implements ICodeMapperService {
 	_serviceBrand: undefined;
 
-	private readonly providers: ICodeMapperProvider[] = [];
+	public readonly providers: ICodeMapperProvider[] = [];
 
 	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable {
 		this.providers.push(provider);
@@ -64,11 +61,10 @@ export class CodeMapperService implements ICodeMapperService {
 	async mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) {
 		for (const provider of this.providers) {
 			const result = await provider.mapCode(request, response, token);
-			if (result) {
-				return { providerName: provider.displayName, ...result };
-			} else if (token.isCancellationRequested) {
+			if (token.isCancellationRequested) {
 				return undefined;
 			}
+			return result;
 		}
 		return undefined;
 	}

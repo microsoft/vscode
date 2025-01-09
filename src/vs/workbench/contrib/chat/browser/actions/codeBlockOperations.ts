@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { AsyncIterableObject } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../../base/common/charCode.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -21,13 +21,14 @@ import { localize } from '../../../../../nls.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
 import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
-import { ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
+import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatUserAction, IChatService } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ICodeBlockActionContext } from '../codeBlockPart.js';
@@ -111,7 +112,8 @@ export class ApplyCodeBlockOperation {
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILogService private readonly logService: ILogService,
-		@ICodeMapperService private readonly codeMapperService: ICodeMapperService
+		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 	}
 
@@ -178,49 +180,88 @@ export class ApplyCodeBlockOperation {
 	}
 
 	private async handleTextEditor(codeEditor: IActiveCodeEditor, codeBlockContext: ICodeBlockActionContext): Promise<IComputeEditsResult | undefined> {
-		if (isReadOnly(codeEditor.getModel(), this.textFileService)) {
+		const activeModel = codeEditor.getModel();
+		if (isReadOnly(activeModel, this.textFileService)) {
 			this.notify(localize('applyCodeBlock.readonly', "Cannot apply code block to read-only file."));
 			return undefined;
 		}
 
-		const cancellationTokenSource = new CancellationTokenSource();
-		try {
-			const activeModel = codeEditor.getModel();
-			const resource = codeBlockContext.codemapperUri ?? activeModel.uri;
-			let codeMapper: string | undefined;
+		const resource = codeBlockContext.codemapperUri ?? activeModel.uri;
+		const codeBlock = { code: codeBlockContext.code, resource, markdownBeforeBlock: undefined };
 
-			const iterable = new AsyncIterableObject<TextEdit[]>(async executor => {
-				const request: ICodeMapperRequest = {
-					codeBlocks: [{ code: codeBlockContext.code, resource, markdownBeforeBlock: undefined }]
-				};
-				const response: ICodeMapperResponse = {
-					textEdit: (target: URI, edit: TextEdit[]) => {
-						executor.emitOne(edit);
-					}
-				};
-				const result = await this.codeMapperService.mapCode(request, response, cancellationTokenSource.token);
-				codeMapper = result?.providerName;
-				if (result?.errorMessage) {
-					executor.reject(new Error(result.errorMessage));
-				}
-			});
-
-			const editorToApply = await this.codeEditorService.openCodeEditor({ resource }, codeEditor);
-			let result = false;
-			if (editorToApply && editorToApply.hasModel()) {
-				result = await this.applyWithInlinePreview(iterable, editorToApply, cancellationTokenSource);
-			}
-			return { editsProposed: result, codeMapper };
-		} catch (e) {
-			if (!isCancellationError(e)) {
-				this.notify(localize('applyCodeBlock.error', "An error occurred while applying the code block."));
-			}
-		} finally {
-			cancellationTokenSource.dispose();
+		const codeMapper = this.codeMapperService.providers[0]?.displayName;
+		if (!codeMapper) {
+			this.notify(localize('applyCodeBlock.noCodeMapper', "No code mapper available."));
+			return undefined;
 		}
-		return undefined;
 
+		const editorToApply = await this.codeEditorService.openCodeEditor({ resource }, codeEditor);
+		let result = false;
+		if (editorToApply && editorToApply.hasModel()) {
+
+			const cancellationTokenSource = new CancellationTokenSource();
+			try {
+				const iterable = await this.progressService.withProgress<AsyncIterable<TextEdit[]>>(
+					{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
+					async progress => {
+						progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", codeMapper) });
+						const editsIterable = this.getEdits(codeBlock, cancellationTokenSource.token);
+						return await this.waitForFirstElement(editsIterable);
+					},
+					() => cancellationTokenSource.cancel()
+				);
+				result = await this.applyWithInlinePreview(iterable, editorToApply, cancellationTokenSource);
+			} catch (e) {
+				if (!isCancellationError(e)) {
+					this.notify(localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message));
+				}
+			} finally {
+				cancellationTokenSource.dispose();
+			}
+		}
+		return {
+			editsProposed: result,
+			codeMapper
+		};
 	}
+
+	private getEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken): AsyncIterable<TextEdit[]> {
+		return new AsyncIterableObject<TextEdit[]>(async executor => {
+			const request: ICodeMapperRequest = {
+				codeBlocks: [codeBlock]
+			};
+			const response: ICodeMapperResponse = {
+				textEdit: (target: URI, edit: TextEdit[]) => {
+					executor.emitOne(edit);
+				}
+			};
+			const result = await this.codeMapperService.mapCode(request, response, token);
+			if (result?.errorMessage) {
+				executor.reject(new Error(result.errorMessage));
+			}
+		});
+	}
+
+	private async waitForFirstElement<T>(iterable: AsyncIterable<T>): Promise<AsyncIterable<T>> {
+		const iterator = iterable[Symbol.asyncIterator]();
+		const firstResult = await iterator.next();
+
+		if (firstResult.done) {
+			return {
+				async *[Symbol.asyncIterator]() {
+					return;
+				}
+			};
+		}
+
+		return {
+			async *[Symbol.asyncIterator]() {
+				yield firstResult.value;
+				yield* iterable;
+			}
+		};
+	}
+
 	private async applyWithInlinePreview(edits: AsyncIterable<TextEdit[]>, codeEditor: IActiveCodeEditor, tokenSource: CancellationTokenSource): Promise<boolean> {
 		const inlineChatController = InlineChatController.get(codeEditor);
 		if (inlineChatController) {
