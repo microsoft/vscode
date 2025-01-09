@@ -764,8 +764,7 @@ export class LinesLayout {
 			centeredLineNumber: centeredLineNumber,
 			completelyVisibleStartLineNumber: completelyVisibleStartLineNumber,
 			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber,
-			lineHeight: this._lineHeight,
-			specialLineHeights: this._specialLineHeights,
+			lineHeight: this._lineHeight
 		};
 	}
 

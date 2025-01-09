@@ -190,11 +190,6 @@ export interface IPartialViewLinesViewportData {
 	 * The height of a line.
 	 */
 	readonly lineHeight: number;
-
-	/**
-	 * The special line heights
-	 */
-	readonly specialLineHeights: Map<number, number>;
 }
 
 export interface IViewWhitespaceViewportData {
