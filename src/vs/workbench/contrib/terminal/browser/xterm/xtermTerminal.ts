@@ -44,6 +44,7 @@ import { scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSl
 import { XtermAddonImporter } from './xtermAddonImporter.js';
 import { equals } from '../../../../../base/common/objects.js';
 import type { IProgressState } from '@xterm/addon-progress';
+import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -305,6 +306,18 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			};
 			this._register(progressAddon.onChange(() => updateProgress()));
 			updateProgress();
+			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+			if (commandDetection) {
+				commandDetection.onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 });
+			} else {
+				const disposable = this._capabilities.onDidAddCapability(e => {
+					if (e.id === TerminalCapability.CommandDetection) {
+						(e.capability as CommandDetectionCapability).onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 });
+						this._store.delete(disposable);
+					}
+				});
+				this._store.add(disposable);
+			}
 		});
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
