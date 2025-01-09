@@ -19,32 +19,16 @@ export interface LanguageFilter {
 
 export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;
 
-function isValidScheme(selectorScheme: string | undefined, candidateUriScheme: string): boolean {
-  if (!selectorScheme) return true;
-  return selectorScheme === '*' || selectorScheme === candidateUriScheme;
-}
-
-function isValidLanguage(selectorLanguage: string | undefined, candidateLanguage: string): boolean {
-  if (!selectorLanguage) return true;
-  return selectorLanguage === '*' || selectorLanguage === candidateLanguage;
-}
-
-function isValidNotebookType(notebookType: string | undefined, candidateNotebookType: string | undefined): boolean {
-  if (!notebookType) return true;
-  return notebookType === '*' || notebookType === candidateNotebookType;
-}
-
-function isValidPattern(pattern: string | IRelativePattern | undefined, targetUriFsPath: string): boolean {
-  if (!pattern) return true;
-  let normalizedPattern: string | IRelativePattern;
-  if (typeof pattern === 'string') {
-    normalizedPattern = pattern;
-  } else {
-    normalizedPattern = { ...pattern, base: normalize(pattern.base) };
-  }
-  return normalizedPattern === targetUriFsPath || matchGlobPattern(normalizedPattern, targetUriFsPath);
-}
-
+/**
+ * Score a language selector against a candidate.
+ * @param selector Language selector, can be a string, filter or an array of selectors
+ * @param candidateUri The URI of the candidate
+ * @param candidateLanguage The language of the candidate
+ * @param candidateIsSynchronized Whether the candidate is synchronized
+ * @param candidateNotebookUri The URI of the notebook (if any)
+ * @param candidateNotebookType The type of the notebook (if any)
+ * @returns A score indicating the match quality
+ */
 export function score(
   selector: LanguageSelector | undefined,
   candidateUri: URI,
@@ -53,81 +37,87 @@ export function score(
   candidateNotebookUri: URI | undefined,
   candidateNotebookType: string | undefined
 ): number {
-  // Debugging output
-  console.log('Selector:', selector);
-  console.log('Candidate Language:', candidateLanguage);
-  console.log('Candidate URI:', candidateUri.toString());
-  console.log('Candidate Is Synchronized:', candidateIsSynchronized);
-  console.log('Candidate Notebook URI:', candidateNotebookUri?.toString());
-  console.log('Candidate Notebook Type:', candidateNotebookType);
+  if (!selector) return 0;
 
-  // If selector is an array, take the maximum individual value
+  // If selector is an array, recursively score all items and take the max
   if (Array.isArray(selector)) {
-    return Math.max(...selector.map(filter =>
-      score(filter, candidateUri, candidateLanguage, candidateIsSynchronized, candidateNotebookUri, candidateNotebookType)
-    ));
+    return Math.max(...selector.map(filter => score(filter, candidateUri, candidateLanguage, candidateIsSynchronized, candidateNotebookUri, candidateNotebookType)));
   }
 
-  // If selector is a string, perform simplified checks
+  // If selector is a string, perform simple checks
   if (typeof selector === 'string') {
-    if (!candidateIsSynchronized) {
-      return 0;
-    }
-    return selector === '*' ? 5 : selector === candidateLanguage ? 10 : 0;
+    return scoreStringSelector(selector, candidateLanguage, candidateIsSynchronized);
   }
 
-  // If selector is an object, check each condition step by step
-  if (selector) {
-    const { language, pattern, scheme, hasAccessToAllModels, notebookType } = selector as LanguageFilter;
+  // Otherwise, it's a LanguageFilter, handle accordingly
+  const { language, scheme, pattern, notebookType, hasAccessToAllModels } = selector;
 
-    // Check synchronization and model access
-    if (!candidateIsSynchronized && !hasAccessToAllModels) {
-      return 0;
-    }
+  if (!candidateIsSynchronized && !hasAccessToAllModels) {
+    return 0;
+  }
 
-    // Use notebookUri instead of candidateUri
-    const targetUri = notebookType && candidateNotebookUri ? candidateNotebookUri : candidateUri;
+  const targetUri = notebookType && candidateNotebookUri ? candidateNotebookUri : candidateUri;
 
-    let score = 0;
+  let score = 0;
 
-    // Check scheme
-    if (isValidScheme(scheme, targetUri.scheme)) {
-      score = scheme === targetUri.scheme ? 10 : Math.max(score, 5);
-    } else {
-      return 0;
-    }
+  // Check scheme
+  score += checkScheme(scheme, targetUri);
 
-    // Check language
-    if (isValidLanguage(language, candidateLanguage)) {
-      score = language === candidateLanguage ? 10 : Math.max(score, 5);
-    } else {
-      return 0;
-    }
+  // Check language
+  score += checkLanguage(language, candidateLanguage);
 
-    // Check notebookType
-    if (!isValidNotebookType(notebookType, candidateNotebookType)) {
-      return 0;
-    }
+  // Check notebook type
+  score += checkNotebookType(notebookType, candidateNotebookType);
 
-    // Check pattern
-    if (isValidPattern(pattern, targetUri.fsPath)) {
-      score = 10;
-    } else {
-      return 0;
-    }
+  // Check pattern
+  score += checkPattern(pattern, targetUri);
 
-    return score;
+  return score;
+}
+
+function scoreStringSelector(selector: string, candidateLanguage: string, candidateIsSynchronized: boolean): number {
+  if (!candidateIsSynchronized) return 0;
+  return selector === '*' ? 5 : selector === candidateLanguage ? 10 : 0;
+}
+
+function checkScheme(scheme: string | undefined, targetUri: URI): number {
+  if (!scheme) return 0;
+  if (scheme === targetUri.scheme) return 10;
+  if (scheme === '*') return 5;
+  return 0;
+}
+
+function checkLanguage(language: string | undefined, candidateLanguage: string): number {
+  if (!language) return 0;
+  if (language === candidateLanguage) return 10;
+  if (language === '*') return 5;
+  return 0;
+}
+
+function checkNotebookType(notebookType: string | undefined, candidateNotebookType: string | undefined): number {
+  if (!notebookType) return 0;
+  return notebookType === candidateNotebookType ? 10 : 0;
+}
+
+function checkPattern(pattern: string | IRelativePattern | undefined, targetUri: URI): number {
+  if (!pattern) return 0;
+
+  const normalizedPattern = typeof pattern === 'string' ? pattern : { ...pattern, base: normalize(pattern.base) };
+
+  if (normalizedPattern === targetUri.fsPath || matchGlobPattern(normalizedPattern, targetUri.fsPath)) {
+    return 10;
   }
 
   return 0;
 }
 
+/**
+ * Check if the selector targets notebooks.
+ * @param selector Language selector, can be a string, filter or an array of selectors
+ * @returns Whether the selector targets notebooks
+ */
 export function targetsNotebooks(selector: LanguageSelector): boolean {
-  if (typeof selector === 'string') {
-    return false;
-  } else if (Array.isArray(selector)) {
-    return selector.some(targetsNotebooks);
-  } else {
-    return !!(selector as LanguageFilter).notebookType;
-  }
-		}
+  if (typeof selector === 'string') return false;
+  if (Array.isArray(selector)) return selector.some(targetsNotebooks);
+  return !!(selector as LanguageFilter).notebookType;
+	}
