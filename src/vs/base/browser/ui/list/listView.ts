@@ -440,9 +440,8 @@ export class ListView<T> implements IListView<T> {
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		this.disposables.add(addDisposableListener(this.rowsContainer, TouchEventType.Change, e => this.onTouchChange(e as GestureEvent)));
 
-		// Prevent the monaco-scrollable-element from scrolling
-		// https://github.com/microsoft/vscode/issues/44181
 		this.disposables.add(addDisposableListener(this.scrollableElement.getDomNode(), 'scroll', e => {
+			// Make sure the active element is scrolled into view
 			const element = (e.target as HTMLElement);
 			const scrollValue = element.scrollTop;
 			element.scrollTop = 0;
@@ -480,6 +479,8 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private _scrollToActiveElement(element: HTMLElement, container: HTMLElement) {
+		// The scroll event on the list only fires when scrolling down.
+		// If the active element is above the viewport, we need to scroll up. microsoft/vscode-copilot#9357
 		const containerRect = container.getBoundingClientRect();
 		const elementRect = element.getBoundingClientRect();
 
