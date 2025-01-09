@@ -238,8 +238,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 		this.filters = this._register(new OutputViewFilters({
 			filterHistory: [],
-			trace: false,
-			debug: false,
+			trace: true,
+			debug: true,
 			info: true,
 			warning: true,
 			error: true

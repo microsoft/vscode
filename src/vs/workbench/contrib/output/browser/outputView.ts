@@ -91,8 +91,8 @@ export class OutputViewPane extends FilterViewPane {
 
 		const filters = outputService.filters;
 		filters.text = this.panelState['filter'] || '';
-		filters.trace = this.panelState['showTrace'] ?? false;
-		filters.debug = this.panelState['showDebug'] ?? false;
+		filters.trace = this.panelState['showTrace'] ?? true;
+		filters.debug = this.panelState['showDebug'] ?? true;
 		filters.info = this.panelState['showInfo'] ?? true;
 		filters.warning = this.panelState['showWarning'] ?? true;
 		filters.error = this.panelState['showError'] ?? true;
@@ -184,7 +184,7 @@ export class OutputViewPane extends FilterViewPane {
 
 	public checkMoreFilters(): void {
 		const filters = this.outputService.filters;
-		this.filterWidget.checkMoreFilters(filters.trace || filters.debug || !filters.info || !filters.warning || !filters.error);
+		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error);
 	}
 
 	private clearInput(): void {
