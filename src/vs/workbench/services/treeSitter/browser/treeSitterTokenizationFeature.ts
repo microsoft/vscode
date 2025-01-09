@@ -140,12 +140,12 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 
 	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): Parser.QueryCapture[] {
 		const tree = this._getTree(textModel);
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), tree?.tree);
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column + 1), tree?.tree);
 		return captures;
 	}
 
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[] {
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), tree);
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column + 1), tree);
 		return captures;
 	}
 
@@ -156,7 +156,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			return [];
 		}
 		// Tree sitter row is 0 based, column is 0 based
-		return query.captures(tree.rootNode, { startPosition: { row: lineNumber - 1, column: columnRange.startColumn - 1 }, endPosition: { row: lineNumber - 1, column: columnRange.endColumnExclusive } });
+		return query.captures(tree.rootNode, { startPosition: { row: lineNumber - 1, column: columnRange.startColumn - 1 }, endPosition: { row: lineNumber - 1, column: columnRange.endColumnExclusive - 1 } });
 	}
 
 	/**
@@ -179,8 +179,16 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		const lineLength = textModel.getLineMaxColumn(lineNumber);
 		const tree = this._getTree(textModel);
 		const captures = this._captureAtRange(lineNumber, new ColumnRange(1, lineLength), tree?.tree);
+		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 
 		if (captures.length === 0) {
+			if (tree) {
+				stopwatch.stop();
+				const result = new Uint32Array(2);
+				result[0] = lineLength;
+				result[1] = findMetadata(this._colorThemeData, [], encodedLanguageId);
+				return { result, captureTime: stopwatch.elapsed(), metadataTime: 0 };
+			}
 			return undefined;
 		}
 
@@ -193,7 +201,6 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			endOffsetsAndScopes.push({ endOffset: 0, scopes: [] });
 		};
 
-		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
@@ -225,23 +232,36 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			};
 
 			if (previousTokenEnd >= lineRelativeOffset) {
-				const previousTokenStartOffset = ((tokenIndex >= 2) ? endOffsetsAndScopes[tokenIndex - 2].endOffset : 0);
 				const originalPreviousTokenEndOffset = endOffsetsAndScopes[tokenIndex - 1].endOffset;
 
+				const previousTokenStartOffset = ((tokenIndex >= 2) ? endOffsetsAndScopes[tokenIndex - 2].endOffset : 0);
+				const loopOriginalPreviousTokenEndOffset = endOffsetsAndScopes[tokenIndex - 1].endOffset;
+				const previousPreviousTokenEndOffset = (tokenIndex >= 2) ? endOffsetsAndScopes[tokenIndex - 2].endOffset : 0;
+
 				// Check that the current token doesn't just replace the last token
-				if ((previousTokenStartOffset + currentTokenLength) === originalPreviousTokenEndOffset) {
+				if ((previousTokenStartOffset + currentTokenLength) === loopOriginalPreviousTokenEndOffset) {
 					// Current token and previous token span the exact same characters, replace the last scope
 					endOffsetsAndScopes[tokenIndex - 1].scopes[endOffsetsAndScopes[tokenIndex - 1].scopes.length - 1] = capture.name;
-				} else {
-					// The current token is within the previous token. Adjust the end of the previous token.
-					endOffsetsAndScopes[tokenIndex - 1].endOffset = intermediateTokenOffset;
+				} else if (previousPreviousTokenEndOffset <= intermediateTokenOffset) {
+					let originalPreviousTokenScopes;
+					// The current token is within the previous token. Adjust the end of the previous token
+					if (previousPreviousTokenEndOffset !== intermediateTokenOffset) {
+						endOffsetsAndScopes[tokenIndex - 1] = { endOffset: intermediateTokenOffset, scopes: endOffsetsAndScopes[tokenIndex - 1].scopes };
+						addCurrentTokenToArray();
+						originalPreviousTokenScopes = endOffsetsAndScopes[tokenIndex - 2].scopes;
+					} else {
+						originalPreviousTokenScopes = endOffsetsAndScopes[tokenIndex - 1].scopes;
+						endOffsetsAndScopes[tokenIndex - 1] = { endOffset: lineRelativeOffset, scopes: [capture.name] };
+					}
 
-					addCurrentTokenToArray();
 					// Add the rest of the previous token after the current token
-					increaseSizeOfTokensByOneToken();
-					endOffsetsAndScopes[tokenIndex].endOffset = originalPreviousTokenEndOffset;
-					endOffsetsAndScopes[tokenIndex].scopes = endOffsetsAndScopes[tokenIndex - 2].scopes;
-					tokenIndex++;
+					if (originalPreviousTokenEndOffset !== lineRelativeOffset) {
+						increaseSizeOfTokensByOneToken();
+						endOffsetsAndScopes[tokenIndex] = { endOffset: originalPreviousTokenEndOffset, scopes: originalPreviousTokenScopes };
+						tokenIndex++;
+					} else {
+						endOffsetsAndScopes[tokenIndex - 1].scopes.unshift(...originalPreviousTokenScopes);
+					}
 				}
 			} else {
 				// Just add the token to the array
@@ -250,9 +270,9 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		}
 
 		// Account for uncaptured characters at the end of the line
-		if (captures[captures.length - 1].node.endPosition.column + 1 < lineLength) {
+		if (endOffsetsAndScopes[tokenIndex - 1].endOffset < lineLength - 1) {
 			increaseSizeOfTokensByOneToken();
-			endOffsetsAndScopes[tokenIndex].endOffset = lineLength - 1;
+			endOffsetsAndScopes[tokenIndex] = { endOffset: lineLength - 1, scopes: endOffsetsAndScopes[tokenIndex].scopes };
 			tokenIndex++;
 		}
 		const captureTime = stopwatch.elapsed();

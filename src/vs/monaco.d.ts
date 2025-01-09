@@ -4612,7 +4612,6 @@ declare namespace monaco.editor {
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 				useWordInsertionView?: 'never' | 'whenPossible';
 				useWordReplacementView?: 'never' | 'whenPossible';
-				onlyShowWhenCloseToCursor?: boolean;
 				useGutterIndicator?: boolean;
 			};
 		};
@@ -7282,6 +7281,7 @@ declare namespace monaco.languages {
 		*/
 		readonly completeBracketPairs?: boolean;
 		readonly isInlineEdit?: boolean;
+		readonly showRange?: IRange;
 	}
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -8169,6 +8169,7 @@ declare namespace monaco.languages {
 	export interface IInlineEdit {
 		text: string;
 		range: IRange;
+		showRange?: IRange;
 		accepted?: Command;
 		rejected?: Command;
 		shown?: Command;
