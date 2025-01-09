@@ -246,7 +246,6 @@ class InternalTerminalShellIntegration extends Disposable {
 			env[keys[i]] = values[i];
 		}
 		this._env = env;
-		// TODO: Make sure env changed. If env doesnt change, dont fire event.
 		this._fireChangeEvent();
 	}
 
