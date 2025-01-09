@@ -143,7 +143,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return linearHistory.slice(linearHistoryIndex).map(s => s.requestId).filter((r): r is string => !!r);
 	});
 
-	private readonly _onDidChange = new Emitter<ChatEditingSessionChangeType>();
+	private readonly _onDidChange = this._register(new Emitter<ChatEditingSessionChangeType>());
 	get onDidChange() {
 		this._assertNotDisposed();
 		return this._onDidChange.event;
@@ -517,6 +517,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		super.dispose();
 		this._state.set(ChatEditingSessionState.Disposed, undefined);
 		this._onDidDispose.fire();
+		this._onDidDispose.dispose();
 	}
 
 	getVirtualModel(documentId: string): ITextModel | null {
