@@ -326,7 +326,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-			1, 1, 1, 500, 'none', true, true, null, 1
+			1, 1, 1, 500, 'none', true, true, null
 		);
 
 		const sb = new StringBuilder(2000);

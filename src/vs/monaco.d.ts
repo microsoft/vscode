@@ -1744,7 +1744,7 @@ declare namespace monaco.editor {
 		 */
 		glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 		/**
-		 * If set, the decoration will override the line height of the lines it spans. This can only increase the line height, not decrease it.
+		 * If set, the decoration will override the line height of the lines it spans.
 		 */
 		lineHeight?: number | null;
 		/**

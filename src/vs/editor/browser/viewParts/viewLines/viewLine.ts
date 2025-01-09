@@ -163,8 +163,7 @@ export class ViewLine implements IVisibleLine {
 			options.renderWhitespace,
 			options.renderControlCharacters,
 			options.fontLigatures !== EditorFontLigatures.OFF,
-			selectionsOnLine,
-			lineHeight
+			selectionsOnLine
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {

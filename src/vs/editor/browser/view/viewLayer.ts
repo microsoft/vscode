@@ -10,6 +10,7 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import * as viewEvents from '../../common/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
 
 /**
  * Represents a visible line
@@ -255,7 +256,8 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	private readonly _linesCollection: RenderedLinesCollection<T> = new RenderedLinesCollection<T>(this._lineFactory);
 
 	constructor(
-		private readonly _lineFactory: ILineFactory<T>
+		private readonly _lineFactory: ILineFactory<T>,
+		private readonly _viewContext: ViewContext
 	) {
 	}
 
@@ -343,7 +345,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 
 		const inp = this._linesCollection._get();
 
-		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData);
+		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData, this._viewContext);
 
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inp.rendLineNumberStart,
@@ -372,6 +374,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		private readonly _domNode: HTMLElement,
 		private readonly _lineFactory: ILineFactory<T>,
 		private readonly _viewportData: ViewportData,
+		private readonly _viewContext: ViewContext
 	) {
 	}
 
@@ -609,9 +612,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _lineHeightForLineNumber(lineNumber: number): number {
-		if (this._viewportData.specialLineHeights.has(lineNumber)) {
-			return this._viewportData.specialLineHeights.get(lineNumber)!;
-		}
-		return this._viewportData.lineHeight;
+		return this._viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
 	}
 }
