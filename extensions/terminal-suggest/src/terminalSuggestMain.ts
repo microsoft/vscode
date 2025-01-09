@@ -288,26 +288,18 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			// Handle arguments
-			if ('args' in spec && spec.args && asArray(spec.args)) {
-				const argsCompletionResult = handleArguments(specLabel, asArray(spec.args), terminalContext, precedingText);
-
-				if (argsCompletionResult) {
-					items.push(...argsCompletionResult.items);
-					filesRequested ||= argsCompletionResult.filesRequested;
-					foldersRequested ||= argsCompletionResult.foldersRequested;
-				}
+			const argsCompletionResult = handleArguments(specLabel, spec, terminalContext, precedingText);
+			if (argsCompletionResult) {
+				items.push(...argsCompletionResult.items);
+				filesRequested ||= argsCompletionResult.filesRequested;
+				foldersRequested ||= argsCompletionResult.foldersRequested;
 			}
 
-			// Handle options
-			if ('options' in spec && spec.options) {
-				const optionsCompletionResult = handleOptions(specLabel, spec.options, terminalContext, precedingText, prefix);
-
-				if (optionsCompletionResult) {
-					items.push(...optionsCompletionResult.items);
-					filesRequested ||= optionsCompletionResult.filesRequested;
-					foldersRequested ||= optionsCompletionResult.foldersRequested;
-				}
+			const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
+			if (optionsCompletionResult) {
+				items.push(...optionsCompletionResult.items);
+				filesRequested ||= optionsCompletionResult.filesRequested;
+				foldersRequested ||= optionsCompletionResult.foldersRequested;
 			}
 		}
 	}
@@ -342,7 +334,11 @@ export async function getCompletionItemsFromSpecs(
 	return { items, filesRequested, foldersRequested, cwd };
 }
 
-function handleArguments(specLabel: string, args: Fig.Arg[], terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
+function handleArguments(specLabel: string, spec: Fig.Spec, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
+	let args;
+	if ('args' in spec && spec.args && asArray(spec.args)) {
+		args = asArray(spec.args);
+	}
 	const expectedText = `${specLabel} `;
 
 	if (!precedingText.includes(expectedText)) {
@@ -359,7 +355,15 @@ function handleArguments(specLabel: string, args: Fig.Arg[], terminalContext: { 
 	return argsCompletions;
 }
 
-function handleOptions(specLabel: string, options: Fig.Option[], terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string, prefix: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
+function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string, prefix: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
+	let options;
+	if ('options' in spec && spec.options) {
+		options = spec.options;
+	}
+	if (!options) {
+		return;
+	}
+
 	const optionItems: vscode.TerminalCompletionItem[] = [];
 
 	for (const option of options) {
