@@ -218,7 +218,9 @@ export class GitBlameController {
 
 			// Remote commands
 			const defaultRemote = repository.getDefaultRemote();
-			if (defaultRemote?.fetchUrl) {
+			const unpublishedCommits = await repository.getUnpublishedCommits();
+
+			if (defaultRemote?.fetchUrl && !unpublishedCommits.has(blameInformation.hash)) {
 				remoteSourceCommands.push(...await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl));
 			}
 		}
