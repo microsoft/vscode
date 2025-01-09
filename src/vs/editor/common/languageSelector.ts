@@ -7,138 +7,139 @@ import { IRelativePattern, match as matchGlobPattern } from '../../base/common/g
 import { URI } from '../../base/common/uri.js';
 import { normalize } from '../../base/common/path.js';
 
+/** 
+ * Defines a language filter with various optional properties.
+ */
 export interface LanguageFilter {
-	readonly language?: string;
-	readonly scheme?: string;
-	readonly pattern?: string | IRelativePattern;
-	readonly notebookType?: string;
-	/**
-	 * This provider is implemented in the UI thread.
-	 */
-	readonly hasAccessToAllModels?: boolean;
-	readonly exclusive?: boolean;
-
-	/**
-	 * This provider comes from a builtin extension.
-	 */
-	readonly isBuiltin?: boolean;
+    readonly language?: string;
+    readonly scheme?: string;
+    readonly pattern?: string | IRelativePattern;
+    readonly notebookType?: string;
+    /** This provider is implemented in the UI thread. */
+    readonly hasAccessToAllModels?: boolean;
+    readonly exclusive?: boolean;
+    /** This provider comes from a builtin extension. */
+    readonly isBuiltin?: boolean;
 }
 
 export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;
 
-export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean, candidateNotebookUri: URI | undefined, candidateNotebookType: string | undefined): number {
+/**
+ * Scores the given candidate against the selector.
+ */
+export function score(
+    selector: LanguageSelector | undefined,
+    candidateUri: URI,
+    candidateLanguage: string,
+    candidateIsSynchronized: boolean,
+    candidateNotebookUri: URI | undefined,
+    candidateNotebookType: string | undefined
+): number {
 
-	if (Array.isArray(selector)) {
-		// array -> take max individual value
-		let ret = 0;
-		for (const filter of selector) {
-			const value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized, candidateNotebookUri, candidateNotebookType);
-			if (value === 10) {
-				return value; // already at the highest
-			}
-			if (value > ret) {
-				ret = value;
-			}
-		}
-		return ret;
+    // If selector is an array, take the max individual value
+    if (Array.isArray(selector)) {
+        return selector.reduce((maxScore, filter) => {
+            const value = score(
+                filter, candidateUri, candidateLanguage,
+                candidateIsSynchronized, candidateNotebookUri, candidateNotebookType
+            );
+            return Math.max(maxScore, value === 10 ? value : maxScore);
+        }, 0);
+    }
 
-	} else if (typeof selector === 'string') {
+    // If selector is a string, handle shorthand language matching
+    if (typeof selector === 'string') {
+        if (!candidateIsSynchronized) return 0;
+        if (selector === '*') return 5;
+        return selector === candidateLanguage ? 10 : 0;
+    }
 
-		if (!candidateIsSynchronized) {
-			return 0;
-		}
+    // If selector is a filter, match its properties
+    if (selector) {
+        const { language, pattern, scheme, hasAccessToAllModels, notebookType } = selector;
 
-		// short-hand notion, desugars to
-		// 'fooLang' -> { language: 'fooLang'}
-		// '*' -> { language: '*' }
-		if (selector === '*') {
-			return 5;
-		} else if (selector === candidateLanguage) {
-			return 10;
-		} else {
-			return 0;
-		}
+        if (!candidateIsSynchronized && !hasAccessToAllModels) {
+            return 0;
+        }
 
-	} else if (selector) {
-		// filter -> select accordingly, use defaults for scheme
-		const { language, pattern, scheme, hasAccessToAllModels, notebookType } = selector as LanguageFilter; // TODO: microsoft/TypeScript#42768
+        // Use notebook URI if selector targets a notebook
+        if (notebookType && candidateNotebookUri) {
+            candidateUri = candidateNotebookUri;
+        }
 
-		if (!candidateIsSynchronized && !hasAccessToAllModels) {
-			return 0;
-		}
+        let score = 0;
 
-		// selector targets a notebook -> use the notebook uri instead
-		// of the "normal" document uri.
-		if (notebookType && candidateNotebookUri) {
-			candidateUri = candidateNotebookUri;
-		}
+        // Match scheme
+        if (scheme) {
+            if (scheme === candidateUri.scheme) {
+                score = 10;
+            } else if (scheme === '*') {
+                score = Math.max(score, 5);
+            } else {
+                return 0;
+            }
+        }
 
-		let ret = 0;
+        // Match language
+        if (language) {
+            if (language === candidateLanguage) {
+                score = 10;
+            } else if (language === '*') {
+                score = Math.max(score, 5);
+            } else {
+                return 0;
+            }
+        }
 
-		if (scheme) {
-			if (scheme === candidateUri.scheme) {
-				ret = 10;
-			} else if (scheme === '*') {
-				ret = 5;
-			} else {
-				return 0;
-			}
-		}
+        // Match notebook type
+        if (notebookType) {
+            if (notebookType === candidateNotebookType) {
+                score = 10;
+            } else if (notebookType === '*' && candidateNotebookType !== undefined) {
+                score = Math.max(score, 5);
+            } else {
+                return 0;
+            }
+        }
 
-		if (language) {
-			if (language === candidateLanguage) {
-				ret = 10;
-			} else if (language === '*') {
-				ret = Math.max(ret, 5);
-			} else {
-				return 0;
-			}
-		}
+        // Match pattern (glob or string)
+        if (pattern) {
+            const normalizedPattern = normalizePattern(pattern);
+            if (normalizedPattern === candidateUri.fsPath || matchGlobPattern(normalizedPattern, candidateUri.fsPath)) {
+                score = 10;
+            } else {
+                return 0;
+            }
+        }
 
-		if (notebookType) {
-			if (notebookType === candidateNotebookType) {
-				ret = 10;
-			} else if (notebookType === '*' && candidateNotebookType !== undefined) {
-				ret = Math.max(ret, 5);
-			} else {
-				return 0;
-			}
-		}
+        return score;
+    }
 
-		if (pattern) {
-			let normalizedPattern: string | IRelativePattern;
-			if (typeof pattern === 'string') {
-				normalizedPattern = pattern;
-			} else {
-				// Since this pattern has a `base` property, we need
-				// to normalize this path first before passing it on
-				// because we will compare it against `Uri.fsPath`
-				// which uses platform specific separators.
-				// Refs: https://github.com/microsoft/vscode/issues/99938
-				normalizedPattern = { ...pattern, base: normalize(pattern.base) };
-			}
-
-			if (normalizedPattern === candidateUri.fsPath || matchGlobPattern(normalizedPattern, candidateUri.fsPath)) {
-				ret = 10;
-			} else {
-				return 0;
-			}
-		}
-
-		return ret;
-
-	} else {
-		return 0;
-	}
+    return 0;
 }
 
+/**
+ * Normalize the pattern to ensure consistent comparison.
+ */
+function normalizePattern(pattern: string | IRelativePattern): string | IRelativePattern {
+    if (typeof pattern === 'string') {
+        return pattern;
+    } else {
+        return { ...pattern, base: normalize(pattern.base) };
+    }
+}
 
+/**
+ * Check if the selector targets notebooks.
+ */
 export function targetsNotebooks(selector: LanguageSelector): boolean {
-	if (typeof selector === 'string') {
-		return false;
-	} else if (Array.isArray(selector)) {
-		return selector.some(targetsNotebooks);
-	} else {
-		return !!(<LanguageFilter>selector).notebookType;
+    if (typeof selector === 'string') {
+        return false;
+    }
+
+    if (Array.isArray(selector)) {
+        return selector.some(targetsNotebooks);
+    }
+
+    return !!(selector as LanguageFilter).notebookType;
 	}
-}
