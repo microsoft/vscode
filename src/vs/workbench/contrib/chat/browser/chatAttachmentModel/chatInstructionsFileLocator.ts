@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { dirname, extUri } from '../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
@@ -69,13 +70,26 @@ export class ChatInstructionsFileLocator {
 			return [];
 		}
 
+		const sourceLocations = this.getSourceLocationsConfigValue();
+		const result = [];
+
 		// otherwise for each folder provided in the configuration, create
 		// a URI per each folder in the current workspace
-		const result = [];
 		const { folders } = this.workspaceService.getWorkspace();
 		for (const folder of folders) {
-			for (const folderName of this.getSourceLocationsConfigValue()) {
-				const folderUri = URI.joinPath(folder.uri, folderName);
+			for (const sourceFolderName of sourceLocations) {
+				const folderUri = extUri.resolvePath(folder.uri, sourceFolderName);
+				result.push(folderUri);
+			}
+		}
+
+		// if inside a workspace, add the specified source locations inside the workspace
+		// root too, to allow users to use `.copilot/prompts` folder (or whatever they
+		// specify in the setting) in the workspace root
+		if (folders.length > 1) {
+			const workspaceRootUri = dirname(folders[0].uri);
+			for (const sourceFolderName of sourceLocations) {
+				const folderUri = extUri.resolvePath(workspaceRootUri, sourceFolderName);
 				result.push(folderUri);
 			}
 		}
