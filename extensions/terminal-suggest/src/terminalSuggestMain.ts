@@ -164,7 +164,7 @@ function createCompletionItem(cursorPosition: number, prefix: string, label: str
 		label,
 		detail: description ?? '',
 		replacementIndex: cursorPosition - lastWord.length,
-		replacementLength: lastWord.length > 0 ? lastWord.length : cursorPosition,
+		replacementLength: lastWord.length,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
 	};
 }
@@ -375,8 +375,8 @@ function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { com
 
 		for (const optionLabel of optionLabels) {
 			if (
-				optionItems.find((i) => i.label === optionLabel) ||
-				(!optionLabel.startsWith(prefix.trim()) && prefix.trim() !== specLabel)
+				// Already includes this option
+				optionItems.find((i) => i.label === optionLabel)
 			) {
 				continue;
 			}
