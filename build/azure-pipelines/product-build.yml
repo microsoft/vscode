@@ -179,8 +179,8 @@ extends:
   parameters:
     sdl:
       binskim:
-        enabled: false
-        justificationForDisabling: "BinSkim rebaselining is failing"
+        enabled: true
+        scanOutputDirectoryOnly: true
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
