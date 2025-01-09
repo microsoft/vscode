@@ -1640,6 +1640,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 						return true;
 					},
 				});
+			},
+			inspect: (key: string) => {
+				return {};
 			}
 		});
 	}
