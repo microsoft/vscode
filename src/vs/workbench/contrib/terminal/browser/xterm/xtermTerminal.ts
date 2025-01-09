@@ -303,8 +303,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 					this._onDidChangeProgress.fire(this._progressState);
 				}
 			};
-			// TODO: Remove ! when addon-progress updates
-			this._register(progressAddon.onChange!(() => updateProgress()));
+			this._register(progressAddon.onChange(() => updateProgress()));
 			updateProgress();
 		});
 
