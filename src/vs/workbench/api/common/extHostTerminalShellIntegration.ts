@@ -56,7 +56,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 
 		// Convenient test code:
 		this.onDidChangeTerminalShellIntegration(e => {
-			console.log('*** onDidChangeTerminalShellIntegration', e);
+			console.log('*** onDidChangeTerminalShellIntegration', e.shellIntegration.env);
 		});
 		this.onDidStartTerminalShellExecution(async e => {
 			console.log('*** onDidStartTerminalShellExecution', e);
