@@ -757,7 +757,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 						version: this.productService.version,
 						date: this.productService.date
 					}
-				});
+				}, undefined, extensionInfo.preRelease ? 'prerelease' : 'release');
 
 				if (extension) {
 					result.push(extension);
@@ -1060,7 +1060,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return { extensions: result.sort((a, b) => a[0] - b[0]).map(([, extension]) => extension), total };
 	}
 
-	private async toGalleryExtensionWithCriteria(rawGalleryExtension: IRawGalleryExtension, criteria: IExtensionCriteria, queryContext?: IStringDictionary<any>): Promise<IGalleryExtension | null> {
+	private async toGalleryExtensionWithCriteria(rawGalleryExtension: IRawGalleryExtension, criteria: IExtensionCriteria, queryContext?: IStringDictionary<any>, versionType?: 'release' | 'prerelease' | 'any'): Promise<IGalleryExtension | null> {
 
 		const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
 		const version = criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version;
@@ -1082,7 +1082,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				extensionIdentifier.id,
 				rawGalleryExtensionVersion,
 				rawGalleryExtension.publisher.displayName,
-				includePreRelease ? 'any' : 'release',
+				versionType ?? (includePreRelease ? 'any' : 'release'),
 				criteria.compatible,
 				allTargetPlatforms,
 				criteria.targetPlatform,

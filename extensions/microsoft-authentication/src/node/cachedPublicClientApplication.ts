@@ -93,6 +93,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
 		// Check expiration of id token and if it's 5min before expiration, force a refresh.
 		// this is what MSAL does for access tokens already so we're just adding it for id tokens since we care about those.
+		// NOTE: Once we stop depending on id tokens for some things we can remove all of this.
 		const idTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
 		if (idTokenExpirationInSecs) {
 			const fiveMinutesBefore = new Date(
@@ -106,12 +107,35 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 					? { ...request, claims: '{ "id_token": {}}' }
 					: { ...request, forceRefresh: true };
 				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
-				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got refreshed result`);
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result`);
 			}
 			const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
 			if (newIdTokenExpirationInSecs) {
-				if (new Date(newIdTokenExpirationInSecs * 1000) < new Date()) {
+				const fiveMinutesBefore = new Date(
+					(newIdTokenExpirationInSecs - 5 * 60) // subtract 5 minutes
+					* 1000 // convert to milliseconds
+				);
+				if (fiveMinutesBefore < new Date()) {
 					this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is still expired.`);
+
+					// HACK: Only for the Broker we try one more time with different claims to force a refresh. Why? We've seen the Broker caching tokens by the claims requested, thus
+					// there has been a situation where both tokens are expired.
+					if (this._isBrokerAvailable) {
+						this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] forcing refresh with different claims...`);
+						const newRequest = { ...request, claims: '{ "access_token": {}}' };
+						result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
+						this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result with different claims`);
+						const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
+						if (newIdTokenExpirationInSecs) {
+							const fiveMinutesBefore = new Date(
+								(newIdTokenExpirationInSecs - 5 * 60) // subtract 5 minutes
+								* 1000 // convert to milliseconds
+							);
+							if (fiveMinutesBefore < new Date()) {
+								this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is still expired.`);
+							}
+						}
+					}
 				}
 			}
 		}

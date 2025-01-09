@@ -125,8 +125,7 @@ class EditTool implements IToolData, IToolImpl {
 		}
 
 		const result = await this.codeMapperService.mapCode({
-			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: parameters.explanation }],
-			conversation: []
+			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: parameters.explanation }]
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });
