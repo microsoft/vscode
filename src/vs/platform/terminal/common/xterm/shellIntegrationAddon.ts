@@ -244,7 +244,6 @@ const enum VSCodeOscPt {
 	EnvEntry = 'EnvEntry',
 
 	EnvEnd = 'EnvEnd'
-
 }
 
 /**

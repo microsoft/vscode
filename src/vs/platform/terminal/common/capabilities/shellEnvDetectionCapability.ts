@@ -57,5 +57,5 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 			return;
 		}
 		this._onDidChangeEnv.fire(this._env);
-	}
+  }
 }
