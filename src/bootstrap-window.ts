@@ -199,7 +199,7 @@
 			document.head.appendChild(style);
 
 			globalThis._VSCODE_CSS_LOAD = function (url) {
-				style.textContent += `@import url(${url});\n`;
+				style.textContent += `@import url(${url}?_nocache=${Date.now()});\n`;
 			};
 
 			const importMap: { imports: Record<string, string> } = { imports: {} };
