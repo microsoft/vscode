@@ -286,33 +286,36 @@ export class DebugTaskRunner implements IDisposable {
 					}
 				}, waitTime));
 
-				// Notification shown on any task taking a while to resolve
-				store.add(disposableTimeout(() => {
-					const message = nls.localize('runningTask', "Waiting for preLaunchTask '{0}'...", task.configurationProperties.name);
-					const buttons = [DEBUG_ANYWAY_LABEL_NO_MEMO, ABORT_LABEL];
-					const canConfigure = task instanceof CustomTask || task instanceof ConfiguringTask;
-					if (canConfigure) {
-						buttons.splice(1, 0, nls.localize('configureTask', "Configure Task"));
-					}
+				const hideSlowPreLaunchWarning = this.configurationService.getValue<IDebugConfiguration>('debug').hideSlowPreLaunchWarning;
+				if (!hideSlowPreLaunchWarning) {
+					// Notification shown on any task taking a while to resolve
+					store.add(disposableTimeout(() => {
+						const message = nls.localize('runningTask', "Waiting for preLaunchTask '{0}'...", task.configurationProperties.name);
+						const buttons = [DEBUG_ANYWAY_LABEL_NO_MEMO, ABORT_LABEL];
+						const canConfigure = task instanceof CustomTask || task instanceof ConfiguringTask;
+						if (canConfigure) {
+							buttons.splice(1, 0, nls.localize('configureTask', "Configure Task"));
+						}
 
-					this.progressService.withProgress(
-						{ location: ProgressLocation.Notification, title: message, buttons },
-						() => result.catch(() => { }),
-						(choice) => {
-							if (choice === undefined) {
-								// no-op, keep waiting
-							} else if (choice === 0) { // debug anyway
-								resolve({ exitCode: 0 });
-							} else { // abort or configure
-								resolve({ exitCode: undefined, cancelled: true });
-								this.taskService.terminate(task).catch(() => { });
-								if (canConfigure && choice === 1) { // configure
-									this.taskService.openConfig(task as CustomTask);
+						this.progressService.withProgress(
+							{ location: ProgressLocation.Notification, title: message, buttons },
+							() => result.catch(() => { }),
+							(choice) => {
+								if (choice === undefined) {
+									// no-op, keep waiting
+								} else if (choice === 0) { // debug anyway
+									resolve({ exitCode: 0 });
+								} else { // abort or configure
+									resolve({ exitCode: undefined, cancelled: true });
+									this.taskService.terminate(task).catch(() => { });
+									if (canConfigure && choice === 1) { // configure
+										this.taskService.openConfig(task as CustomTask);
+									}
 								}
 							}
-						}
-					);
-				}, 10_000));
+						);
+					}, 10_000));
+				}
 			}));
 		});
 

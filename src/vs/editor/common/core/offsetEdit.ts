@@ -125,7 +125,9 @@ export class OffsetEdit {
 	 * For that, we compute `tm' := t1 o base o this.rebase(base)`
 	 * such that `tm' === tm`.
 	 */
-	tryRebase(base: OffsetEdit): OffsetEdit {
+	tryRebase(base: OffsetEdit): OffsetEdit;
+	tryRebase(base: OffsetEdit, noOverlap: true): OffsetEdit | undefined;
+	tryRebase(base: OffsetEdit, noOverlap?: true): OffsetEdit | undefined {
 		const newEdits: SingleOffsetEdit[] = [];
 
 		let baseIdx = 0;
@@ -147,8 +149,11 @@ export class OffsetEdit {
 					ourEdit.newText,
 				));
 				ourIdx++;
-			} else if (ourEdit.replaceRange.intersects(baseEdit.replaceRange)) {
+			} else if (ourEdit.replaceRange.intersectsOrTouches(baseEdit.replaceRange)) {
 				ourIdx++; // Don't take our edit, as it is conflicting -> skip
+				if (noOverlap) {
+					return undefined;
+				}
 			} else if (ourEdit.replaceRange.start < baseEdit.replaceRange.start) {
 				// Our edit starts first
 				newEdits.push(new SingleOffsetEdit(
@@ -223,6 +228,10 @@ export class SingleOffsetEdit {
 		return new SingleOffsetEdit(OffsetRange.emptyAt(offset), text);
 	}
 
+	public static replace(range: OffsetRange, text: string): SingleOffsetEdit {
+		return new SingleOffsetEdit(range, text);
+	}
+
 	constructor(
 		public readonly replaceRange: OffsetRange,
 		public readonly newText: string,
@@ -234,6 +243,14 @@ export class SingleOffsetEdit {
 
 	get isEmpty() {
 		return this.newText.length === 0 && this.replaceRange.length === 0;
+	}
+
+	apply(str: string): string {
+		return str.substring(0, this.replaceRange.start) + this.newText + str.substring(this.replaceRange.endExclusive);
+	}
+
+	getRangeAfterApply(): OffsetRange {
+		return new OffsetRange(this.replaceRange.start, this.replaceRange.start + this.newText.length);
 	}
 }
 

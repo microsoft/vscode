@@ -6,6 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -55,6 +56,8 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      isHidden: false,
       result: { metadata: { metadataKey: "value" } },
       followups: [
         {
@@ -82,6 +85,7 @@
         slashCommands: [  ],
         disambiguation: [  ]
       },
+      workingSet: undefined,
       slashCommand: undefined,
       usedContext: {
         documents: [
@@ -101,9 +105,11 @@
         kind: "usedContext"
       },
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined
     },
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -125,6 +131,8 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      isHidden: false,
       result: {  },
       followups: [  ],
       isCanceled: false,
@@ -146,10 +154,12 @@
         disambiguation: [  ],
         isDefault: true
       },
+      workingSet: undefined,
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined
     }
   ]
 }

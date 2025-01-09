@@ -11,7 +11,7 @@ import { IRemoteAgentService, IRemoteAgentConnection } from '../../remote/common
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
-import { request } from '../../../../base/parts/request/browser/request.js';
+import { request } from '../../../../base/parts/request/common/requestImpl.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class BrowserRequestService extends AbstractRequestService implements IRequestService {
@@ -31,7 +31,7 @@ export class BrowserRequestService extends AbstractRequestService implements IRe
 			if (!options.proxyAuthorization) {
 				options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
 			}
-			const context = await this.logAndRequest(options, () => request(options, token));
+			const context = await this.logAndRequest(options, () => request(options, token, () => navigator.onLine));
 
 			const connection = this.remoteAgentService.getConnection();
 			if (connection && context.res.statusCode === 405) {

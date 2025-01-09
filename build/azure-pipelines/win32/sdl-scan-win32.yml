@@ -21,7 +21,7 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
@@ -139,6 +139,19 @@ steps:
       flattenFolders: true
     condition: succeeded()
 
+  - task: PublishSymbols@2
+    inputs:
+      IndexSources: false
+      SymbolsFolder: '$(Agent.BuildDirectory)\symbols'
+      SearchPattern: '**\*.pdb'
+      SymbolServerType: TeamServices
+      SymbolsProduct: 'code'
+      ArtifactServices.Symbol.AccountName: microsoft
+      ArtifactServices.Symbol.PAT: $(System.AccessToken)
+      ArtifactServices.Symbol.UseAAD: false
+    displayName: Publish Symbols
+    condition: succeeded()
+
   - task: APIScan@2
     inputs:
       softwareFolder: $(Agent.BuildDirectory)\scanbin
@@ -151,7 +164,7 @@ steps:
     displayName: Run ApiScan
     condition: succeeded()
     env:
-      AzureServicesAuthConnectionString: $(apiscan-connectionstring)
+      AzureServicesAuthConnectionString: RunAs=App;AppId=c0940da5-8bd3-4dd3-8af1-40774b50edbd;TenantId=72f988bf-86f1-41af-91ab-2d7cd011db47;ServiceConnectionId=3e55d992-b60d-414d-9071-e4fad359c748;
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
   - task: PublishSecurityAnalysisLogs@3

@@ -75,14 +75,13 @@ export interface ICommonNativeHostService {
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
 	getActiveWindowPosition(): Promise<IRectangle | undefined>;
+	getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
-
-	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
@@ -114,6 +113,9 @@ export interface ICommonNativeHostService {
 	 */
 	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
 
+	// Titlebar default style override
+	overrideDefaultTitlebarStyle(style: 'custom' | undefined): Promise<void>;
+
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
 	showSaveDialog(options: SaveDialogOptions & INativeHostOptions): Promise<SaveDialogReturnValue>;
@@ -142,6 +144,9 @@ export interface ICommonNativeHostService {
 	getOSColorScheme(): Promise<IColorScheme>;
 
 	hasWSLFeatureInstalled(): Promise<boolean>;
+
+	// Screenshots
+	getScreenshot(): Promise<ArrayBufferLike | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
@@ -181,6 +186,7 @@ export interface ICommonNativeHostService {
 	// Development
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
+	openGPUInfoWindow(): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
@@ -192,7 +198,7 @@ export interface ICommonNativeHostService {
 	loadCertificates(): Promise<string[]>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 
-	// Registry (windows only)
+	// Registry (Windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
 }
 

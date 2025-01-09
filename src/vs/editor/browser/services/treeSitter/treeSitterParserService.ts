@@ -5,7 +5,7 @@
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from '../../../common/services/treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter } from '../../../common/services/treeSitterParserService.js';
 import { IModelService } from '../../../common/services/model.js';
 import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../../common/model.js';
@@ -31,7 +31,7 @@ function getModuleLocation(environmentService: IEnvironmentService): AppResource
 	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
 }
 
-export class TextModelTreeSitter extends Disposable {
+export class TextModelTreeSitter extends Disposable implements ITextModelTreeSitter {
 	private _onDidChangeParseResult: Emitter<Range[]> = this._register(new Emitter<Range[]>());
 	public readonly onDidChangeParseResult: Event<Range[]> = this._onDidChangeParseResult.event;
 	private _parseResult: TreeSitterParseResult | undefined;
@@ -42,10 +42,15 @@ export class TextModelTreeSitter extends Disposable {
 		private readonly _treeSitterLanguages: TreeSitterLanguages,
 		private readonly _treeSitterImporter: TreeSitterImporter,
 		private readonly _logService: ILogService,
-		private readonly _telemetryService: ITelemetryService
+		private readonly _telemetryService: ITelemetryService,
+		parseImmediately: boolean = true
 	) {
 		super();
-		this._register(Event.runAndSubscribe(this.model.onDidChangeLanguage, (e => this._onDidChangeLanguage(e ? e.newLanguage : this.model.getLanguageId()))));
+		if (parseImmediately) {
+			this._register(Event.runAndSubscribe(this.model.onDidChangeLanguage, (e => this._onDidChangeLanguage(e ? e.newLanguage : this.model.getLanguageId()))));
+		} else {
+			this._register(this.model.onDidChangeLanguage(e => this._onDidChangeLanguage(e ? e.newLanguage : this.model.getLanguageId())));
+		}
 	}
 
 	private readonly _languageSessionDisposables = this._register(new DisposableStore());
@@ -53,6 +58,10 @@ export class TextModelTreeSitter extends Disposable {
 	 * Be very careful when making changes to this method as it is easy to introduce race conditions.
 	 */
 	private async _onDidChangeLanguage(languageId: string) {
+		this.parse(languageId);
+	}
+
+	public async parse(languageId: string = this.model.getLanguageId()): Promise<ITreeSitterParseResult | undefined> {
 		this._languageSessionDisposables.clear();
 		this._parseResult = undefined;
 
@@ -80,6 +89,7 @@ export class TextModelTreeSitter extends Disposable {
 		}
 
 		this._parseResult = treeSitterTree;
+		return this._parseResult;
 	}
 
 	private _getLanguage(languageId: string, token: CancellationToken): Promise<Parser.Language> {
@@ -457,6 +467,10 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 			this._textModelTreeSitters.deleteAndDispose(model);
 		}));
 		this._modelService.getModels().forEach(model => this._createTextModelTreeSitter(model));
+	}
+
+	public getTextModelTreeSitter(model: ITextModel): ITextModelTreeSitter {
+		return new TextModelTreeSitter(model, this._treeSitterLanguages, this._treeSitterImporter, this._logService, this._telemetryService, false);
 	}
 
 	private _createTextModelTreeSitter(model: ITextModel) {

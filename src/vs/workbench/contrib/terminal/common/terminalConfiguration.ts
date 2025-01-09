@@ -24,6 +24,9 @@ const terminalDescriptors = '\n- ' + [
 	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when surrounded by variables with values or static text.", '(` - `)'),
 	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
+	'`\${shellType}`: ' + localize('shellType', "the detected shell type"),
+	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration. This also requires high confidence in the detected command line which may not work in some prompt frameworks."),
+	'`\${shellPromptInput}`: ' + localize('shellPromptInput', "the shell's full prompt input according to shell integration"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 let terminalTitle = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
@@ -171,12 +174,33 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 			type: 'string'
 		},
-		// TODO: Support font ligatures
-		// 'terminal.integrated.fontLigatures': {
-		// 	'description': localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
-		// 	'type': 'boolean',
-		// 	'default': false
-		// },
+		[TerminalSettingId.FontLigaturesEnabled]: {
+			markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.FontLigaturesFeatureSettings]: {
+			markdownDescription: localize('terminal.integrated.fontLigatures.featureSettings', "Controls what font feature settings are used when ligatures are enabled, in the format of the `font-feature-settings` CSS property. Some examples which may be valid depending on the font:") + '\n\n- ' + [
+				`\`"calt" off, "ss03"\``,
+				`\`"liga" on"\``,
+				`\`"calt" off, "dlig" on\``
+			].join('\n- '),
+			type: 'string',
+			default: '"calt" on'
+		},
+		[TerminalSettingId.FontLigaturesFallbackLigatures]: {
+			markdownDescription: localize('terminal.integrated.fontLigatures.fallbackLigatures', "When {0} is enabled and the particular {1} cannot be parsed, this is the set of character sequences that will always be drawn together. This allows the use of a fixed set of ligatures even when the font isn't supported.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.FontFamily}#\``),
+			type: 'array',
+			items: [{ type: 'string' }],
+			default: [
+				'<--', '<---', '<<-', '<-', '->', '->>', '-->', '--->',
+				'<==', '<===', '<<=', '<=', '=>', '=>>', '==>', '===>', '>=', '>>=',
+				'<->', '<-->', '<--->', '<---->', '<=>', '<==>', '<===>', '<====>', '::', ':::',
+				'<~~', '</', '</>', '/>', '~~>', '==', '!=', '/=', '~=', '<>', '===', '!==', '!===',
+				'<:', ':=', '*=', '*+', '<*', '<*>', '*>', '<|', '<|>', '|>', '+*', '=*', '=:', ':>',
+				'/*', '*/', '+++', '<!--', '<!---'
+			]
+		},
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',
@@ -363,7 +387,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'never'
 		},
 		[TerminalSettingId.ConfirmOnKill]: {
-			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as changed when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell."),
+			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as changed when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell. Background terminals like those launched by some extensions will not trigger the confirmation."),
 			type: 'string',
 			enum: ['never', 'editor', 'panel', 'always'],
 			enumDescriptions: [
@@ -457,8 +481,9 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.ExperimentalWindowsUseConptyDll]: {
-			markdownDescription: localize('terminal.integrated.experimentalWindowsUseConptyDll', "Whether to use the experimental conpty.dll shipped with VS Code, instead of the one bundled with Windows."),
+			markdownDescription: localize('terminal.integrated.experimentalWindowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.20.240626001) shipped with VS Code, instead of the one bundled with Windows."),
 			type: 'boolean',
+			tags: ['experimental'],
 			default: false
 		},
 		[TerminalSettingId.SplitCwd]: {
@@ -546,6 +571,11 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'never'
 		},
+		[TerminalSettingId.HideOnLastClosed]: {
+			description: localize('terminal.integrated.hideOnLastClosed', "Whether to hide the terminal view when the last terminal is closed. This will only happen when the terminal is the only visible view in the view container."),
+			type: 'boolean',
+			default: true
+		},
 		[TerminalSettingId.CustomGlyphs]: {
 			markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
@@ -558,7 +588,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ShellIntegrationEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh, git bash\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
+			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh, git bash\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegration.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
 			type: 'boolean',
 			default: true
 		},
@@ -587,7 +617,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.EnableImages]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS, Windows support will light up automatically when ConPTY passes through the sequences. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
+			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS. This will only work on Windows for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.ExperimentalWindowsUseConptyDll}#\``),
 			type: 'boolean',
 			default: false
 		},

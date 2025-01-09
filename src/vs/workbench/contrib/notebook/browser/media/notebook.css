@@ -33,9 +33,6 @@
 	z-index: 600 !important;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .overlayWidgets {
-	z-index: 638 !important;
-}
 
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div.parameter-hints-widget {
 	z-index: 639 !important;
@@ -452,6 +449,11 @@
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 }
 
+/** Notebook Textual Selection Highlight */
+.nb-selection-highlight {
+	background-color: var(--vscode-editor-selectionBackground);
+}
+
 /** Cell Multi-Cursor Cursor highlight */
 /* -- base selection styling -- */
 .nb-multicursor-selection {
@@ -645,10 +647,4 @@
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-chatGenerationHighlight .cell-focus-indicator,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-chatGenerationHighlight {
 	background-color: var(--vscode-notebook-selectedCellBackground) !important;
-}
-
-/** Avoid Zone Widget hide cell editor focus indicator partially **/
-.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .zone-widget {
-	margin-left: 1px;
-	margin-right: 1px;
 }

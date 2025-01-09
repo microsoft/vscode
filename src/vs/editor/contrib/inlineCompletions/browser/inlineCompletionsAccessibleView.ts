@@ -28,7 +28,7 @@ export class InlineCompletionsAccessibleView implements IAccessibleViewImplentat
 		}
 
 		const model = InlineCompletionsController.get(editor)?.model.get();
-		if (!model?.state.get()) {
+		if (!model?.inlineCompletionState.get()) {
 			return;
 		}
 
@@ -51,7 +51,7 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 	public readonly options = { language: this._editor.getModel()?.getLanguageId() ?? undefined, type: AccessibleViewType.View };
 
 	public provideContent(): string {
-		const state = this._model.state.get();
+		const state = this._model.inlineCompletionState.get();
 		if (!state) {
 			throw new Error('Inline completion is visible but state is not available');
 		}

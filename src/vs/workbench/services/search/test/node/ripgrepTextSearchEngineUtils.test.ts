@@ -7,7 +7,7 @@ import assert from 'assert';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine.js';
-import { Range, TextSearchMatchNew, TextSearchQueryNew, TextSearchResultNew } from '../../common/searchExtTypes.js';
+import { Range, TextSearchMatch2, TextSearchQuery2, TextSearchResult2 } from '../../common/searchExtTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RipgrepTextSearchOptions } from '../../common/searchExtTypesInternal.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from '../../common/search.js';
@@ -106,10 +106,10 @@ suite('RipgrepTextSearchEngine', () => {
 	suite('RipgrepParser', () => {
 		const TEST_FOLDER = URI.file('/foo/bar');
 
-		function testParser(inputData: string[], expectedResults: TextSearchResultNew[]): void {
+		function testParser(inputData: string[], expectedResults: TextSearchResult2[]): void {
 			const testParser = new RipgrepParser(1000, TEST_FOLDER, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS);
 
-			const actualResults: TextSearchResultNew[] = [];
+			const actualResults: TextSearchResult2[] = [];
 			testParser.on('result', r => {
 				actualResults.push(r);
 			});
@@ -148,7 +148,7 @@ suite('RipgrepTextSearchEngine', () => {
 					makeRgMatch('file1.js', 'foobar', 4, [{ start: 3, end: 6 }])
 				],
 				[
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'file1.js'),
 						[{
 							previewRange: new Range(0, 3, 0, 6),
@@ -167,7 +167,7 @@ suite('RipgrepTextSearchEngine', () => {
 					makeRgMatch('app2/file3.js', 'foobar', 4, [{ start: 3, end: 6 }]),
 				],
 				[
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'file1.js'),
 						[{
 							previewRange: new Range(0, 3, 0, 6),
@@ -175,7 +175,7 @@ suite('RipgrepTextSearchEngine', () => {
 						}],
 						'foobar'
 					),
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'app/file2.js'),
 						[{
 							previewRange: new Range(0, 3, 0, 6),
@@ -183,7 +183,7 @@ suite('RipgrepTextSearchEngine', () => {
 						}],
 						'foobar'
 					),
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'app2/file3.js'),
 						[{
 							previewRange: new Range(0, 3, 0, 6),
@@ -212,7 +212,7 @@ suite('RipgrepTextSearchEngine', () => {
 					dataStrs[2].substring(25)
 				],
 				[
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'file1.js'),
 						[{
 							previewRange: new Range(0, 3, 0, 7),
@@ -220,7 +220,7 @@ suite('RipgrepTextSearchEngine', () => {
 						}],
 						'foo bar'
 					),
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'app/file2.js'),
 						[{
 							previewRange: new Range(0, 3, 0, 6),
@@ -228,7 +228,7 @@ suite('RipgrepTextSearchEngine', () => {
 						}],
 						'foobar'
 					),
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'app2/file3.js'),
 						[{
 							previewRange: new Range(0, 3, 0, 6),
@@ -247,7 +247,7 @@ suite('RipgrepTextSearchEngine', () => {
 					makeRgMatch('file1.js', '', 5, []),
 				],
 				[
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'file1.js'),
 						[
 							{
@@ -257,7 +257,7 @@ suite('RipgrepTextSearchEngine', () => {
 						],
 						'foobar'
 					),
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'file1.js'),
 						[
 							{
@@ -276,7 +276,7 @@ suite('RipgrepTextSearchEngine', () => {
 					makeRgMatch('file1.js', 'foobarbazquux', 4, [{ start: 0, end: 4 }, { start: 6, end: 10 }]),
 				],
 				[
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'file1.js'),
 						[
 							{
@@ -299,7 +299,7 @@ suite('RipgrepTextSearchEngine', () => {
 					makeRgMatch('file1.js', 'foo\nbar\nbaz\nquux', 4, [{ start: 0, end: 5 }, { start: 8, end: 13 }]),
 				],
 				[
-					new TextSearchMatchNew(
+					new TextSearchMatch2(
 						joinPath(TEST_FOLDER, 'file1.js'),
 						[
 							{
@@ -321,7 +321,7 @@ suite('RipgrepTextSearchEngine', () => {
 		test('simple includes', () => {
 			// Only testing the args that come from includes.
 			function testGetRgArgs(includes: string[], expectedFromIncludes: string[]): void {
-				const query: TextSearchQueryNew = {
+				const query: TextSearchQuery2 = {
 					pattern: 'test'
 				};
 

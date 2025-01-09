@@ -58,7 +58,6 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_CELL_LIST_FOCUSED,
 						ContextKeyExpr.not(InputFocusedContextKey),
-						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 						EditorContextKeys.hoverFocused.toNegated(),
 						NOTEBOOK_OUTPUT_INPUT_FOCUSED.toNegated()
 					),
@@ -80,7 +79,7 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		if (!context.notebookEditor.hasModel() || context.notebookEditor.isReadOnly) {
+		if (!context.notebookEditor.hasModel()) {
 			return;
 		}
 

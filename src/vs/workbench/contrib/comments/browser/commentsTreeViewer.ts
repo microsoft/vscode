@@ -34,7 +34,7 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { CommentsModel } from './commentsModel.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { createActionViewItem, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
@@ -169,12 +169,7 @@ export class CommentsMenus implements IDisposable {
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 
 		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary, menu };
-		createAndFillInContextMenuActions(menu, result, 'inline');
-
-		return result;
+		return getContextMenuActions(menu, 'inline');
 	}
 
 	dispose() {
@@ -254,6 +249,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const textDescription = dom.$('');
 			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
 			image.parentNode!.replaceChild(textDescription, image);
+		}
+		const headings = [...renderedComment.element.getElementsByTagName('h1'), ...renderedComment.element.getElementsByTagName('h2'), ...renderedComment.element.getElementsByTagName('h3'), ...renderedComment.element.getElementsByTagName('h4'), ...renderedComment.element.getElementsByTagName('h5'), ...renderedComment.element.getElementsByTagName('h6')];
+		for (const heading of headings) {
+			const textNode = document.createTextNode(heading.textContent || '');
+			heading.parentNode!.replaceChild(textNode, heading);
 		}
 		while ((renderedComment.element.children.length > 1) && (renderedComment.element.firstElementChild?.tagName === 'HR')) {
 			renderedComment.element.removeChild(renderedComment.element.firstElementChild);

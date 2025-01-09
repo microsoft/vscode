@@ -135,7 +135,7 @@ export class DebugHoverWidget implements IContentWidget {
 		const tip = dom.append(this.complexValueContainer, $('.tip'));
 		tip.textContent = nls.localize({ key: 'quickTip', comment: ['"switch to editor language hover" means to show the programming language hover widget instead of the debug hover'] }, 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
 		const dataSource = this.instantiationService.createInstance(DebugHoverDataSource);
-		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree<IExpression, IExpression, any>, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [
 			this.instantiationService.createInstance(VariablesRenderer, this.expressionRenderer),
 			this.instantiationService.createInstance(VisualizedVariableRenderer, this.expressionRenderer),
 		],
@@ -309,6 +309,7 @@ export class DebugHoverWidget implements IContentWidget {
 			}));
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
+			this.safeTriangle = mouseEvent && new dom.SafeTriangle(mouseEvent.posx, mouseEvent.posy, this.domNode);
 			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
@@ -323,10 +324,10 @@ export class DebugHoverWidget implements IContentWidget {
 		this.expressionToRender = expression;
 		store.add(this.expressionRenderer.renderValue(this.complexValueTitle, expression, { hover: false, session }));
 		this.editor.layoutContentWidget(this);
+		this.safeTriangle = mouseEvent && new dom.SafeTriangle(mouseEvent.posx, mouseEvent.posy, this.domNode);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
 		this.complexValueContainer.hidden = false;
-		this.safeTriangle = mouseEvent && new dom.SafeTriangle(mouseEvent.posx, mouseEvent.posy, this.domNode);
 
 		if (focus) {
 			this.editor.render();

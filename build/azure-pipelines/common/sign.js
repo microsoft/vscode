@@ -105,37 +105,61 @@ function getParams(type) {
                     toolName: 'sign',
                     toolVersion: '1.0'
                 }];
+        case 'nuget':
+            return [{
+                    keyCode: 'CP-401405',
+                    operationSetCode: 'NuGetSign',
+                    parameters: [],
+                    toolName: 'sign',
+                    toolVersion: '1.0'
+                }, {
+                    keyCode: 'CP-401405',
+                    operationSetCode: 'NuGetVerify',
+                    parameters: [],
+                    toolName: 'sign',
+                    toolVersion: '1.0'
+                }];
         default:
             throw new Error(`Sign type ${type} not found`);
     }
 }
-function main([esrpCliPath, type, cert, username, password, folderPath, pattern]) {
+function main([esrpCliPath, type, folderPath, pattern]) {
     const tmp = new Temp();
     process.on('exit', () => tmp.dispose());
+    const key = crypto.randomBytes(32);
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    const encryptedToken = cipher.update(process.env['SYSTEM_ACCESSTOKEN'].trim(), 'utf8', 'hex') + cipher.final('hex');
+    const encryptionDetailsPath = tmp.tmpNameSync();
+    fs.writeFileSync(encryptionDetailsPath, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
+    const encryptedTokenPath = tmp.tmpNameSync();
+    fs.writeFileSync(encryptedTokenPath, encryptedToken);
     const patternPath = tmp.tmpNameSync();
     fs.writeFileSync(patternPath, pattern);
     const paramsPath = tmp.tmpNameSync();
     fs.writeFileSync(paramsPath, JSON.stringify(getParams(type)));
-    const keyFile = tmp.tmpNameSync();
-    const key = crypto.randomBytes(32);
-    const iv = crypto.randomBytes(16);
-    fs.writeFileSync(keyFile, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
-    const clientkeyPath = tmp.tmpNameSync();
-    const clientkeyCypher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let clientkey = clientkeyCypher.update(password, 'utf8', 'hex');
-    clientkey += clientkeyCypher.final('hex');
-    fs.writeFileSync(clientkeyPath, clientkey);
-    const clientcertPath = tmp.tmpNameSync();
-    const clientcertCypher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let clientcert = clientcertCypher.update(cert, 'utf8', 'hex');
-    clientcert += clientcertCypher.final('hex');
-    fs.writeFileSync(clientcertPath, clientcert);
+    const dotnetVersion = cp.execSync('dotnet --version', { encoding: 'utf8' }).trim();
+    const adoTaskVersion = path.basename(path.dirname(path.dirname(esrpCliPath)));
+    const federatedTokenData = {
+        jobId: process.env['SYSTEM_JOBID'],
+        planId: process.env['SYSTEM_PLANID'],
+        projectId: process.env['SYSTEM_TEAMPROJECTID'],
+        hub: process.env['SYSTEM_HOSTTYPE'],
+        uri: process.env['SYSTEM_COLLECTIONURI'],
+        managedIdentityId: process.env['VSCODE_ESRP_CLIENT_ID'],
+        managedIdentityTenantId: process.env['VSCODE_ESRP_TENANT_ID'],
+        serviceConnectionId: process.env['VSCODE_ESRP_SERVICE_CONNECTION_ID'],
+        tempDirectory: os.tmpdir(),
+        systemAccessToken: encryptedTokenPath,
+        encryptionKey: encryptionDetailsPath
+    };
     const args = [
         esrpCliPath,
         'vsts.sign',
-        '-a', username,
-        '-k', clientkeyPath,
-        '-z', clientcertPath,
+        '-a', process.env['ESRP_CLIENT_ID'],
+        '-d', process.env['ESRP_TENANT_ID'],
+        '-k', JSON.stringify({ akv: 'vscode-esrp' }),
+        '-z', JSON.stringify({ akv: 'vscode-esrp', cert: 'esrp-sign' }),
         '-f', folderPath,
         '-p', patternPath,
         '-u', 'false',
@@ -154,7 +178,14 @@ function main([esrpCliPath, type, cert, username, password, folderPath, pattern]
         '-i', 'https://www.microsoft.com',
         '-n', '5',
         '-r', 'true',
-        '-e', keyFile,
+        '-w', dotnetVersion,
+        '-skipAdoReportAttachment', 'false',
+        '-pendingAnalysisWaitTimeoutMinutes', '5',
+        '-adoTaskVersion', adoTaskVersion,
+        '-resourceUri', 'https://msazurecloud.onmicrosoft.com/api.esrp.microsoft.com',
+        '-esrpClientId', process.env['ESRP_CLIENT_ID'],
+        '-useMSIAuthentication', 'true',
+        '-federatedTokenData', JSON.stringify(federatedTokenData)
     ];
     try {
         cp.execFileSync('dotnet', args, { stdio: 'inherit' });

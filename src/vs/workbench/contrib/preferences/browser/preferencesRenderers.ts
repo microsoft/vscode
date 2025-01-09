@@ -187,8 +187,8 @@ class EditSettingRenderer extends Disposable {
 	) {
 		super();
 
-		this.editPreferenceWidgetForCursorPosition = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
-		this.editPreferenceWidgetForMouseMove = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
+		this.editPreferenceWidgetForCursorPosition = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
+		this.editPreferenceWidgetForMouseMove = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
 		this.toggleEditPreferencesForMouseMoveDelayer = new Delayer<void>(75);
 
 		this._register(this.editPreferenceWidgetForCursorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCursorPosition, e)));
@@ -699,11 +699,9 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	private handleUnstableSettingConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
 		if (configuration.tags?.includes('preview')) {
 			markerData.push(this.generatePreviewSettingMarker(setting));
+		} else if (configuration.tags?.includes('experimental')) {
+			markerData.push(this.generateExperimentalSettingMarker(setting));
 		}
-		// Enable after further review and experimental -> onExP migration
-		// if (configuration.tags?.includes('experimental')) {
-		// 	markerData.push(this.generateExperimentalSettingMarker(setting));
-		// }
 	}
 
 	private generateUnsupportedApplicationSettingMarker(setting: ISetting): IMarkerData {
@@ -755,16 +753,15 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 
 	private generatePreviewSettingMarker(setting: ISetting): IMarkerData {
 		return {
-			severity: MarkerSeverity.Info,
+			severity: MarkerSeverity.Hint,
 			...setting.range,
 			message: PREVIEW_INDICATOR_DESCRIPTION
 		};
 	}
 
-	// @ts-expect-error
 	private generateExperimentalSettingMarker(setting: ISetting): IMarkerData {
 		return {
-			severity: MarkerSeverity.Info,
+			severity: MarkerSeverity.Hint,
 			...setting.range,
 			message: EXPERIMENTAL_INDICATOR_DESCRIPTION
 		};

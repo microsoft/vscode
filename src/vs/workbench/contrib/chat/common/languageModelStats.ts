@@ -11,6 +11,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { localize } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export const ILanguageModelStatsService = createDecorator<ILanguageModelStatsService>('ILanguageModelStatsService');
 
@@ -63,7 +64,7 @@ export class LanguageModelStatsService extends Disposable implements ILanguageMo
 	}
 
 	async update(model: string, extensionId: ExtensionIdentifier, agent: string | undefined, tokenCount: number | undefined): Promise<void> {
-		await this.extensionFeaturesManagementService.getAccess(extensionId, 'languageModels');
+		await this.extensionFeaturesManagementService.getAccess(extensionId, CopilotUsageExtensionFeatureId);
 
 		// update model access
 		this.addAccess(model, extensionId.value);
@@ -160,11 +161,14 @@ export class LanguageModelStatsService extends Disposable implements ILanguageMo
 	}
 }
 
+export const CopilotUsageExtensionFeatureId = 'copilot';
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
-	id: 'languageModels',
-	label: localize('Language Models', "Language Models"),
+	id: CopilotUsageExtensionFeatureId,
+	label: localize('Language Models', "Copilot"),
 	description: localize('languageModels', "Language models usage statistics of this extension."),
+	icon: Codicon.copilot,
 	access: {
 		canToggle: false
 	},
+	accessDataLabel: localize('chat', "chat"),
 });
