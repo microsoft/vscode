@@ -17,8 +17,8 @@ import { GroupIdentifier, GroupModelChangeKind } from '../../../../common/editor
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { InteractiveWindowOpen } from '../../common/notebookContextKeys.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InteractiveWindowOpen, MOST_RECENT_REPL_EDITOR } from '../../common/notebookContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 
@@ -37,6 +37,8 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	private readonly _onNotebookEditorsRemove = new Emitter<INotebookEditor>();
 	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
 	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
+
+	private readonly _mostRecentRepl: IContextKey<string | undefined>;
 
 	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; editorType: string; token: number | undefined; disposableStore: DisposableStore }[]>>();
 
@@ -105,6 +107,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			}
 		}));
 
+		this._mostRecentRepl = MOST_RECENT_REPL_EDITOR.bindTo(contextKeyService);
 		const interactiveWindowOpen = InteractiveWindowOpen.bindTo(contextKeyService);
 		this._disposables.add(editorService.onDidEditorsChange(e => {
 			if (e.event.kind === GroupModelChangeKind.EDITOR_OPEN && !interactiveWindowOpen.get()) {
@@ -263,9 +266,13 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	}
 
 	removeNotebookEditor(editor: INotebookEditor): void {
+		const notebookUri = editor.getViewModel()?.notebookDocument.uri;
 		if (this._notebookEditors.has(editor.getId())) {
 			this._notebookEditors.delete(editor.getId());
 			this._onNotebookEditorsRemove.fire(editor);
+		}
+		if (this._mostRecentRepl.get() === notebookUri?.toString()) {
+			this._mostRecentRepl.reset();
 		}
 	}
 
@@ -275,5 +282,9 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 
 	listNotebookEditors(): readonly INotebookEditor[] {
 		return [...this._notebookEditors].map(e => e[1]);
+	}
+
+	updateReplContextKey(uri: string): void {
+		this._mostRecentRepl.set(uri);
 	}
 }

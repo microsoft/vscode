@@ -364,6 +364,11 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	async refresh(reveal = true): Promise<void> {
+		// Do not refresh the tree when it is showing temporary nodes (phantom elements)
+		if (this.view?.hasPhantomElements()) {
+			return;
+		}
+
 		this.model.roots.forEach(r => r.forgetChildren());
 		if (this.view) {
 			await this.view.refresh(true);

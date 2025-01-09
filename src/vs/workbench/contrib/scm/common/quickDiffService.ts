@@ -72,10 +72,16 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 			const diff: Partial<QuickDiff> = {
 				originalResource: scoreValue > 0 ? await provider.getOriginalResource(uri) ?? undefined : undefined,
 				label: provider.label,
-				isSCM: provider.isSCM
+				isSCM: provider.isSCM,
+				visible: provider.visible
 			};
 			return diff;
 		}));
 		return diffs.filter<QuickDiff>(this.isQuickDiff);
 	}
+}
+
+export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI, language: string | undefined, isSynchronized: boolean | undefined): Promise<URI | null> {
+	const quickDiffs = await quickDiffService.getQuickDiffs(uri, language, isSynchronized);
+	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
 }

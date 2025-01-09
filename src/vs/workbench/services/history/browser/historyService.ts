@@ -1046,10 +1046,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// We check on resource and `editorId` (from `override`)
 		// to figure out if the editor has been already added.
 		for (const editor of storedEditorHistory) {
+			const historyEntryId = `${editor.resource.toString()}/${editor.options?.override}`;
 			if (
-				!handledEditors.has(`${editor.resource.toString()}/${editor.options?.override}`) &&
+				!handledEditors.has(historyEntryId) &&
 				this.includeInHistory(editor)
 			) {
+				handledEditors.add(historyEntryId);
 				this.addToHistory(editor, false /* at the end */);
 			}
 		}

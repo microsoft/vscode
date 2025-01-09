@@ -416,6 +416,10 @@ export class LiveStrategy extends EditModeStrategy {
 					continue;
 				}
 				const hunkRanges = candidate.hunk.getRangesN();
+				if (hunkRanges.length === 0) {
+					// bogous hunk
+					continue;
+				}
 				const myDistance = zoneLine <= hunkRanges[0].startLineNumber
 					? hunkRanges[0].startLineNumber - zoneLine
 					: zoneLine - hunkRanges[0].endLineNumber;

@@ -287,6 +287,10 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 		return null;
 	}
 
+	public getAllLinkOccurrences(): LinkOccurrence[] {
+		return Object.values(this.currentOccurrences);
+	}
+
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent | null): boolean {
 		return Boolean(
 			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT)
@@ -400,8 +404,7 @@ class OpenLinkAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.openLink',
-			label: nls.localize('label', "Open Link"),
-			alias: 'Open Link',
+			label: nls.localize2('label', "Open Link"),
 			precondition: undefined
 		});
 	}
