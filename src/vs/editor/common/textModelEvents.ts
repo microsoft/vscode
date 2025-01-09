@@ -226,15 +226,31 @@ export class ModelRawLineChanged {
 	 * The injected text on the line.
 	 */
 	public readonly injectedText: LineInjectedText[] | null;
+
+	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
+		this.lineNumber = lineNumber;
+		this.detail = detail;
+		this.injectedText = injectedText;
+	}
+}
+
+
+/**
+ * An event describing that a line height has changed in the model.
+ * @internal
+ */
+export class ModelLineHeightChanged {
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
 	/**
 	 * The line height on the line.
 	 */
 	public readonly lineHeight: number | null;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null, lineHeight: number | null) {
+	constructor(lineNumber: number, lineHeight: number | null) {
 		this.lineNumber = lineNumber;
-		this.detail = detail;
-		this.injectedText = injectedText;
 		this.lineHeight = lineHeight;
 	}
 }
@@ -367,14 +383,14 @@ export class ModelInjectedTextChangedEvent {
 }
 
 /**
- * An event describing a change in special line height.
+ * An event describing a change of a line height.
  * @internal
  */
-export class ModelSpecialLineHeightChangedEvent {
+export class ModelLineHeightChangedEvent {
 
-	public readonly changes: ModelRawLineChanged[];
+	public readonly changes: ModelLineHeightChanged[];
 
-	constructor(changes: ModelRawLineChanged[]) {
+	constructor(changes: ModelLineHeightChanged[]) {
 		this.changes = changes;
 	}
 }

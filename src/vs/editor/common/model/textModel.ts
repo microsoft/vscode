@@ -40,7 +40,7 @@ import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { TokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { AttachedViews } from './tokens.js';
 import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelSpecialLineHeightChangedEvent } from '../textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';
 import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -228,8 +228,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private readonly _onDidChangeInjectedText: Emitter<ModelInjectedTextChangedEvent> = this._register(new Emitter<ModelInjectedTextChangedEvent>());
 
-	private readonly _onDidChangeSpecialLineHeight: Emitter<ModelSpecialLineHeightChangedEvent> = this._register(new Emitter<ModelSpecialLineHeightChangedEvent>());
-	public readonly onDidChangeSpecialLineHeight: Event<ModelSpecialLineHeightChangedEvent> = this._onDidChangeSpecialLineHeight.event;
+	private readonly _onDidChangeSpecialLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>());
+	public readonly onDidChangeSpecialLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeSpecialLineHeight.event;
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
@@ -1495,8 +1495,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						new ModelRawLineChanged(
 							editLineNumber,
 							this.getLineContent(currentEditLineNumber),
-							decorationsInCurrentLine,
-							null
+							decorationsInCurrentLine
 						));
 				}
 
@@ -1582,14 +1581,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLinesByTextInjection = Array.from(affectedInjectedTextLines);
-			const injectedTextChangeEvent = affectedLinesByTextInjection.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber), null));
+			const injectedTextChangeEvent = affectedLinesByTextInjection.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
 			this._onDidChangeInjectedText.fire(new ModelInjectedTextChangedEvent(injectedTextChangeEvent));
-
 		}
 		if (specialLineHeights && specialLineHeights.size > 0) {
 			const affectedLinesByLineHeightChange = Array.from(specialLineHeights);
-			const lineHeightChangeEvent = affectedLinesByLineHeightChange.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), [], this._getLineHeightForLine(lineNumber)));
-			this._onDidChangeSpecialLineHeight.fire(new ModelSpecialLineHeightChangedEvent(lineHeightChangeEvent));
+			const lineHeightChangeEvent = affectedLinesByLineHeightChange.map(lineNumber => new ModelLineHeightChanged(lineNumber, this._getLineHeightForLine(lineNumber)));
+			this._onDidChangeSpecialLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
 		}
 	}
 
