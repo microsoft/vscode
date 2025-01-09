@@ -43,6 +43,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { XtermAddonImporter } from './xtermAddonImporter.js';
 import { equals } from '../../../../../base/common/objects.js';
+import type { IProgressState } from '@xterm/addon-progress';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -99,6 +100,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
 	private _lastInputEvent: string | undefined;
 	get lastInputEvent(): string | undefined { return this._lastInputEvent; }
+	private _progressState: IProgressState = { state: 0, value: 0 };
+	get progressState(): IProgressState { return this._progressState; }
 
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
@@ -141,6 +144,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
+	private readonly _onDidChangeProgress = this._register(new Emitter<IProgressState>());
+	readonly onDidChangeProgress = this._onDidChangeProgress.event;
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
@@ -285,6 +290,22 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				}
 			});
 			this.raw.loadAddon(this._clipboardAddon);
+		});
+		this._xtermAddonLoader.importAddon('progress').then(ProgressAddon => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			const progressAddon = this._instantiationService.createInstance(ProgressAddon);
+			this.raw.loadAddon(progressAddon);
+			const updateProgress = () => {
+				if (!equals(this._progressState, progressAddon.progress)) {
+					this._progressState = progressAddon.progress;
+					this._onDidChangeProgress.fire(this._progressState);
+				}
+			};
+			// TODO: Remove ! when addon-progress updates
+			this._register(progressAddon.onChange!(() => updateProgress()));
+			updateProgress();
 		});
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
