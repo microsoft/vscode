@@ -104,8 +104,8 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 const preScripts: Set<string> = new Set([
-	'est', /* test typo? */ 'install', 'pack', 'pack', 'publish', 'restart',
-	'shrinkwrap', 'stop', 'uninstall', 'version'
+	'install', 'pack', 'pack', 'publish', 'restart', 'shrinkwrap',
+	'stop', 'test', 'uninstall', 'version'
 ]);
 
 const postScripts: Set<string> = new Set([
