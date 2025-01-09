@@ -948,6 +948,7 @@ class QuickInputDragAndDropController extends Disposable {
 
 				// Snap lines
 				let snapLinesVisible = false;
+				const snapCoordinateYTop = this._layoutService.activeContainerOffset.quickPickTop;
 				const snapCoordinateY = Math.round(this._container.clientHeight * this._snapLineHorizontalRatio);
 				const snapCoordinateX = Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
 
@@ -962,6 +963,7 @@ class QuickInputDragAndDropController extends Disposable {
 					}
 
 					let topCoordinate = e.clientY - dragOffsetY;
+					topCoordinate = Math.abs(topCoordinate - snapCoordinateYTop) < this._snapThreshold ? snapCoordinateYTop : topCoordinate;
 					topCoordinate = Math.abs(topCoordinate - snapCoordinateY) < this._snapThreshold ? snapCoordinateY : topCoordinate;
 					top = topCoordinate / this._container.clientHeight;
 
