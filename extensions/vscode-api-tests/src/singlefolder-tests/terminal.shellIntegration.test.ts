@@ -87,6 +87,17 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
+	if (platform() === 'darwin') {
+		test('Test if env is set', async () => {
+			// check if env is set, for example for bash & zsh
+			const { shellIntegration } = await createTerminalAndWaitForShellIntegration();
+			const env = shellIntegration.env;
+			ok(env);
+			// check if env has shellPath
+			ok(env['shellPath']);
+		});
+	}
+
 	test('execution events should fire in order when a command runs', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
