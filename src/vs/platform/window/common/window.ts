@@ -187,18 +187,9 @@ export const enum CustomTitleBarVisibility {
 	NEVER = 'never',
 }
 
-export let titlebarStyleDefaultOverride: TitlebarStyle | undefined = undefined;
-export function overrideDefaultTitlebarStyle(style: 'native' | 'custom' | undefined): void {
-	switch (style) {
-		case 'native':
-			titlebarStyleDefaultOverride = TitlebarStyle.NATIVE;
-			break;
-		case 'custom':
-			titlebarStyleDefaultOverride = TitlebarStyle.CUSTOM;
-			break;
-		default:
-			titlebarStyleDefaultOverride = undefined;
-	}
+export let titlebarStyleDefaultOverride: 'custom' | undefined = undefined;
+export function overrideDefaultTitlebarStyle(style: 'custom'): void {
+	titlebarStyleDefaultOverride = style;
 }
 
 export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
@@ -238,8 +229,8 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 		}
 	}
 
-	if (titlebarStyleDefaultOverride) {
-		return titlebarStyleDefaultOverride;
+	if (titlebarStyleDefaultOverride === 'custom') {
+		return TitlebarStyle.CUSTOM;
 	}
 
 	return isLinux && product.quality === 'stable' ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all OS except Linux stable (for now)
@@ -413,6 +404,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	autoDetectHighContrast?: boolean;
 	autoDetectColorScheme?: boolean;
 	isCustomZoomLevel?: boolean;
+	overrideDefaultTitlebarStyle?: 'custom';
 
 	perfMarks: PerformanceMark[];
 

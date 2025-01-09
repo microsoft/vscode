@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickPickItem, window, QuickPick, QuickPickItemKind, l10n, Disposable } from 'vscode';
+import { QuickPickItem, window, QuickPick, QuickPickItemKind, l10n, Disposable, Command } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceAction } from './api/git-base';
 import { Model } from './model';
 import { throttle, debounce } from './decorators';
@@ -121,6 +121,20 @@ export async function getRemoteSourceActions(model: Model, url: string): Promise
 	}
 
 	return remoteSourceActions;
+}
+
+export async function getRemoteSourceControlHistoryItemCommands(model: Model, url: string): Promise<Command[]> {
+	const providers = model.getRemoteProviders();
+
+	const remoteSourceCommands = [];
+	for (const provider of providers) {
+		const providerCommands = await provider.getRemoteSourceControlHistoryItemCommands?.(url);
+		if (providerCommands?.length) {
+			remoteSourceCommands.push(...providerCommands);
+		}
+	}
+
+	return remoteSourceCommands;
 }
 
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;

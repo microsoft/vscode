@@ -6,7 +6,6 @@
 import { References } from './peek';
 import { Commands } from './workbench';
 import { Code } from './code';
-import { Quality } from './application';
 
 const RENAME_BOX = '.monaco-editor .monaco-editor.rename-box';
 const RENAME_INPUT = `${RENAME_BOX} .rename-input`;
@@ -79,10 +78,10 @@ export class Editor {
 	async waitForEditorFocus(filename: string, lineNumber: number, selectorPrefix = ''): Promise<void> {
 		const editor = [selectorPrefix || '', EDITOR(filename)].join(' ');
 		const line = `${editor} .view-lines > .view-line:nth-child(${lineNumber})`;
-		const editContext = `${editor} ${this._editContextSelector()}`;
+		const textarea = `${editor} textarea`;
 
 		await this.code.waitAndClick(line, 1, 1);
-		await this.code.waitForActiveElement(editContext);
+		await this.code.waitForActiveElement(textarea);
 	}
 
 	async waitForTypeInEditor(filename: string, text: string, selectorPrefix = ''): Promise<any> {
@@ -93,16 +92,12 @@ export class Editor {
 
 		await this.code.waitForElement(editor);
 
-		const editContext = `${editor} ${this._editContextSelector()}`;
-		await this.code.waitForActiveElement(editContext);
+		const textarea = `${editor} textarea`;
+		await this.code.waitForActiveElement(textarea);
 
-		await this.code.waitForTypeInEditor(editContext, text);
+		await this.code.waitForTypeInEditor(textarea, text);
 
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
-	}
-
-	private _editContextSelector() {
-		return this.code.quality === Quality.Stable ? 'textarea' : '.native-edit-context';
 	}
 
 	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {

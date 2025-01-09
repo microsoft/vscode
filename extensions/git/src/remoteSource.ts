@@ -15,3 +15,7 @@ export async function pickRemoteSource(options: PickRemoteSourceOptions = {}): P
 export async function getRemoteSourceActions(url: string) {
 	return GitBaseApi.getAPI().getRemoteSourceActions(url);
 }
+
+export async function getRemoteSourceControlHistoryItemCommands(url: string) {
+	return GitBaseApi.getAPI().getRemoteSourceControlHistoryItemCommands(url);
+}

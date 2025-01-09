@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, MarkdownString, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace, l10n } from 'vscode';
+import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, MarkdownString, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace, l10n, Command } from 'vscode';
 import { Model } from './model';
 import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
@@ -12,6 +12,7 @@ import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
 import { getCommitShortHash } from './util';
 import { CommitShortStat } from './git';
+import { getRemoteSourceControlHistoryItemCommands } from './remoteSource';
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -50,7 +51,7 @@ export class GitTimelineItem extends TimelineItem {
 		return this.shortenRef(this.previousRef);
 	}
 
-	setItemDetails(uri: Uri, hash: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat): void {
+	setItemDetails(uri: Uri, hash: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat, remoteSourceCommands: Command[] = []): void {
 		this.tooltip = new MarkdownString('', true);
 		this.tooltip.isTrusted = true;
 		this.tooltip.supportHtml = true;
@@ -89,6 +90,15 @@ export class GitTimelineItem extends TimelineItem {
 			this.tooltip.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(uri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash]))} "${l10n.t('View Commit')}")`);
 			this.tooltip.appendMarkdown('&nbsp;');
 			this.tooltip.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
+
+			// Remote commands
+			if (remoteSourceCommands.length > 0) {
+				this.tooltip.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+
+				const remoteCommandsMarkdown = remoteSourceCommands
+					.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], hash]))} "${command.tooltip}")`);
+				this.tooltip.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
+			}
 		}
 	}
 
@@ -204,6 +214,11 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const openComparison = l10n.t('Open Comparison');
 
+		const defaultRemote = repo.getDefaultRemote();
+		const remoteSourceCommands: Command[] = defaultRemote?.fetchUrl
+			? await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl)
+			: [];
+
 		const items = commits.map<GitTimelineItem>((c, i) => {
 			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
 
@@ -215,7 +230,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				item.description = c.authorName;
 			}
 
-			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), message, c.shortStat);
+			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), message, c.shortStat, remoteSourceCommands);
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {

@@ -1592,13 +1592,13 @@ export class Repository implements Disposable {
 	}
 
 	private async getDefaultBranch(): Promise<Branch | undefined> {
-		try {
-			if (this.remotes.length === 0) {
-				return undefined;
-			}
+		const defaultRemote = this.getDefaultRemote();
+		if (!defaultRemote) {
+			return undefined;
+		}
 
-			const remote = this.remotes.find(r => r.name === 'origin') ?? this.remotes[0];
-			const defaultBranch = await this.repository.getDefaultBranch(remote.name);
+		try {
+			const defaultBranch = await this.repository.getDefaultBranch(defaultRemote.name);
 			return defaultBranch;
 		}
 		catch (err) {
@@ -1711,6 +1711,14 @@ export class Repository implements Disposable {
 
 	async deleteRef(ref: string): Promise<void> {
 		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
+	}
+
+	getDefaultRemote(): Remote | undefined {
+		if (this.remotes.length === 0) {
+			return undefined;
+		}
+
+		return this.remotes.find(r => r.name === 'origin') ?? this.remotes[0];
 	}
 
 	async addRemote(name: string, url: string): Promise<void> {

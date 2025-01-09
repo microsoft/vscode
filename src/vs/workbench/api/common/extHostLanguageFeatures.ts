@@ -1526,7 +1526,8 @@ class InlineEditAdapter {
 	async provideInlineEdits(uri: URI, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const result = await this._provider.provideInlineEdit(doc, {
-			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind]
+			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
+			requestUuid: context.requestUuid,
 		}, token);
 
 		if (!result) {
@@ -1577,6 +1578,7 @@ class InlineEditAdapter {
 			pid,
 			text: result.text,
 			range: typeConvert.Range.from(result.range),
+			showRange: typeConvert.Range.from(result.showRange),
 			accepted: acceptCommand,
 			rejected: rejectCommand,
 			shown: shownCommand,

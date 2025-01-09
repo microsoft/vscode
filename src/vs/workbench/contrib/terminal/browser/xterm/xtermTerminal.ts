@@ -6,7 +6,7 @@
 import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from '@xterm/xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
-import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
+import type { ILigatureOptions, LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
@@ -42,6 +42,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { XtermAddonImporter } from './xtermAddonImporter.js';
+import { equals } from '../../../../../base/common/objects.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -114,6 +115,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
 	private readonly _ligaturesAddon: MutableDisposable<LigaturesAddonType> = this._register(new MutableDisposable());
+	private readonly _ligaturesAddonConfig?: ILigatureOptions;
 
 	private readonly _attachedDisposables = this._register(new DisposableStore());
 	private readonly _anyTerminalFocusContextKey: IContextKey<boolean>;
@@ -700,18 +702,37 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!this.raw.element) {
 			return;
 		}
-		if (this._terminalConfigurationService.config.fontLigatures) {
+		const ligaturesConfig = this._terminalConfigurationService.config.fontLigatures;
+		let shouldRecreateWebglRenderer = false;
+		if (ligaturesConfig?.enabled) {
+			if (this._ligaturesAddon.value && !equals(ligaturesConfig, this._ligaturesAddonConfig)) {
+				this._ligaturesAddon.clear();
+			}
 			if (!this._ligaturesAddon.value) {
-				this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
-					if (this._store.isDisposed) {
-						return;
-					}
-					this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon);
-					this.raw.loadAddon(this._ligaturesAddon.value);
+				const LigaturesAddon = await this._xtermAddonLoader.importAddon('ligatures');
+				if (this._store.isDisposed) {
+					return;
+				}
+				this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon, {
+					fontFeatureSettings: ligaturesConfig.featureSettings,
+					fallbackLigatures: ligaturesConfig.fallbackLigatures,
 				});
+				this.raw.loadAddon(this._ligaturesAddon.value);
+				shouldRecreateWebglRenderer = true;
 			}
 		} else {
+			if (!this._ligaturesAddon.value) {
+				return;
+			}
 			this._ligaturesAddon.clear();
+			shouldRecreateWebglRenderer = true;
+		}
+
+		if (shouldRecreateWebglRenderer && this._webglAddon) {
+			// Re-create the webgl addon when ligatures state changes to so the texture atlas picks up
+			// styles from the DOM.
+			this._disposeOfWebglRenderer();
+			await this._enableWebglRenderer();
 		}
 	}
 
