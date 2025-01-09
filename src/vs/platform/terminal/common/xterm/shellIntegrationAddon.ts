@@ -231,7 +231,7 @@ const enum VSCodeOscPt {
 	 *
 	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce>`
 	 *
-	 * 	 The EnvJson can escape ascii characters in the same way in which CommandLine does.
+	 * 	 The EnvJson can escape ascii characters in the same way in which {@link CommandLine} does.
 	 *	`Environment` - A JSON string containing the shell's environment variables.
 	 *  `Nonce` -  An optional nonce can be provided which is may be required by the terminal in order enable
 	 *   some features. This helps ensure no malicious command injection has occurred.
