@@ -139,6 +139,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
 		this._register(this.model.onDidChangeSpecialLineHeight((e) => {
 			e.changes.forEach((change) => {
+				if (change.ownerId !== this._editorId) {
+					return;
+				}
 				const lineNumber = change.lineNumber;
 				const lineHeight = change.lineHeight;
 				if (lineHeight !== null) {

@@ -17,7 +17,6 @@ import { IPosition, Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { IEditorDecorationsCollection, ScrollType } from '../../../common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../common/model.js';
-import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -319,7 +318,12 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._isShowing = true;
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
-		this._positionMarkerId.set([{ range, options: ModelDecorationOptions.EMPTY }]);
+		this._positionMarkerId.set([{
+			range, options: {
+				lineHeight: 100,
+				description: 'zone-widget-position',
+			}
+		}]);
 	}
 
 	updatePositionAndHeight(rangeOrPos: IRange | IPosition, heightInLines?: number): void {
@@ -334,7 +338,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			});
 			this._positionMarkerId.set([{
 				range: Range.isIRange(rangeOrPos) ? rangeOrPos : Range.fromPositions(rangeOrPos),
-				options: ModelDecorationOptions.EMPTY
+				options: {
+					lineHeight: 100,
+					description: 'zone-widget-position',
+				}
 			}]);
 			this._updateSashEnablement();
 		}

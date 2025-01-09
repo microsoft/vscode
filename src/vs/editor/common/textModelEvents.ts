@@ -241,6 +241,10 @@ export class ModelRawLineChanged {
  */
 export class ModelLineHeightChanged {
 	/**
+	 * Editor owner ID
+	 */
+	public readonly ownerId: number;
+	/**
 	 * The line that has changed.
 	 */
 	public readonly lineNumber: number;
@@ -249,7 +253,8 @@ export class ModelLineHeightChanged {
 	 */
 	public readonly lineHeight: number | null;
 
-	constructor(lineNumber: number, lineHeight: number | null) {
+	constructor(ownerId: number, lineNumber: number, lineHeight: number | null) {
+		this.ownerId = ownerId;
 		this.lineNumber = lineNumber;
 		this.lineHeight = lineHeight;
 	}
