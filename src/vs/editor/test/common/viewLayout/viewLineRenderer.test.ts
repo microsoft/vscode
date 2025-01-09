@@ -73,7 +73,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.strictEqual(_actual.html, '<span><span class="mtk0">' + expected + '</span></span>');
@@ -127,7 +128,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.strictEqual(_actual.html, '<span>' + expected + '</span>');
@@ -183,7 +185,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'boundary',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), {
@@ -243,7 +246,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'boundary',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), {
@@ -315,7 +319,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), {
@@ -380,7 +385,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), {
@@ -437,7 +443,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), ({
@@ -482,7 +489,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
@@ -537,7 +545,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
@@ -600,7 +609,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'all',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
@@ -652,7 +662,8 @@ suite('viewLineRenderer.renderLine', () => {
 				'none',
 				false,
 				false,
-				null
+				null,
+				0
 			));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
@@ -756,7 +767,8 @@ suite('viewLineRenderer.renderLine', () => {
 				'none',
 				false,
 				true,
-				null
+				null,
+				0
 			));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
@@ -797,7 +809,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual).html, [
@@ -827,7 +840,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(actual.html, [
@@ -860,7 +874,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), ({
 			html: [
@@ -908,7 +923,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
@@ -991,7 +1007,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			renderWhitespace,
 			false,
 			false,
-			selections
+			selections,
+			0
 		));
 		return inflateRenderLineOutput(actual);
 	}
@@ -1017,7 +1034,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), ({
@@ -1061,7 +1079,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), ({
@@ -1752,7 +1771,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		// 01234567890
@@ -1804,7 +1824,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			true,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1842,7 +1863,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			true,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1882,7 +1904,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			true,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1916,7 +1939,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1955,7 +1979,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1995,7 +2020,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2035,7 +2061,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2075,7 +2102,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			true,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2115,7 +2143,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2150,7 +2179,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2196,7 +2226,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2237,7 +2268,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2286,7 +2318,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2336,7 +2369,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'boundary',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2379,7 +2413,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			true,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2447,7 +2482,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			true,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2522,7 +2558,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'selection',
 			false,
 			false,
-			[new LineRange(0, 47)]
+			[new LineRange(0, 47)],
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2623,7 +2660,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			true,
 			true,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2656,7 +2694,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			true,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2704,7 +2743,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2743,7 +2783,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			0
 		));
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {

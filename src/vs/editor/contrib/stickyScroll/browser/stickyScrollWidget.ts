@@ -321,12 +321,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			actualInlineDecorations = [];
 		}
 
+		const height = this._specialLineHeights.get(line) ?? this._lineHeight;
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-			1, 1, 1, 500, 'none', true, true, null
+			1, 1, 1, 500, 'none', true, true, null, height
 		);
 
 		const sb = new StringBuilder(2000);
@@ -339,7 +340,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			newLine = sb.build();
 		}
 
-		const height = this._specialLineHeights.get(line) ?? this._lineHeight;
 		const lineHTMLNode = document.createElement('span');
 		lineHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
 		lineHTMLNode.setAttribute(STICKY_IS_LINE_ATTR, '');

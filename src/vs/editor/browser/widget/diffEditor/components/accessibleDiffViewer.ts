@@ -680,7 +680,8 @@ class View extends Disposable {
 			options.get(EditorOption.renderWhitespace),
 			options.get(EditorOption.renderControlCharacters),
 			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
-			null
+			null,
+			0
 		));
 
 		return r.html;
