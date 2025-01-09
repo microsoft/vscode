@@ -774,6 +774,8 @@ export interface InlineCompletion {
 	readonly completeBracketPairs?: boolean;
 
 	readonly isInlineEdit?: boolean;
+
+	readonly showRange?: IRange;
 }
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -2396,6 +2398,7 @@ export interface MappedEditsProvider {
 export interface IInlineEdit {
 	text: string;
 	range: IRange;
+	showRange?: IRange;
 	accepted?: Command;
 	rejected?: Command;
 	shown?: Command;
@@ -2404,6 +2407,12 @@ export interface IInlineEdit {
 
 export interface IInlineEditContext {
 	triggerKind: InlineEditTriggerKind;
+
+	/**
+	 * @experimental
+	 * @internal
+	 */
+	requestUuid?: string;
 }
 
 export enum InlineEditTriggerKind {

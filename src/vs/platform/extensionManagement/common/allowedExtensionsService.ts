@@ -54,7 +54,8 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 	}
 
 	private getAllowedExtensionsValue(): AllowedExtensionsConfigValueType | undefined {
-		const value = this.configurationService.getValue<AllowedExtensionsConfigValueType | undefined>(AllowedExtensionsConfigKey);
+		const inspectValue = this.configurationService.inspect<AllowedExtensionsConfigValueType | undefined>(AllowedExtensionsConfigKey);
+		const value = inspectValue.policyValue ?? inspectValue.userValue ?? inspectValue.defaultValue;
 		if (!isObject(value) || Array.isArray(value)) {
 			return undefined;
 		}

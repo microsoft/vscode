@@ -54,7 +54,6 @@ export class InlineCompletionsModel extends Disposable {
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
-	private readonly _onlyShowWhenCloseToCursor = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.experimental.onlyShowWhenCloseToCursor);
 	private readonly _suggestPreviewEnabled = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
 	private readonly _suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
 	private readonly _inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
@@ -358,12 +357,13 @@ export class InlineCompletionsModel extends Disposable {
 
 			const cursorPos = this.primaryPosition.read(reader);
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
+			const cursorInsideShowRange = cursorAtInlineEdit || (item.inlineEdit.inlineCompletion.cursorShowRange?.containsPosition(cursorPos) ?? true);
 
-			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this.primaryPosition.read(reader).lineNumber);
-
-			if (this._onlyShowWhenCloseToCursor.read(reader) && cursorDist > 3 && !item.inlineEdit.request.isExplicitRequest && !this._inAcceptFlow.read(reader)) {
+			if (!cursorInsideShowRange && !this._inAcceptFlow.read(reader)) {
 				return undefined;
 			}
+
+			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this.primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEdit.semanticId);
 
@@ -575,6 +575,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
+			// ...
 			editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
