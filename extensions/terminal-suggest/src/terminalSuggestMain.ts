@@ -376,7 +376,7 @@ function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { com
 		for (const optionLabel of optionLabels) {
 			if (
 				optionItems.find((i) => i.label === optionLabel) ||
-				(!optionLabel.startsWith(prefix) && prefix.trim() !== specLabel)
+				(!optionLabel.startsWith(prefix.trim()) && prefix.trim() !== specLabel)
 			) {
 				continue;
 			}
