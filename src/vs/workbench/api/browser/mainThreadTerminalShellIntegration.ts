@@ -43,6 +43,12 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		})).event;
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
 
+		// onDidChangeTerminalShellIntegration via cwd
+		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
+		this._store.add(cwdChangeEvent.event(e => {
+			this._proxy.$cwdChange(e.instance.instanceId, this._convertCwdToUri(e.data));
+		}));
+
 		// onDidChangeTerminalShellIntegrationEnvironment
 		const envChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.ShellEnvDetection, e => e.onDidChangeEnv));
 		this._store.add(envChangeEvent.event(e => {
@@ -81,12 +87,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			setTimeout(() => {
 				this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
 			});
-		}));
-
-		// onDidChangeTerminalShellIntegration via cwd
-		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
-		this._store.add(cwdChangeEvent.event(e => {
-			this._proxy.$cwdChange(e.instance.instanceId, this._convertCwdToUri(e.data));
 		}));
 
 		// Clean up after dispose
