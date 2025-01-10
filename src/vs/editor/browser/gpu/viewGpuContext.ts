@@ -259,8 +259,7 @@ export class ViewGpuContext extends Disposable {
  */
 const gpuSupportedDecorationCssRules = [
 	'color',
-	// TODO: https://github.com/microsoft/vscode/issues/237584
-	// 'font-weight',
+	'font-weight',
 ];
 
 function supportsCssRule(rule: string, style: CSSStyleDeclaration) {

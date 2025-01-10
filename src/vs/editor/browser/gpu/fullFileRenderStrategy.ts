@@ -256,7 +256,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		let tokenEndIndex = 0;
 		let tokenMetadata = 0;
 
-		let decorationStyleSetColor = 0;
+		let decorationStyleSetBold: boolean | undefined;
+		let decorationStyleSetColor: number | undefined;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
@@ -360,7 +361,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						break;
 					}
 					chars = content.charAt(x);
-					decorationStyleSetColor = 0;
+					decorationStyleSetColor = undefined;
+					decorationStyleSetBold = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -392,8 +394,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 									case 'font-weight': {
 										const parsedValue = parseCssFontWeight(value);
 										if (parsedValue >= 400) {
+											decorationStyleSetBold = true;
 											// TODO: Set bold (https://github.com/microsoft/vscode/issues/237584)
 										} else {
+											decorationStyleSetBold = false;
 											// TODO: Set normal (https://github.com/microsoft/vscode/issues/237584)
 										}
 										break;
@@ -415,7 +419,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor));
+					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold);
+					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
 
 					// TODO: Support non-standard character widths
 					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);

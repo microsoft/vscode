@@ -116,7 +116,11 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		if (fontStyle & FontStyle.Italic) {
 			fontSb.appendString('italic ');
 		}
-		if (fontStyle & FontStyle.Bold) {
+		if (decorationStyleSet?.bold !== undefined) {
+			if (decorationStyleSet.bold) {
+				fontSb.appendString('bold ');
+			}
+		} else if (fontStyle & FontStyle.Bold) {
 			fontSb.appendString('bold ');
 		}
 		fontSb.appendString(`${devicePixelFontSize}px ${this.fontFamily}`);
@@ -128,7 +132,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 		const originX = devicePixelFontSize;
 		const originY = devicePixelFontSize;
-		if (decorationStyleSet?.color) {
+		if (decorationStyleSet?.color !== undefined) {
 			this._ctx.fillStyle = `#${decorationStyleSet.color.toString(16).padStart(8, '0')}`;
 		} else {
 			this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(tokenMetadata)];

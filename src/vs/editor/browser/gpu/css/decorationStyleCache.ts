@@ -7,7 +7,11 @@ export interface IDecorationStyleSet {
 	/**
 	 * A 24-bit number representing `color`.
 	 */
-	color: number;
+	color: number | undefined;
+	/**
+	 * Whether the text should be rendered in bold.
+	 */
+	bold: boolean | undefined;
 }
 
 export interface IDecorationStyleCacheEntry extends IDecorationStyleSet {
@@ -23,11 +27,15 @@ export class DecorationStyleCache {
 
 	private readonly _cache = new Map<number, IDecorationStyleSet>();
 
-	getOrCreateEntry(color: number): number {
+	getOrCreateEntry(color: number | undefined, bold: boolean | undefined): number {
+		if (color === undefined && bold === undefined) {
+			return 0;
+		}
 		const id = this._nextId++;
 		const entry = {
 			id,
 			color,
+			bold,
 		};
 		this._cache.set(id, entry);
 		return id;
