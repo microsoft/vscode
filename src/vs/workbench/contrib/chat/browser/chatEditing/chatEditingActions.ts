@@ -98,11 +98,36 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 				order: 5,
 				group: 'navigation'
 			}],
+			keybinding: {
+				primary: KeyCode.Delete,
+				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatEditWorkingSet),
+				weight: KeybindingWeight.WorkbenchContrib,
+			}
 		});
 	}
 
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
+
+		const pendingEntries = currentEditingSession.entries.get().filter((entry) => uris.includes(entry.modifiedURI) && entry.state.get() === WorkingSetEntryState.Modified);
+		if (pendingEntries.length > 0) {
+			// Ask for confirmation if there are any pending edits
+			const file = pendingEntries.length > 1
+				? localize('chat.editing.removeFile.confirmationmanyFiles', "{0} files", pendingEntries.length)
+				: basename(pendingEntries[0].modifiedURI);
+			const confirmation = await dialogService.confirm({
+				title: localize('chat.editing.removeFile.confirmation.title', "Remove {0} from working set?", file),
+				message: localize('chat.editing.removeFile.confirmation.message', "This will remove {0} from your working set and undo the edits made to it. Do you want to proceed?", file),
+				primaryButton: localize('chat.editing.removeFile.confirmation.primaryButton', "Yes"),
+				type: 'info'
+			});
+			if (!confirmation.confirmed) {
+				return;
+			}
+		}
+
 		// Remove from working set
+		await currentEditingSession.reject(...uris);
 		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove from chat input part

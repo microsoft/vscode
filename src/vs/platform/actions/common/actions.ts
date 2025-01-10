@@ -5,7 +5,7 @@
 
 import { IAction, SubmenuAction } from '../../../base/common/actions.js';
 import { Event, MicrotaskEmitter } from '../../../base/common/event.js';
-import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, toDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from '../../action/common/action.js';
@@ -397,11 +397,11 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		this._commands.set(command.id, command);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 
-		return toDisposable(() => {
+		return markAsSingleton(toDisposable(() => {
 			if (this._commands.delete(command.id)) {
 				this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 			}
-		});
+		}));
 	}
 
 	getCommand(id: string): ICommandAction | undefined {
@@ -422,10 +422,10 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		}
 		const rm = list.push(item);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
-		return toDisposable(() => {
+		return markAsSingleton(toDisposable(() => {
 			rm();
 			this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
-		});
+		}));
 	}
 
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable {

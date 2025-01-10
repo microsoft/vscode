@@ -69,25 +69,26 @@ export class GitTimelineItem extends TimelineItem {
 		if (shortStat) {
 			this.tooltip.appendMarkdown(`---\n\n`);
 
+			const labels: string[] = [];
 			if (shortStat.insertions) {
-				this.tooltip.appendMarkdown(`<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${shortStat.insertions === 1 ?
+				labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${shortStat.insertions === 1 ?
 					l10n.t('{0} insertion{1}', shortStat.insertions, '(+)') :
 					l10n.t('{0} insertions{1}', shortStat.insertions, '(+)')}</span>`);
 			}
 
 			if (shortStat.deletions) {
-				this.tooltip.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${shortStat.deletions === 1 ?
+				labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${shortStat.deletions === 1 ?
 					l10n.t('{0} deletion{1}', shortStat.deletions, '(-)') :
 					l10n.t('{0} deletions{1}', shortStat.deletions, '(-)')}</span>`);
 			}
 
-			this.tooltip.appendMarkdown(`\n\n`);
+			this.tooltip.appendMarkdown(`${labels.join(', ')}\n\n`);
 		}
 
 		if (hash) {
 			this.tooltip.appendMarkdown(`---\n\n`);
 
-			this.tooltip.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(uri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash]))} "${l10n.t('View Commit')}")`);
+			this.tooltip.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(uri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash]))} "${l10n.t('Open Commit')}")`);
 			this.tooltip.appendMarkdown('&nbsp;');
 			this.tooltip.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
 
@@ -215,6 +216,7 @@ export class GitTimelineProvider implements TimelineProvider {
 		const openComparison = l10n.t('Open Comparison');
 
 		const defaultRemote = repo.getDefaultRemote();
+		const unpublishedCommits = await repo.getUnpublishedCommits();
 		const remoteSourceCommands: Command[] = defaultRemote?.fetchUrl
 			? await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl)
 			: [];
@@ -230,7 +232,8 @@ export class GitTimelineProvider implements TimelineProvider {
 				item.description = c.authorName;
 			}
 
-			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), message, c.shortStat, remoteSourceCommands);
+			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteSourceCommands : [];
+			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), message, c.shortStat, commitRemoteSourceCommands);
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {

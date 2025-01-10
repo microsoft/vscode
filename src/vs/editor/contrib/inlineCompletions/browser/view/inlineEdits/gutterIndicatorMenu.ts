@@ -55,7 +55,7 @@ export class GutterIndicatorMenuContent {
 		return hoverContent([
 			// TODO: make header dynamic, get from extension
 			header(localize('inlineEdit', "Inline Edit")),
-			option(createOptionArgs({ id: 'jump', title: localize('jump', "Jump"), icon: Codicon.arrowRight, commandId: new JumpToNextInlineEdit().id })),
+			option(createOptionArgs({ id: 'jump', title: localize('goto', "Go To"), icon: Codicon.arrowRight, commandId: new JumpToNextInlineEdit().id })),
 			option(createOptionArgs({ id: 'accept', title: localize('accept', "Accept"), icon: Codicon.check, commandId: new AcceptInlineCompletion().id })),
 			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: new HideInlineCompletion().id })),
 			separator(),
@@ -71,7 +71,7 @@ export class GutterIndicatorMenuContent {
 		if (!commandId) {
 			return constObservable(undefined);
 		}
-		return observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._keybindingService.lookupKeybinding(commandId, this._contextKeyService, true));
+		return observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._keybindingService.lookupKeybinding(commandId)); // TODO: use contextkeyservice to use different renderings
 	}
 }
 
