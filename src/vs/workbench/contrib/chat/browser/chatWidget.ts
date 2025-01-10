@@ -1083,18 +1083,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (result) {
 				this.inputPart.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
-				result.responseCompletePromise.then(() => {
-					const responses = this.viewModel?.getItems().filter(isResponseVM);
-					const lastResponse = responses?.[responses.length - 1];
-					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, options?.isVoiceInput);
-					if (lastResponse?.result?.nextQuestion) {
-						const { prompt, participant, command } = lastResponse.result.nextQuestion;
-						const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);
-						if (question) {
-							this.input.setValue(question, false);
+				const RESPONSE_TIMEOUT = 20000;
+
+				// Start playing the accessibility signal
+				result.responseCompletePromise
+					.then(() => {
+						const responses = this.viewModel?.getItems().filter(isResponseVM);
+						const lastResponse = responses?.[responses.length - 1];
+						this.chatAccessibilityService.acceptResponse(lastResponse, requestId, options?.isVoiceInput);
+						if (lastResponse?.result?.nextQuestion) {
+							const { prompt, participant, command } = lastResponse.result.nextQuestion;
+							const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);
+							if (question) {
+								this.input.setValue(question, false);
+							}
 						}
-					}
-				});
+					});
+				setTimeout(() => {
+					// Stop the signal if the promise is still unresolved
+					this.chatAccessibilityService.acceptResponse(undefined, requestId, options?.isVoiceInput);
+				}, RESPONSE_TIMEOUT);
 				return result.responseCreatedPromise;
 			}
 		}
