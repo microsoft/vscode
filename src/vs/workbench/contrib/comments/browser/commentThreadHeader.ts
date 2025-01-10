@@ -44,9 +44,9 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		private _delegate: { collapse: () => void },
 		private _commentMenus: CommentMenus,
 		private _commentThread: languages.CommentThread<T>,
-		private _contextKeyService: IContextKeyService,
-		private instantiationService: IInstantiationService,
-		private _contextMenuService: IContextMenuService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService
 	) {
 		super();
 		this._headElement = <HTMLDivElement>dom.$('.head');
@@ -63,7 +63,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 
 		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
 		this._actionbarWidget = new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
+			actionViewItemProvider: createActionViewItem.bind(undefined, this._instantiationService)
 		});
 
 		this._register(this._actionbarWidget);

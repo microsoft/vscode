@@ -829,6 +829,7 @@
 	"others": [
 		"--background-dark",
 		"--background-light",
+		"--chat-editing-last-edit-shift",
 		"--chat-current-response-min-height",
 		"--dropdown-padding-bottom",
 		"--dropdown-padding-top",

@@ -188,7 +188,7 @@ export function registerNewChatActions() {
 				announceChatCleared(accessibilitySignalService);
 				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				if (widget) {
-					chatEditingService.currentEditingSessionObs.get()?.stop(true);
+					await chatEditingService.currentEditingSessionObs.get()?.stop(true);
 					widget.clear();
 					widget.attachmentModel.clear();
 					widget.focusInput();
@@ -199,7 +199,7 @@ export function registerNewChatActions() {
 				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
-				chatEditingService.currentEditingSessionObs.get()?.stop(true);
+				await chatEditingService.currentEditingSessionObs.get()?.stop(true);
 				widget.clear();
 				widget.attachmentModel.clear();
 				widget.focusInput();

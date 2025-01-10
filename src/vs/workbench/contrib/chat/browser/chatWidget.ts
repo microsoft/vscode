@@ -15,6 +15,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -250,7 +251,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const chatEditingSessionDisposables = this._register(new DisposableStore());
 
-		this._register(this.chatEditingService.onDidCreateEditingSession((session) => {
+		this._register(autorun(r => {
+			const session = this.chatEditingService.currentEditingSessionObs.read(r);
+			if (!session) {
+				return;
+			}
 			if (session.chatSessionId !== this.viewModel?.sessionId) {
 				// this chat editing session is for a different chat widget
 				return;
@@ -533,7 +538,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							// Re-render once content references are loaded
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes hidden due to undo/redo
-							`_${element.isHidden ? '1' : '0'}` +
+							`_${element.shouldBeRemovedOnSend ? '1' : '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
 							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
@@ -980,6 +985,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _acceptInput(query: { query: string } | { prefix: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+		if (this.viewModel?.requestInProgress) {
+			return;
+		}
+
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 			if (!this.viewOptions.autoScroll) {
@@ -993,15 +1002,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					`${query.prefix} ${editorValue}`;
 			const isUserQuery = !query || 'prefix' in query;
 
-			const requests = this.viewModel.model.getRequests();
-			for (let i = requests.length - 1; i >= 0; i -= 1) {
-				const request = requests[i];
-				if (request.isHidden) {
-					this.chatService.removeRequest(this.viewModel.sessionId, request.id);
-				}
-			}
 
-			let attachedContext = this.inputPart.getAttachedAndImplicitContext();
+
+			let attachedContext = this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
 			let workingSet: URI[] | undefined;
 			if (this.location === ChatAgentLocation.EditingSession) {
 				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();

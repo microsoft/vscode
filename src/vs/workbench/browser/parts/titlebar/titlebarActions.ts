@@ -66,7 +66,7 @@ registerAction2(class ToggleNavigationControl extends ToggleTitleBarConfigAction
 
 registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 3, true);
+		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 4, true);
 	}
 });
 
@@ -259,7 +259,7 @@ registerAction2(class ToggleEditorActions extends Action2 {
 	}
 });
 
-if (isLinux && isNative) { // TODO@bpasero remove me later
+if (isLinux && isNative) {
 	registerAction2(class ToggleCustomTitleBar extends Action2 {
 		constructor() {
 			super({

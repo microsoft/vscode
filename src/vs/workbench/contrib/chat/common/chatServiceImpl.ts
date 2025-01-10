@@ -33,6 +33,7 @@ import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService } from './chatVariables.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
+import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -86,7 +87,8 @@ const maxPersistedSessions = 25;
 class CancellableRequest implements IDisposable {
 	constructor(
 		public readonly cancellationTokenSource: CancellationTokenSource,
-		public requestId?: string | undefined
+		public requestId: string | undefined,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService
 	) { }
 
 	dispose() {
@@ -94,6 +96,10 @@ class CancellableRequest implements IDisposable {
 	}
 
 	cancel() {
+		if (this.requestId) {
+			this.toolsService.cancelToolCallsForRequest(this.requestId);
+		}
+
 		this.cancellationTokenSource.cancel();
 	}
 }
@@ -492,6 +498,14 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
+		const requests = model.getRequests();
+		for (let i = requests.length - 1; i >= 0; i -= 1) {
+			const request = requests[i];
+			if (request.shouldBeRemovedOnSend) {
+				this.removeRequest(sessionId, request.id);
+			}
+		}
+
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
@@ -778,7 +792,8 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		};
 		const rawResponsePromise = sendRequestInternal();
-		this._pendingRequests.set(model.sessionId, new CancellableRequest(source));
+		// Note- requestId is not known at this point, assigned later
+		this._pendingRequests.set(model.sessionId, this.instantiationService.createInstance(CancellableRequest, source, undefined));
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionId);
 		});

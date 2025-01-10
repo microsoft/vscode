@@ -12,7 +12,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, EndOfLineSequence, IModelDeltaDecoration } from '../../../../common/model.js';
-import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
+import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
@@ -54,6 +54,8 @@ export class NativeEditContext extends AbstractEditContext {
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
 
 	private _targetWindowId: number = -1;
+	private _scrollTop: number = 0;
+	private _scrollLeft: number = 0;
 
 	private readonly _focusTracker: FocusTracker;
 
@@ -211,6 +213,37 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
 		this._screenReaderSupport.onConfigurationChanged(e);
 		this._updateDomAttributes();
+		return true;
+	}
+
+	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations that can end up relayouting text
+		return true;
+	}
+
+	public override onFlushed(e: ViewFlushedEvent): boolean {
+		return true;
+	}
+
+	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		return true;
+	}
+
+	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+
+	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+
+	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
+		this._scrollLeft = e.scrollLeft;
+		this._scrollTop = e.scrollTop;
+		return true;
+	}
+
+	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -378,12 +411,10 @@ export class NativeEditContext extends AbstractEditContext {
 		const modelStartPosition = this._primarySelection.getStartPosition();
 		const viewStartPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelStartPosition);
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewStartPosition.lineNumber);
-		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 
-		const top = parentBounds.top + verticalOffsetStart - editorScrollTop;
+		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		const height = (this._primarySelection.endLineNumber - this._primarySelection.startLineNumber + 1) * lineHeight;
-		let left = parentBounds.left + contentLeft - editorScrollLeft;
+		let left = parentBounds.left + contentLeft - this._scrollLeft;
 		let width: number;
 
 		if (this._primarySelection.isEmpty()) {
@@ -422,9 +453,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const characterViewRange = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(characterModelRange);
 			const characterLinesVisibleRanges = this._visibleRangeProvider.linesVisibleRangesForRange(characterViewRange, true) ?? [];
 			const characterVerticalOffset = this._context.viewLayout.getVerticalOffsetForLineNumber(characterViewRange.startLineNumber);
-			const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-			const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
-			const top = parentBounds.top + characterVerticalOffset - editorScrollTop;
+			const top = parentBounds.top + characterVerticalOffset - this._scrollTop;
 
 			let left = 0;
 			let width = typicalHalfWidthCharacterWidth;
@@ -435,7 +464,7 @@ export class NativeEditContext extends AbstractEditContext {
 					break;
 				}
 			}
-			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - editorScrollLeft, top, width, lineHeight));
+			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - this._scrollLeft, top, width, lineHeight));
 		}
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
 	}

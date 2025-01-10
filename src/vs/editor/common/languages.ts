@@ -556,9 +556,6 @@ export interface CompletionItem {
 	/**
 	 * A range of text that should be replaced by this completion item.
 	 *
-	 * Defaults to a range from the start of the {@link TextDocument.getWordRangeAtPosition current word} to the
-	 * current position.
-	 *
 	 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
 	 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
 	 */
@@ -706,6 +703,11 @@ export interface InlineCompletionContext {
 	 * @internal
 	*/
 	readonly userPrompt?: string | undefined;
+	/**
+	 * @experimental
+	 * @internal
+	*/
+	readonly requestUuid?: string | undefined;
 
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
@@ -772,6 +774,8 @@ export interface InlineCompletion {
 	readonly completeBracketPairs?: boolean;
 
 	readonly isInlineEdit?: boolean;
+
+	readonly showRange?: IRange;
 }
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -2103,7 +2107,7 @@ export interface CodeLens {
 
 export interface CodeLensList {
 	lenses: CodeLens[];
-	dispose(): void;
+	dispose?(): void;
 }
 
 export interface CodeLensProvider {
@@ -2394,6 +2398,7 @@ export interface MappedEditsProvider {
 export interface IInlineEdit {
 	text: string;
 	range: IRange;
+	showRange?: IRange;
 	accepted?: Command;
 	rejected?: Command;
 	shown?: Command;
@@ -2402,6 +2407,12 @@ export interface IInlineEdit {
 
 export interface IInlineEditContext {
 	triggerKind: InlineEditTriggerKind;
+
+	/**
+	 * @experimental
+	 * @internal
+	 */
+	requestUuid?: string;
 }
 
 export enum InlineEditTriggerKind {

@@ -57,7 +57,6 @@ declare module 'vscode' {
 
 	export interface MappedEditsRequest {
 		readonly codeBlocks: { code: string; resource: Uri; markdownBeforeBlock?: string }[];
-		readonly conversation: Array<ConversationRequest | ConversationResponse>; // for every prior response that contains codeblocks, make sure we pass the code as well as the resources based on the reported codemapper URIs
 	}
 
 	export interface MappedEditsResponseStream {

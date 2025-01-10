@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../../base/common/async.js';
+import { ITask, Sequencer, timeout } from '../../../../../base/common/async.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { autorun, derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -18,7 +18,6 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -29,13 +28,10 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, IChatEditingSession, IModifiedFileEntry, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedFileEntry, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { ChatEditingMultiDiffSourceResolver } from './chatEditingService.js';
 import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -45,9 +41,45 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatService } from '../../common/chatService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
+import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
+
+
+class ThrottledSequencer extends Sequencer {
+
+	private _size = 0;
+
+	constructor(
+		private readonly _minDuration: number,
+		private readonly _maxOverallDelay: number
+	) {
+		super();
+	}
+
+	override queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
+
+		this._size += 1;
+
+		const noDelay = this._size * this._minDuration > this._maxOverallDelay;
+
+		return super.queue(async () => {
+			try {
+				const p1 = promiseTask();
+				const p2 = noDelay
+					? Promise.resolve(undefined)
+					: timeout(this._minDuration);
+
+				const [result] = await Promise.all([p1, p2]);
+				return result;
+
+			} finally {
+				this._size -= 1;
+			}
+		});
+	}
+}
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
 
@@ -59,14 +91,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	 * Contains the contents of a file when the AI first began doing edits to it.
 	 */
 	private readonly _initialFileContents = new ResourceMap<string>();
-	private readonly _filesToSkipCreating = new ResourceSet();
 
 	private readonly _entriesObs = observableValue<readonly ChatEditingModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly ChatEditingModifiedFileEntry[]> {
 		this._assertNotDisposed();
 		return this._entriesObs;
 	}
-	private readonly _sequencer = new Sequencer();
+	private readonly _sequencer = new ThrottledSequencer(15, 1000);
 
 	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
 	get workingSet() {
@@ -112,7 +143,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return linearHistory.slice(linearHistoryIndex).map(s => s.requestId).filter((r): r is string => !!r);
 	});
 
-	private readonly _onDidChange = new Emitter<ChatEditingSessionChangeType>();
+	private readonly _onDidChange = this._register(new Emitter<ChatEditingSessionChangeType>());
 	get onDidChange() {
 		this._assertNotDisposed();
 		return this._onDidChange.event;
@@ -139,10 +170,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IFileService private readonly _fileService: IFileService,
-		@IFileDialogService private readonly _dialogService: IFileDialogService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@INotebookService private readonly _notebookService: INotebookService,
 	) {
@@ -152,9 +179,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public async init(): Promise<void> {
 		const restoredSessionState = await this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId).restoreState();
 		if (restoredSessionState) {
-			for (const uri of restoredSessionState.filesToSkipCreating) {
-				this._filesToSkipCreating.add(uri);
-			}
 			for (const [uri, content] of restoredSessionState.initialFileContents) {
 				this._initialFileContents.set(uri, content);
 			}
@@ -190,7 +214,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public storeState(): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId);
 		const state: StoredSessionState = {
-			filesToSkipCreating: [...this._filesToSkipCreating],
 			initialFileContents: this._initialFileContents,
 			pendingSnapshot: this._pendingSnapshot,
 			recentSnapshot: this._createSnapshot(undefined),
@@ -213,19 +236,27 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			if (!group.activeEditorPane) {
 				return;
 			}
-			let activeEditorControl = group.activeEditorPane.getControl();
-			if (isDiffEditor(activeEditorControl)) {
-				activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
-			}
-			if (isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
-				const uri = activeEditorControl.getModel().uri;
-				if (existingTransientEntries.has(uri)) {
-					existingTransientEntries.delete(uri);
-				} else if (!this._workingSet.has(uri) && !this._removedTransientEntries.has(uri)) {
-					// Don't add as a transient entry if it's already part of the working set
-					// or if the user has intentionally removed it from the working set
-					activeEditors.add(uri);
+			let uri;
+			if (isNotebookEditorInput(group.activeEditorPane.input)) {
+				uri = group.activeEditorPane.input.resource;
+			} else {
+				let activeEditorControl = group.activeEditorPane.getControl();
+				if (isDiffEditor(activeEditorControl)) {
+					activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
 				}
+				if ((isCodeEditor(activeEditorControl)) && activeEditorControl.hasModel()) {
+					uri = activeEditorControl.getModel().uri;
+				}
+			}
+			if (!uri) {
+				return;
+			}
+			if (existingTransientEntries.has(uri)) {
+				existingTransientEntries.delete(uri);
+			} else if ((!this._workingSet.has(uri) || this._workingSet.get(uri)?.state === WorkingSetEntryState.Suggested) && !this._removedTransientEntries.has(uri)) {
+				// Don't add as a transient entry if it's already a confirmed part of the working set
+				// or if the user has intentionally removed it from the working set
+				activeEditors.add(uri);
 			}
 		});
 
@@ -440,7 +471,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		}
 		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
-			multiDiffSource: ChatEditingMultiDiffSourceResolver.getMultiDiffSourceUri(),
+			multiDiffSource: getMultiDiffSourceUri(),
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 
@@ -480,13 +511,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	override dispose() {
 		this._assertNotDisposed();
 
-		for (const entry of this._entriesObs.get()) {
-			entry.dispose();
-		}
+		this._chatService.cancelCurrentRequestForSession(this.chatSessionId);
 
+		dispose(this._entriesObs.get());
 		super.dispose();
 		this._state.set(ChatEditingSessionState.Disposed, undefined);
 		this._onDidDispose.fire();
+		this._onDidDispose.dispose();
 	}
 
 	getVirtualModel(documentId: string): ITextModel | null {
@@ -583,24 +614,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
-		if (this._filesToSkipCreating.has(resource)) {
-			return;
-		}
-
 		if (!this._entriesObs.get().find(e => isEqual(e.modifiedURI, resource)) && this._entriesObs.get().length >= (await this.editingSessionFileLimitPromise)) {
 			// Do not create files in a single editing session that would be in excess of our limit
 			return;
-		}
-
-		if (resource.scheme !== Schemas.untitled && !this._workspaceContextService.getWorkspaceFolder(resource) && !(await this._fileService.exists(resource))) {
-			// if the file doesn't exist yet and is outside the workspace, prompt the user for a location to save it to
-			const saveLocation = await this._dialogService.showSaveDialog({ title: localize('chatEditing.fileSave', '{0} wants to create a file. Choose where it should be saved.', this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName ?? 'Chat') });
-			if (!saveLocation) {
-				// don't ask the user to create the file again when the next text edit for this same resource streams in
-				this._filesToSkipCreating.add(resource);
-				return;
-			}
-			resource = saveLocation;
 		}
 
 		// Make these getters because the response result is not available when the file first starts to be edited
@@ -613,7 +629,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
 		entry.acceptAgentEdits(textEdits, isLastEdits);
-		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
 
 	private async _resolve(): Promise<void> {
@@ -626,6 +641,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
+	/**
+	 * Retrieves or creates a modified file entry.
+	 *
+	 * @returns The modified file entry.
+	 */
 	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo): Promise<ChatEditingModifiedFileEntry> {
 		const existingEntry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, resource));
 		if (existingEntry) {
@@ -689,7 +709,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 }
 
 interface StoredSessionState {
-	readonly filesToSkipCreating: URI[];
 	readonly initialFileContents: ResourceMap<string>;
 	readonly pendingSnapshot?: IChatEditingSessionSnapshot;
 	readonly recentSnapshot: IChatEditingSessionSnapshot;
@@ -760,7 +779,6 @@ class ChatEditingSessionStorage {
 			}
 
 			const linearHistory = await Promise.all(data.linearHistory.map(deserializeChatEditingSessionSnapshot));
-			const filesToSkipCreating = data.filesToSkipCreating.map((uriStr: string) => URI.parse(uriStr));
 
 			const initialFileContents = new ResourceMap<string>();
 			for (const fileContentDTO of data.initialFileContents) {
@@ -770,7 +788,6 @@ class ChatEditingSessionStorage {
 			const recentSnapshot = await deserializeChatEditingSessionSnapshot(data.recentSnapshot);
 
 			return {
-				filesToSkipCreating,
 				initialFileContents,
 				pendingSnapshot,
 				recentSnapshot,
@@ -848,7 +865,6 @@ class ChatEditingSessionStorage {
 				initialFileContents: serializeResourceMap(state.initialFileContents, value => addFileContent(value)),
 				pendingSnapshot: state.pendingSnapshot ? serializeChatEditingSessionSnapshot(state.pendingSnapshot) : undefined,
 				recentSnapshot: serializeChatEditingSessionSnapshot(state.recentSnapshot),
-				filesToSkipCreating: state.filesToSkipCreating.map(uri => uri.toString()),
 			} satisfies IChatEditingSessionDTO;
 
 			this._logService.debug(`chatEditingSession: Storing editing session at ${storageFolder.toString()}: ${fileContents.size} files`);
@@ -918,5 +934,4 @@ interface IChatEditingSessionDTO {
 	readonly linearHistoryIndex: number;
 	readonly pendingSnapshot: IChatEditingSessionSnapshotDTO | undefined;
 	readonly initialFileContents: ResourceMapDTO<string>;
-	readonly filesToSkipCreating: string[];
 }

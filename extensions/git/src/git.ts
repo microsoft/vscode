@@ -62,6 +62,7 @@ export interface LogFileOptions {
 	/** Optional. Specifies whether to start retrieving log entries in reverse order. */
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
+	readonly shortStats?: boolean;
 }
 
 function parseVersion(raw: string): string {
@@ -315,7 +316,7 @@ export interface IGitOptions {
 	gitPath: string;
 	userAgent: string;
 	version: string;
-	env?: any;
+	env?: { [key: string]: string };
 }
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -369,7 +370,8 @@ export class Git {
 	readonly path: string;
 	readonly userAgent: string;
 	readonly version: string;
-	private env: any;
+	readonly env: { [key: string]: string };
+
 	private commandsToLog: string[] = [];
 
 	private _onOutput = new EventEmitter();
@@ -502,7 +504,7 @@ export class Git {
 			const repoUri = Uri.file(repositoryRootPath);
 			const pathUri = Uri.file(pathInsidePossibleRepository);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
+				const match = /^[\/]?([a-zA-Z])[:\/]/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
 
@@ -1165,11 +1167,11 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
-	async config(scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
-		const args = ['config'];
+	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
+		const args = ['config', `--${command}`];
 
 		if (scope) {
-			args.push('--' + scope);
+			args.push(`--${scope}`);
 		}
 
 		args.push(key);
@@ -1282,6 +1284,10 @@ export class Repository {
 			} else {
 				args.push(options.hash);
 			}
+		}
+
+		if (options?.shortStats) {
+			args.push('--shortstat');
 		}
 
 		if (options?.sortByAuthorDate) {
@@ -1657,9 +1663,9 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async stage(path: string, data: string): Promise<void> {
+	async stage(path: string, data: string, encoding: string): Promise<void> {
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
-		child.stdin!.end(data, 'utf8');
+		child.stdin!.end(iconv.encode(data, encoding));
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
@@ -1878,6 +1884,16 @@ export class Repository {
 
 	async mergeAbort(): Promise<void> {
 		await this.exec(['merge', '--abort']);
+	}
+
+	async mergeContinue(): Promise<void> {
+		const args = ['merge', '--continue'];
+
+		try {
+			await this.exec(args, { env: { GIT_EDITOR: 'true' } });
+		} catch (commitErr) {
+			await this.handleCommitError(commitErr);
+		}
 	}
 
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
@@ -2763,8 +2779,8 @@ export class Repository {
 		return Promise.reject<Branch>(new Error(`No such branch: ${name}.`));
 	}
 
-	async getDefaultBranch(): Promise<Branch> {
-		const result = await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+	async getDefaultBranch(remoteName: string): Promise<Branch> {
+		const result = await this.exec(['symbolic-ref', '--short', `refs/remotes/${remoteName}/HEAD`]);
 		if (!result.stdout || result.stderr) {
 			throw new Error('No default branch');
 		}
@@ -2830,6 +2846,15 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
+	}
+
+	async revList(ref1: string, ref2: string): Promise<string[]> {
+		const result = await this.exec(['rev-list', `${ref1}..${ref2}`]);
+		if (result.stderr) {
+			return [];
+		}
+
+		return result.stdout.trim().split('\n');
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {

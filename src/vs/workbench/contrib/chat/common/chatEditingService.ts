@@ -10,6 +10,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
@@ -23,7 +24,6 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
 	/**
 	 * emitted when a session is created, changed or disposed
 	 */
@@ -121,6 +121,8 @@ export interface IModifiedFileEntry {
 	readonly rewriteRatio: IObservable<number>;
 	readonly maxLineNumber: IObservable<number>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
+	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
+	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
 	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
@@ -163,4 +165,11 @@ export interface IChatEditingActionContext {
 
 export function isChatEditingActionContext(thing: unknown): thing is IChatEditingActionContext {
 	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
+}
+
+export function getMultiDiffSourceUri(): URI {
+	return URI.from({
+		scheme: CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME,
+		path: '',
+	});
 }

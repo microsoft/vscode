@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookViewModel } from '../../notebookBrowser.js';
+import { CellEditState, getNotebookEditorFromEditorPane, INotebookEditor, INotebookViewModel } from '../../notebookBrowser.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -24,7 +24,7 @@ import { navigationBearingFakeActionId } from '../../../../chat/browser/chatEdit
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
-		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		cellDiffInfo: IObservable<CellDiffInfo[] | undefined>,
 		deletedCellDecorator: INotebookDeletedCellDecorator,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -60,7 +60,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		entry: IModifiedFileEntry,
-		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		cellDiffInfo: IObservable<CellDiffInfo[] | undefined>,
 		nextEntry: IModifiedFileEntry,
 		previousEntry: IModifiedFileEntry,
 		deletedCellDecorator: INotebookDeletedCellDecorator,
@@ -196,7 +196,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 class NextPreviousChangeActionRunner extends ActionRunner {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
-		private readonly cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		private readonly cellDiffInfo: IObservable<CellDiffInfo[] | undefined>,
 		private readonly entry: IModifiedFileEntry,
 		private readonly next: IModifiedFileEntry,
 		private readonly direction: 'next' | 'previous',
@@ -238,6 +238,7 @@ class NextPreviousChangeActionRunner extends ActionRunner {
 			this.focusedDiff.set(diff, undefined);
 			await this.notebookEditor.focusNotebookCell(viewModel.viewCells[index], 'container');
 			this.notebookEditor.revealInViewAtTop(viewModel.viewCells[index]);
+			viewModel.viewCells[index].updateEditState(CellEditState.Editing, 'chatEdit');
 			return true;
 		}
 		return false;

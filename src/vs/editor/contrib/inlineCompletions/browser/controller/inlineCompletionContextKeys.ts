@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, autorun } from '../../../../../base/common/observable.js';
-import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
-import { RawContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { localize } from '../../../../../nls.js';
-import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import * as nls from '../../../../../nls.js';
 
-export class InlineCompletionContextKeys extends Disposable {
+export abstract class InlineCompletionContextKeys {
 
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
 	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
@@ -24,42 +21,5 @@ export class InlineCompletionContextKeys extends Disposable {
 	public static readonly tabShouldJumpToInlineEdit = new RawContextKey<boolean | undefined>('tabShouldJumpToInlineEdit', false, localize('tabShouldJumpToInlineEdit', "Whether tab should jump to an inline edit."));
 	public static readonly tabShouldAcceptInlineEdit = new RawContextKey<boolean | undefined>('tabShouldAcceptInlineEdit', false, localize('tabShouldAcceptInlineEdit', "Whether tab should accept the inline edit."));
 
-	public readonly inlineCompletionVisible = InlineCompletionContextKeys.inlineSuggestionVisible.bindTo(this.contextKeyService);
-	public readonly inlineCompletionSuggestsIndentation = InlineCompletionContextKeys.inlineSuggestionHasIndentation.bindTo(this.contextKeyService);
-	public readonly inlineCompletionSuggestsIndentationLessThanTabSize = InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize.bindTo(this.contextKeyService);
-	public readonly suppressSuggestions = InlineCompletionContextKeys.suppressSuggestions.bindTo(this.contextKeyService);
-
-	constructor(
-		private readonly contextKeyService: IContextKeyService,
-		private readonly model: IObservable<InlineCompletionsModel | undefined>,
-	) {
-		super();
-
-		this._register(bindContextKey(
-			InlineCompletionContextKeys.inlineEditVisible,
-			this.contextKeyService,
-			reader => this.model.read(reader)?.inlineEditState.read(reader) !== undefined
-		));
-
-		this._register(autorun(reader => {
-			/** @description update context key: inlineCompletionVisible, suppressSuggestions */
-			const model = this.model.read(reader);
-			const state = model?.inlineCompletionState.read(reader);
-
-			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.primaryGhostText !== undefined && !state?.primaryGhostText.isEmpty();
-			this.inlineCompletionVisible.set(isInlineCompletionVisible);
-
-			if (state?.primaryGhostText && state?.inlineCompletion) {
-				this.suppressSuggestions.set(state.inlineCompletion.inlineCompletion.source.inlineCompletions.suppressSuggestions);
-			}
-		}));
-
-		this._register(autorun(reader => {
-			/** @description update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize */
-			const model = this.model.read(reader);
-			const result = model?.getIndentationInfo(reader);
-			this.inlineCompletionSuggestsIndentation.set(result?.startsWithIndentation ?? false);
-			this.inlineCompletionSuggestsIndentationLessThanTabSize.set(result?.startsWithIndentationLessThanTabSize ?? true);
-		}));
-	}
+	public static readonly inInlineEditsPreviewEditor = new RawContextKey<boolean>('inInlineEditsPreviewEditor', true, nls.localize('inInlineEditsPreviewEditor', "Whether the current code editor is showing an inline edits preview"));
 }

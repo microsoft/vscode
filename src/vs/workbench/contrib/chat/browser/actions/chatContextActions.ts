@@ -35,6 +35,7 @@ import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/se
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
+import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { SearchView } from '../../../search/browser/searchView.js';
@@ -42,7 +43,7 @@ import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../searc
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
@@ -477,7 +478,7 @@ export class AttachContextAction extends Action2 {
 					isDynamic: true
 				});
 			} else if (isIOpenEditorsQuickPickItem(pick)) {
-				for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput)) {
+				for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput || e instanceof NotebookEditorInput)) {
 					const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
 					if (uri) {
 						if (chatEditingService) {
@@ -522,14 +523,13 @@ export class AttachContextAction extends Action2 {
 				const itemsPromise = chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), CancellationToken.None)
 					.then((files) => (files ?? []).reduce<((IQuickPickItem & { value: URI }) | IQuickPickSeparator)[]>((acc, cur) => {
 						acc.push({ type: 'separator', label: cur.group });
-						const workingSet = chatEditingService.currentEditingSessionObs.get()?.workingSet;
 						for (const file of cur.files) {
 							acc.push({
 								type: 'item',
 								label: labelService.getUriBasenameLabel(file.uri),
 								description: labelService.getUriLabel(dirname(file.uri), { relative: true }),
 								value: file.uri,
-								disabled: workingSet?.has(file.uri) || attachments.has(this._getFileContextId({ resource: file.uri })),
+								disabled: attachments.has(this._getFileContextId({ resource: file.uri })),
 								picked: true
 							});
 						}
@@ -794,8 +794,10 @@ export class AttachContextAction extends Action2 {
 				// Avoid attaching the same context twice
 				const attachedContext = widget.attachmentModel.getAttachmentIDs();
 				if (chatEditingService) {
-					for (const file of chatEditingService.currentEditingSessionObs.get()?.workingSet.keys() ?? []) {
-						attachedContext.add(this._getFileContextId({ resource: file }));
+					for (const [file, state] of chatEditingService.currentEditingSessionObs.get()?.workingSet.entries() ?? []) {
+						if (state.state !== WorkingSetEntryState.Suggested) {
+							attachedContext.add(this._getFileContextId({ resource: file }));
+						}
 					}
 				}
 

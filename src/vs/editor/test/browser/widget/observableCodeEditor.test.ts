@@ -112,7 +112,7 @@ suite("CodeEditorWidget", () => {
 		}));
 
 	test("listener interaction (unforced)", () => {
-		let derived: IObservable<string, unknown>;
+		let derived: IObservable<string>;
 		let log: Log;
 		withEditorSetupTestFixture(
 			(editor, disposables) => {
@@ -143,7 +143,7 @@ suite("CodeEditorWidget", () => {
 	});
 
 	test("listener interaction ()", () => {
-		let derived: IObservable<string, unknown>;
+		let derived: IObservable<string>;
 		let log: Log;
 		withEditorSetupTestFixture(
 			(editor, disposables) => {

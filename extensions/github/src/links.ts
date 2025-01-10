@@ -186,6 +186,15 @@ export function getBranchLink(url: string, branch: string, hostPrefix: string = 
 	return `${hostPrefix}/${repo.owner}/${repo.repo}/tree/${branch}`;
 }
 
+export function getCommitLink(url: string, hash: string, hostPrefix: string = 'https://github.com') {
+	const repo = getRepositoryFromUrl(url);
+	if (!repo) {
+		throw new Error('Invalid repository URL provided');
+	}
+
+	return `${hostPrefix}/${repo.owner}/${repo.repo}/commit/${hash}`;
+}
+
 export function getVscodeDevHost(): string {
 	return `https://${vscode.env.appName.toLowerCase().includes('insiders') ? 'insiders.' : ''}vscode.dev/github`;
 }

@@ -486,12 +486,11 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				let errorDetails: IChatResponseErrorDetails | undefined;
 				if (result?.errorDetails) {
 					errorDetails = {
-						...typeConvert.ChatErrorDetails.from(result.errorDetails, this._commands.converter, sessionDisposables),
+						...result.errorDetails,
 						responseIsIncomplete: true
 					};
 				}
-
-				if (errorDetails?.responseIsRedacted || errorDetails?.quotaExceededDetails) {
+				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
@@ -504,7 +503,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				e = e.cause;
 			}
 
-			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true } };
+			const isQuotaExceeded = e instanceof Error && e.name === 'ChatQuotaExceeded';
+			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded } };
 
 		} finally {
 			stream?.close();

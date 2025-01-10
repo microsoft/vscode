@@ -14,20 +14,20 @@ declare module 'vscode' {
 		Indexed = 2
 	}
 
-	interface VariablesResult {
+	export interface VariablesResult {
 		variable: Variable;
 		hasNamedChildren: boolean;
 		indexedChildrenCount: number;
 	}
 
-	interface NotebookVariableProvider {
+	export interface NotebookVariableProvider {
 		onDidChangeVariables: Event<NotebookDocument>;
 
 		/** When parent is undefined, this is requesting global Variables. When a variable is passed, it's requesting child props of that Variable. */
 		provideVariables(notebook: NotebookDocument, parent: Variable | undefined, kind: NotebookVariablesRequestKind, start: number, token: CancellationToken): AsyncIterable<VariablesResult>;
 	}
 
-	interface Variable {
+	export interface Variable {
 		/** The variable's name. */
 		name: string;
 
