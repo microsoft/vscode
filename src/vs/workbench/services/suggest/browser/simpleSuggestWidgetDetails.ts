@@ -343,13 +343,102 @@ export class SimpleSuggestDetailsOverlay {
 	placeAtAnchor(anchor: HTMLElement) {
 		const anchorBox = anchor.getBoundingClientRect();
 		this._anchorBox = anchorBox;
+		this.widget.layout(this._resizable.size.width, this._resizable.size.height);
 		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
 	}
 
 	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension) {
-		this.widget.domNode.style.position = 'absolute !important';
-		this.widget.domNode.style.top = `${anchorBox.top}px`;
-		this.widget.domNode.style.left = `${anchorBox.left}px`;
-		return;
+		const bodyBox = dom.getClientArea(this.getDomNode().ownerDocument.body);
+
+		const info = this.widget.getLayoutInfo();
+
+		const defaultMinSize = new dom.Dimension(220, 2 * info.lineHeight);
+		const defaultTop = anchorBox.top;
+
+		type Placement = { top: number; left: number; fit: number; maxSizeTop: dom.Dimension; maxSizeBottom: dom.Dimension; minSize: dom.Dimension };
+
+		// EAST
+		const eastPlacement: Placement = (function () {
+			const width = bodyBox.width - (anchorBox.left + anchorBox.width + info.borderWidth + info.horizontalPadding);
+			const left = -info.borderWidth + anchorBox.left + anchorBox.width;
+			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
+			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
+			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(width, defaultMinSize.width)) };
+		})();
+
+		// WEST
+		const westPlacement: Placement = (function () {
+			const width = anchorBox.left - info.borderWidth - info.horizontalPadding;
+			const left = Math.max(info.horizontalPadding, anchorBox.left - size.width - info.borderWidth);
+			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
+			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
+			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(width, defaultMinSize.width)) };
+		})();
+
+		// SOUTH
+		const southPacement: Placement = (function () {
+			const left = anchorBox.left;
+			const top = -info.borderWidth + anchorBox.top + anchorBox.height;
+			const maxSizeBottom = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
+			return { top, left, fit: maxSizeBottom.height - size.height, maxSizeBottom, maxSizeTop: maxSizeBottom, minSize: defaultMinSize.with(maxSizeBottom.width) };
+		})();
+
+		// take first placement that fits or the first with "least bad" fit
+		const placements = [eastPlacement, westPlacement, southPacement];
+		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
+
+		// top/bottom placement
+		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;
+		let alignAtTop: boolean;
+		let height = size.height;
+		const maxHeight = Math.max(placement.maxSizeTop.height, placement.maxSizeBottom.height);
+		if (height > maxHeight) {
+			height = maxHeight;
+		}
+		let maxSize: dom.Dimension;
+		// if (preferAlignAtTop) {
+		if (height <= placement.maxSizeTop.height) {
+			alignAtTop = true;
+			maxSize = placement.maxSizeTop;
+		} else {
+			alignAtTop = false;
+			maxSize = placement.maxSizeBottom;
+		}
+		// } else {
+		// 	if (height <= placement.maxSizeBottom.height) {
+		// 		alignAtTop = false;
+		// 		maxSize = placement.maxSizeBottom;
+		// 	} else {
+		// 		alignAtTop = true;
+		// 		maxSize = placement.maxSizeTop;
+		// 	}
+		// }
+
+		let { top, left } = placement;
+		if (!alignAtTop && height > anchorBox.height) {
+			top = bottom - height;
+		}
+		const editorDomNode = this._container;
+		if (editorDomNode) {
+			// get bounding rectangle of the suggest widget relative to the editor
+			const editorBoundingBox = editorDomNode.getBoundingClientRect();
+			top -= editorBoundingBox.top;
+			left -= editorBoundingBox.left;
+		}
+		this._applyTopLeft({ left, top });
+
+		this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
+
+		this._resizable.minSize = placement.minSize;
+		this._resizable.maxSize = maxSize;
+		this._resizable.layout(height, Math.min(maxSize.width, size.width));
+		this.widget.layout(this._resizable.size.width, this._resizable.size.height);
+	}
+
+	private _applyTopLeft(topLeft: { left: number; top: number }): void {
+		// this._topLeft = topLeft;
+		// this._editor.layoutOverlayWidget(this);
+		this._resizable.domNode.style.top = `${topLeft.top}px`;
+		this._resizable.domNode.style.left = `${topLeft.left}px`;
 	}
 }
