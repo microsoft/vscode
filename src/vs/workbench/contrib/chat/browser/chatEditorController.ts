@@ -31,6 +31,10 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/common/quickDiff.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
+import { isDiffEditorForEntry } from './chatEditing/chatEditing.js';
+import { basename } from '../../../../base/common/resources.js';
+import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
+import { IEditorIdentifier } from '../../../common/editor.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
@@ -67,6 +71,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -104,16 +109,16 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		this._register(autorunWithStore((r, store) => {
 
-			if (this._editor.getOption(EditorOption.inDiffEditor)) {
-				this._clearRendering();
-				return;
-			}
-
 			const currentEditorEntry = entryForEditor.read(r);
 
 			if (!currentEditorEntry) {
 				this._clearRendering();
 				didReval = false;
+				return;
+			}
+
+			if (this._editor.getOption(EditorOption.inDiffEditor) && !_instantiationService.invokeFunction(isDiffEditorForEntry, currentEditorEntry.entry, this._editor)) {
+				this._clearRendering();
 				return;
 			}
 
@@ -508,7 +513,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		return closestWidget;
 	}
 
-	undoNearestChange(closestWidget: DiffHunkWidget | undefined): void {
+	rejectNearestChange(closestWidget: DiffHunkWidget | undefined): void {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			closestWidget.reject();
@@ -524,7 +529,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		}
 	}
 
-	async openDiff(widget: DiffHunkWidget | undefined): Promise<void> {
+	async toggleDiff(widget: DiffHunkWidget | undefined): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -544,22 +549,50 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			}
 		}
 
-		if (widget instanceof DiffHunkWidget) {
+		if (!(widget instanceof DiffHunkWidget)) {
+			return;
+		}
 
-			const lineNumber = widget.getStartLineNumber();
-			const position = lineNumber ? new Position(lineNumber, 1) : undefined;
-			let selection = this._editor.getSelection();
-			if (position && !selection.containsPosition(position)) {
-				selection = Selection.fromPositions(position);
-			}
 
+		const lineNumber = widget.getStartLineNumber();
+		const position = lineNumber ? new Position(lineNumber, 1) : undefined;
+		let selection = this._editor.getSelection();
+		if (position && !selection.containsPosition(position)) {
+			selection = Selection.fromPositions(position);
+		}
+
+		const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
+
+		if (isDiffEditor) {
+			// normal EDITOR
+			await this._editorService.openEditor({ resource: widget.entry.modifiedURI });
+
+		} else {
+			// DIFF editor
+			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
 				original: { resource: widget.entry.originalURI, options: { selection: undefined } },
 				modified: { resource: widget.entry.modifiedURI, options: { selection } },
+				label: defaultAgentName
+					? localize('diff.agent', '{0} (changes from {1})', basename(widget.entry.modifiedURI), defaultAgentName)
+					: localize('diff.generic', '{0} (changes from chat)', basename(widget.entry.modifiedURI))
 			});
 
-			// this is needed, passing the selection doesn't seem to work
-			diffEditor?.getControl()?.setSelection(selection);
+			if (diffEditor && diffEditor.input) {
+				const editorIdent: IEditorIdentifier = { editor: diffEditor.input, groupId: diffEditor.group.id };
+
+				// this is needed, passing the selection doesn't seem to work
+				diffEditor.getControl()?.setSelection(selection);
+
+				// close diff editor when entry is decided
+				const d = autorun(r => {
+					const state = widget.entry.state.read(r);
+					if (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected) {
+						d.dispose();
+						this._editorService.closeEditor(editorIdent);
+					}
+				});
+			}
 		}
 	}
 }
@@ -597,6 +630,7 @@ class DiffHunkWidget implements IOverlayWidget {
 		});
 
 		this._store.add(toolbar);
+		this._store.add(toolbar.actionRunner.onWillRun(_ => _editor.focus()));
 		this._editor.addOverlayWidget(this);
 	}
 
