@@ -238,7 +238,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.viewChanges',
-			title: localize('viewChanges', "View Changes"),
+			title: localize('openChanges', "Open Changes"),
 			f1: false,
 			menu: [
 				{
