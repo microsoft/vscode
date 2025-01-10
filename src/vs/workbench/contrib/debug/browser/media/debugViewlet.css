@@ -274,6 +274,12 @@
 	font-family: var(--monaco-monospace-font);
 	font-weight: normal;
 }
+.debug-view-content .monaco-tl-contents .highlight {
+	color: unset !important;
+	background-color: var(--vscode-list-filterMatchBackground);
+	outline: 1px dotted var(--vscode-list-filterMatchBorder);
+	outline-offset: -1px;
+}
 
 /* Breakpoints */
 

@@ -13,7 +13,7 @@ import { ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectB
 import { SelectActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from '../../../../editor/contrib/peekView/browser/peekView.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
@@ -48,6 +48,7 @@ import { gotoNextLocation, gotoPreviousLocation } from '../../../../platform/the
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { getOuterEditor } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 
 export const isQuickDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 

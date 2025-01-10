@@ -14,6 +14,7 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 
 
@@ -45,17 +46,22 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return await fn(input, token);
 	}
 
-	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(extension: IExtensionDescription, toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		const callId = generateUuid();
 		if (options.tokenizationOptions) {
 			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
 		}
 
-		if (options.toolInvocationToken && !isToolInvocationContext(options.toolInvocationToken)) {
-			throw new Error(`Invalid tool invocation token`);
-		}
-
 		try {
+			if (options.toolInvocationToken && !isToolInvocationContext(options.toolInvocationToken)) {
+				throw new Error(`Invalid tool invocation token`);
+			}
+
+			const tool = this._allTools.get(toolId);
+			if (tool?.tags?.includes('vscode_editing') && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+				throw new Error(`Invalid tool: ${toolId}`);
+			}
+
 			// Making the round trip here because not all tools were necessarily registered in this EH
 			const result = await this._proxy.$invokeTool({
 				toolId,
@@ -77,9 +83,16 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 	}
 
-	get tools(): vscode.LanguageModelToolInformation[] {
+	getTools(extension: IExtensionDescription): vscode.LanguageModelToolInformation[] {
 		return Array.from(this._allTools.values())
-			.map(tool => typeConvert.LanguageModelToolDescription.to(tool));
+			.map(tool => typeConvert.LanguageModelToolDescription.to(tool))
+			.filter(tool => {
+				if (tool.tags.includes('vscode_editing')) {
+					return isProposedApiEnabled(extension, 'chatParticipantPrivate');
+				}
+
+				return true;
+			});
 	}
 
 	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {

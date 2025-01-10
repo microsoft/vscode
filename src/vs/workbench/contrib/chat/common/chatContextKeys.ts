@@ -28,6 +28,8 @@ export namespace ChatContextKeys {
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
+	export const inChatEditWorkingSet = new RawContextKey<boolean>('inChatEditWorkingSet', false, { type: 'boolean', description: localize('inChatEditWorkingSet', "True when focus is in the chat edit working set, false otherwise.") });
+	export const instructionsAttached = new RawContextKey<boolean>('chatInstructionsAttached', false, { type: 'boolean', description: localize('chatInstructionsAttachedContextDescription', "True when the chat has a prompt instructions attached.") });
 
 	export const supported = ContextKeyExpr.or(IsWebContext.toNegated(), RemoteNameContext.notEqualsTo('')); // supported on desktop and in web only with a remote connection
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
@@ -76,4 +78,9 @@ export namespace ChatContextKeys {
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
+
+	export const Editing = {
+		hasToolsAgent: new RawContextKey<boolean>('chatHasToolsAgent', false, { type: 'boolean', description: localize('chatEditingHasToolsAgent', "True when a tools agent is registered.") }),
+		agentMode: new RawContextKey<boolean>('chatAgentMode', false, { type: 'boolean', description: localize('chatEditingAgentMode', "True when edits is in agent mode.") }),
+	};
 }

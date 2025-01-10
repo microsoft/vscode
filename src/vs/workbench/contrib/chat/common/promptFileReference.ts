@@ -8,6 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatPromptCodec } from './codecs/chatPromptCodec/chatPromptCodec.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
@@ -109,6 +110,7 @@ export class PromptFileReference extends Disposable {
 
 	constructor(
 		private readonly _uri: URI | Location,
+		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
@@ -116,18 +118,17 @@ export class PromptFileReference extends Disposable {
 		this.onFilesChanged = this.onFilesChanged.bind(this);
 
 		// make sure the variable is updated on file changes
-		// but only for the prompt snippet files
-		if (this.isPromptSnippetFile) {
-			this.addFilesystemListeners();
-		}
+		this.addFilesystemListeners();
 	}
 
 	/**
 	 * Subscribe to the `onUpdate` event.
 	 * @param callback
 	 */
-	public onUpdate(callback: () => unknown) {
+	public onUpdate(callback: () => unknown): this {
 		this._register(this._onUpdate.event(callback));
+
+		return this;
 	}
 
 	/**
@@ -199,8 +200,30 @@ export class PromptFileReference extends Disposable {
 	private onFilesChanged(event: FileChangesEvent) {
 		const fileChanged = event.contains(this.uri, FileChangeType.UPDATED);
 		const fileDeleted = event.contains(this.uri, FileChangeType.DELETED);
-		if (!fileChanged && !fileDeleted) {
+		const fileAdded = event.contains(this.uri, FileChangeType.ADDED);
+
+		// if the change does not relate to the current file, nothing to do
+		if (!fileChanged && !fileDeleted && !fileAdded) {
 			return;
+		}
+
+		// handle file changes only for prompt snippet files but in the case a file was
+		// deleted, it does not matter if it was a prompt - we still need to handle it by
+		// calling the `resolve()` method, which will set an error condition if the file
+		// does not exist anymore, or of it is not a prompt snippet file
+		if (fileChanged && !this.isPromptSnippetFile) {
+			return;
+		}
+
+		// if we receive an `add` event, validate that the file was previously deleted, because
+		// that is the only way we could have end up in this state of the file reference object
+		if (fileAdded && (!this._errorCondition || !(this._errorCondition instanceof FileOpenFailed))) {
+			this.logService.warn(
+				[
+					`Received 'add' event for file at '${this.uri.path}', but it was not previously deleted.`,
+					'This most likely indicates a bug in our logic, so please report it.',
+				].join(' '),
+			);
 		}
 
 		// if file is changed or deleted, re-resolve the file reference
@@ -307,6 +330,7 @@ export class PromptFileReference extends Disposable {
 
 			const child = new PromptFileReference(
 				childUri,
+				this.logService,
 				this.fileService,
 				this.configService,
 			);

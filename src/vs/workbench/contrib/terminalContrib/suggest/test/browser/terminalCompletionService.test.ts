@@ -84,7 +84,7 @@ suite('TerminalCompletionService', () => {
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 1,
-				replacementLength: 1
+				replacementLength: 0
 			}]);
 		});
 		test('.|', async () => {
@@ -132,7 +132,7 @@ suite('TerminalCompletionService', () => {
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 3,
-				replacementLength: 3
+				replacementLength: 0
 			}]);
 		});
 		test('cd .|', async () => {

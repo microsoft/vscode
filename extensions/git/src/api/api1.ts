@@ -13,7 +13,7 @@ import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
-import { PickRemoteSourceOptions } from './git-base';
+import { PickRemoteSourceOptions } from '../typings/git-base';
 import { OperationKind, OperationResult } from '../operation';
 
 class ApiInputBox implements InputBox {
@@ -110,6 +110,10 @@ export class ApiRepository implements Repository {
 
 	setConfig(key: string, value: string): Promise<string> {
 		return this.#repository.setConfig(key, value);
+	}
+
+	unsetConfig(key: string): Promise<string> {
+		return this.#repository.unsetConfig(key);
 	}
 
 	getGlobalConfig(key: string): Promise<string> {

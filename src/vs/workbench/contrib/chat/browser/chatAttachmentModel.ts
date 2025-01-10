@@ -10,8 +10,27 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ChatInstructionAttachmentsModel } from './chatAttachmentModel/chatInstructionAttachmentsModel.js';
 
 export class ChatAttachmentModel extends Disposable {
+	/**
+	 * Collection on prompt instruction attachments.
+	 */
+	public readonly promptInstructions: ChatInstructionAttachmentsModel;
+
+	constructor(
+		@IInstantiationService private readonly initService: IInstantiationService,
+	) {
+		super();
+
+		this.promptInstructions = this._register(
+			this.initService.createInstance(ChatInstructionAttachmentsModel),
+		).onUpdate(() => {
+			this._onDidChangeContext.fire();
+		});
+	}
+
 	private _attachments = new Map<string, IChatRequestVariableEntry>();
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
 		return Array.from(this._attachments.values());
@@ -44,13 +63,14 @@ export class ChatAttachmentModel extends Disposable {
 		this.addContext(this.asVariableEntry(uri, range));
 	}
 
-	asVariableEntry(uri: URI, range?: IRange): IChatRequestVariableEntry {
+	asVariableEntry(uri: URI, range?: IRange, isMarkedReadonly?: boolean): IChatRequestVariableEntry {
 		return {
 			value: range ? { uri, range } : uri,
 			id: uri.toString() + (range?.toString() ?? ''),
 			name: basename(uri),
 			isFile: true,
-			isDynamic: true
+			isDynamic: true,
+			isMarkedReadonly,
 		};
 	}
 
@@ -91,8 +111,9 @@ export class EditsAttachmentModel extends ChatAttachmentModel {
 
 	constructor(
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@IInstantiationService _initService: IInstantiationService,
 	) {
-		super();
+		super(_initService);
 	}
 
 	private isExcludeFileAttachment(fileAttachmentId: string) {

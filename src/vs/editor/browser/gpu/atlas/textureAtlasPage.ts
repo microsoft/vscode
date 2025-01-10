@@ -65,20 +65,20 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		}));
 	}
 
-	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, charMetadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
+	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, decorationStyleSetId: number): Readonly<ITextureAtlasPageGlyph> | undefined {
 		// IMPORTANT: There are intentionally no intermediate variables here to aid in runtime
 		// optimization as it's a very hot function
-		return this._glyphMap.get(chars, tokenMetadata, charMetadata, rasterizer.cacheKey) ?? this._createGlyph(rasterizer, chars, tokenMetadata, charMetadata);
+		return this._glyphMap.get(chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey) ?? this._createGlyph(rasterizer, chars, tokenMetadata, decorationStyleSetId);
 	}
 
-	private _createGlyph(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, charMetadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
+	private _createGlyph(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, decorationStyleSetId: number): Readonly<ITextureAtlasPageGlyph> | undefined {
 		// Ensure the glyph can fit on the page
 		if (this._glyphInOrderSet.size >= TextureAtlasPage.maximumGlyphCount) {
 			return undefined;
 		}
 
 		// Rasterize and allocate the glyph
-		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, tokenMetadata, charMetadata, this._colorMap);
+		const rasterizedGlyph = rasterizer.rasterizeGlyph(chars, tokenMetadata, decorationStyleSetId, this._colorMap);
 		const glyph = this._allocator.allocate(rasterizedGlyph);
 
 		// Ensure the glyph was allocated
@@ -89,7 +89,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		}
 
 		// Save the glyph
-		this._glyphMap.set(chars, tokenMetadata, charMetadata, rasterizer.cacheKey, glyph);
+		this._glyphMap.set(chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey, glyph);
 		this._glyphInOrderSet.add(glyph);
 
 		// Update page version and it's tracked used area
@@ -101,7 +101,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 			this._logService.trace('New glyph', {
 				chars,
 				tokenMetadata,
-				charMetadata,
+				decorationStyleSetId,
 				rasterizedGlyph,
 				glyph
 			});

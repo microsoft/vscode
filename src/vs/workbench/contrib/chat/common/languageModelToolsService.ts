@@ -86,4 +86,5 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	cancelToolCallsForRequest(requestId: string): void;
 }

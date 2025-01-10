@@ -46,7 +46,7 @@ import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS
 import { getContextForVariable } from '../common/debugContext.js';
 import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from '../common/debugModel.js';
 import { DebugVisualizer, IDebugVisualizerService } from '../common/debugVisualizers.js';
-import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
+import { AbstractExpressionDataSource, AbstractExpressionsRenderer, expressionAndScopeLabelProvider, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
 import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from './debugCommands.js';
 import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
 
@@ -138,7 +138,7 @@ export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 			this.instantiationService.createInstance(VariablesDataSource), {
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
+			keyboardNavigationLabelProvider: expressionAndScopeLabelProvider,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 

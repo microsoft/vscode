@@ -28,7 +28,6 @@ class NotebookSynchronizerSaveParticipant extends NotebookSaveParticipant {
 	}
 
 	override async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
-		console.log('notebook synchronizer participate');
 		const session = this._chatEditingService.currentEditingSessionObs.get();
 
 		if (!session) {

@@ -106,4 +106,4 @@ export const enum UsagePreviewColors {
 	Restricted = '#FF000088',
 }
 
-export type GlyphMap<T> = FourKeyMap</*chars*/string, /*tokenMetadata*/number, /*charMetadata*/number, /*rasterizerCacheKey*/string, T>;
+export type GlyphMap<T> = FourKeyMap</*chars*/string, /*tokenMetadata*/number, /*decorationStyleSetId*/number, /*rasterizerCacheKey*/string, T>;

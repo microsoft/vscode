@@ -1606,7 +1606,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async triggerSearch(query: string): Promise<void> {
-		const progressRunner = this.editorProgressService.show(true);
+		const progressRunner = this.editorProgressService.show(true, 800);
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
