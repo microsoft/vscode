@@ -18,7 +18,7 @@ import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollect
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from '../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType, GeneralShellType } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Promises } from '../../../base/common/async.js';
@@ -763,6 +763,11 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 
 		return completions;
+	}
+	// Take in shellType as a string and return VSCode Terminal Shell Type?
+	public async $acceptTerminalShellType(id: number, shellType: string): Promise<TerminalShellType> {
+		// TODO: Implement
+		return GeneralShellType.Python;
 	}
 
 	public registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {

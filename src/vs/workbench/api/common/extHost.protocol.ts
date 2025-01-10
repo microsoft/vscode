@@ -43,7 +43,7 @@ import { AuthInfo, Credentials } from '../../../platform/request/common/request.
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../platform/telemetry/common/gdprTypings.js';
 import { TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalExitReason, TerminalLocation } from '../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from '../../../platform/tunnel/common/tunnel.js';
 import { EditSessionIdentityMatch } from '../../../platform/workspace/common/editSessions.js';
 import { WorkspaceTrustRequestOptions } from '../../../platform/workspace/common/workspaceTrust.js';
@@ -2417,6 +2417,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalInteraction(id: number): void;
 	$acceptTerminalSelection(id: number, selection: string | undefined): void;
+	$acceptTerminalShellType(id: number, shellType: string): Promise<TerminalShellType>;
 	$startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined>;
 	$acceptProcessAckDataEvent(id: number, charCount: number): void;
 	$acceptProcessInput(id: number, data: string): void;

@@ -262,7 +262,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	readonly onDidRegisterProcessSupport: Event<void>;
 	readonly onDidChangeConnectionState: Event<void>;
-
+	readonly onAnyInstanceShellTypeChanged: Event<ITerminalInstance>; // Here or on proposed api? - also there is onDidChangeShellType that already exists..
 	// Group events
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 
@@ -705,7 +705,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidExecuteText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
 	onDidSendText: Event<string>;
-	onDidChangeShellType: Event<TerminalShellType>;
+	onDidChangeShellType: Event<TerminalShellType>; // how should this be used in correlation to my api which should expose shell type
 	onDidChangeVisibility: Event<boolean>;
 
 	/**

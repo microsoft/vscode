@@ -1910,6 +1910,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._shellType = shellType;
 			this._terminalShellTypeContextKey.set(shellType?.toString());
 			this._onDidChangeShellType.fire(shellType);
+			// Can I fire here to let my new API know? but how should I do that
+
 		}
 	}
 
