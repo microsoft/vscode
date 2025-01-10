@@ -190,13 +190,32 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 		// if there is a current parser object, submit the token to it
 		// so it can progress with parsing the tokens sequence
 		const parseResult = this.current.accept(token);
-		if (parseResult.result === 'success') {
-			if (parseResult.nextParser instanceof FileReference) {
-				this._onData.fire(parseResult.nextParser);
+
+		// process the parse result next
+		switch (parseResult.result) {
+			// in the case of success there might be 2 cases:
+			//   1) parsing fully completed and an parsed entity is returned back, in this case,
+			// 		emit the parsed token (e.g., a `link`) and reset current parser object
+			//   2) parsing is still in progress and the next parser object is returned, hence
+			//  	we need to update the current praser object with a new one and continue
+			case 'success': {
+				if (parseResult.nextParser instanceof FileReference) {
+					this._onData.fire(parseResult.nextParser);
+					delete this.current;
+				} else {
+					this.current = parseResult.nextParser;
+				}
+
+				break;
+			}
+			// in the case of failure, reset the current parser object
+			case 'failure': {
 				delete this.current;
-			} else {
-				// otherwise, update the current parser object
-				this.current = parseResult.nextParser;
+
+				// note! when this decoder becomes consistent with other ones and hence starts emitting
+				// 		 all token types, not just links, we would need to re-emit all the tokens that
+				//       the parser object has accumulated so far
+				break;
 			}
 		}
 
