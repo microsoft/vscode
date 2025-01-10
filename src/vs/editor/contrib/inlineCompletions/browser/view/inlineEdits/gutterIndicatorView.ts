@@ -179,8 +179,19 @@ export class InlineEditsGutterIndicator extends Disposable {
 			return;
 		}
 
+		const displayName = derived(this, reader => {
+			// make private property on view
+			/* const state = this._model.read(reader)?.inlineCompletionState;
+			const item = state?.read(reader);
+			const completionSource = item?.inlineCompletion?.inlineCompletion.source;
+			const displayName = completionSource?.provider.displayName; ?? localize('inlineEdit', "Inline Edit")
+			return displayName; */
+			return localize('inlineEdit', "Inline Edit");
+		});
+
 		const content = this._instantiationService.createInstance(
 			GutterIndicatorMenuContent,
+			displayName,
 			this._hoverSelectionOverride,
 			(focusEditor) => {
 				h?.dispose();
