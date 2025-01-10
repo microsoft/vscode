@@ -71,7 +71,7 @@ export class SimpleSuggestWidget extends Disposable {
 	private _explainMode: boolean = false;
 
 	private _preference?: WidgetPositionPreference;
-	private readonly _pendingShowDetails = new MutableDisposable();
+	private readonly _pendingShowDetails = this._register(new MutableDisposable());
 	private readonly _pendingLayout = this._register(new MutableDisposable());
 	private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: SimpleCompletionItem;
