@@ -116,7 +116,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		const layout = this._editorObs.layoutInfo.read(reader);
 
-		const fullViewPort = Rect.fromLeftTopRightBottom(0, 0, layout.width, layout.height);
+		const bottomPadding = 1;
+		const fullViewPort = Rect.fromLeftTopRightBottom(0, 0, layout.width, layout.height - bottomPadding);
 		const viewPortWithStickyScroll = fullViewPort.withTop(this._stickyScrollHeight.read(reader));
 
 		const targetVertRange = s.lineOffsetRange.read(reader);
