@@ -11,8 +11,8 @@ import { equals } from '../../../../base/common/objects.js';
 export class ShellEnvDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
 	readonly type = TerminalCapability.ShellEnvDetection;
 
-	private _env: Map<string, string> = new Map();
 	private _pendingEnv: Map<string, string> | undefined;
+	private _env: Map<string, string> = new Map();
 	get env(): Map<string, string> { return this._env; }
 
 	private readonly _onDidChangeEnv = this._register(new Emitter<Map<string, string>>());
