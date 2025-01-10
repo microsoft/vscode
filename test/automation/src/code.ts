@@ -245,6 +245,10 @@ export class Code {
 		await this.poll(() => this.driver.typeInEditor(selector, text), () => true, `type in editor '${selector}'`);
 	}
 
+	async waitForEditorSelection(selector: string, accept: (selection: { selectionStart: number; selectionEnd: number }) => boolean): Promise<void> {
+		await this.poll(() => this.driver.getEditorSelection(selector), accept, `get editor selection '${selector}'`);
+	}
+
 	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {
 		await this.poll(() => this.driver.getTerminalBuffer(selector), accept, `get terminal buffer '${selector}'`);
 	}

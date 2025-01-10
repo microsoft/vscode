@@ -256,7 +256,7 @@ export class PlaywrightDriver {
 			}
 		}
 
-		await this.wait(300);
+		await this.wait(100);
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
@@ -286,6 +286,10 @@ export class PlaywrightDriver {
 
 	async typeInEditor(selector: string, text: string) {
 		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
+	}
+
+	async getEditorSelection(selector: string) {
+		return this.page.evaluate(([driver, selector]) => driver.getEditorSelection(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
 	async getTerminalBuffer(selector: string) {
