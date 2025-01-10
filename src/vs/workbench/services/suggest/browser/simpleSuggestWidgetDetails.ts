@@ -101,7 +101,7 @@ export class SimpleSuggestDetailsWidget {
 	renderItem(item: SimpleCompletionItem, explainMode: boolean): void {
 		this._renderDisposeable.clear();
 
-		// let { detail } = item.completion;
+		let { detail } = item.completion;
 
 		let md = '';
 		let documentation;
@@ -111,7 +111,7 @@ export class SimpleSuggestDetailsWidget {
 			md += `replacementIndex: ${item.completion.replacementIndex}\n`;
 			md += `replacementLength: ${item.completion.replacementLength}\n`;
 			md += `index: ${item.idx}\n`;
-			// detail = `Provider: ${item.completion.provider}`;
+			detail = `Provider: ${item.completion.provider}`;
 			documentation = new MarkdownString().appendCodeblock('empty', md);
 		}
 
@@ -124,18 +124,18 @@ export class SimpleSuggestDetailsWidget {
 
 		// --- details
 
-		// if (detail) {
-		// 	const cappedDetail = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
-		// 	this._type.textContent = cappedDetail;
-		// 	this._type.title = cappedDetail;
-		// 	dom.show(this._type);
-		// 	this._type.classList.toggle('auto-wrap', !/\r?\n^\s+/gmi.test(cappedDetail));
-		// } else {
-		// 	dom.clearNode(this._type);
-		// 	this._type.title = '';
-		// 	dom.hide(this._type);
-		// 	this.domNode.classList.add('no-type');
-		// }
+		if (detail) {
+			const cappedDetail = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
+			this._type.textContent = cappedDetail;
+			this._type.title = cappedDetail;
+			dom.show(this._type);
+			this._type.classList.toggle('auto-wrap', !/\r?\n^\s+/gmi.test(cappedDetail));
+		} else {
+			dom.clearNode(this._type);
+			this._type.title = '';
+			dom.hide(this._type);
+			this.domNode.classList.add('no-type');
+		}
 
 		// // --- documentation
 
