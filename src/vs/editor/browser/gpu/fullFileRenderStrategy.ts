@@ -256,7 +256,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		let tokenEndIndex = 0;
 		let tokenMetadata = 0;
 
-		let charMetadata = 0;
+		let decorationStyleSetColor = 0;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
@@ -360,7 +360,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						break;
 					}
 					chars = content.charAt(x);
-					charMetadata = 0;
+					decorationStyleSetColor = 0;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -386,7 +386,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 										if (!parsedColor) {
 											throw new BugIndicatingError('Invalid color format ' + value);
 										}
-										charMetadata = parsedColor.toNumber32Bit();
+										decorationStyleSetColor = parsedColor.toNumber32Bit();
 										break;
 									}
 									case 'font-weight': {
@@ -415,7 +415,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, charMetadata);
+					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor));
 
 					// TODO: Support non-standard character widths
 					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);

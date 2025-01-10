@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
 import { ensureNonNullable } from '../gpuUtils.js';
+import { ViewGpuContext } from '../viewGpuContext.js';
 import { type IBoundingBox, type IGlyphRasterizer, type IRasterizedGlyph } from './raster.js';
 
 let nextId = 0;
@@ -40,7 +41,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		fontBoundingBoxAscent: 0,
 		fontBoundingBoxDescent: 0,
 	};
-	private _workGlyphConfig: { chars: string | undefined; tokenMetadata: number; charMetadata: number } = { chars: undefined, tokenMetadata: 0, charMetadata: 0 };
+	private _workGlyphConfig: { chars: string | undefined; tokenMetadata: number; decorationStyleSetId: number } = { chars: undefined, tokenMetadata: 0, decorationStyleSetId: 0 };
 
 	constructor(
 		readonly fontSize: number,
@@ -68,7 +69,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	public rasterizeGlyph(
 		chars: string,
 		tokenMetadata: number,
-		charMetadata: number,
+		decorationStyleSetId: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
 		if (chars === '') {
@@ -83,19 +84,19 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		// Check if the last glyph matches the config, reuse if so. This helps avoid unnecessary
 		// work when the rasterizer is called multiple times like when the glyph doesn't fit into a
 		// page.
-		if (this._workGlyphConfig.chars === chars && this._workGlyphConfig.tokenMetadata === tokenMetadata && this._workGlyphConfig.charMetadata === charMetadata) {
+		if (this._workGlyphConfig.chars === chars && this._workGlyphConfig.tokenMetadata === tokenMetadata && this._workGlyphConfig.decorationStyleSetId === decorationStyleSetId) {
 			return this._workGlyph;
 		}
 		this._workGlyphConfig.chars = chars;
 		this._workGlyphConfig.tokenMetadata = tokenMetadata;
-		this._workGlyphConfig.charMetadata = charMetadata;
-		return this._rasterizeGlyph(chars, tokenMetadata, charMetadata, colorMap);
+		this._workGlyphConfig.decorationStyleSetId = decorationStyleSetId;
+		return this._rasterizeGlyph(chars, tokenMetadata, decorationStyleSetId, colorMap);
 	}
 
 	public _rasterizeGlyph(
 		chars: string,
 		tokenMetadata: number,
-		charMetadata: number,
+		decorationStyleSetId: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
 		const devicePixelFontSize = Math.ceil(this.fontSize * this.devicePixelRatio);
@@ -104,6 +105,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			this._canvas.width = canvasDim;
 			this._canvas.height = canvasDim;
 		}
+
+		const decorationStyleSet = ViewGpuContext.decorationStyleCache.getStyleSet(decorationStyleSetId);
 
 		// TODO: Support workbench.fontAliasing
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
@@ -125,8 +128,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 		const originX = devicePixelFontSize;
 		const originY = devicePixelFontSize;
-		if (charMetadata) {
-			this._ctx.fillStyle = `#${charMetadata.toString(16).padStart(8, '0')}`;
+		if (decorationStyleSet?.color) {
+			this._ctx.fillStyle = `#${decorationStyleSet.color.toString(16).padStart(8, '0')}`;
 		} else {
 			this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(tokenMetadata)];
 		}

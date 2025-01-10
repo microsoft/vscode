@@ -19,10 +19,11 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
-import { DecorationCssRuleExtractor } from './decorationCssRuleExtractor.js';
+import { DecorationCssRuleExtractor } from './css/decorationCssRuleExtractor.js';
 import { Event } from '../../../base/common/event.js';
 import type { IEditorOptions } from '../../common/config/editorOptions.js';
 import { InlineDecorationType } from '../../common/viewModel.js';
+import { DecorationStyleCache } from './css/decorationStyleCache.js';
 
 const enum GpuRenderLimits {
 	maxGpuLines = 3000,
@@ -52,6 +53,11 @@ export class ViewGpuContext extends Disposable {
 	private static readonly _decorationCssRuleExtractor = new DecorationCssRuleExtractor();
 	static get decorationCssRuleExtractor(): DecorationCssRuleExtractor {
 		return ViewGpuContext._decorationCssRuleExtractor;
+	}
+
+	private static readonly _decorationStyleCache = new DecorationStyleCache();
+	static get decorationStyleCache(): DecorationStyleCache {
+		return ViewGpuContext._decorationStyleCache;
 	}
 
 	private static _atlas: TextureAtlas | undefined;
