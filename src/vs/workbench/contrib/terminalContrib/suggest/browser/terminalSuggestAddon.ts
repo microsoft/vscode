@@ -234,6 +234,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._screen = screen;
 	}
 
+	toggleExplainMode(): void {
+		this._suggestWidget?.toggleExplainMode();
+	}
+
 	resetWidgetSize(): void {
 		this._suggestWidget?.resetWidgetSize();
 	}
