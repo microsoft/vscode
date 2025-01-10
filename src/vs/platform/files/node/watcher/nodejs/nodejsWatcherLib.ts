@@ -17,6 +17,7 @@ import { realpath } from '../../../../../base/node/extpath.js';
 import { Promises } from '../../../../../base/node/pfs.js';
 import { FileChangeType, IFileChange } from '../../../common/files.js';
 import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from '../../../common/watcher.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -55,6 +56,28 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	private readonly cts = new CancellationTokenSource();
 
+	private readonly realPath = new Lazy(async () => {
+
+		// This property is intentionally `Lazy` and not using `realcase()` as the counterpart
+		// in the recursive watcher because of the amount of paths this watcher is dealing with.
+		// We try as much as possible to avoid even needing `realpath()` if we can because even
+		// that method does an `lstat()` per segment of the path.
+
+		let result = this.request.path;
+
+		try {
+			result = await realpath(this.request.path);
+
+			if (this.request.path !== result) {
+				this.trace(`correcting a path to watch that seems to be a symbolic link (original: ${this.request.path}, real: ${result})`);
+			}
+		} catch (error) {
+			// ignore
+		}
+
+		return result;
+	});
+
 	readonly ready = this.watch();
 
 	private _isReusingRecursiveWatcher = false;
@@ -76,19 +99,13 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	private async watch(): Promise<void> {
 		try {
-			const realPath = await this.normalizePath(this.request);
+			const stat = await promises.stat(this.request.path);
 
 			if (this.cts.token.isCancellationRequested) {
 				return;
 			}
 
-			const stat = await promises.stat(realPath);
-
-			if (this.cts.token.isCancellationRequested) {
-				return;
-			}
-
-			this._register(await this.doWatch(realPath, stat.isDirectory()));
+			this._register(await this.doWatch(stat.isDirectory()));
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				this.error(error);
@@ -106,46 +123,21 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		this.onDidWatchFail?.();
 	}
 
-	private async normalizePath(request: INonRecursiveWatchRequest): Promise<string> {
-		let realPath = request.path;
-
-		try {
-
-			// Check for symbolic link
-			realPath = await realpath(request.path);
-
-			// Note: we used to also call `realcase()` here, but
-			// that operation is very expensive for large amounts
-			// of files and is actually not needed for single
-			// file/folder watching where we report on the original
-			// path anyway.
-			// (https://github.com/microsoft/vscode/issues/237351)
-
-			if (request.path !== realPath) {
-				this.trace(`correcting a path to watch that seems to be a symbolic link (original: ${request.path}, real: ${realPath})`);
-			}
-		} catch (error) {
-			// ignore
-		}
-
-		return realPath;
-	}
-
-	private async doWatch(realPath: string, isDirectory: boolean): Promise<IDisposable> {
+	private async doWatch(isDirectory: boolean): Promise<IDisposable> {
 		const disposables = new DisposableStore();
 
-		if (this.doWatchWithExistingWatcher(realPath, isDirectory, disposables)) {
+		if (this.doWatchWithExistingWatcher(isDirectory, disposables)) {
 			this.trace(`reusing an existing recursive watcher for ${this.request.path}`);
 			this._isReusingRecursiveWatcher = true;
 		} else {
 			this._isReusingRecursiveWatcher = false;
-			await this.doWatchWithNodeJS(realPath, isDirectory, disposables);
+			await this.doWatchWithNodeJS(isDirectory, disposables);
 		}
 
 		return disposables;
 	}
 
-	private doWatchWithExistingWatcher(realPath: string, isDirectory: boolean, disposables: DisposableStore): boolean {
+	private doWatchWithExistingWatcher(isDirectory: boolean, disposables: DisposableStore): boolean {
 		if (isDirectory) {
 			// Recursive watcher re-use is currently not enabled for when
 			// folders are watched. this is because the dispatching in the
@@ -162,7 +154,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			}
 
 			if (error) {
-				const watchDisposable = await this.doWatch(realPath, isDirectory);
+				const watchDisposable = await this.doWatch(isDirectory);
 				if (!disposables.isDisposed) {
 					disposables.add(watchDisposable);
 				} else {
@@ -188,7 +180,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		return false;
 	}
 
-	private async doWatchWithNodeJS(realPath: string, isDirectory: boolean, disposables: DisposableStore): Promise<void> {
+	private async doWatchWithNodeJS(isDirectory: boolean, disposables: DisposableStore): Promise<void> {
+		const realPath = await this.realPath.value;
 
 		// macOS: watching samba shares can crash VSCode so we do
 		// a simple check for the file path pointing to /Volumes
@@ -407,7 +400,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							if (fileExists) {
 								this.onFileChange({ resource: requestResource, type: FileChangeType.UPDATED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
 
-								watcherDisposables.add(await this.doWatch(realPath, false));
+								watcherDisposables.add(await this.doWatch(false));
 							}
 
 							// File seems to be really gone, so emit a deleted and failed event
