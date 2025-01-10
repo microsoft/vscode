@@ -115,7 +115,22 @@ export class InstructionsAttachmentWidget extends Disposable {
 		const inactive = localize('enableHint', "disabled");
 		const currentFileHint = currentFile + (enabled ? '' : ` (${inactive})`);
 
-		const title = `${currentFileHint} ${uriLabel}`;
+		let title = `${currentFileHint} ${uriLabel}`;
+
+		// if there are some errors/warning during the process of resolving
+		// attachment references (including all the nested child references),
+		// add the issue details in the hover title for the attachment
+		if (errorCondition) {
+			const { type, message: details } = errorCondition;
+			this.domNode.classList.add(type);
+
+			const errorCaption = type === 'warning'
+				? localize('warning', "Warning")
+				: localize('error', "Error");
+
+			title += `\n-\n[${errorCaption}]: ${details}`;
+		}
+
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
 			hidePath: true,
@@ -127,26 +142,14 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
 
-		let hoverTitle = title;
-		// if there are some errors/warning during the process of resolving
-		// attachment references (including all the nested child references),
-		// add the issue details in the hover title for the attachment
-		if (errorCondition) {
-			const { type, message: details } = errorCondition;
-			this.domNode.classList.add(type);
-
-			const errorCaption = type === 'warning'
-				? localize('warning', "[Warning]")
-				: localize('error', "[Error]");
-
-			hoverTitle += `\n-\n${errorCaption}: ${details}`;
-		}
-
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, 'Instructions'));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, hoverTitle));
+		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, localize('instructions', 'Instructions')));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		// create `toggle` enabled state button
-		const toggleButtonMsg = enabled ? localize('disable', "Disable") : localize('enable', "Enable");
+		const toggleButtonMsg = enabled
+			? localize('disable', "Disable")
+			: localize('enable', "Enable");
+
 		const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: toggleButtonMsg }));
 		toggleButton.icon = enabled ? Codicon.eye : Codicon.eyeClosed;
 		this.renderDisposables.add(toggleButton.onDidClick((e) => {

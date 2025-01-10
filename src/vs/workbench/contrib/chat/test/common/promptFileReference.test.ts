@@ -60,7 +60,7 @@ class ExpectedReference extends PromptFileReference {
 			nullPolicyService,
 			nullLogService,
 		);
-		super(uri, nullFileService, nullConfigService);
+		super(uri, nullLogService, nullFileService, nullConfigService);
 
 		this._register(nullFileService);
 		this._register(nullConfigService);
@@ -83,6 +83,7 @@ class TestPromptFileReference extends Disposable {
 		private readonly fileStructure: IFolder,
 		private readonly rootFileUri: URI,
 		private readonly expectedReferences: ExpectedReference[],
+		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
@@ -111,6 +112,7 @@ class TestPromptFileReference extends Disposable {
 		// start resolving references for the specified root file
 		const rootReference = this._register(new PromptFileReference(
 			this.rootFileUri,
+			this.logService,
 			this.fileService,
 			this.configService,
 		));

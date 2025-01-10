@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -11,6 +12,15 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { PromptFileReference, TErrorCondition } from '../../common/promptFileReference.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference } from '../../common/promptFileReferenceErrors.js';
+
+/**
+ * Well-known localized error messages.
+ */
+const errorMessages = {
+	recursion: localize('chatPromptInstructionsRecursiveReference', 'Recursive reference found'),
+	fileOpenFailed: localize('chatPromptInstructionsFileOpenFailed', 'Failed to open file'),
+	brokenChild: localize('chatPromptInstructionsBrokenReference', 'Contains a broken reference that will be ignored'),
+};
 
 /**
  * Object that represents an error that may occur during
@@ -101,7 +111,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 			? `\n-\n +${restErrors.length} more error${restErrors.length > 1 ? 's' : ''}`
 			: '';
 
-		const errorMessage = this.getMessage(firstError, isRootError);
+		const errorMessage = this.getErrorMessage(firstError, isRootError);
 		return {
 			type,
 			message: `${errorMessage}${moreSuffix}`,
@@ -115,20 +125,25 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 * @param isRootError If the error happened on the the "main" root reference.
 	 * @returns Error message.
 	 */
-	private getMessage(
+	private getErrorMessage(
 		error: TErrorCondition,
 		isRootError: boolean,
 	): string {
 		const { uri } = error;
 
+		// if a child error - the error is somewhere in the nested references tree,
+		// then use message prefix to highlight that this is not a root error
 		const prefix = (!isRootError)
-			? 'Contains a broken nested reference that will be ignored: '
+			? `${errorMessages.brokenChild}: `
 			: '';
 
+		// if failed to open a file, return approprivate message and the file path
 		if (error instanceof FileOpenFailed) {
-			return `${prefix}Failed to open file '${uri.path}'.`;
+			return `${prefix}${errorMessages.fileOpenFailed} '${uri.path}'.`;
 		}
 
+		// if a recursion, provide the entire recursion path so users can use
+		// it for the debugging purposes
 		if (error instanceof RecursiveReference) {
 			const { recursivePath } = error;
 
@@ -138,7 +153,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 				})
 				.join(' -> ');
 
-			return `${prefix}Recursive reference found:\n${recursivePathString}`;
+			return `${prefix}${errorMessages.recursion}:\n${recursivePathString}`;
 		}
 
 		return `${prefix}${error.message}`;

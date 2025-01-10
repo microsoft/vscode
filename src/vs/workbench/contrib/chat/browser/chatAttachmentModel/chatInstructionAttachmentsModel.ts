@@ -102,7 +102,9 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 		const instruction = this.initService.createInstance(ChatInstructionsAttachmentModel, uri)
 			.onUpdate(this._onUpdate.fire)
 			.onDispose(() => {
-				this.attachments.deleteAndDispose(uri.path);
+				// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
+				//       alternative results in an infinite loop of calling this callback
+				this.attachments.deleteAndLeak(uri.path);
 				this._onUpdate.fire();
 			});
 
@@ -126,7 +128,6 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 		}
 
 		this.attachments.deleteAndDispose(uri.path);
-		this._onUpdate.fire();
 
 		return this;
 	}

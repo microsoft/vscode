@@ -121,6 +121,7 @@ export class InstructionAttachmentsWidget extends Disposable {
 	 * Render this widget.
 	 */
 	private render(): this {
+		// set visibility of the root node based on the presence of attachments
 		dom.setVisibility(!this.empty, this.domNode);
 
 		return this;
