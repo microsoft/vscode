@@ -419,6 +419,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
 	protected readonly _onDidChangeShell = new Emitter<string>();
 	readonly onDidChangeShell = this._onDidChangeShell.event;
+	// Should onDidChange/AcceptShellType go here?
+
 
 	protected readonly _onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 		onWillAddFirstListener: () => this._proxy.$startSendingDataEvents(),
