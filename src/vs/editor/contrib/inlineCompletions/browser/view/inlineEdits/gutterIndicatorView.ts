@@ -180,13 +180,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}
 
 		const displayName = derived(this, reader => {
-			// make private property on view
-			/* const state = this._model.read(reader)?.inlineCompletionState;
+			const state = this._model.read(reader)?.inlineEditState;
 			const item = state?.read(reader);
 			const completionSource = item?.inlineCompletion?.inlineCompletion.source;
-			const displayName = completionSource?.provider.displayName; ?? localize('inlineEdit', "Inline Edit")
-			return displayName; */
-			return localize('inlineEdit', "Inline Edit");
+			// TODO: expose the provider (typed) and expose the provider the edit belongs totyping and get correct edit
+			const displayName = (completionSource?.inlineCompletions as any).edits[0]?.provider?.displayName ?? localize('inlineEdit', "Inline Edit");
+			return displayName;
 		});
 
 		const content = this._instantiationService.createInstance(
