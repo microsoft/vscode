@@ -212,7 +212,7 @@ export class SimpleSuggestWidget extends Disposable {
 
 		const details: SimpleSuggestDetailsWidget = instantiationService.createInstance(SimpleSuggestDetailsWidget);
 		this._register(details.onDidClose(() => this.toggleDetails()));
-		this._details = new SimpleSuggestDetailsOverlay(details, this.element.domNode);
+		this._details = new SimpleSuggestDetailsOverlay(details, this._listElement);
 
 		if (options.statusBarMenuId) {
 			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
@@ -389,6 +389,7 @@ export class SimpleSuggestWidget extends Disposable {
 			// Reset focus border
 			// this._details.widget.domNode.classList.remove('focused');
 		});
+		this._afterRender();
 	}
 
 	setLineContext(lineContext: LineContext): void {
@@ -543,7 +544,7 @@ export class SimpleSuggestWidget extends Disposable {
 				this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
 			}
 			if (!this._details.widget.isEmpty) {
-				// this._positionDetails();
+				this._positionDetails();
 				this.element.domNode.classList.add('shows-details');
 				if (focused) {
 					this._details.widget.focus();
@@ -570,23 +571,23 @@ export class SimpleSuggestWidget extends Disposable {
 	}
 
 
-	hide(): void {
-		this._pendingLayout.clear();
-		this._pendingShowDetails.clear();
-		// this._loadingTimeout?.dispose();
+	// hide(): void {
+	// 	this._pendingLayout.clear();
+	// 	this._pendingShowDetails.clear();
+	// 	// this._loadingTimeout?.dispose();
 
-		this._setState(State.Hidden);
-		this._onDidHide.fire(this);
-		dom.hide(this.element.domNode);
-		this.element.clearSashHoverState();
-		// ensure that a reasonable widget height is persisted so that
-		// accidential "resize-to-single-items" cases aren't happening
-		const dim = this._persistedSize.restore();
-		const minPersistedHeight = Math.ceil(this._getLayoutInfo().itemHeight * 4.3);
-		if (dim && dim.height < minPersistedHeight) {
-			this._persistedSize.store(dim.with(undefined, minPersistedHeight));
-		}
-	}
+	// 	this._setState(State.Hidden);
+	// 	this._onDidHide.fire(this);
+	// 	dom.hide(this.element.domNode);
+	// 	this.element.clearSashHoverState();
+	// 	// ensure that a reasonable widget height is persisted so that
+	// 	// accidential "resize-to-single-items" cases aren't happening
+	// 	const dim = this._persistedSize.restore();
+	// 	const minPersistedHeight = Math.ceil(this._getLayoutInfo().itemHeight * 4.3);
+	// 	if (dim && dim.height < minPersistedHeight) {
+	// 		this._persistedSize.store(dim.with(undefined, minPersistedHeight));
+	// 	}
+	// }
 
 	private _layout(size: dom.Dimension | undefined): void {
 		if (!this._cursorPosition) {
@@ -689,6 +690,23 @@ export class SimpleSuggestWidget extends Disposable {
 		this._resize(width, height);
 	}
 
+	_afterRender() {
+		// if (position === null) {
+		// 	if (this._isDetailsVisible()) {
+		// 		this._details.hide(); //todo@jrieken soft-hide
+		// 	}
+		// 	return;
+		// }
+		if (this._state === State.Empty || this._state === State.Loading) {
+			// no special positioning when widget isn't showing list
+			return;
+		}
+		if (this._isDetailsVisible() && !this._details.widget.isEmpty) {
+			this._details.show();
+		}
+		this._positionDetails();
+	}
+
 	private _resize(width: number, height: number): void {
 		const { width: maxWidth, height: maxHeight } = this.element.maxSize;
 		width = Math.min(maxWidth, width);
@@ -704,8 +722,18 @@ export class SimpleSuggestWidget extends Disposable {
 		this._listElement.style.height = `${height}px`;
 		this.element.layout(height, width);
 
-		// this._positionDetails();
-		// TODO: Position based on preference
+		this._positionDetails();
+	}
+
+	private _positionDetails(): void {
+		if (this._isDetailsVisible()) {
+			const parentRect = this.element.domNode.getBoundingClientRect();
+			const domNode = this._details.widget.domNode;
+			domNode.style.position = 'fixed !important';
+			domNode.style.top = `0px !important`;
+			domNode.style.left = `${parentRect.right}px !important`;
+			this._details.placeAtAnchor(this.element.domNode);
+		}
 	}
 
 	private _getLayoutInfo() {

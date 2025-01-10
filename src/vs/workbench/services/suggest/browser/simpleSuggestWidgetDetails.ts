@@ -157,7 +157,7 @@ export class SimpleSuggestDetailsWidget {
 			this._renderDisposeable.add(renderedContents);
 		}
 
-		this.domNode.classList.toggle('detail-and-doc', !!documentation);
+		// this.domNode.classList.toggle('detail-and-doc', !!documentation);
 
 		this.domNode.style.userSelect = 'text';
 		this.domNode.tabIndex = -1;
@@ -238,11 +238,6 @@ export class SimpleSuggestDetailsWidget {
 	}
 }
 
-interface TopLeftPosition {
-	top: number;
-	left: number;
-}
-
 export class SimpleSuggestDetailsOverlay {
 
 	private readonly _disposables = new DisposableStore();
@@ -250,9 +245,9 @@ export class SimpleSuggestDetailsOverlay {
 
 	private _added: boolean = false;
 	private _anchorBox?: dom.IDomNodePagePosition;
-	private _preferAlignAtTop: boolean = true;
+	// private _preferAlignAtTop: boolean = true;
 	private _userSize?: dom.Dimension;
-	private _topLeft?: TopLeftPosition;
+	// private _topLeft?: TopLeftPosition;
 
 	constructor(
 		readonly widget: SimpleSuggestDetailsWidget,
@@ -264,47 +259,47 @@ export class SimpleSuggestDetailsOverlay {
 		this._resizable.domNode.appendChild(widget.domNode);
 		this._resizable.enableSashes(false, true, true, false);
 
-		let topLeftNow: TopLeftPosition | undefined;
-		let sizeNow: dom.Dimension | undefined;
-		let deltaTop: number = 0;
-		let deltaLeft: number = 0;
-		this._disposables.add(this._resizable.onDidWillResize(() => {
-			topLeftNow = this._topLeft;
-			sizeNow = this._resizable.size;
-		}));
+		// let topLeftNow: TopLeftPosition | undefined;
+		// let sizeNow: dom.Dimension | undefined;
+		// let deltaTop: number = 0;
+		// let deltaLeft: number = 0;
+		// this._disposables.add(this._resizable.onDidWillResize(() => {
+		// 	topLeftNow = this._topLeft;
+		// 	sizeNow = this._resizable.size;
+		// }));
 
-		this._disposables.add(this._resizable.onDidResize(e => {
-			if (topLeftNow && sizeNow) {
-				this.widget.layout(e.dimension.width, e.dimension.height);
+		// this._disposables.add(this._resizable.onDidResize(e => {
+		// 	if (topLeftNow && sizeNow) {
+		// 		this.widget.layout(e.dimension.width, e.dimension.height);
 
-				let updateTopLeft = false;
-				if (e.west) {
-					deltaLeft = sizeNow.width - e.dimension.width;
-					updateTopLeft = true;
-				}
-				if (e.north) {
-					deltaTop = sizeNow.height - e.dimension.height;
-					updateTopLeft = true;
-				}
-				if (updateTopLeft) {
-					this._applyTopLeft({
-						top: topLeftNow.top + deltaTop,
-						left: topLeftNow.left + deltaLeft,
-					});
-				}
-			}
-			if (e.done) {
-				topLeftNow = undefined;
-				sizeNow = undefined;
-				deltaTop = 0;
-				deltaLeft = 0;
-				this._userSize = e.dimension;
-			}
-		}));
+		// 		let updateTopLeft = false;
+		// 		if (e.west) {
+		// 			deltaLeft = sizeNow.width - e.dimension.width;
+		// 			updateTopLeft = true;
+		// 		}
+		// 		if (e.north) {
+		// 			deltaTop = sizeNow.height - e.dimension.height;
+		// 			updateTopLeft = true;
+		// 		}
+		// 		if (updateTopLeft) {
+		// 			this._applyTopLeft({
+		// 				top: topLeftNow.top + deltaTop,
+		// 				left: topLeftNow.left + deltaLeft,
+		// 			});
+		// 		}
+		// 	}
+		// 	if (e.done) {
+		// 		topLeftNow = undefined;
+		// 		sizeNow = undefined;
+		// 		deltaTop = 0;
+		// 		deltaLeft = 0;
+		// 		this._userSize = e.dimension;
+		// 	}
+		// }));
 
 		this._disposables.add(this.widget.onDidChangeContents(() => {
 			if (this._anchorBox) {
-				this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size, this._preferAlignAtTop);
+				this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
 			}
 		}));
 	}
@@ -325,7 +320,7 @@ export class SimpleSuggestDetailsOverlay {
 
 	show(): void {
 		if (!this._added) {
-			this._container.appendChild(this._resizable.domNode);
+			this._container.appendChild(this.widget.domNode);
 			this._added = true;
 		}
 	}
@@ -334,10 +329,10 @@ export class SimpleSuggestDetailsOverlay {
 		this._resizable.clearSashHoverState();
 
 		if (this._added) {
-			this._container.removeChild(this._resizable.domNode);
+			this._container.removeChild(this.widget.domNode);
 			this._added = false;
 			this._anchorBox = undefined;
-			this._topLeft = undefined;
+			// this._topLeft = undefined;
 		}
 		if (sessionEnded) {
 			this._userSize = undefined;
@@ -345,103 +340,16 @@ export class SimpleSuggestDetailsOverlay {
 		}
 	}
 
-	placeAtAnchor(anchor: HTMLElement, preferAlignAtTop: boolean) {
+	placeAtAnchor(anchor: HTMLElement) {
 		const anchorBox = anchor.getBoundingClientRect();
 		this._anchorBox = anchorBox;
-		this._preferAlignAtTop = preferAlignAtTop;
-		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size, preferAlignAtTop);
+		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
 	}
 
-	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension, preferAlignAtTop: boolean) {
-		const bodyBox = dom.getClientArea(this.getDomNode().ownerDocument.body);
-
-		const info = this.widget.getLayoutInfo();
-
-		const defaultMinSize = new dom.Dimension(220, 2 * info.lineHeight);
-		const defaultTop = anchorBox.top;
-
-		type Placement = { top: number; left: number; fit: number; maxSizeTop: dom.Dimension; maxSizeBottom: dom.Dimension; minSize: dom.Dimension };
-
-		// EAST
-		const eastPlacement: Placement = (function () {
-			const width = bodyBox.width - (anchorBox.left + anchorBox.width + info.borderWidth + info.horizontalPadding);
-			const left = -info.borderWidth + anchorBox.left + anchorBox.width;
-			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
-			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
-			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(width, defaultMinSize.width)) };
-		})();
-
-		// WEST
-		const westPlacement: Placement = (function () {
-			const width = anchorBox.left - info.borderWidth - info.horizontalPadding;
-			const left = Math.max(info.horizontalPadding, anchorBox.left - size.width - info.borderWidth);
-			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
-			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
-			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(width, defaultMinSize.width)) };
-		})();
-
-		// SOUTH
-		const southPacement: Placement = (function () {
-			const left = anchorBox.left;
-			const top = -info.borderWidth + anchorBox.top + anchorBox.height;
-			const maxSizeBottom = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
-			return { top, left, fit: maxSizeBottom.height - size.height, maxSizeBottom, maxSizeTop: maxSizeBottom, minSize: defaultMinSize.with(maxSizeBottom.width) };
-		})();
-
-		// take first placement that fits or the first with "least bad" fit
-		const placements = [eastPlacement, westPlacement, southPacement];
-		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
-
-		// top/bottom placement
-		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;
-		let alignAtTop: boolean;
-		let height = size.height;
-		const maxHeight = Math.max(placement.maxSizeTop.height, placement.maxSizeBottom.height);
-		if (height > maxHeight) {
-			height = maxHeight;
-		}
-		let maxSize: dom.Dimension;
-		if (preferAlignAtTop) {
-			if (height <= placement.maxSizeTop.height) {
-				alignAtTop = true;
-				maxSize = placement.maxSizeTop;
-			} else {
-				alignAtTop = false;
-				maxSize = placement.maxSizeBottom;
-			}
-		} else {
-			if (height <= placement.maxSizeBottom.height) {
-				alignAtTop = false;
-				maxSize = placement.maxSizeBottom;
-			} else {
-				alignAtTop = true;
-				maxSize = placement.maxSizeTop;
-			}
-		}
-
-		let { top, left } = placement;
-		if (!alignAtTop && height > anchorBox.height) {
-			top = bottom - height;
-		}
-		// get bounding rectangle of the suggest widget relative to the editor
-		const editorBoundingBox = this._container.getBoundingClientRect();
-		top -= editorBoundingBox.top;
-		left -= editorBoundingBox.left;
-
-		this._applyTopLeft({ left, top });
-
-		this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
-
-		this._resizable.minSize = placement.minSize;
-		this._resizable.maxSize = maxSize;
-		this._resizable.layout(height, Math.min(maxSize.width, size.width));
-		this.widget.layout(this._resizable.size.width, this._resizable.size.height);
-	}
-
-	private _applyTopLeft(topLeft: TopLeftPosition): void {
-		this._topLeft = topLeft;
-		// this._editor.layoutOverlayWidget(this);
-		this._resizable.domNode.style.top = `${topLeft.top}px`;
-		this._resizable.domNode.style.left = `${topLeft.left}px`;
+	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension) {
+		this.widget.domNode.style.position = 'absolute !important';
+		this.widget.domNode.style.top = `${anchorBox.top}px`;
+		this.widget.domNode.style.left = `${anchorBox.left}px`;
+		return;
 	}
 }
