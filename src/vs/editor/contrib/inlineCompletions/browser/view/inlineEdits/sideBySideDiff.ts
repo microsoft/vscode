@@ -13,7 +13,7 @@ import { MenuId, MenuItemAction } from '../../../../../../platform/actions/commo
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { darken, lighten, registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
+import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -94,6 +94,18 @@ export const modifiedBorder = registerColor(
 		hcLight: editorLineHighlightBorder
 	},
 	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
+);
+
+export const acceptedDecorationBackgroundColor = registerColor(
+	'inlineEdit.acceptedBackground',
+	{
+		light: transparent(modifiedChangedTextOverlayColor, 0.5),
+		dark: transparent(modifiedChangedTextOverlayColor, 0.5),
+		hcDark: modifiedChangedTextOverlayColor,
+		hcLight: modifiedChangedTextOverlayColor
+	},
+	localize('inlineEdit.acceptedBackground', 'Background color for the accepted text after appying an inline edit.'),
+	true
 );
 
 export class InlineEditsSideBySideDiff extends Disposable {
