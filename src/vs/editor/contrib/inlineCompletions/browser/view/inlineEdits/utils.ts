@@ -392,11 +392,13 @@ function setClassName(domNode: Element, className: string) {
 function resolve<T>(value: ValueOrList<T>, reader: IReader | undefined, cb: (val: T) => void): void {
 	if (isObservable(value)) {
 		cb(value.read(reader));
+		return;
 	}
 	if (Array.isArray(value)) {
 		for (const v of value) {
 			resolve(v, reader, cb);
 		}
+		return;
 	}
 	cb(value as any);
 }

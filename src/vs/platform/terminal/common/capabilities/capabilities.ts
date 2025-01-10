@@ -70,7 +70,13 @@ export const enum TerminalCapability {
 	 * the request (task, debug, etc) provides an ID, optional marker, hoverMessage, and hidden property. When
 	 * hidden is not provided, a generic decoration is added to the buffer and overview ruler.
 	 */
-	BufferMarkDetection
+	BufferMarkDetection,
+
+	/**
+	 * The terminal can detect the latest environment of user's current shell.
+	 */
+	ShellEnvDetection,
+
 }
 
 /**
@@ -133,6 +139,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
 	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
+	[TerminalCapability.ShellEnvDetection]: IShellEnvDetectionCapability;
 }
 
 export interface ICwdDetectionCapability {
@@ -141,6 +148,13 @@ export interface ICwdDetectionCapability {
 	readonly cwds: string[];
 	getCwd(): string;
 	updateCwd(cwd: string): void;
+}
+
+export interface IShellEnvDetectionCapability {
+	readonly type: TerminalCapability.ShellEnvDetection;
+	readonly onDidChangeEnv: Event<Map<string, string>>;
+	get env(): Map<string, string>;
+	setEnvironment(envs: { [key: string]: string | undefined } | undefined, isTrusted: boolean): void;
 }
 
 export const enum CommandInvalidationReason {

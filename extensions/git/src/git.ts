@@ -2848,6 +2848,15 @@ export class Repository {
 		return commits[0];
 	}
 
+	async revList(ref1: string, ref2: string): Promise<string[]> {
+		const result = await this.exec(['rev-list', `${ref1}..${ref2}`]);
+		if (result.stderr) {
+			return [];
+		}
+
+		return result.stdout.trim().split('\n');
+	}
+
 	async revParse(ref: string): Promise<string | undefined> {
 		try {
 			const result = await fs.readFile(path.join(this.dotGit.path, ref), 'utf8');
