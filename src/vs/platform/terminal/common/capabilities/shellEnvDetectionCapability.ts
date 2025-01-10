@@ -12,6 +12,7 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 	readonly type = TerminalCapability.ShellEnvDetection;
 
 	private readonly _env: Map<string, string> = new Map();
+	private _pendingEnv: Map<string, string> | undefined;
 	get env(): Map<string, string> { return this._env; }
 
 	private readonly _onDidChangeEnv = this._register(new Emitter<Map<string, string>>());
@@ -37,24 +38,32 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		this._onDidChangeEnv.fire(this._env);
 	}
 
-	startSingleEnvironmentVar(isTrusted: boolean): void {
+	startEnvironmentSingleVar(isTrusted: boolean): void {
 		if (!isTrusted) {
 			return;
 		}
 		this._env.clear();
+		this._pendingEnv = new Map();
 	}
-	setSingleEnvironmentVar(key: string, value: string | undefined, isTrusted: boolean): void {
+	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
 		if (!isTrusted) {
 			return;
 		}
-		if (key !== undefined && value !== undefined) {
-			this._env.set(key, value);
+		if (this._pendingEnv && key !== undefined && value !== undefined) {
+			this._pendingEnv.set(key, value);
 		}
 	}
-	endSingleEnvironmentVar(isTrusted: boolean): void {
+	endEnvironmentSingleVar(isTrusted: boolean): void {
 		if (!isTrusted) {
 			return;
 		}
+		if (this._pendingEnv) {
+			this._env.clear();
+			this._pendingEnv.forEach((value, key) => {
+				this._env.set(key, value);
+			});
+		}
+		this._pendingEnv = undefined;
 		this._onDidChangeEnv.fire(this._env);
 	}
 }

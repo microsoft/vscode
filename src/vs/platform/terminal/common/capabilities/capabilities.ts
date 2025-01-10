@@ -155,9 +155,9 @@ export interface IShellEnvDetectionCapability {
 	readonly onDidChangeEnv: Event<Map<string, string>>;
 	get env(): Map<string, string>;
 	setEnvironment(envs: { [key: string]: string | undefined } | undefined, isTrusted: boolean): void;
-	startSingleEnvironmentVar(isTrusted: boolean): void;
-	setSingleEnvironmentVar(key: string, value: string | undefined, isTrusted: boolean): void;
-	endSingleEnvironmentVar(isTrusted: boolean): void;
+	startEnvironmentSingleVar(isTrusted: boolean): void;
+	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
+	endEnvironmentSingleVar(isTrusted: boolean): void;
 }
 
 export const enum CommandInvalidationReason {
