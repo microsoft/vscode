@@ -962,6 +962,6 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
-		preferencesService.openSettings({ jsonEditor: false, query: '@id:explorer.openEditors.sortOrder,explorer.openEditors.visible,explorer.openEditors.minVisible' });
+		preferencesService.openSettings({ jsonEditor: false, query: '@feature:explorer openEditors' });
 	}
 });
