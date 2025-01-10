@@ -243,8 +243,9 @@ registerAction2(class extends Action2 {
 			menu: [
 				{
 					id: MenuId.SCMChangesContext,
+					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: '0_view',
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true)
+					order: 1
 				}
 			]
 		});
