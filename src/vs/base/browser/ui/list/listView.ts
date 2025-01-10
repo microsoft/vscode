@@ -469,18 +469,18 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private _setupFocusObserver(container: HTMLElement): void {
-		container.addEventListener('focus', () => {
+		this.disposables.add(addDisposableListener(container, 'focus', () => {
 			const element = getActiveElement() as HTMLElement | null;
 			if (this.activeElement !== element && element !== null) {
 				this.activeElement = element;
 				this._scrollToActiveElement(this.activeElement, container);
 			}
-		}, true);
+		}, true));
 	}
 
 	private _scrollToActiveElement(element: HTMLElement, container: HTMLElement) {
 		// The scroll event on the list only fires when scrolling down.
-		// If the active element is above the viewport, we need to scroll up. 
+		// If the active element is above the viewport, we need to scroll up.
 		const containerRect = container.getBoundingClientRect();
 		const elementRect = element.getBoundingClientRect();
 
