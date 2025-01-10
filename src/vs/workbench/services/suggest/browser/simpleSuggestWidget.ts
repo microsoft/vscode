@@ -211,7 +211,8 @@ export class SimpleSuggestWidget extends Disposable {
 		}));
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
-		const details: SuggestDetailsWidget = instantiationService.createInstance(SuggestDetailsWidget);
+		const editor: CodeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this.element.domNode, {}, { isSimpleWidget: true });
+		const details: SuggestDetailsWidget = instantiationService.createInstance(SuggestDetailsWidget, editor);
 		this._register(details.onDidClose(() => this.toggleDetails()));
 		this._details = new SuggestDetailsOverlay(details, editor);
 
