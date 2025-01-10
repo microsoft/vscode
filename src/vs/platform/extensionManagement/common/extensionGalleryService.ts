@@ -742,10 +742,17 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				return;
 			}
 
+			if (!EXTENSION_IDENTIFIER_REGEX.test(extensionInfo.id)) {
+				toQuery.push(extensionInfo);
+				return;
+			}
+
 			try {
 				const rawGalleryExtension = await this.getLatestRawGalleryExtension(extensionInfo.id, token);
 				if (!rawGalleryExtension) {
-					toQuery.push(extensionInfo);
+					if (extensionInfo.uuid) {
+						toQuery.push(extensionInfo);
+					}
 					return;
 				}
 
@@ -1190,16 +1197,12 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 	}
 
-	private async getLatestRawGalleryExtension(extensionId: string, token: CancellationToken): Promise<IRawGalleryExtension | undefined> {
+	private async getLatestRawGalleryExtension(extensionId: string, token: CancellationToken): Promise<IRawGalleryExtension | null> {
 		let errorCode: string | undefined;
 		const stopWatch = new StopWatch();
 
 		try {
 			const [publisher, name] = extensionId.split('.');
-			if (!publisher || !name) {
-				errorCode = 'InvalidExtensionId';
-				return undefined;
-			}
 			const uri = URI.parse(format2(this.extensionUrlTemplate!, { publisher, name }));
 			const commonHeaders = await this.commonHeadersPromise;
 			const headers = {
@@ -1216,20 +1219,21 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				timeout: 10000 /*10s*/
 			}, token);
 
+			if (context.res.statusCode === 404) {
+				errorCode = 'NotFound';
+				return null;
+			}
+
 			if (context.res.statusCode && context.res.statusCode !== 200) {
 				errorCode = `GalleryServiceError:` + context.res.statusCode;
-				this.logService.warn('Error getting latest version of the extension', extensionId, context.res.statusCode);
-				return undefined;
+				throw new Error('Unexpected HTTP response: ' + context.res.statusCode);
 			}
 
 			const result = await asJson<IRawGalleryExtension>(context);
-			if (result) {
-				return result;
+			if (!result) {
+				errorCode = 'NoData';
 			}
-
-			errorCode = 'NoData';
-			this.logService.warn('Error getting latest version of the extension', extensionId, errorCode);
-
+			return result;
 		}
 
 		catch (error) {
@@ -1243,6 +1247,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 						? ExtensionGalleryErrorCode.Timeout
 						: ExtensionGalleryErrorCode.Failed;
 			}
+			throw error;
 		}
 
 		finally {
@@ -1260,8 +1265,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			};
 			this.telemetryService.publicLog2<GalleryServiceGetLatestEvent, GalleryServiceGetLatestEventClassification>('galleryService:getLatest', { extension: extensionId, duration: stopWatch.elapsed(), errorCode });
 		}
-
-		return undefined;
 	}
 
 	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void> {
