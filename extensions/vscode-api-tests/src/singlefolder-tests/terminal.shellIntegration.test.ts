@@ -95,6 +95,8 @@ import { assertNoRpc } from '../utils';
 			ok(env);
 			// check if env has shellPath
 			ok(env['shellPath']);
+			// check if shellPath is '/bin/bash'
+			strictEqual(env['shellPath'], '/bin/bash');
 		});
 	}
 
