@@ -41,7 +41,7 @@ export class SimpleSuggestDetailsWidget {
 
 	private readonly _markdownRenderer: MarkdownRenderer;
 
-	private readonly _renderDisposeable = new DisposableStore();
+	private readonly _renderDisposeable = this._disposables.add(new DisposableStore());
 	private _borderWidth: number = 1;
 	private _size = new dom.Dimension(330, 0);
 
@@ -74,7 +74,6 @@ export class SimpleSuggestDetailsWidget {
 
 	dispose(): void {
 		this._disposables.dispose();
-		this._renderDisposeable.dispose();
 		this._onDidClose.dispose();
 		this._onDidChangeContents.dispose();
 	}
@@ -307,7 +306,6 @@ export class SimpleSuggestDetailsOverlay {
 	}
 
 	dispose(): void {
-		this._resizable.dispose();
 		this.widget.dispose();
 		this._disposables.dispose();
 		this.hide();
