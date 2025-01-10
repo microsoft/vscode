@@ -480,7 +480,7 @@ export class ListView<T> implements IListView<T> {
 
 	private _scrollToActiveElement(element: HTMLElement, container: HTMLElement) {
 		// The scroll event on the list only fires when scrolling down.
-		// If the active element is above the viewport, we need to scroll up. microsoft/vscode-copilot#9357
+		// If the active element is above the viewport, we need to scroll up. 
 		const containerRect = container.getBoundingClientRect();
 		const elementRect = element.getBoundingClientRect();
 
