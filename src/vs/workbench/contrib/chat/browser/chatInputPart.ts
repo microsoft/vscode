@@ -127,6 +127,11 @@ interface IChatInputPartOptions {
 	enableImplicitContext?: boolean;
 }
 
+export interface IWorkingSetEntry {
+	uri: URI;
+	isMarkedReadonly?: boolean;
+}
+
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
@@ -324,7 +329,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	public get attemptedWorkingSetEntriesCount() {
 		return this._attemptedWorkingSetEntriesCount;
 	}
-	private _combinedChatEditWorkingSetEntries: URI[] = [];
+	private _combinedChatEditWorkingSetEntries: IWorkingSetEntry[] = [];
 	public get chatEditWorkingSetFiles() {
 		return this._combinedChatEditWorkingSetEntries;
 	}
@@ -1167,6 +1172,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					state: metadata.state,
 					description: metadata.description,
 					kind: 'reference',
+					isMarkedReadonly: metadata.isMarkedReadonly,
 				});
 				seenEntries.add(file);
 			}
@@ -1357,7 +1363,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, entries);
 		list.splice(entries.length, 0, excludedEntries);
-		this._combinedChatEditWorkingSetEntries = coalesce(entries.map((e) => e.kind === 'reference' && URI.isUri(e.reference) ? e.reference : undefined));
+		this._combinedChatEditWorkingSetEntries = coalesce(entries.map((e) => e.kind === 'reference' && URI.isUri(e.reference) ? ({ uri: e.reference, isMarkedReadonly: e.isMarkedReadonly }) : undefined));
 
 		const addFilesElement = innerContainer.querySelector('.chat-editing-session-toolbar-actions') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-toolbar-actions'));
 

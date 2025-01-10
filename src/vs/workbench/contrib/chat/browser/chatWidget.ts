@@ -1015,13 +1015,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const editingSessionAttachedContext: IChatRequestVariableEntry[] = [];
 				// Pick up everything that the user sees is part of the working set.
 				// This should never exceed the maximum file entries limit above.
-				for (const v of this.inputPart.chatEditWorkingSetFiles) {
+				for (const { uri, isMarkedReadonly } of this.inputPart.chatEditWorkingSetFiles) {
 					// Skip over any suggested files that haven't been confirmed yet in the working set
-					if (currentEditingSession?.workingSet.get(v)?.state === WorkingSetEntryState.Suggested) {
-						unconfirmedSuggestions.add(v);
+					if (currentEditingSession?.workingSet.get(uri)?.state === WorkingSetEntryState.Suggested) {
+						unconfirmedSuggestions.add(uri);
 					} else {
-						uniqueWorkingSetEntries.add(v);
-						editingSessionAttachedContext.push(this.attachmentModel.asVariableEntry(v));
+						uniqueWorkingSetEntries.add(uri);
+						editingSessionAttachedContext.push(this.attachmentModel.asVariableEntry(uri, undefined, isMarkedReadonly));
 					}
 				}
 				let maximumFileEntries = this.chatEditingService.editingSessionFileLimit - editingSessionAttachedContext.length;

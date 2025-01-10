@@ -37,7 +37,7 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
-import { chatEditingWidgetFileStateContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { chatEditingWidgetFileReadonlyContextKey, chatEditingWidgetFileStateContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
@@ -52,6 +52,7 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	description?: string;
 	state?: WorkingSetEntryState;
 	excluded?: boolean;
+	isMarkedReadonly?: boolean;
 }
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
@@ -435,8 +436,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			if (templateData.toolbar) {
 				templateData.toolbar.context = arg;
 			}
-			if (templateData.contextKeyService && data.state !== undefined) {
-				chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+			if (templateData.contextKeyService) {
+				if (data.state !== undefined) {
+					chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+				}
+				chatEditingWidgetFileReadonlyContextKey.bindTo(templateData.contextKeyService).set(!!data.isMarkedReadonly);
 			}
 		}
 	}
