@@ -210,9 +210,9 @@ export class SimpleSuggestWidget extends Disposable {
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 
-		const details: SimpleSuggestDetailsWidget = instantiationService.createInstance(SimpleSuggestDetailsWidget);
+		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget));
 		this._register(details.onDidClose(() => this.toggleDetails()));
-		this._details = new SimpleSuggestDetailsOverlay(details, this._listElement);
+		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
 
 		if (options.statusBarMenuId) {
 			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
