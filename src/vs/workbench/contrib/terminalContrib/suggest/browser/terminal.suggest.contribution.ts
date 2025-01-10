@@ -246,7 +246,7 @@ registerActiveInstanceAction({
 
 registerActiveInstanceAction({
 	id: 'terminalSuggestToggleExplainMode',
-	title: localize2('workbench.action.terminal.selectNextSuggestion', 'Select the Next Suggestion'),
+	title: localize2('workbench.action.terminal.suggestToggleExplainMode', 'Suggest Toggle Explain Modes'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
