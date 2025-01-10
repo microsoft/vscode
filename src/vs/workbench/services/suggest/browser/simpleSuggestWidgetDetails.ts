@@ -330,7 +330,7 @@ export class SimpleSuggestDetailsOverlay {
 		this._resizable.clearSashHoverState();
 
 		if (this._added) {
-			this._container.removeChild(this.widget.domNode);
+			this._container.removeChild(this._resizable.domNode);
 			this._added = false;
 			this._anchorBox = undefined;
 			// this._topLeft = undefined;
