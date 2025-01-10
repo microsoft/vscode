@@ -2027,18 +2027,7 @@
           "group": "9_copy@2"
         }
       ],
-      "scm/historyItemRef/context": [
-        {
-          "command": "git.checkoutRef",
-          "when": "scmProvider == git",
-          "group": "3_checkout@1"
-        },
-        {
-          "command": "git.deleteTag",
-          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/tags\\//",
-          "group": "3_checkout@2"
-        }
-      ],
+      "scm/historyItemRef/context": [],
       "editor/title": [
         {
           "command": "git.openFile",
