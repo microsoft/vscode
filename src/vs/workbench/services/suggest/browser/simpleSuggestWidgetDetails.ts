@@ -256,7 +256,7 @@ export class SimpleSuggestDetailsOverlay {
 		private _container: HTMLElement,
 	) {
 
-		this._resizable = new ResizableHTMLElement();
+		this._resizable = this._disposables.add(new ResizableHTMLElement());
 		this._resizable.domNode.classList.add('suggest-details-container');
 		this._resizable.domNode.appendChild(widget.domNode);
 		this._resizable.enableSashes(false, true, true, false);
