@@ -18,10 +18,7 @@ import * as nls from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CompletionItem } from './suggest.js';
 
-export function canExpandCompletionItem(item: CompletionItem | string | undefined): boolean {
-	if (typeof item === 'string') {
-		return true;
-	}
+export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
 }
 
@@ -129,27 +126,21 @@ export class SuggestDetailsWidget {
 		this._onDidChangeContents.fire(this);
 	}
 
-	renderItem(item: CompletionItem | string, explainMode: boolean): void {
+	renderItem(item: CompletionItem, explainMode: boolean): void {
 		this._renderDisposeable.clear();
 
-		let md = '';
-		let detail, documentation;
-		if (typeof item === 'string') {
-			md = item;
-		} else if (typeof item === 'object') {
-			detail = item.completion.detail;
-			documentation = item.completion.documentation;
+		let { detail, documentation } = item.completion;
 
-			if (explainMode) {
-				md += `score: ${item.score[0]}\n`;
-				md += `prefix: ${item.word ?? '(no prefix)'}\n`;
-				md += `word: ${item.completion.filterText ? item.completion.filterText + ' (filterText)' : item.textLabel}\n`;
-				md += `distance: ${item.distance} (localityBonus-setting)\n`;
-				md += `index: ${item.idx}, based on ${item.completion.sortText && `sortText: "${item.completion.sortText}"` || 'label'}\n`;
-				md += `commit_chars: ${item.completion.commitCharacters?.join('')}\n`;
-				documentation = new MarkdownString().appendCodeblock('empty', md);
-				detail = `Provider: ${item.provider._debugDisplayName}`;
-			}
+		if (explainMode) {
+			let md = '';
+			md += `score: ${item.score[0]}\n`;
+			md += `prefix: ${item.word ?? '(no prefix)'}\n`;
+			md += `word: ${item.completion.filterText ? item.completion.filterText + ' (filterText)' : item.textLabel}\n`;
+			md += `distance: ${item.distance} (localityBonus-setting)\n`;
+			md += `index: ${item.idx}, based on ${item.completion.sortText && `sortText: "${item.completion.sortText}"` || 'label'}\n`;
+			md += `commit_chars: ${item.completion.commitCharacters?.join('')}\n`;
+			documentation = new MarkdownString().appendCodeblock('empty', md);
+			detail = `Provider: ${item.provider._debugDisplayName}`;
 		}
 
 		if (!explainMode && !canExpandCompletionItem(item)) {
