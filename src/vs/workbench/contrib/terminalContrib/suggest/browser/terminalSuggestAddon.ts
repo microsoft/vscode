@@ -179,6 +179,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._onDidReceiveCompletions.fire();
 
+		this._cursorIndexDelta = this._promptInputModel.cursorIndex - this._requestedCompletionsIndex;
 		this._leadingLineContent = this._promptInputModel.prefix.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
 
 		const completions = providedCompletions.flat();
@@ -197,7 +198,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._mostRecentCompletion = undefined;
 
-		this._cursorIndexDelta = this._promptInputModel.cursorIndex - this._requestedCompletionsIndex;
 
 		let normalizedLeadingLineContent = this._leadingLineContent;
 
