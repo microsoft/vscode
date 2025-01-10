@@ -57,12 +57,10 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		if (!isTrusted) {
 			return;
 		}
-		if (this._pendingEnv) {
-			this._env.clear();
-			this._pendingEnv.forEach((value, key) => {
-				this._env.set(key, value);
-			});
+		if (!this._pendingEnv) {
+			return;
 		}
+		this._env = this._pendingEnv;
 		this._pendingEnv = undefined;
 		this._onDidChangeEnv.fire(this._env);
 	}
