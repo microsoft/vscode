@@ -369,6 +369,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						id: ref.substring('HEAD -> '.length),
 						name: ref.substring('HEAD -> refs/heads/'.length),
 						revision: commit.hash,
+						category: l10n.t('branches'),
 						icon: new ThemeIcon('target')
 					});
 					break;
@@ -377,6 +378,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						id: ref,
 						name: ref.substring('refs/heads/'.length),
 						revision: commit.hash,
+						category: l10n.t('branches'),
 						icon: new ThemeIcon('git-branch')
 					});
 					break;
@@ -385,6 +387,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						id: ref,
 						name: ref.substring('refs/remotes/'.length),
 						revision: commit.hash,
+						category: l10n.t('remote branches'),
 						icon: new ThemeIcon('cloud')
 					});
 					break;
@@ -393,6 +396,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						id: ref.substring('tag: '.length),
 						name: ref.substring('tag: refs/tags/'.length),
 						revision: commit.hash,
+						category: l10n.t('tags'),
 						icon: new ThemeIcon('tag')
 					});
 					break;
