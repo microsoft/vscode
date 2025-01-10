@@ -94,7 +94,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 	public _rasterizeGlyph(
 		chars: string,
-		metadata: number,
+		tokenMetadata: number,
 		charMetadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
@@ -109,7 +109,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
 		const fontSb = new StringBuilder(200);
-		const fontStyle = TokenMetadata.getFontStyle(metadata);
+		const fontStyle = TokenMetadata.getFontStyle(tokenMetadata);
 		if (fontStyle & FontStyle.Italic) {
 			fontSb.appendString('italic ');
 		}
@@ -128,7 +128,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		if (charMetadata) {
 			this._ctx.fillStyle = `#${charMetadata.toString(16).padStart(8, '0')}`;
 		} else {
-			this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(metadata)];
+			this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(tokenMetadata)];
 		}
 		this._ctx.textBaseline = 'top';
 

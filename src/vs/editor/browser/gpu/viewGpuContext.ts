@@ -170,7 +170,7 @@ export class ViewGpuContext extends Disposable {
 						return false;
 					}
 					for (const r of rule.style) {
-						if (!gpuSupportedDecorationCssRules.includes(r)) {
+						if (!supportsCssRule(r, rule.style)) {
 							return false;
 						}
 					}
@@ -220,8 +220,8 @@ export class ViewGpuContext extends Disposable {
 						return false;
 					}
 					for (const r of rule.style) {
-						if (!gpuSupportedDecorationCssRules.includes(r)) {
-							problemRules.push(r);
+						if (!supportsCssRule(r, rule.style)) {
+							problemRules.push(`${r}: ${rule.style[r as any]}`);
 							return false;
 						}
 					}
@@ -249,8 +249,20 @@ export class ViewGpuContext extends Disposable {
 }
 
 /**
- * A list of fully supported decoration CSS rules that can be used in the GPU renderer.
+ * A list of supported decoration CSS rules that can be used in the GPU renderer.
  */
 const gpuSupportedDecorationCssRules = [
 	'color',
+	// TODO: https://github.com/microsoft/vscode/issues/237584
+	// 'font-weight',
 ];
+
+function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
+	if (!gpuSupportedDecorationCssRules.includes(rule)) {
+		return false;
+	}
+	// Check for values that aren't supported
+	switch (rule) {
+		default: return true;
+	}
+}

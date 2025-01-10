@@ -386,7 +386,16 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 										if (!parsedColor) {
 											throw new BugIndicatingError('Invalid color format ' + value);
 										}
-										charMetadata = parsedColor.toNumber24Bit();
+										charMetadata = parsedColor.toNumber32Bit();
+										break;
+									}
+									case 'font-weight': {
+										const parsedValue = parseCssFontWeight(value);
+										if (parsedValue >= 400) {
+											// TODO: Set bold (https://github.com/microsoft/vscode/issues/237584)
+										} else {
+											// TODO: Set normal (https://github.com/microsoft/vscode/issues/237584)
+										}
 										break;
 									}
 									default: throw new BugIndicatingError('Unexpected inline decoration style');
@@ -484,4 +493,14 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		this._queuedBufferUpdates[0].push(e);
 		this._queuedBufferUpdates[1].push(e);
 	}
+}
+
+function parseCssFontWeight(value: string) {
+	switch (value) {
+		case 'lighter':
+		case 'normal': return 400;
+		case 'bolder':
+		case 'bold': return 700;
+	}
+	return parseInt(value);
 }
