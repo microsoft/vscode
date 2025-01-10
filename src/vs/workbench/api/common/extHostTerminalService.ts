@@ -767,7 +767,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return completions;
 	}
 	// Take in shellType as a string and return VSCode Terminal Shell Type?
-	public async $acceptTerminalShellType(id: number, shellType: string): Promise<TerminalShellType> {
+	public $acceptTerminalShellType(id: number, shellType: string): void {
 		// TODO: Implement
 		return GeneralShellType.Python;
 	}
