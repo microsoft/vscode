@@ -727,11 +727,6 @@ export class SimpleSuggestWidget extends Disposable {
 
 	private _positionDetails(): void {
 		if (this._isDetailsVisible()) {
-			const parentRect = this.element.domNode.getBoundingClientRect();
-			const domNode = this._details.widget.domNode;
-			domNode.style.position = 'fixed !important';
-			domNode.style.top = `0px !important`;
-			domNode.style.left = `${parentRect.right}px !important`;
 			this._details.placeAtAnchor(this.element.domNode);
 		}
 	}

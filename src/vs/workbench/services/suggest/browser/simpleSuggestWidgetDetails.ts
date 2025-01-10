@@ -320,7 +320,7 @@ export class SimpleSuggestDetailsOverlay {
 
 	show(): void {
 		if (!this._added) {
-			this._container.appendChild(this.widget.domNode);
+			this._container.appendChild(this._resizable.domNode);
 			this._added = true;
 		}
 	}
@@ -440,5 +440,6 @@ export class SimpleSuggestDetailsOverlay {
 		// this._editor.layoutOverlayWidget(this);
 		this._resizable.domNode.style.top = `${topLeft.top}px`;
 		this._resizable.domNode.style.left = `${topLeft.left}px`;
+		this._resizable.domNode.style.position = 'absolute';
 	}
 }
