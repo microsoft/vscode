@@ -239,11 +239,34 @@ const enum VSCodeOscPt {
 	 */
 	EnvJson = 'EnvJson',
 
-	EnvStart = 'EnvStart',
+	/**
+	 * The start of the collecting user's environment variables individually.
+	 * Clears any environment residuals in previous sessions.
+	 *
+	 * Format: `OSC 633 ; EnvSingleStart ; <Nonce>`
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvSingleStart = 'EnvSingleStart',
 
-	EnvEntry = 'EnvEntry',
+	/**
+	 * Sets an entry of single environment variable to transactional pending map of environment variables.
+	 *
+	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> ; <Nonce>`
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvSingleEntry = 'EnvSingleEntry',
 
-	EnvEnd = 'EnvEnd'
+	/**
+	 * The end of the collecting user's environment variables individually.
+	 * Clears any pending environment variables and fires an event that contains user's environment.
+	 *
+	 * Format: `OSC 633 ; EnvSingleEnd ; <Nonce>`
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvSingleEnd = 'EnvSingleEnd'
 }
 
 /**
@@ -451,22 +474,22 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 				return true;
 			}
-			case VSCodeOscPt.EnvStart: {
-				this._createOrGetShellEnvDetection().startSingleEnvironmentVar(args[0] === this._nonce);
+			case VSCodeOscPt.EnvSingleStart: {
+				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === this._nonce);
 				return true;
 			}
-			case VSCodeOscPt.EnvEntry: {
+			case VSCodeOscPt.EnvSingleEntry: {
 				const arg0 = args[0];
 				const arg1 = args[1];
 				const arg2 = args[2];
 				if (arg0 !== undefined && arg1 !== undefined) {
 					const env = deserializeMessage(arg1);
-					this._createOrGetShellEnvDetection().setSingleEnvironmentVar(arg0, env, arg2 === this._nonce);
+					this._createOrGetShellEnvDetection().setEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
 				}
 				return true;
 			}
-			case VSCodeOscPt.EnvEnd: {
-				this._createOrGetShellEnvDetection().endSingleEnvironmentVar(args[0] === this._nonce);
+			case VSCodeOscPt.EnvSingleEnd: {
+				this._createOrGetShellEnvDetection().endEnvironmentSingleVar(args[0] === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.RightPromptStart: {
