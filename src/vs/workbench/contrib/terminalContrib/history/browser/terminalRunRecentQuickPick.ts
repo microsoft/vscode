@@ -335,11 +335,13 @@ export async function showRunRecentQuickPick(
 			text = result.rawLabel;
 		}
 		quickPick.hide();
+		terminalScrollStateSaved = false;
+		instance.xterm?.markTracker.clear();
+		instance.scrollToBottom();
 		instance.runCommand(text, !quickPick.keyMods.alt);
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}
-		restoreScrollState();
 	}));
 	disposables.add(quickPick.onDidHide(() => restoreScrollState()));
 	if (value) {

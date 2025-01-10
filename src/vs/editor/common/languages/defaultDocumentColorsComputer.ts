@@ -36,7 +36,7 @@ function _toIColor(r: number, g: number, b: number, a: number): IColor {
 function _findRange(model: IDocumentColorComputerTarget, match: RegExpMatchArray): IRange | undefined {
 	const index = match.index;
 	const length = match[0].length;
-	if (!index) {
+	if (index === undefined) {
 		return;
 	}
 	const startPosition = model.positionAt(index);

@@ -6,7 +6,7 @@
 import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService, IUserDataSyncResource, IResourcePreview, USER_DATA_SYNC_SCHEME, USER_DATA_SYNC_LOG_ID, } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS, IUserDataSyncConflictsView } from '../common/userDataSync.js';
+import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS, IUserDataSyncConflictsView, getSyncAreaLabel } from '../common/userDataSync.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { getCurrentAuthenticationSessionInfo } from '../../authentication/browser/authenticationService.js';
@@ -75,7 +75,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private _authenticationProviders: IAuthenticationProvider[] = [];
 	get authenticationProviders() { return this._authenticationProviders; }
 
-	private _accountStatus: AccountStatus = AccountStatus.Unavailable;
+	private _accountStatus: AccountStatus = AccountStatus.Uninitialized;
 	get accountStatus(): AccountStatus { return this._accountStatus; }
 	private readonly _onDidChangeAccountStatus = this._register(new Emitter<AccountStatus>());
 	readonly onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
@@ -144,10 +144,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private updateAuthenticationProviders(): boolean {
-		this.logService.info('Settings Sync: Updating authentication providers. Authentication Providers from store:', this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || [].map(({ id }) => id));
 		const oldValue = this._authenticationProviders;
 		this._authenticationProviders = (this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || []).filter(({ id }) => this.authenticationService.declaredProviders.some(provider => provider.id === id));
-		this.logService.info('Settings Sync: Authentication providers updated', this._authenticationProviders.map(({ id }) => id));
+		this.logService.trace('Settings Sync: Authentication providers updated', this._authenticationProviders.map(({ id }) => id));
 		return equals(oldValue, this._authenticationProviders, (a, b) => a.id === b.id);
 	}
 
@@ -189,6 +188,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		const initPromise = this.update('initialize');
 		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => {
 			if (this.updateAuthenticationProviders()) {
+				// Trigger update only after the initialization is done
 				initPromise.finally(() => this.update('declared authentication providers changed'));
 			}
 		}));
@@ -223,7 +223,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async update(reason: string): Promise<void> {
-		this.logService.info(`Settings Sync: Updating due to ${reason}`);
+		this.logService.trace(`Settings Sync: Updating due to ${reason}`);
 
 		this.updateAuthenticationProviders();
 		await this.updateCurrentAccount();
@@ -237,18 +237,17 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async updateCurrentAccount(): Promise<void> {
-		this.logService.info('Settings Sync: Updating the current account');
+		this.logService.trace('Settings Sync: Updating the current account');
 		const currentSessionId = this.currentSessionId;
 		const currentAuthenticationProviderId = this.currentAuthenticationProviderId;
 		if (currentSessionId) {
 			const authenticationProviders = currentAuthenticationProviderId ? this.authenticationProviders.filter(({ id }) => id === currentAuthenticationProviderId) : this.authenticationProviders;
-			this.logService.info('Settings Sync: Updating the current account using current session', currentSessionId, currentAuthenticationProviderId, authenticationProviders.map(({ id }) => id));
 			for (const { id, scopes } of authenticationProviders) {
 				const sessions = (await this.authenticationService.getSessions(id, scopes)) || [];
 				for (const session of sessions) {
 					if (session.id === currentSessionId) {
 						this._current = new UserDataSyncAccount(id, session);
-						this.logService.info('Settings Sync: Updated the current account', this._current.accountName);
+						this.logService.trace('Settings Sync: Updated the current account', this._current.accountName);
 						return;
 					}
 				}
@@ -261,7 +260,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		let value: { token: string; authenticationProviderId: string } | undefined = undefined;
 		if (current) {
 			try {
-				this.logService.info('Settings Sync: Updating the token for the account', current.accountName);
+				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
 				const token = current.token;
 				this.logService.info('Settings Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
@@ -273,7 +272,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private updateAccountStatus(accountStatus: AccountStatus): void {
-		this.logService.info(`Settings Sync: Updating the account status to ${accountStatus}`);
+		this.logService.trace(`Settings Sync: Updating the account status to ${accountStatus}`);
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
 			this.logService.info(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
@@ -404,9 +403,21 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async handleConflictsWhileTurningOn(token: CancellationToken): Promise<void> {
+		const conflicts = this.userDataSyncService.conflicts;
+		const andSeparator = localize('and', ' and ');
+		let conflictsText = '';
+		for (let i = 0; i < conflicts.length; i++) {
+			if (i === conflicts.length - 1 && i !== 0) {
+				conflictsText += andSeparator;
+			} else if (i !== 0) {
+				conflictsText += ', ';
+			}
+			conflictsText += getSyncAreaLabel(conflicts[i].syncResource);
+		}
+		const singleConflictResource = conflicts.length === 1 ? getSyncAreaLabel(conflicts[0].syncResource) : undefined;
 		await this.dialogService.prompt({
 			type: Severity.Warning,
-			message: localize('conflicts detected', "Conflicts Detected"),
+			message: localize('conflicts detected', "Conflicts Detected in {0}", conflictsText),
 			detail: localize('resolve', "Please resolve conflicts to turn on..."),
 			buttons: [
 				{
@@ -418,11 +429,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					}
 				},
 				{
-					label: localize({ key: 'replace local', comment: ['&& denotes a mnemonic'] }, "Replace &&Local"),
+					label: singleConflictResource ? localize({ key: 'replace local single', comment: ['&& denotes a mnemonic'] }, "Accept &&Remote {0}", singleConflictResource) : localize({ key: 'replace local', comment: ['&& denotes a mnemonic'] }, "Accept &&Remote"),
 					run: async () => this.replace(true)
 				},
 				{
-					label: localize({ key: 'replace remote', comment: ['&& denotes a mnemonic'] }, "Replace &&Remote"),
+					label: singleConflictResource ? localize({ key: 'replace remote single', comment: ['&& denotes a mnemonic'] }, "Accept &&Local {0}", singleConflictResource) : localize({ key: 'replace remote', comment: ['&& denotes a mnemonic'] }, "Accept &&Local"),
 					run: () => this.replace(false)
 				},
 			],

@@ -280,12 +280,7 @@ registerAction2(class extends Action2 {
 
 		const position = args?.range ? new Range(args.range.startLineNumber, args.range.startLineNumber, args.range.endLineNumber, args.range.endColumn)
 			: (args?.fileComment ? undefined : activeEditor.getSelection());
-		const notificationService = accessor.get(INotificationService);
-		try {
-			await controller.addOrToggleCommentAtLine(position, undefined);
-		} catch (e) {
-			notificationService.error(nls.localize('comments.addCommand.error', "The cursor must be within a commenting range to add a comment"));
-		}
+		await controller.addOrToggleCommentAtLine(position, undefined);
 	}
 });
 

@@ -10,7 +10,7 @@ import { getParentDocumentUri } from '../../util/document';
 import { Mime, mediaMimes } from '../../util/mimes';
 import { Schemes } from '../../util/schemes';
 import { NewFilePathGenerator } from './newFilePathGenerator';
-import { DropOrPasteEdit, createInsertUriListEdit, createUriListSnippet, getSnippetLabel } from './shared';
+import { DropOrPasteEdit, createInsertUriListEdit, createUriListSnippet, getSnippetLabelAndKind, baseLinkEditKind, linkEditKind, audioEditKind, videoEditKind, imageEditKind } from './shared';
 import { InsertMarkdownLink, shouldInsertMarkdownLinkByDefault } from './smartDropOrPaste';
 import { UriList } from '../../util/uriList';
 
@@ -30,8 +30,6 @@ enum CopyFilesSettings {
  */
 class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, vscode.DocumentDropEditProvider {
 
-	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'link');
-
 	public static readonly mimeTypes = [
 		Mime.textUriList,
 		'files',
@@ -39,8 +37,8 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 	];
 
 	private readonly _yieldTo = [
-		vscode.DocumentDropOrPasteEditKind.Empty.append('text'),
-		vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'image', 'attachment'),
+		vscode.DocumentDropOrPasteEditKind.Text,
+		vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'link', 'image', 'attachment'), // Prefer notebook attachments
 	];
 
 	constructor(
@@ -64,7 +62,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 
 		const dropEdit = new vscode.DocumentDropEdit(edit.snippet);
 		dropEdit.title = edit.label;
-		dropEdit.kind = ResourcePasteOrDropProvider.kind;
+		dropEdit.kind = edit.kind;
 		dropEdit.additionalEdit = edit.additionalEdits;
 		dropEdit.yieldTo = [...this._yieldTo, ...edit.yieldTo];
 		return dropEdit;
@@ -86,7 +84,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, edit.label, ResourcePasteOrDropProvider.kind);
+		const pasteEdit = new vscode.DocumentPasteEdit(edit.snippet, edit.label, edit.kind);
 		pasteEdit.additionalEdit = edit.additionalEdits;
 		pasteEdit.yieldTo = [...this._yieldTo, ...edit.yieldTo];
 		return [pasteEdit];
@@ -108,10 +106,10 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
-		settings: {
+		settings: Readonly<{
 			insert: InsertMarkdownLink;
 			copyIntoWorkspace: CopyFilesSettings;
-		},
+		}>,
 		context: vscode.DocumentPasteEditContext | undefined,
 		token: vscode.CancellationToken,
 	): Promise<DropOrPasteEdit | undefined> {
@@ -162,7 +160,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 		if (
 			uriList.entries.length === 1
 			&& (uriList.entries[0].uri.scheme === Schemes.http || uriList.entries[0].uri.scheme === Schemes.https)
-			&& !context?.only?.contains(ResourcePasteOrDropProvider.kind)
+			&& !context?.only?.contains(baseLinkEditKind)
 		) {
 			const text = await dataTransfer.get(Mime.textPlain)?.asString();
 			if (token.isCancellationRequested) {
@@ -174,7 +172,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 			}
 		}
 
-		const edit = createInsertUriListEdit(document, ranges, uriList);
+		const edit = createInsertUriListEdit(document, ranges, uriList, { linkKindHint: context?.only });
 		if (!edit) {
 			return;
 		}
@@ -184,6 +182,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 
 		return {
 			label: edit.label,
+			kind: edit.kind,
 			snippet: new vscode.SnippetString(''),
 			additionalEdits,
 			yieldTo: []
@@ -254,9 +253,11 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 			}
 		}
 
+		const { label, kind } = getSnippetLabelAndKind(snippet);
 		return {
 			snippet: snippet.snippet,
-			label: getSnippetLabel(snippet),
+			label,
+			kind,
 			additionalEdits,
 			yieldTo: [],
 		};
@@ -277,13 +278,21 @@ function textMatchesUriList(text: string, uriList: UriList): boolean {
 }
 
 export function registerResourceDropOrPasteSupport(selector: vscode.DocumentSelector, parser: IMdParser): vscode.Disposable {
+	const providedEditKinds = [
+		baseLinkEditKind,
+		linkEditKind,
+		imageEditKind,
+		audioEditKind,
+		videoEditKind,
+	];
+
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentPasteEditProvider(selector, new ResourcePasteOrDropProvider(parser), {
-			providedPasteEditKinds: [ResourcePasteOrDropProvider.kind],
+			providedPasteEditKinds: providedEditKinds,
 			pasteMimeTypes: ResourcePasteOrDropProvider.mimeTypes,
 		}),
 		vscode.languages.registerDocumentDropEditProvider(selector, new ResourcePasteOrDropProvider(parser), {
-			providedDropEditKinds: [ResourcePasteOrDropProvider.kind],
+			providedDropEditKinds: providedEditKinds,
 			dropMimeTypes: ResourcePasteOrDropProvider.mimeTypes,
 		}),
 	);

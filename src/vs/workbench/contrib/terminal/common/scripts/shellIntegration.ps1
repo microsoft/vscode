@@ -88,6 +88,16 @@ function Global:Prompt() {
 	# Current working directory
 	# OSC 633 ; <Property>=<Value> ST
 	$Result += if ($pwd.Provider.Name -eq 'FileSystem') { "$([char]0x1b)]633;P;Cwd=$(__VSCode-Escape-Value $pwd.ProviderPath)`a" }
+
+	# Send current environment variables as JSON
+	# OSC 633 ; Env ; <Environment> ; <Nonce>
+	if ($isStable -eq "0") {
+		$envMap = @{}
+		Get-ChildItem Env: | ForEach-Object { $envMap[$_.Name] = $_.Value }
+		$envJson = $envMap | ConvertTo-Json -Compress
+		$Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$Nonce`a"
+	}
+
 	# Before running the original prompt, put $? back to what it was:
 	if ($FakeCode -ne 0) {
 		Write-Error "failure" -ea ignore

@@ -692,7 +692,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				enabled: actionButton.enabled
 			} satisfies SCMActionButtonDto : undefined;
 
-		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto });
+		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto ?? null });
 	}
 
 

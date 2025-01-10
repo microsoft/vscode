@@ -10,8 +10,8 @@ import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js'
 import { IDisposable, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isThenable } from '../../../../base/common/async.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
-import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from '../../../../base/browser/dom.js';
-import { asCSSPropertyValue } from '../../../../base/browser/cssValue.js';
+import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from '../../../../base/browser/domStylesheets.js';
+import * as cssValue from '../../../../base/browser/cssValue.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
@@ -139,7 +139,7 @@ class DecorationRule {
 			`.${this.iconBadgeClassName}::after`,
 			`content: '${definition.fontCharacter}';
 			color: ${icon.color ? getColor(icon.color.id) : getColor(color)};
-			font-family: ${asCSSPropertyValue(definition.font?.id ?? 'codicon')};
+			font-family: ${cssValue.stringValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
 			margin-right: 14px;
 			font-weight: normal;

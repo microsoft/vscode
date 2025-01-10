@@ -296,6 +296,7 @@ export class ConfigurationModel implements IConfigurationModel {
 }
 
 export interface ConfigurationParseOptions {
+	skipUnregistered?: boolean;
 	scopes?: ConfigurationScope[];
 	skipRestricted?: boolean;
 	include?: string[];
@@ -428,14 +429,10 @@ export class ConfigurationModelParser {
 				restricted.push(...result.restricted);
 			} else {
 				const propertySchema = configurationProperties[key];
-				const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
 				if (propertySchema?.restricted) {
 					restricted.push(key);
 				}
-				if (!options.exclude?.includes(key) /* Check exclude */
-					&& (options.include?.includes(key) /* Check include */
-						|| ((scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) /* Check scopes */
-							&& !(options.skipRestricted && propertySchema?.restricted)))) /* Check restricted */ {
+				if (this.shouldInclude(key, propertySchema, options)) {
 					raw[key] = properties[key];
 				} else {
 					hasExcludedProperties = true;
@@ -443,6 +440,31 @@ export class ConfigurationModelParser {
 			}
 		}
 		return { raw, restricted, hasExcludedProperties };
+	}
+
+	private shouldInclude(key: string, propertySchema: IConfigurationPropertySchema | undefined, options: ConfigurationParseOptions): boolean {
+		if (options.exclude?.includes(key)) {
+			return false;
+		}
+
+		if (options.include?.includes(key)) {
+			return true;
+		}
+
+		if (options.skipRestricted && propertySchema?.restricted) {
+			return false;
+		}
+
+		if (options.skipUnregistered && !propertySchema) {
+			return false;
+		}
+
+		const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
+		if (scope === undefined || options.scopes === undefined) {
+			return true;
+		}
+
+		return options.scopes.includes(scope);
 	}
 
 	private toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
@@ -705,7 +727,7 @@ export class Configuration {
 	}
 
 	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): any {
-		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(section, overrides, workspace);
+		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(overrides, workspace);
 		return consolidateConfigurationModel.getValue(section);
 	}
 
@@ -733,7 +755,7 @@ export class Configuration {
 	}
 
 	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): IConfigurationValue<C> {
-		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(key, overrides, workspace);
+		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(overrides, workspace);
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource, workspace);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
 		const overrideIdentifiers = new Set<string>();
@@ -943,13 +965,17 @@ export class Configuration {
 		return this._folderConfigurations;
 	}
 
-	private getConsolidatedConfigurationModel(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
+	private getConsolidatedConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		if (overrides.overrideIdentifier) {
 			configurationModel = configurationModel.override(overrides.overrideIdentifier);
 		}
-		if (!this._policyConfiguration.isEmpty() && this._policyConfiguration.getValue(section) !== undefined) {
-			configurationModel = configurationModel.merge(this._policyConfiguration);
+		if (!this._policyConfiguration.isEmpty()) {
+			// clone by merging
+			configurationModel = configurationModel.merge();
+			for (const key of this._policyConfiguration.keys) {
+				configurationModel.setValue(key, this._policyConfiguration.getValue(key));
+			}
 		}
 		return configurationModel;
 	}

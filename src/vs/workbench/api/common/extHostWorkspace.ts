@@ -468,7 +468,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 
 		// todo: consider exclude baseURI if available
-		return this._findFilesImpl(include, undefined, {
+		return this._findFilesImpl({ type: 'include', value: include }, {
 			exclude: [excludeString],
 			maxResults,
 			useExcludeSettings: useFileExcludes ? ExcludeSettingOptions.FilesExclude : ExcludeSettingOptions.None,
@@ -479,28 +479,32 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 
-	findFiles2(filePatterns: vscode.GlobPattern[],
+	findFiles2(filePatterns: readonly vscode.GlobPattern[],
 		options: vscode.FindFiles2Options = {},
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles2New: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2New`);
-		return this._findFilesImpl(undefined, filePatterns, options, token);
+		return this._findFilesImpl({ type: 'filePatterns', value: filePatterns }, options, token);
 	}
 
 	private async _findFilesImpl(
 		// the old `findFiles` used `include` to query, but the new `findFiles2` uses `filePattern` to query.
 		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
-		include: vscode.GlobPattern | undefined,
-		filePatterns: vscode.GlobPattern[] | undefined,
+		query: { readonly type: 'include'; readonly value: vscode.GlobPattern | undefined } | { readonly type: 'filePatterns'; readonly value: readonly vscode.GlobPattern[] },
 		options: vscode.FindFiles2Options,
-		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		if (token && token.isCancellationRequested) {
+		token: vscode.CancellationToken
+	): Promise<vscode.Uri[]> {
+		if (token.isCancellationRequested) {
 			return Promise.resolve([]);
 		}
 
+		const filePatternsToUse = query.type === 'include' ? [query.value] : query.value ?? [];
+		if (!Array.isArray(filePatternsToUse)) {
+			console.error('Invalid file pattern provided', filePatternsToUse);
+			throw new Error(`Invalid file pattern provided ${JSON.stringify(filePatternsToUse)}`);
+		}
 
-		const filePatternsToUse = include !== undefined ? [include] : filePatterns;
-		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse?.map(filePattern => {
+		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
 
 			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
 
@@ -514,21 +518,22 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				maxResults: options.maxResults,
 				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
 				_reason: 'startFileSearch',
-				shouldGlobSearch: include ? undefined : true,
+				shouldGlobSearch: query.type === 'include' ? undefined : true,
 			};
 
 			const parseInclude = parseSearchExcludeInclude(GlobPattern.from(filePattern));
 			const folderToUse = parseInclude?.folder;
-			if (include) {
+			if (query.type === 'include') {
 				fileQueries.includePattern = parseInclude?.pattern;
 			} else {
 				fileQueries.filePattern = parseInclude?.pattern;
 			}
+
 			return {
 				folder: folderToUse,
 				options: fileQueries
 			};
-		}) ?? [];
+		});
 
 		return this._findFilesBase(queryOptions, token);
 	}

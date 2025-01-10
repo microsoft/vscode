@@ -85,7 +85,7 @@ export interface IExtensionsProfileScannerService {
 	scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]>;
 	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI, keepExistingVersions?: boolean): Promise<IScannedProfileExtension[]>;
 	updateMetadata(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
-	removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void>;
+	removeExtensionsFromProfile(extensions: IExtensionIdentifier[], profileLocation: URI): Promise<void>;
 }
 
 export abstract class AbstractExtensionsProfileScannerService extends Disposable implements IExtensionsProfileScannerService {
@@ -193,13 +193,13 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		return updatedExtensions;
 	}
 
-	async removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void> {
+	async removeExtensionsFromProfile(extensions: IExtensionIdentifier[], profileLocation: URI): Promise<void> {
 		const extensionsToRemove: IScannedProfileExtension[] = [];
 		try {
 			await this.withProfileExtensions(profileLocation, profileExtensions => {
 				const result: IScannedProfileExtension[] = [];
 				for (const e of profileExtensions) {
-					if (areSameExtensions(e.identifier, extension.identifier)) {
+					if (extensions.some(extension => areSameExtensions(e.identifier, extension))) {
 						extensionsToRemove.push(e);
 					} else {
 						result.push(e);

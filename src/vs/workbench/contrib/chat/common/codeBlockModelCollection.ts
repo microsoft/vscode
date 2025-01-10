@@ -10,7 +10,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { EndOfLinePreference, ITextModel } from '../../../../editor/common/model.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText, IMarkdownVulnerability } from './annotations.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from './chatViewModel.js';
@@ -28,18 +27,10 @@ interface CodeBlockEntry {
 	readonly codemapperUri?: URI;
 }
 
-type CodeBlockTextModel = {
-	readonly type: 'incomplete';
-	readonly value: ITextModel;
-} | {
-	readonly type: 'complete';
-	readonly value: Promise<IReference<IResolvedTextEditorModel>>;
-};
-
 export class CodeBlockModelCollection extends Disposable {
 
 	private readonly _models = new Map<string, {
-		model: CodeBlockTextModel;
+		model: Promise<IReference<IResolvedTextEditorModel>>;
 		vulns: readonly IMarkdownVulnerability[];
 		codemapperUri?: URI;
 	}>();
@@ -53,7 +44,6 @@ export class CodeBlockModelCollection extends Disposable {
 
 	constructor(
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IModelService private readonly modelService: IModelService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super();
@@ -70,7 +60,7 @@ export class CodeBlockModelCollection extends Disposable {
 			return;
 		}
 		return {
-			model: entry.model.type === 'incomplete' ? Promise.resolve(entry.model.value) : entry.model.value.then(ref => ref.object.textEditorModel),
+			model: entry.model.then(ref => ref.object.textEditorModel),
 			vulns: entry.vulns,
 			codemapperUri: entry.codemapperUri
 		};
@@ -82,10 +72,10 @@ export class CodeBlockModelCollection extends Disposable {
 			return existing;
 		}
 
-		const uri = this.getIncompleteModelUri(sessionId, chat, codeBlockIndex);
-		const model = this.modelService.createModel('', null, uri, true);
+		const uri = this.getCodeBlockUri(sessionId, chat, codeBlockIndex);
+		const model = this.textModelService.createModelReference(uri);
 		this._models.set(this.getKey(sessionId, chat, codeBlockIndex), {
-			model: { type: 'incomplete', value: model },
+			model: model,
 			vulns: [],
 			codemapperUri: undefined,
 		});
@@ -98,7 +88,7 @@ export class CodeBlockModelCollection extends Disposable {
 			this.delete(first);
 		}
 
-		return { model: Promise.resolve(model), vulns: [], codemapperUri: undefined };
+		return { model: model.then(x => x.object.textEditorModel), vulns: [], codemapperUri: undefined };
 	}
 
 	private delete(key: string) {
@@ -107,21 +97,13 @@ export class CodeBlockModelCollection extends Disposable {
 			return;
 		}
 
-		this.disposeModel(entry.model);
+		entry.model.then(ref => ref.object.dispose());
 
 		this._models.delete(key);
 	}
 
-	private disposeModel(model: CodeBlockTextModel) {
-		if (model.type === 'complete') {
-			model.value.then(ref => ref.dispose());
-		} else {
-			this.modelService.destroyModel(model.value.uri);
-		}
-	}
-
 	clear(): void {
-		this._models.forEach(async entry => this.disposeModel(entry.model));
+		this._models.forEach(async entry => (await entry.model).dispose());
 		this._models.clear();
 	}
 
@@ -146,15 +128,10 @@ export class CodeBlockModelCollection extends Disposable {
 
 	markCodeBlockCompleted(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): void {
 		const entry = this._models.get(this.getKey(sessionId, chat, codeBlockIndex));
-		if (!entry || entry.model.type === 'complete') {
+		if (!entry) {
 			return;
 		}
-
-		this.disposeModel(entry.model);
-
-		const uri = this.getCompletedModelUri(sessionId, chat, codeBlockIndex);
-		const newModel = this.textModelService.createModelReference(uri);
-		entry.model = { type: 'complete', value: newModel };
+		// TODO: fill this in once we've implemented https://github.com/microsoft/vscode/issues/232538
 	}
 
 	async update(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, content: CodeBlockContent): Promise<CodeBlockEntry> {
@@ -222,15 +199,7 @@ export class CodeBlockModelCollection extends Disposable {
 		return `${sessionId}/${chat.id}/${index}`;
 	}
 
-	private getIncompleteModelUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
-		return URI.from({
-			scheme: Schemas.inMemory,
-			authority: 'chat-code-block',
-			path: `/${sessionId}/${chat.id}/${index}`
-		});
-	}
-
-	private getCompletedModelUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
+	private getCodeBlockUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
 		const metadata = this.getUriMetaData(chat);
 		return URI.from({
 			scheme: Schemas.vscodeChatCodeBlock,
