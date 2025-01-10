@@ -27,7 +27,13 @@ import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common
 export type TChatPromptToken = MarkdownLink | FileReference;
 
 /**
- * Parser representing a partial prompt variable name, e.g., `#file:` etc.
+ * The Parser responsible for processing a `prompt variable name` syntax from
+ * a sequence of tokens (e.g., `#variable:`).
+ *
+ * The parsing process starts with single `#` token, then can accept `file` word,
+ * followed by the `:` token, resulting in the tokens sequence equivalent to
+ * the `#file:` text sequence. In this successful case, the parser transitions into
+ * the {@linkcode PartialPromptFileReference} parser to continue the parsing process.
  */
 class PartialPromptVariableName extends ParserBase<TMarkdownToken, PartialPromptVariableName | PartialPromptFileReference | FileReference> {
 	constructor(token: Hash) {
@@ -35,6 +41,8 @@ class PartialPromptVariableName extends ParserBase<TMarkdownToken, PartialPrompt
 	}
 
 	public accept(token: TMarkdownToken): TAcceptTokenResult<PartialPromptVariableName | PartialPromptFileReference | FileReference> {
+		// given we currently hold the `#` token, if we receive a `file` word,
+		// we can successfully proceed to the next token in the sequence
 		if (token instanceof Word) {
 			if (token.text === 'file') {
 				this.currentTokens.push(token);
@@ -52,6 +60,9 @@ class PartialPromptVariableName extends ParserBase<TMarkdownToken, PartialPrompt
 			};
 		}
 
+		// if we receive the `:` token, we can successfully proceed to the next
+		// token in the sequence `only if` the previous token was a `file` word
+		// therefore for currently tokens sequence equivalent to the `#file` text
 		if (token instanceof Colon) {
 			const lastToken = this.currentTokens[this.currentTokens.length - 1];
 
@@ -66,6 +77,7 @@ class PartialPromptVariableName extends ParserBase<TMarkdownToken, PartialPrompt
 			}
 		}
 
+		// all other cases are failures and we don't consume the offending token
 		return {
 			result: 'failure',
 			wasTokenConsumed: false,
@@ -80,7 +92,15 @@ const PROMPT_FILE_REFERENCE_STOP_CHARACTERS: readonly string[] = [Space, Tab, Ca
 	.map((token) => { return token.symbol; });
 
 /**
- * Parser representing a partial prompt file reference, e.g., `#file:`.
+ * Parser responsible for processing the `file reference` syntax part from
+ * a sequence of tokens (e.g., #variable:`./some/file/path.md`).
+ *
+ * The parsing process starts with the sequence of `#`, `file`, and `:` tokens,
+ * then can accept a sequence of tokens until one of the tokens defined in
+ * the {@linkcode PROMPT_FILE_REFERENCE_STOP_CHARACTERS} list is encountered.
+ * This sequence of tokens is treated as a `file path` part of the `#file:` variable,
+ * and in the successful case, the parser transitions into the {@linkcode FileReference}
+ * token which signifies the end of the file reference text parsing process.
  */
 class PartialPromptFileReference extends ParserBase<TMarkdownToken, PartialPromptFileReference | FileReference> {
 	/**
@@ -163,7 +183,9 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 	}
 
 	protected override onStreamData(token: TMarkdownToken): void {
-		// prompt variables always start with the `#` character
+		// prompt variables always start with the `#` character, hence
+		// initiate a parser object if we encounter respective token and
+		/// there is no active parser object present at the moment
 		if (token instanceof Hash && !this.current) {
 			this.current = new PartialPromptVariableName(token);
 
@@ -171,10 +193,10 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 		}
 
 		// if current parser was not yet initiated, - we are in the general
-		// "text" mode, therefore re-emit the token immediatelly and return
+		// "text" mode, therefore re-emit the token immediately and return
 		if (!this.current) {
 			// at the moment, the decoder outputs only specific markdown tokens, like
-			// the `markdown link`, so re-emit only these tokens ignoring the rest
+			// the `markdown link` one, so re-emit only these tokens ignoring the rest
 			//
 			// note! to make the decoder consistent with others we would need to:
 			// 	- re-emit all tokens here

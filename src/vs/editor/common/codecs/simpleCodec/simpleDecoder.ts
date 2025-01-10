@@ -58,7 +58,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 	}
 
 	protected override onStreamData(token: TLineToken): void {
-		// re-emit new line tokens immediatelly
+		// re-emit new line tokens immediately
 		if (token instanceof CarriageReturn || token instanceof NewLine) {
 			this._onData.fire(token);
 

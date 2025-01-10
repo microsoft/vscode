@@ -29,8 +29,19 @@ const MARKDOWN_LINK_STOP_CHARACTERS: readonly string[] = [CarriageReturn, NewLin
 	.map((token) => { return token.symbol; });
 
 /**
- * Parser that is responsible for parsing a `markdown link caption`,
- * e.g., the `[caption text]` part of the `[caption text](./some-link)` markdown link.
+ * The parser responsible for parsing a `markdown link caption` part of a markdown
+ * link (e.g., the `[caption text]` part of the `[caption text](./some/path)` link).
+ *
+ * The parsing process starts with single `[` token and collects all tokens until
+ * the first `]` token is encountered. In this successful case, the parser transitions
+ * into the {@linkcode MarkdownLinkCaption} parser type which continues the general
+ * parsing process of the markdown link.
+ *
+ * Otherwise, if one of the stop characters defined in the {@linkcode MARKDOWN_LINK_STOP_CHARACTERS}
+ * is encountered before the `]` token, the parsing process is aborted which is communicated to
+ * the caller by returning a `failure` result. In this case, the caller is assumed to be responsible
+ * for re-emitting the {@link tokens} accumulated so far as standalone entities since they are no
+ * longer represent a coherent token entity of a larger size.
  */
 class PartialMarkdownLinkCaption extends ParserBase<TSimpleToken, PartialMarkdownLinkCaption | MarkdownLinkCaption> {
 	constructor(token: LeftBracket) {
@@ -67,8 +78,17 @@ class PartialMarkdownLinkCaption extends ParserBase<TSimpleToken, PartialMarkdow
 }
 
 /**
- * Parser that is responsible for transitioning from a `markdown link caption` to
- * a partial `markdown link`, e.g., from the `[caption text]` to `[caption text](some-link`.
+ * The parser responsible for transitioning from a {@linkcode PartialMarkdownLinkCaption}
+ * parser to the {@link PartialMarkdownLink} one, therefore serves a parser glue between
+ * the `[caption]` and the `(./some/path)` parts of the `[caption](./some/path)` link.
+ *
+ * The only successful case of this parser is the `(` token that initiated the process
+ * of parsing the `reference` part of a markdown link and in this case the parser
+ * transitions into the `PartialMarkdownLink` parser type.
+ *
+ * Any other character is considered a failure result. In this case, the caller is assumed
+ * to be responsible for re-emitting the {@link tokens} accumulated so far as standalone
+ * entities since they are no longer represent a coherent token entity of a larger size.
  */
 class MarkdownLinkCaption extends ParserBase<TSimpleToken, MarkdownLinkCaption | PartialMarkdownLink> {
 	public accept(token: TSimpleToken): TAcceptTokenResult<MarkdownLinkCaption | PartialMarkdownLink> {
@@ -90,8 +110,26 @@ class MarkdownLinkCaption extends ParserBase<TSimpleToken, MarkdownLinkCaption |
 }
 
 /**
- * Parser that is responsible for finishing to parse a `markdown link`,
- * e.g., from the `[caption text](some-partial-link..` tothe complete `[caption text](some-partial-link-reference)`.
+ * The parser responsible for parsing a `link reference` part of a markdown link
+ * (e.g., the `(./some/path)` part of the `[caption text](./some/path)` link).
+ *
+ * The parsing process starts with tokens that represent the `[caption]` part of a markdown
+ * link, followed by the `(` token. The parser collects all subsequent tokens until final closing
+ * parenthesis (`)`) is encountered (*\*see [1] below*). In this successful case, the parser object
+ * transitions into the {@linkcode MarkdownLink} token type which signifies the end of the entire
+ * parsing process of the link text.
+ *
+ * Otherwise, if one of the stop characters defined in the {@linkcode MARKDOWN_LINK_STOP_CHARACTERS}
+ * is encountered before the final `)` token, the parsing process is aborted which is communicated to
+ * the caller by returning a `failure` result. In this case, the caller is assumed to be responsible
+ * for re-emitting the {@link tokens} accumulated so far as standalone entities since they are no
+ * longer represent a coherent token entity of a larger size.
+ *
+ * `[1]` The `reference` part of the markdown link can contain any number of nested parenthesis, e.g.,
+ * 	  `[caption](/some/p(th/file.md)` is a valid markdown link and a valid folder name, hence number
+ *     of open parenthesis must match the number of closing ones and the path sequence is considered
+ *     to be complete as soon as this requirement is met. Therefore the `final` word is used in
+ *     the description comments above to highlight this important detail.
  */
 class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink | MarkdownLink> {
 	/**
@@ -183,7 +221,7 @@ class PartialMarkdownLink extends ParserBase<TSimpleToken, PartialMarkdownLink |
 }
 
 /**
- * Decoder capable of parsing markdown entities (e.g., links) from a sequence of simple tokens.
+ * Decoder capable of parsing markdown entities (e.g., links) from a sequence of simplier tokens.
  */
 export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 	/**
@@ -207,8 +245,9 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 			return;
 		}
 
-		// if current parser was not initiated before, - we are in the general
-		// "text" mode, therefore re-emit the token immediatelly and continue
+		// if current parser was not initiated before, - we are not inside a
+		// sequence of tokens we care about, therefore re-emit the token
+		// immediately and continue to the next one
 		if (!this.current) {
 			this._onData.fire(token);
 			return;
