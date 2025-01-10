@@ -13,12 +13,6 @@ import { IObservable, IObservableWithChange, IObserver } from './observable.js';
 import { StopWatch } from './stopwatch.js';
 import { MicrotaskDelay } from './symbols.js';
 
-// -----------------------------------------------------------------------------------------------------------------------
-// Uncomment the next line to print warnings whenever a listener is GC'ed without having been disposed. This is a LEAK.
-// -----------------------------------------------------------------------------------------------------------------------
-const _enableListenerGCedWarning = false
-	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
-	;
 
 // -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever an emitter with listeners is disposed. That is a sign of code smell.
@@ -984,28 +978,6 @@ const forEachListener = <T>(listeners: ListenerOrListeners<T>, fn: (c: ListenerC
 	}
 };
 
-
-let _listenerFinalizers: FinalizationRegistry<string> | undefined;
-
-if (_enableListenerGCedWarning) {
-	const leaks: string[] = [];
-
-	setInterval(() => {
-		if (leaks.length === 0) {
-			return;
-		}
-		console.warn('[LEAKING LISTENERS] GC\'ed these listeners that were NOT yet disposed:');
-		console.warn(leaks.join('\n'));
-		leaks.length = 0;
-	}, 3000);
-
-	_listenerFinalizers = new FinalizationRegistry(heldValue => {
-		if (typeof heldValue === 'string') {
-			leaks.push(heldValue);
-		}
-	});
-}
-
 /**
  * The Emitter can be used to expose an Event to the public
  * to fire it from the insides.
@@ -1161,7 +1133,6 @@ export class Emitter<T> {
 
 
 			const result = toDisposable(() => {
-				_listenerFinalizers?.unregister(result);
 				removeMonitor?.();
 				this._removeListener(contained);
 			});
@@ -1169,12 +1140,6 @@ export class Emitter<T> {
 				disposables.add(result);
 			} else if (Array.isArray(disposables)) {
 				disposables.push(result);
-			}
-
-			if (_listenerFinalizers) {
-				const stack = new Error().stack!.split('\n').slice(2, 3).join('\n').trim();
-				const match = /(file:|vscode-file:\/\/vscode-app)?(\/[^:]*:\d+:\d+)/.exec(stack);
-				_listenerFinalizers.register(result, match?.[2] ?? stack, result);
 			}
 
 			return result;
