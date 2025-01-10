@@ -11,7 +11,7 @@ import { equals } from '../../../../base/common/objects.js';
 export class ShellEnvDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
 	readonly type = TerminalCapability.ShellEnvDetection;
 
-	private readonly _env: Map<string, string> = new Map();
+	private _env: Map<string, string> = new Map();
 	private _pendingEnv: Map<string, string> | undefined;
 	get env(): Map<string, string> { return this._env; }
 
@@ -42,7 +42,6 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		if (!isTrusted) {
 			return;
 		}
-		this._env.clear();
 		this._pendingEnv = new Map();
 	}
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
