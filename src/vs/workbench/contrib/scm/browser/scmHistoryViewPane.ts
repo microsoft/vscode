@@ -1583,34 +1583,43 @@ export class SCMHistoryViewPane extends ViewPane {
 		});
 
 		const actions = getFlatContextMenuActions(historyItemMenuActions);
-		if (element.historyItemViewModel.historyItem.references?.length) {
-			actions.push(new Separator());
-		}
 
 		const that = this;
+		const historyItemRefActions = new Map<string, { group: string; label: string; actions: MenuItemAction[] }>();
+
 		for (const ref of element.historyItemViewModel.historyItem.references ?? []) {
 			const contextKeyService = this.scopedContextKeyService.createOverlay([
 				['scmHistoryItemRef', ref.id]
 			]);
 
-			const historyItemRefMenuActions = this._menuService.getMenuActions(MenuId.SCMHistoryItemRefContext, contextKeyService);
-			const historyItemRefSubMenuActions = getFlatContextMenuActions(historyItemRefMenuActions)
-				.map(action => new class extends MenuItemAction {
-					constructor() {
-						super(
-							{ id: action.id, title: action.label }, undefined,
-							{ arg: element!.repository.provider, shouldForwardArgs: true },
-							undefined, undefined, contextKeyService, that._commandService);
+			for (const group of this._menuService.getMenuActions(MenuId.SCMHistoryItemRefContext, contextKeyService)) {
+				for (const action of group[1]) {
+					if (!historyItemRefActions.has(action.id)) {
+						historyItemRefActions.set(action.id, {
+							group: group[0], label: action.label, actions: []
+						});
 					}
 
-					override run(): Promise<void> {
-						return super.run(element.historyItemViewModel.historyItem, ref.id);
-					}
-				});
+					const actions = historyItemRefActions.get(action.id)!.actions;
 
-			if (historyItemRefSubMenuActions.length > 0) {
-				actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, historyItemRefSubMenuActions));
+					actions.push(new class extends MenuItemAction {
+						constructor() {
+							super(
+								{ id: action.id, title: ref.name }, undefined,
+								{ arg: element!.repository.provider, shouldForwardArgs: true },
+								undefined, undefined, contextKeyService, that._commandService);
+						}
+						override async run(): Promise<void> {
+							return super.run(element.historyItemViewModel.historyItem, ref.id);
+						}
+					});
+				}
 			}
+		}
+
+		// Add history item ref actions
+		for (const [key, value] of historyItemRefActions.entries()) {
+			actions.push(new SubmenuAction(`scm.historyItemRef.${key}`, value.label, value.actions));
 		}
 
 		this.contextMenuService.showContextMenu({
