@@ -132,6 +132,7 @@ export const config = {
 		darwinBundleDocumentType(['less'], 'Less'),
 		darwinBundleDocumentType(['markdown', 'md', 'mdoc', 'mdown', 'mdtext', 'mdtxt', 'mdwn', 'mkd', 'mkdn'], 'Markdown'),
 		darwinBundleDocumentType(['php'], 'PHP', 'source code'),
+		// Adding here the correct file types with UTIs for Powershell files identification on MacOS
 		darwinBundleDocumentType(['ps1', 'psd1', 'psm1'], 'Powershell', 'script', ['com.microsoft.powershell.script']),
 		darwinBundleDocumentType(['psm1'], 'Powershell', 'PowerShell module', ['com.microsoft.powershell.psmodulefile']),
 		darwinBundleDocumentType(['psd1'], 'Powershell', 'PowerShell data file', ['com.microsoft.powershell.psdatafile']),
