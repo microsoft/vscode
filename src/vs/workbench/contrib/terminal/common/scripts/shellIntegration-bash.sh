@@ -252,8 +252,9 @@ __vsc_command_complete() {
 	fi
 	__vsc_update_cwd
 
-	# if [ "$__vsc_stable" = "0" ]; then
-	__vsc_update_env
+	if [ "$__vsc_stable" = "0" ]; then
+		__vsc_update_env
+	fi
 }
 __vsc_update_prompt() {
 	# in command execution
@@ -283,8 +284,10 @@ __vsc_precmd() {
 	fi
 	__vsc_first_prompt=1
 	__vsc_update_prompt
-	# if [ "$__vsc_stable" = "0" ]; then
-	__vsc_update_env
+
+	if [ "$__vsc_stable" = "0" ]; then
+		__vsc_update_env
+	fi
 }
 
 __vsc_preexec() {
