@@ -38,6 +38,7 @@ export interface IWindowDriver {
 	getElements(selector: string, recursive: boolean): Promise<IElement[]>;
 	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }>;
 	typeInEditor(selector: string, text: string): Promise<void>;
+	executeCommand<T>(commandId: string, args?: unknown[]): Promise<T | undefined>;
 	getTerminalBuffer(selector: string): Promise<string[]>;
 	writeInTerminal(selector: string, text: string): Promise<void>;
 	getLocaleInfo(): Promise<ILocaleInfo>;

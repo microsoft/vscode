@@ -22,7 +22,7 @@ export class SettingsEditor {
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openUserSettingsFile();
 
-		await this.code.dispatchKeybinding('right');
+		await this.code.executeCommand('cursorRight');
 		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
 		await this.editors.saveOpenedFile();
 	}

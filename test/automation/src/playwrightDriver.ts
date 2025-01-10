@@ -284,6 +284,10 @@ export class PlaywrightDriver {
 		return this.page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this.getDriverHandle(), selector, xoffset, yoffset] as const);
 	}
 
+	async executeCommand<T>(commandId: string, args?: unknown[]): Promise<T | undefined> {
+		return this.page.evaluate(([driver, commandId, args]) => driver.executeCommand(commandId, args), [await this.getDriverHandle(), commandId, args] as const);
+	}
+
 	async typeInEditor(selector: string, text: string) {
 		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}

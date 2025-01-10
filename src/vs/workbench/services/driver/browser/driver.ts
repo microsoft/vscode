@@ -18,6 +18,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IWindowDriver, IElement, ILocaleInfo, ILocalizedStrings } from '../common/driver.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 export class BrowserWindowDriver implements IWindowDriver {
 
@@ -25,7 +26,8 @@ export class BrowserWindowDriver implements IWindowDriver {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 	}
 
@@ -125,6 +127,10 @@ export class BrowserWindowDriver implements IWindowDriver {
 	async getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }> {
 		const offset = typeof xoffset === 'number' && typeof yoffset === 'number' ? { x: xoffset, y: yoffset } : undefined;
 		return this._getElementXY(selector, offset);
+	}
+
+	executeCommand<T>(commandId: string, args?: unknown[]): Promise<T | undefined> {
+		return this.commandService.executeCommand(commandId, ...(args ?? []));
 	}
 
 	async typeInEditor(selector: string, text: string): Promise<void> {

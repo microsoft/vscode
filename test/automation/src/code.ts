@@ -238,6 +238,10 @@ export class Code {
 		await this.poll(() => this.driver.getTitle(), accept, `get title`);
 	}
 
+	async executeCommand<T>(commandId: string, args?: unknown[]): Promise<T | undefined> {
+		return this.poll(() => this.driver.executeCommand(commandId, args), () => true, `execute command '${commandId}'`);
+	}
+
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
 		await this.poll(() => this.driver.typeInEditor(selector, text), () => true, `type in editor '${selector}'`);
 	}
