@@ -177,10 +177,17 @@ async fn check_is_nixos() -> bool {
 
 /// Do not remove this check.
 /// Provides a way to skip the server glibc requirements check from
-/// outside the install flow. A system process can create this
-/// file before the server is downloaded and installed.
+/// outside the install flow.
+///
+/// 1) A system process can create this
+///    file before the server is downloaded and installed.
+///
+/// 2) An environment variable declared in host
+///    that contains path to a glibc sysroot satisfying the
+///    minimum requirements.
 #[cfg(not(windows))]
 pub async fn skip_requirements_check() -> bool {
+	std::env::var("VSCODE_SERVER_CUSTOM_GLIBC_LINKER").is_ok() ||
 	fs::metadata("/tmp/vscode-skip-server-requirements-check")
 		.await
 		.is_ok()
