@@ -174,11 +174,32 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 			type: 'string'
 		},
-		[TerminalSettingId.FontLigatures]: {
-			markdownDescription: localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
+		[TerminalSettingId.FontLigaturesEnabled]: {
+			markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
 			type: 'boolean',
-			tags: ['preview'],
 			default: false
+		},
+		[TerminalSettingId.FontLigaturesFeatureSettings]: {
+			markdownDescription: localize('terminal.integrated.fontLigatures.featureSettings', "Controls what font feature settings are used when ligatures are enabled, in the format of the `font-feature-settings` CSS property. Some examples which may be valid depending on the font:") + '\n\n- ' + [
+				`\`"calt" off, "ss03"\``,
+				`\`"liga" on"\``,
+				`\`"calt" off, "dlig" on\``
+			].join('\n- '),
+			type: 'string',
+			default: '"calt" on'
+		},
+		[TerminalSettingId.FontLigaturesFallbackLigatures]: {
+			markdownDescription: localize('terminal.integrated.fontLigatures.fallbackLigatures', "When {0} is enabled and the particular {1} cannot be parsed, this is the set of character sequences that will always be drawn together. This allows the use of a fixed set of ligatures even when the font isn't supported.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.FontFamily}#\``),
+			type: 'array',
+			items: [{ type: 'string' }],
+			default: [
+				'<--', '<---', '<<-', '<-', '->', '->>', '-->', '--->',
+				'<==', '<===', '<<=', '<=', '=>', '=>>', '==>', '===>', '>=', '>>=',
+				'<->', '<-->', '<--->', '<---->', '<=>', '<==>', '<===>', '<====>', '::', ':::',
+				'<~~', '</', '</>', '/>', '~~>', '==', '!=', '/=', '~=', '<>', '===', '!==', '!===',
+				'<:', ':=', '*=', '*+', '<*', '<*>', '*>', '<|', '<|>', '|>', '+*', '=*', '=:', ':>',
+				'/*', '*/', '+++', '<!--', '<!---'
+			]
 		},
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
@@ -462,6 +483,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ExperimentalWindowsUseConptyDll]: {
 			markdownDescription: localize('terminal.integrated.experimentalWindowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.20.240626001) shipped with VS Code, instead of the one bundled with Windows."),
 			type: 'boolean',
+			tags: ['experimental'],
 			default: false
 		},
 		[TerminalSettingId.SplitCwd]: {

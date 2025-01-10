@@ -149,6 +149,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
 	private readonly _attachmentModel: ChatAttachmentModel;
+	private _inChatEditWorkingSetCtx: IContextKey<boolean> | undefined;
+
 	public get attachmentModel(): ChatAttachmentModel {
 		return this._attachmentModel;
 	}
@@ -642,6 +644,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
+
+		this._inChatEditWorkingSetCtx = ChatContextKeys.inChatEditWorkingSet.bindTo(this.contextKeyService);
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
 		this.historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
@@ -1268,6 +1272,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Working set
 		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-list'));
+		this._register(addDisposableListener(workingSetContainer, 'focusin', () => this._inChatEditWorkingSetCtx?.set(true)));
+		this._register(addDisposableListener(workingSetContainer, 'focusout', () => this._inChatEditWorkingSetCtx?.set(false)));
 		if (!this._chatEditList) {
 			this._chatEditList = this._chatEditsListPool.get();
 			const list = this._chatEditList.object;

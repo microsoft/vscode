@@ -23,7 +23,6 @@ import { TextModelPart } from './textModelPart.js';
 import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from './textModelTokens.js';
 import { AbstractTokens, AttachedViewHandler, AttachedViews } from './tokens.js';
 import { TreeSitterTokens } from './treeSitterTokens.js';
-import { ITreeSitterParserService } from '../services/treeSitterParserService.js';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from '../textModelEvents.js';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { ContiguousMultilineTokens } from '../tokens/contiguousMultilineTokens.js';
@@ -32,6 +31,7 @@ import { ContiguousTokensStore } from '../tokens/contiguousTokensStore.js';
 import { LineTokens } from '../tokens/lineTokens.js';
 import { SparseMultilineTokens } from '../tokens/sparseMultilineTokens.js';
 import { SparseTokensStore } from '../tokens/sparseTokensStore.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
@@ -55,7 +55,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		private readonly _attachedViews: AttachedViews,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -73,7 +73,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	private createTreeSitterTokens(): AbstractTokens {
-		return this._register(new TreeSitterTokens(this._treeSitterService, this._languageService.languageIdCodec, this._textModel, () => this._languageId));
+		return this._register(this._instantiationService.createInstance(TreeSitterTokens, this._languageService.languageIdCodec, this._textModel, () => this._languageId));
 	}
 
 	private createTokens(useTreeSitter: boolean): void {

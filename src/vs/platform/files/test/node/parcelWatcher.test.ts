@@ -105,7 +105,7 @@ suite.skip('File Watcher (parcel)', function () {
 	});
 
 	teardown(async () => {
-		const watchers = watcher.watchers.size;
+		const watchers = Array.from(watcher.watchers).length;
 		let stoppedInstances = 0;
 		for (const instance of watcher.watchers) {
 			Event.once(instance.onDidStop)(() => {
@@ -190,7 +190,6 @@ suite.skip('File Watcher (parcel)', function () {
 	test('basics', async function () {
 		const request = { path: testDir, excludes: [], recursive: true };
 		await watcher.watch([request]);
-		assert.strictEqual(watcher.watchers.size, watcher.watchers.size);
 
 		const instance = Array.from(watcher.watchers)[0];
 		assert.strictEqual(request, instance.request);

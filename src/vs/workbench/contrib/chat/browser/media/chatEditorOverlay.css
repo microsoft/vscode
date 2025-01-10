@@ -15,6 +15,22 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
+@keyframes pulse {
+	0% {
+		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
+	}
+	50% {
+		box-shadow: 0 2px 8px 4px var(--vscode-widget-shadow);
+	}
+	100% {
+		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
+	}
+}
+
+.chat-editor-overlay-widget.busy {
+	animation: pulse ease-in 2.3s infinite;
+}
+
 .chat-editor-overlay-widget .chat-editor-overlay-progress {
 	align-items: center;
 	display: none;
