@@ -75,6 +75,8 @@ export class SimpleSuggestDetailsWidget {
 	dispose(): void {
 		this._disposables.dispose();
 		this._renderDisposeable.dispose();
+		this._onDidClose.dispose();
+		this._onDidChangeContents.dispose();
 	}
 
 	getLayoutInfo() {
@@ -306,6 +308,7 @@ export class SimpleSuggestDetailsOverlay {
 
 	dispose(): void {
 		this._resizable.dispose();
+		this.widget.dispose();
 		this._disposables.dispose();
 		this.hide();
 	}
