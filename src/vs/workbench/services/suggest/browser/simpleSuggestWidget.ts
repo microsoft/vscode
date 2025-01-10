@@ -21,8 +21,7 @@ import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { SuggestDetailsOverlay, SuggestDetailsWidget } from '../../../../editor/contrib/suggest/browser/suggestWidgetDetails.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
 
 const $ = dom.$;
 
@@ -82,7 +81,7 @@ export class SimpleSuggestWidget extends Disposable {
 	private readonly _listElement: HTMLElement;
 	private readonly _list: List<SimpleCompletionItem>;
 	private readonly _status?: SuggestWidgetStatus;
-	private readonly _details: SuggestDetailsOverlay;
+	private readonly _details: SimpleSuggestDetailsOverlay;
 
 	private readonly _showTimeout = this._register(new TimeoutTimer());
 
@@ -105,7 +104,6 @@ export class SimpleSuggestWidget extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -211,10 +209,10 @@ export class SimpleSuggestWidget extends Disposable {
 		}));
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
-		const editor: CodeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this.element.domNode, {}, { isSimpleWidget: true });
-		const details: SuggestDetailsWidget = instantiationService.createInstance(SuggestDetailsWidget, editor);
+
+		const details: SimpleSuggestDetailsWidget = instantiationService.createInstance(SimpleSuggestDetailsWidget);
 		this._register(details.onDidClose(() => this.toggleDetails()));
-		this._details = new SuggestDetailsOverlay(details, editor);
+		this._details = new SimpleSuggestDetailsOverlay(details, this.element.domNode);
 
 		if (options.statusBarMenuId) {
 			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
@@ -427,9 +425,9 @@ export class SimpleSuggestWidget extends Disposable {
 				this._showTimeout.cancel();
 				this.element.domNode.classList.remove('visible');
 				this._list.splice(0, this._list.length);
-				// this._focusedItem = undefined;
+				this._focusedItem = undefined;
 				this._cappedHeight = undefined;
-				// this._explainMode = false;
+				this._explainMode = false;
 				break;
 			case State.Loading:
 				this.element.domNode.classList.add('message');
@@ -542,8 +540,7 @@ export class SimpleSuggestWidget extends Disposable {
 			if (loading) {
 				this._details.widget.renderLoading();
 			} else {
-				const detail = this._list.getFocusedElements()[0].completion.detail + '\nReplacement index: ' + this._list.getFocusedElements()[0].completion.replacementIndex + '\nReplacement length: ' + this._list.getFocusedElements()[0].completion.replacementLength;
-				this._details.widget.renderItem(detail, this._explainMode);
+				this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
 			}
 			if (!this._details.widget.isEmpty) {
 				// this._positionDetails();
