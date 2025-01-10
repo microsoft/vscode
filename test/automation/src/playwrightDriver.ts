@@ -256,7 +256,7 @@ export class PlaywrightDriver {
 			}
 		}
 
-		await this.wait(100);
+		await this.wait(300);
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
