@@ -11,6 +11,10 @@
 		"strict": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
+
+		// Needed to suppress warnings in upstream completions
+		"noImplicitReturns": false,
+		"noUnusedParameters": false
 	},
 	"include": [
 		"src/**/*",

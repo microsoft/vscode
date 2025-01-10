@@ -7,15 +7,23 @@ import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ExecOptionsWithStringEncoding, execSync } from 'child_process';
-import codeInsidersCompletionSpec from './completions/code-insiders';
+import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
+import codeInsidersCompletionSpec from './completions/code-insiders';
 
 let cachedAvailableCommandsPath: string | undefined;
 let cachedAvailableCommands: Set<string> | undefined;
 const cachedBuiltinCommands: Map<string, string[] | undefined> = new Map();
 
-export const availableSpecs = [codeCompletionSpec, codeInsidersCompletionSpec, cdSpec];
+export const availableSpecs: Fig.Spec[] = [
+	cdSpec,
+	codeInsidersCompletionSpec,
+	codeCompletionSpec,
+];
+for (const spec of upstreamSpecs) {
+	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
+}
 
 function getBuiltinCommands(shell: string): string[] | undefined {
 	try {
