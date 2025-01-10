@@ -21,7 +21,7 @@ import { RectangleRenderer } from './rectangleRenderer.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { DecorationCssRuleExtractor } from './decorationCssRuleExtractor.js';
 import { Event } from '../../../base/common/event.js';
-import type { IEditorOptions } from '../../common/config/editorOptions.js';
+import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
 import { InlineDecorationType } from '../../common/viewModel.js';
 
 const enum GpuRenderLimits {
@@ -79,6 +79,7 @@ export class ViewGpuContext extends Disposable {
 
 	readonly canvasDevicePixelDimensions: IObservable<{ width: number; height: number }>;
 	readonly devicePixelRatio: IObservable<number>;
+	readonly contentLeft: IObservable<number>;
 
 	constructor(
 		context: ViewContext,
@@ -115,8 +116,6 @@ export class ViewGpuContext extends Disposable {
 			}
 		});
 
-		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.canvas.domNode, this.ctx, this.device);
-
 		const dprObs = observableValue(this, getActiveWindow().devicePixelRatio);
 		this._register(addDisposableListener(getActiveWindow(), 'resize', () => {
 			dprObs.set(getActiveWindow().devicePixelRatio, undefined);
@@ -135,6 +134,15 @@ export class ViewGpuContext extends Disposable {
 			}
 		));
 		this.canvasDevicePixelDimensions = canvasDevicePixelDimensions;
+
+		const contentLeft = observableValue(this, 0);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			contentLeft.set(context.configuration.options.get(EditorOption.layoutInfo).contentLeft, undefined);
+		}));
+		this.contentLeft = contentLeft;
+
+
+		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, this.device);
 	}
 
 	/**

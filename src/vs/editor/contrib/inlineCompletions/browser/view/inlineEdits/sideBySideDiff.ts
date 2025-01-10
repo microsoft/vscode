@@ -388,8 +388,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
 		const editorBoundingClientRect = this._editor.getContainerDomNode().getBoundingClientRect();
 		const clientContentAreaRight = editorLayout.contentLeft + editorLayout.contentWidth + editorBoundingClientRect.left;
-		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).outerWidth - clientContentAreaRight;
-		const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).outerWidth - editorBoundingClientRect.right;
+		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).innerWidth - clientContentAreaRight;
+		const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).innerWidth - editorBoundingClientRect.right;
 		const desiredMinimumWidth = Math.min(editorLayout.contentWidth * 0.3, previewContentWidth, 100);
 		const IN_EDITOR_DISPLACEMENT = 0;
 		const maximumAvailableWidth = IN_EDITOR_DISPLACEMENT + remainingWidthRightOfContent;
