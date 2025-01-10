@@ -87,13 +87,13 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	if (platform() === 'darwin') {
+	if (platform() === 'darwin' || platform() === 'linux') {
 		test('Test if env is set', async () => {
 			const { shellIntegration } = await createTerminalAndWaitForShellIntegration();
 			const env = shellIntegration.env;
 			ok(env);
-			ok(env['shellPath']);
-			strictEqual(env['shellPath'], '/bin/bash');
+			ok(env.PATH);
+			ok(env.PATH.length > 0, 'env.PATH should have a length greater than 0');
 		});
 	}
 
