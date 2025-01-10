@@ -85,7 +85,8 @@ export class ExtHostTerminal extends Disposable {
 	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
-	private _state: vscode.TerminalState = { isInteractedWith: false };
+	// TODO: add shellType as TerminalState on in newly created proposed API.
+	private _state: vscode.TerminalState = { isInteractedWith: false, shellType: undefined };
 	private _selection: string | undefined;
 
 	shellIntegration: vscode.TerminalShellIntegration | undefined;
@@ -262,6 +263,10 @@ export class ExtHostTerminal extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	public setShellType(shellType: TerminalShellType): void {
+		this._state = shellType;
 	}
 
 	public setSelection(selection: string | undefined): void {
@@ -766,10 +771,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 		return completions;
 	}
-	// Take in shellType as a string and return VSCode Terminal Shell Type?
-	public $acceptTerminalShellType(id: number, shellType: string): void {
-		// TODO: Implement
-		return GeneralShellType.Python;
+
+	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined): void {
+		const terminal = this.getTerminalById(id);
+		terminal?.setShellType(shellType);
+
+		this._onDidChangeTerminalState.fire(terminal?.shellType);
 	}
 
 	public registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {

@@ -87,7 +87,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._store.add(_terminalService.onAnyInstanceTitleChange(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 		this._store.add(_terminalService.onAnyInstanceDataInput(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
 		this._store.add(_terminalService.onAnyInstanceSelectionChange(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
-		this._store.add(_terminalService.onAnyInstanceShellTypeChange(instance => this._onShellTypeChanged(instance.instanceId, instance.shellType))); // Do I need this? I don't think so
+		this._store.add(_terminalService.onAnyInstanceShellTypeChanged(instance => this._onShellTypeChanged(instance.instanceId)));
 
 		// Set initial ext host state
 		for (const instance of this._terminalService.instances) {
@@ -354,10 +354,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalTitleChange(terminalId, name);
 	}
 
-	private _onShellTypeChanged(terminalId: number, shellType: string): void {
-		const terminalInstance = this._terminalService.getInstanceFromId(terminalId)?.shellType;
-		if (terminalInstance) {
-			this._proxy.$acceptTerminalShellType(terminalId, shellType);
+	private _onShellTypeChanged(terminalId: number): void {
+		const terminalInstanceShellType = this._terminalService.getInstanceFromId(terminalId)?.shellType;
+		if (terminalInstanceShellType) {
+			this._proxy.$acceptTerminalShellType(terminalId, terminalInstanceShellType);
 		}
 	}
 
