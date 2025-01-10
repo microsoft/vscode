@@ -71,7 +71,7 @@ export class GutterIndicatorMenuContent {
 		if (!commandId) {
 			return constObservable(undefined);
 		}
-		return observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._keybindingService.lookupKeybinding(commandId, this._contextKeyService, true));
+		return observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._keybindingService.lookupKeybinding(commandId)); // TODO: use contextkeyservice to use different renderings
 	}
 }
 
