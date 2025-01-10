@@ -456,9 +456,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.EnvEntry: {
-				const arg0 = args[0]; // Key
-				const arg1 = args[1]; // Value
-				const arg2 = args[2]; // Nonce
+				const arg0 = args[0];
+				const arg1 = args[1];
+				const arg2 = args[2];
 				if (arg0 !== undefined && arg1 !== undefined) {
 					const env = deserializeMessage(arg1);
 					this._createOrGetShellEnvDetection().setSingleEnvironmentVar(arg0, env, arg2 === this._nonce);

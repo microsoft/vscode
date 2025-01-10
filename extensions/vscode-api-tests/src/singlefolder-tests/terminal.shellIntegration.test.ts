@@ -89,13 +89,10 @@ import { assertNoRpc } from '../utils';
 
 	if (platform() === 'darwin') {
 		test('Test if env is set', async () => {
-			// check if env is set, for example for bash & zsh
 			const { shellIntegration } = await createTerminalAndWaitForShellIntegration();
 			const env = shellIntegration.env;
 			ok(env);
-			// check if env has shellPath
 			ok(env['shellPath']);
-			// check if shellPath is '/bin/bash'
 			strictEqual(env['shellPath'], '/bin/bash');
 		});
 	}

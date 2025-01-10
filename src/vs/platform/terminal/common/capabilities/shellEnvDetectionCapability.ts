@@ -41,14 +41,13 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		if (!isTrusted) {
 			return;
 		}
-		// Clear out the current WIP env when starting single env addition.
 		this._env.clear();
 	}
 	setSingleEnvironmentVar(key: string, value: string | undefined, isTrusted: boolean): void {
 		if (!isTrusted) {
 			return;
 		}
-		if (key !== undefined && value !== undefined) { // Is this enough of a check? Perhaps use some method from Objects in VS Code.
+		if (key !== undefined && value !== undefined) {
 			this._env.set(key, value);
 		}
 	}
