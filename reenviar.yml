@@ -1,0 +1,176 @@
+
+Puede reenviar puertos en su espacio de código para probar y depurar su aplicación. También puede administrar el protocolo del puerto y compartirlo dentro de su organización o de manera pública.
+
+Navegación de herramientas
+Interfaz de línea de comandos de GitHub
+Código de Visual Studio
+Navegador web
+En este artículo
+Acerca de los puertos reenviados
+Reenvío de un puerto
+Uso del reenvío HTTPS
+Compartir un puerto
+Uso de herramientas de línea de comandos y clientes REST para acceder a los puertos
+Reenvío automático de un puerto
+Etiquetado de un puerto
+Acerca de los puertos reenviados
+El reenvío de puertos le brinda acceso a los puertos TCP que se ejecutan dentro de su espacio de código. Por ejemplo, si está ejecutando una aplicación web en un puerto en particular de su espacio de código, puede reenviar ese puerto. Esto le permite acceder a la aplicación desde el navegador en su máquina local para realizar pruebas y depuraciones.
+
+Cuando una aplicación que se ejecuta dentro de un codespace imprime una salida en la terminal que contiene una URL de host local, como http://localhost:PORTo http://127.0.0.1:PORT, el puerto se reenvía automáticamente. Si usa GitHub Codespaces en el navegador o en Visual Studio Code, la cadena de URL en la terminal se convierte en un vínculo en el que puede hacer clic para ver la página web en su máquina local. De forma predeterminada, GitHub Codespaces reenvía los puertos mediante HTTP.
+
+Puede editar la configuración del contenedor de desarrollo para que el repositorio reenvíe automáticamente uno o más puertos. También puede reenviar un puerto manualmente, etiquetar los puertos reenviados, compartir los puertos reenviados con miembros de su organización, compartir los puertos reenviados públicamente y agregar puertos reenviados a la configuración de Codespace.
+
+Nota
+
+Los propietarios de organizaciones pueden restringir la capacidad de hacer que los puertos de reenvío estén disponibles públicamente o dentro de la organización. Para obtener más información, consulte Restringir la visibilidad de los puertos reenviados .
+
+Reenvío de un puerto
+Puedes reenviar manualmente un puerto que no se reenvió automáticamente.
+
+Abra la terminal en su espacio de código.
+
+Haga clic en la pestaña PUERTOS .
+
+En la lista de puertos, haga clic en Agregar puerto .
+
+Captura de pantalla del botón "Agregar puerto".
+Escriba el número de puerto o la dirección y luego presione Entrar.
+
+Captura de pantalla del número 3000 que se ingresa en el campo de número de puerto para un nuevo puerto reenviado.
+Uso del reenvío HTTPS
+De forma predeterminada, GitHub Codespaces reenvía puertos mediante HTTP, pero puedes actualizar cualquier puerto para que utilice HTTPS, según sea necesario. Si actualizas un puerto con visibilidad pública para que utilice HTTPS, la visibilidad del puerto cambiará automáticamente a privada.
+
+Abra la terminal en su espacio de código.
+
+Haga clic en la pestaña PUERTOS .
+
+Haga clic con el botón derecho en el puerto que desea actualizar y luego pase el cursor sobre Cambiar protocolo de puerto .
+
+Captura de pantalla del menú emergente de un puerto reenviado, con la opción "Cambiar protocolo de puerto" seleccionada y "HTTPS" seleccionado en el submenú.
+Seleccione el protocolo necesario para este puerto. El protocolo que seleccione se recordará para este puerto durante la vida útil del espacio de código.
+
+Compartir un puerto
+Nota
+
+Solo puedes hacer que un puerto sea privado para una organización si tu organización usa GitHub Team o GitHub Enterprise Cloud.
+
+Si desea compartir un puerto reenviado con otras personas, puede hacerlo privado para su organización o público. Una vez que haya hecho que un puerto sea privado para su organización, cualquier persona de la organización que tenga la URL del puerto podrá ver la aplicación en ejecución. Una vez que haya hecho que un puerto sea público, cualquier persona que conozca la URL y el número de puerto podrá ver la aplicación en ejecución sin necesidad de autenticarse.
+
+Nota
+
+La elección de las opciones de visibilidad de los puertos puede estar limitada por una política configurada para su organización. Para obtener más información, consulte Restringir la visibilidad de los puertos reenviados .
+
+Abra la terminal en su espacio de código.
+
+Haga clic en la pestaña PUERTOS .
+
+Haga clic con el botón derecho en el puerto que desea compartir, haga clic en Visibilidad del puerto y luego en Privado para la organización o Público .
+
+Captura de pantalla del menú emergente de un puerto reenviado, con la opción "Visibilidad del puerto" seleccionada y "Privado" seleccionado en el submenú.
+A la derecha de la dirección local del puerto, haga clic en el icono de copia.
+
+Captura de pantalla del panel "Puertos". El ícono de copia, que copia la URL de un puerto reenviado, está resaltado con un contorno naranja.
+Envía la URL copiada a la persona con la que quieres compartir el puerto.
+
+Uso de herramientas de línea de comandos y clientes REST para acceder a los puertos
+Cuando reenvías un puerto, tu aplicación se vuelve disponible en la URL https://CODESPACENAME-PORT.app.github.dev. Por ejemplo, https://monalisa-hot-potato-vrpqrxxrx7x2rxx-4000.app.github.dev. Si reenvías un puerto privado desde la aplicación de escritorio de VS Code, tu aplicación también estará disponible en un puerto de host local como 127.0.0.1:4000.
+
+Para acceder a su aplicación mediante un cliente REST, como Postman, o una herramienta de línea de comandos como curl, no necesita autenticarse si está usando un puerto local o si está accediendo a un puerto público en el dominio remoto. Sin embargo, para conectarse a un puerto privado en el dominio remoto, debe autenticarse mediante el GITHUB_TOKENtoken de acceso en su solicitud.
+
+Nota
+
+El código GITHUB_TOKENse crea automáticamente cuando inicias un codespace y permanece igual durante la sesión del codespace. Si detienes y reinicias un codespace, GITHUB_TOKENse genera uno nuevo.
+
+Encontrar la dirección a la que conectarse
+Abra la terminal en su espacio de código.
+
+Haga clic en la pestaña PUERTOS . Aquí se enumeran todos los puertos que ha reenviado.
+
+Haga clic derecho en el puerto al que desea conectarse y haga clic en Copiar dirección local .
+
+Captura de pantalla del menú emergente de un puerto reenviado con la opción "Copiar dirección local" resaltada con un contorno naranja.
+Pegue la dirección copiada en algún lugar para usarla más adelante.
+
+Encontrar el GITHUB_TOKEN
+En la terminal de su espacio de código, ingrese echo $GITHUB_TOKEN.
+
+El token es una cadena que comienza con ghu_.
+
+Copiar el token.
+
+Importante
+
+No comparta este token de acceso con nadie.
+
+Uso de curl para acceder a un puerto reenviado
+En una terminal de su computadora local, ingrese:
+
+curl ADDRESS -H "X-Github-Token: TOKEN"
+Reemplace ADDRESSy TOKENcon los valores que copió anteriormente.
+
+Uso de Postman para acceder a un puerto reenviado
+Abra Cartero.
+
+Crear una nueva solicitud GET.
+
+Pegue la dirección que copió anteriormente como URL de solicitud.
+
+Captura de pantalla de la URL del puerto reenviado, pegada en Postman como la URL de la solicitud GET. La URL está resaltada.
+En la pestaña Encabezados , crea una nueva entrada donde la clave sea "X-Github-Token" y el valor sea el que GITHUB_TOKENcopiaste anteriormente.
+
+Captura de pantalla de un GITHUB_TOKEN ficticio, pegado en Postman como el valor de la clave X-GitHub-Token. La clave y el valor están resaltados.
+Haga clic en Enviar .
+
+Reenvío automático de un puerto
+Puedes agregar un puerto reenviado a la configuración de GitHub Codespaces para el repositorio, de modo que el puerto se reenvíe automáticamente para todos los codespaces creados desde el repositorio. Después de actualizar la configuración, se deben volver a generar todos los codespaces creados previamente para que se aplique el cambio. Para obtener más información sobre el archivo de configuración del contenedor dev, consulta Introducción a los contenedores dev .
+
+En su espacio de código, abra el archivo de configuración del contenedor de desarrollo que desea actualizar. Normalmente, este archivo es .devcontainer/devcontainer.json.
+
+Añade la forwardPortspropiedad.
+
+"forwardPorts": [NUMBER],
+Reemplace NUMBERcon el número de puerto que desea reenviar. Puede ser una lista de números de puerto separados por comas.
+
+Guarde el archivo.
+
+Etiquetado de un puerto
+Cuando abre un espacio de código en el navegador o en la aplicación de escritorio VS Code, puede etiquetar un puerto reenviado para que sea más fácil de identificar en una lista.
+
+Abra la terminal en su espacio de código.
+
+Haga clic en la pestaña PUERTOS .
+
+Haga clic con el botón derecho en el puerto que desea etiquetar y luego haga clic en Establecer etiqueta de puerto .
+
+Captura de pantalla del menú emergente de un puerto reenviado, con la opción "Establecer etiqueta de puerto" resaltada con un contorno naranja.
+Escriba una etiqueta para su puerto y luego presione Entrar.
+
+Captura de pantalla de la etiqueta "Staging" agregada como etiqueta personalizada para un puerto reenviado.
+Etiquetado automático de un puerto reenviado
+Puede etiquetar un puerto y escribir el cambio en un archivo de configuración del contenedor de desarrollo para el repositorio. Si hace esto para un puerto que se reenvía automáticamente, utilizando la forwardPortspropiedad, la etiqueta se aplicará automáticamente a ese puerto reenviado para todos los futuros espacios de código creados desde el repositorio utilizando ese archivo de configuración.
+
+Abra la terminal en su espacio de código.
+
+Haga clic en la pestaña PUERTOS .
+
+Haga clic con el botón derecho en el puerto cuyo atributo de etiqueta desea agregar a la configuración de codespace, luego haga clic en Establecer etiqueta y actualizar devcontainer.json .
+
+Captura de pantalla del menú emergente de un puerto reenviado, con la opción "Establecer etiqueta y actualizar devcontainer.json" resaltada con un contorno naranja.
+Escriba una etiqueta para su puerto y luego presione Entrar.
+
+Captura de pantalla de la etiqueta "Staging" agregada como etiqueta personalizada para un puerto reenviado.
+Si su repositorio tiene más de un archivo de configuración de contenedor de desarrollo, se le pedirá que elija qué archivo desea actualizar.
+
+El archivo de configuración del contenedor de desarrollo se actualiza para incluir la nueva etiqueta en la portsAttributespropiedad. Por ejemplo:
+
+// Use 'forwardPorts' to make a list of ports inside the container available locally.
+"forwardPorts": [3333, 4444],
+
+"portsAttributes": {
+  "3333": {
+    "label": "app-standard-preview"
+  },
+  "4444": {
+    "label": "app-pro-preview"
+  }
+}
