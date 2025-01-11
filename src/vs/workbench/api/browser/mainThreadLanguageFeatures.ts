@@ -644,8 +644,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
 	}
 
-	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier): void {
+	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
 		const provider: languages.InlineEditProvider<IdentifiableInlineEdit> = {
+			displayName,
 			provideInlineEdit: async (model: ITextModel, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined> => {
 				return this._proxy.$provideInlineEdit(handle, model.uri, context, token);
 			},

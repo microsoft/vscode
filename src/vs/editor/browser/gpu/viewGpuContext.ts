@@ -19,10 +19,11 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
-import { DecorationCssRuleExtractor } from './decorationCssRuleExtractor.js';
+import { DecorationCssRuleExtractor } from './css/decorationCssRuleExtractor.js';
 import { Event } from '../../../base/common/event.js';
-import type { IEditorOptions } from '../../common/config/editorOptions.js';
+import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
 import { InlineDecorationType } from '../../common/viewModel.js';
+import { DecorationStyleCache } from './css/decorationStyleCache.js';
 
 const enum GpuRenderLimits {
 	maxGpuLines = 3000,
@@ -54,6 +55,11 @@ export class ViewGpuContext extends Disposable {
 		return ViewGpuContext._decorationCssRuleExtractor;
 	}
 
+	private static readonly _decorationStyleCache = new DecorationStyleCache();
+	static get decorationStyleCache(): DecorationStyleCache {
+		return ViewGpuContext._decorationStyleCache;
+	}
+
 	private static _atlas: TextureAtlas | undefined;
 
 	/**
@@ -79,6 +85,7 @@ export class ViewGpuContext extends Disposable {
 
 	readonly canvasDevicePixelDimensions: IObservable<{ width: number; height: number }>;
 	readonly devicePixelRatio: IObservable<number>;
+	readonly contentLeft: IObservable<number>;
 
 	constructor(
 		context: ViewContext,
@@ -115,8 +122,6 @@ export class ViewGpuContext extends Disposable {
 			}
 		});
 
-		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.canvas.domNode, this.ctx, this.device);
-
 		const dprObs = observableValue(this, getActiveWindow().devicePixelRatio);
 		this._register(addDisposableListener(getActiveWindow(), 'resize', () => {
 			dprObs.set(getActiveWindow().devicePixelRatio, undefined);
@@ -135,6 +140,15 @@ export class ViewGpuContext extends Disposable {
 			}
 		));
 		this.canvasDevicePixelDimensions = canvasDevicePixelDimensions;
+
+		const contentLeft = observableValue(this, 0);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			contentLeft.set(context.configuration.options.get(EditorOption.layoutInfo).contentLeft, undefined);
+		}));
+		this.contentLeft = contentLeft;
+
+
+		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, this.device);
 	}
 
 	/**
@@ -170,7 +184,7 @@ export class ViewGpuContext extends Disposable {
 						return false;
 					}
 					for (const r of rule.style) {
-						if (!gpuSupportedDecorationCssRules.includes(r)) {
+						if (!supportsCssRule(r, rule.style)) {
 							return false;
 						}
 					}
@@ -220,8 +234,8 @@ export class ViewGpuContext extends Disposable {
 						return false;
 					}
 					for (const r of rule.style) {
-						if (!gpuSupportedDecorationCssRules.includes(r)) {
-							problemRules.push(r);
+						if (!supportsCssRule(r, rule.style)) {
+							problemRules.push(`${r}: ${rule.style[r as any]}`);
 							return false;
 						}
 					}
@@ -249,8 +263,19 @@ export class ViewGpuContext extends Disposable {
 }
 
 /**
- * A list of fully supported decoration CSS rules that can be used in the GPU renderer.
+ * A list of supported decoration CSS rules that can be used in the GPU renderer.
  */
 const gpuSupportedDecorationCssRules = [
 	'color',
+	'font-weight',
 ];
+
+function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
+	if (!gpuSupportedDecorationCssRules.includes(rule)) {
+		return false;
+	}
+	// Check for values that aren't supported
+	switch (rule) {
+		default: return true;
+	}
+}

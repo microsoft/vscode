@@ -13,7 +13,7 @@ import { MenuId, MenuItemAction } from '../../../../../../platform/actions/commo
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { darken, lighten, registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
+import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -94,6 +94,18 @@ export const modifiedBorder = registerColor(
 		hcLight: editorLineHighlightBorder
 	},
 	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
+);
+
+export const acceptedDecorationBackgroundColor = registerColor(
+	'inlineEdit.acceptedBackground',
+	{
+		light: transparent(modifiedChangedTextOverlayColor, 0.5),
+		dark: transparent(modifiedChangedTextOverlayColor, 0.5),
+		hcDark: modifiedChangedTextOverlayColor,
+		hcLight: modifiedChangedTextOverlayColor
+	},
+	localize('inlineEdit.acceptedBackground', 'Background color for the accepted text after appying an inline edit.'),
+	true
 );
 
 export class InlineEditsSideBySideDiff extends Disposable {
@@ -388,8 +400,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
 		const editorBoundingClientRect = this._editor.getContainerDomNode().getBoundingClientRect();
 		const clientContentAreaRight = editorLayout.contentLeft + editorLayout.contentWidth + editorBoundingClientRect.left;
-		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).outerWidth - clientContentAreaRight;
-		const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).outerWidth - editorBoundingClientRect.right;
+		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).innerWidth - clientContentAreaRight;
+		const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).innerWidth - editorBoundingClientRect.right;
 		const desiredMinimumWidth = Math.min(editorLayout.contentWidth * 0.3, previewContentWidth, 100);
 		const IN_EDITOR_DISPLACEMENT = 0;
 		const maximumAvailableWidth = IN_EDITOR_DISPLACEMENT + remainingWidthRightOfContent;

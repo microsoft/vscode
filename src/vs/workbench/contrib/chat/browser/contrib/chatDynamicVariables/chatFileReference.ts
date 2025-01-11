@@ -7,6 +7,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { IDynamicVariable } from '../../../common/chatVariables.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptFileReference } from '../../../common/promptFileReference.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -22,6 +23,7 @@ export class ChatFileReference extends PromptFileReference implements IDynamicVa
 	 */
 	constructor(
 		public readonly reference: IDynamicVariable,
+		@ILogService logService: ILogService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService configService: IConfigurationService,
 	) {
@@ -32,7 +34,7 @@ export class ChatFileReference extends PromptFileReference implements IDynamicVa
 			`Variable data must be an URI, got '${data}'.`,
 		);
 
-		super(data, fileService, configService);
+		super(data, logService, fileService, configService);
 	}
 
 	/**

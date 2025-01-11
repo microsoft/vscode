@@ -28,7 +28,7 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, chatEditingWidgetFileReadonlyContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -63,6 +63,35 @@ abstract class WorkingSetAction extends Action2 {
 
 	abstract runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
+
+registerAction2(class MarkFileAsReadonly extends WorkingSetAction {
+	constructor() {
+		super({
+			id: 'chatEditing.markFileAsReadonly',
+			title: localize2('markFileAsReadonly', 'Mark as read-only'),
+			icon: Codicon.lock,
+			toggled: chatEditingWidgetFileReadonlyContextKey,
+			menu: [{
+				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
+				when: ContextKeyExpr.and(
+					chatEditingAgentSupportsReadonlyReferencesContextKey,
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals(chatEditingWidgetFileReadonlyContextKey.key, true),
+						ContextKeyExpr.equals(chatEditingWidgetFileReadonlyContextKey.key, false),
+					)
+				),
+				order: 10,
+				group: 'navigation'
+			}],
+		});
+	}
+
+	async runWorkingSetAction(_accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, _chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
+		for (const uri of uris) {
+			currentEditingSession.markIsReadonly(uri);
+		}
+	}
+});
 
 registerAction2(class AddFileToWorkingSet extends WorkingSetAction {
 	constructor() {
@@ -107,7 +136,27 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 	}
 
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
+
+		const pendingEntries = currentEditingSession.entries.get().filter((entry) => uris.includes(entry.modifiedURI) && entry.state.get() === WorkingSetEntryState.Modified);
+		if (pendingEntries.length > 0) {
+			// Ask for confirmation if there are any pending edits
+			const file = pendingEntries.length > 1
+				? localize('chat.editing.removeFile.confirmationmanyFiles', "{0} files", pendingEntries.length)
+				: basename(pendingEntries[0].modifiedURI);
+			const confirmation = await dialogService.confirm({
+				title: localize('chat.editing.removeFile.confirmation.title', "Remove {0} from working set?", file),
+				message: localize('chat.editing.removeFile.confirmation.message', "This will remove {0} from your working set and undo the edits made to it. Do you want to proceed?", file),
+				primaryButton: localize('chat.editing.removeFile.confirmation.primaryButton', "Yes"),
+				type: 'info'
+			});
+			if (!confirmation.confirmed) {
+				return;
+			}
+		}
+
 		// Remove from working set
+		await currentEditingSession.reject(...uris);
 		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove from chat input part

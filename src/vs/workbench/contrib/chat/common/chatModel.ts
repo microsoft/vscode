@@ -30,6 +30,7 @@ export interface IBaseChatRequestVariableEntry {
 	fullName?: string;
 	icon?: ThemeIcon;
 	name: string;
+	isMarkedReadonly?: boolean;
 	modelDescription?: string;
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;

@@ -2729,7 +2729,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerInlineEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineEditProvider): vscode.Disposable {
 		const adapter = new InlineEditAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
-		this._proxy.$registerInlineEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier);
+		this._proxy.$registerInlineEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier, provider.displayName || extension.name);
 		return this._createDisposable(handle);
 	}
 
