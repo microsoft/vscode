@@ -284,7 +284,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (requestId) {
 			for (const [uri, data] of this._workingSet) {
 				if (data.state !== WorkingSetEntryState.Suggested) {
-					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
+					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent, isMarkedReadonly: data.isMarkedReadonly });
 				}
 			}
 			const linearHistory = this._linearHistory.get();
