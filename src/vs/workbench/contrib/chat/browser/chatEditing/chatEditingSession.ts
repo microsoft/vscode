@@ -143,7 +143,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return linearHistory.slice(linearHistoryIndex).map(s => s.requestId).filter((r): r is string => !!r);
 	});
 
-	private readonly _onDidChange = new Emitter<ChatEditingSessionChangeType>();
+	private readonly _onDidChange = this._register(new Emitter<ChatEditingSessionChangeType>());
 	get onDidChange() {
 		this._assertNotDisposed();
 		return this._onDidChange.event;
@@ -284,7 +284,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (requestId) {
 			for (const [uri, data] of this._workingSet) {
 				if (data.state !== WorkingSetEntryState.Suggested) {
-					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
+					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent, isMarkedReadonly: data.isMarkedReadonly });
 				}
 			}
 			const linearHistory = this._linearHistory.get();
@@ -420,6 +420,22 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 	}
 
+	markIsReadonly(resource: URI, isReadonly?: boolean): void {
+		const entry = this._workingSet.get(resource);
+		if (entry) {
+			if (entry.state === WorkingSetEntryState.Transient || entry.state === WorkingSetEntryState.Suggested) {
+				entry.state = WorkingSetEntryState.Attached;
+			}
+			entry.isMarkedReadonly = isReadonly ?? !entry.isMarkedReadonly;
+		} else {
+			this._workingSet.set(resource, {
+				state: WorkingSetEntryState.Attached,
+				isMarkedReadonly: isReadonly ?? true
+			});
+		}
+		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
+	}
+
 	private _assertNotDisposed(): void {
 		if (this._state.get() === ChatEditingSessionState.Disposed) {
 			throw new BugIndicatingError(`Cannot access a disposed editing session`);
@@ -517,6 +533,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		super.dispose();
 		this._state.set(ChatEditingSessionState.Disposed, undefined);
 		this._onDidDispose.fire();
+		this._onDidDispose.dispose();
 	}
 
 	getVirtualModel(documentId: string): ITextModel | null {
@@ -640,6 +657,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
+	/**
+	 * Retrieves or creates a modified file entry.
+	 *
+	 * @returns The modified file entry.
+	 */
 	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo): Promise<ChatEditingModifiedFileEntry> {
 		const existingEntry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, resource));
 		if (existingEntry) {

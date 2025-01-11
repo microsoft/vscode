@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatEditorOverlay.css';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -18,7 +17,6 @@ import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/ed
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
 import { $, append, EventLike, reset } from '../../../../base/browser/dom.js';
-import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -27,6 +25,9 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AcceptAction, RejectAction } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { isDiffEditorForEntry } from './chatEditing/chatEditing.js';
+import './media/chatEditorOverlay.css';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -273,14 +274,11 @@ export class ChatEditorOverlayController implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IChatEditingService chatEditingService: IChatEditingService,
-		@IInstantiationService instaService: IInstantiationService,
+		@IInstantiationService instaService: IInstantiationService
 	) {
 		const modelObs = observableFromEvent(this._editor.onDidChangeModel, () => this._editor.getModel());
 		const widget = this._store.add(instaService.createInstance(ChatEditorOverlayWidget, this._editor));
 
-		if (this._editor.getOption(EditorOption.inDiffEditor)) {
-			return;
-		}
 
 		this._store.add(autorun(r => {
 			const model = modelObs.read(r);
@@ -303,13 +301,19 @@ export class ChatEditorOverlayController implements IEditorContribution {
 				return;
 			}
 
+			const entry = entries[idx];
+
+			if (this._editor.getOption(EditorOption.inDiffEditor) && !instaService.invokeFunction(isDiffEditorForEntry, entry, this._editor)) {
+				widget.hide();
+				return;
+			}
+
 			const isModifyingOrModified = entries.some(e => e.state.read(r) === WorkingSetEntryState.Modified || e.isCurrentlyBeingModified.read(r));
 			if (!isModifyingOrModified) {
 				widget.hide();
 				return;
 			}
 
-			const entry = entries[idx];
 			if (entry.state.read(r) === WorkingSetEntryState.Accepted || entry.state.read(r) === WorkingSetEntryState.Rejected) {
 				widget.hide();
 				return;

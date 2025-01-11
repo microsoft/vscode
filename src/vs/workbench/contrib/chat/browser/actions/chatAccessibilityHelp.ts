@@ -45,7 +45,7 @@ export class EditsChatAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 119;
 	readonly name = 'editsView';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ActiveAuxiliaryContext.isEqualTo('workbench.panel.chatEditing');
+	readonly when = ContextKeyExpr.and(ActiveAuxiliaryContext.isEqualTo('workbench.panel.chatEditing'), ChatContextKeys.inChatInput);
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'editsView');

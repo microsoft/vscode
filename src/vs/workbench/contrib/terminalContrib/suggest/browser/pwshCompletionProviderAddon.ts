@@ -348,6 +348,7 @@ function rawCompletionToITerminalCompletion(rawCompletion: PwshCompletion, repla
 
 	return {
 		label,
+		provider: 'pwsh-script',
 		icon,
 		detail,
 		isFile: rawCompletion.ResultType === 3,

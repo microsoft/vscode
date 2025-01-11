@@ -91,11 +91,20 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}));
 	}
 
-	private _loadPwshCompletionAddon(xterm: RawXtermTerminal): void {
+	private async _loadPwshCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
+		// Disable when shell type is not powershell
 		if (this._ctx.instance.shellType !== GeneralShellType.PowerShell) {
 			this._pwshAddon.clear();
 			return;
 		}
+
+		// Disable the addon on old backends (not conpty or Windows 11)
+		await this._ctx.instance.processReady;
+		const processTraits = this._ctx.processManager.processTraits;
+		if (processTraits?.windowsPty && (processTraits.windowsPty.backend !== 'conpty' || processTraits?.windowsPty.buildNumber <= 19045)) {
+			return;
+		}
+
 		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
@@ -233,6 +242,19 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.selectNextSuggestion()
+});
+
+registerActiveInstanceAction({
+	id: 'terminalSuggestToggleExplainMode',
+	title: localize2('workbench.action.terminal.suggestToggleExplainMode', 'Suggest Toggle Explain Modes'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	keybinding: {
+		// Down is bound to other workbench keybindings that this needs to beat
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		primary: KeyMod.CtrlCmd | KeyCode.Slash,
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleExplainMode()
 });
 
 registerActiveInstanceAction({

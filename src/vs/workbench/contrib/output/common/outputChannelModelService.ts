@@ -22,7 +22,7 @@ export interface IOutputChannelModelService {
 
 }
 
-export class OutputChannelModelService {
+export class OutputChannelModelService implements IOutputChannelModelService {
 
 	declare readonly _serviceBrand: undefined;
 

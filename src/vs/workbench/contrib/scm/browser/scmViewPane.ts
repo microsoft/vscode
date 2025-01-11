@@ -21,7 +21,7 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2, IMenu } from '../../../../platform/actions/common/actions.js';
-import { IAction, ActionRunner, Action, Separator, IActionRunner } from '../../../../base/common/actions.js';
+import { IAction, ActionRunner, Action, Separator, IActionRunner, toAction } from '../../../../base/common/actions.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IThemeService, IFileIconTheme } from '../../../../platform/theme/common/themeService.js';
 import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu } from './util.js';
@@ -2988,7 +2988,14 @@ export class SCMActionButton implements IDisposable {
 			for (let index = 0; index < button.secondaryCommands.length; index++) {
 				const commands = button.secondaryCommands[index];
 				for (const command of commands) {
-					actions.push(new Action(command.id, command.title, undefined, true, async () => await this.executeCommand(command.id, ...(command.arguments || []))));
+					actions.push(toAction({
+						id: command.id,
+						label: command.title,
+						enabled: true,
+						run: async () => {
+							await this.executeCommand(command.id, ...(command.arguments || []));
+						}
+					}));
 				}
 				if (commands.length) {
 					actions.push(new Separator());

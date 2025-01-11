@@ -15,7 +15,7 @@ import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } fro
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -40,11 +40,11 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { Action2, IMenuService, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/actions.js';
 import { delta, groupBy } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
@@ -238,13 +238,14 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.viewChanges',
-			title: localize('viewChanges', "View Changes"),
+			title: localize('openChanges', "Open Changes"),
 			f1: false,
 			menu: [
 				{
 					id: MenuId.SCMChangesContext,
+					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: '0_view',
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true)
+					order: 1
 				}
 			]
 		});
@@ -1214,6 +1215,8 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _scmCurrentHistoryItemRefHasRemote: IContextKey<boolean>;
 	private readonly _scmCurrentHistoryItemRefInFilter: IContextKey<boolean>;
 
+	private readonly _contextMenuDisposables = new MutableDisposable<DisposableStore>();
+
 	constructor(
 		options: IViewPaneOptions,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -1576,46 +1579,74 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
+		this._contextMenuDisposables.value = new DisposableStore();
+
+		const historyItemRefMenuItems = MenuRegistry.getMenuItems(MenuId.SCMHistoryItemRefContext).filter(item => isIMenuItem(item));
+
+		// If there are any history item references we have to add a submenu item for each orignal action,
+		// and a menu item for each history item ref that matches the `when` clause of the original action.
+		if (historyItemRefMenuItems.length > 0 && element.historyItemViewModel.historyItem.references?.length) {
+			const submenuIds = new Map<string, MenuId>();
+
+			for (const ref of element.historyItemViewModel.historyItem.references) {
+				const contextKeyService = this.scopedContextKeyService.createOverlay([
+					['scmHistoryItemRef', ref.id]
+				]);
+
+				for (const [, actions] of this._menuService.getMenuActions(MenuId.SCMHistoryItemRefContext, contextKeyService)) {
+					for (const action of actions) {
+						let subMenuId = submenuIds.get(action.id);
+
+						if (!subMenuId) {
+							subMenuId = MenuId.for(action.id);
+
+							// Get the menu item for the original action so that
+							// we can create a submenu with the same group, order
+							const historyItemRefMenuItem = historyItemRefMenuItems
+								.find(item => item.command.id === action.id);
+
+							// Register the submenu for the original action
+							this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMChangesContext, {
+								title: action.label,
+								submenu: subMenuId,
+								group: historyItemRefMenuItem?.group,
+								order: historyItemRefMenuItem?.order
+							}));
+
+							submenuIds.set(action.id, subMenuId);
+						}
+
+						// Register a new action for the history item ref
+						this._contextMenuDisposables.value.add(registerAction2(class extends Action2 {
+							constructor() {
+								super({
+									id: `${action.id}.${ref.id}`,
+									title: ref.name,
+									menu: {
+										id: subMenuId!,
+										group: ref.category
+									}
+								});
+							}
+							override run(accessor: ServicesAccessor, ...args: any[]): void {
+								const commandService = accessor.get(ICommandService);
+								commandService.executeCommand(action.id, ...args, ref.id);
+							}
+						}));
+					}
+				}
+			}
+		}
+
 		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMChangesContext, this.scopedContextKeyService, {
 			arg: element.repository.provider,
 			shouldForwardArgs: true
 		});
 
-		const actions = getFlatContextMenuActions(historyItemMenuActions);
-		if (element.historyItemViewModel.historyItem.references?.length) {
-			actions.push(new Separator());
-		}
-
-		const that = this;
-		for (const ref of element.historyItemViewModel.historyItem.references ?? []) {
-			const contextKeyService = this.scopedContextKeyService.createOverlay([
-				['scmHistoryItemRef', ref.id]
-			]);
-
-			const historyItemRefMenuActions = this._menuService.getMenuActions(MenuId.SCMHistoryItemRefContext, contextKeyService);
-			const historyItemRefSubMenuActions = getFlatContextMenuActions(historyItemRefMenuActions)
-				.map(action => new class extends MenuItemAction {
-					constructor() {
-						super(
-							{ id: action.id, title: action.label }, undefined,
-							{ arg: element!.repository.provider, shouldForwardArgs: true },
-							undefined, undefined, contextKeyService, that._commandService);
-					}
-
-					override run(): Promise<void> {
-						return super.run(element.historyItemViewModel.historyItem, ref.id);
-					}
-				});
-
-			if (historyItemRefSubMenuActions.length > 0) {
-				actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, historyItemRefSubMenuActions));
-			}
-		}
-
 		this.contextMenuService.showContextMenu({
 			contextKeyService: this.scopedContextKeyService,
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
+			getActions: () => getFlatContextMenuActions(historyItemMenuActions),
 			getActionsContext: () => element.historyItemViewModel.historyItem
 		});
 	}
@@ -1648,6 +1679,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	override dispose(): void {
+		this._contextMenuDisposables.dispose();
 		this._visibilityDisposables.dispose();
 		super.dispose();
 	}

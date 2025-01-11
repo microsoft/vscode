@@ -4200,7 +4200,6 @@ export interface IInlineSuggestOptions {
 			useWordInsertionView?: 'never' | 'whenPossible';
 			useWordReplacementView?: 'never' | 'whenPossible';
 
-			onlyShowWhenCloseToCursor?: boolean;
 			useGutterIndicator?: boolean;
 		};
 	};
@@ -4235,7 +4234,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					useInterleavedLinesDiff: 'never',
 					useWordInsertionView: 'whenPossible',
 					useWordReplacementView: 'whenPossible',
-					onlyShowWhenCloseToCursor: true,
 					useGutterIndicator: true,
 				},
 			},
@@ -4304,11 +4302,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.experimental.useWordReplacementView', "Controls whether to enable experimental word replacement view in inline suggestions."),
 					enum: ['never', 'whenPossible'],
 				},
-				'editor.inlineSuggest.edits.experimental.onlyShowWhenCloseToCursor': {
-					type: 'boolean',
-					default: defaults.edits.experimental.onlyShowWhenCloseToCursor,
-					description: nls.localize('inlineSuggest.edits.experimental.onlyShowWhenCloseToCursor', "Controls whether to only show inline suggestions when the cursor is close to the suggestion.")
-				},
 				'editor.inlineSuggest.edits.experimental.useGutterIndicator': {
 					type: 'boolean',
 					default: defaults.edits.experimental.useGutterIndicator,
@@ -4338,7 +4331,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
 					useWordInsertionView: stringSet(input.edits?.experimental?.useWordInsertionView, this.defaultValue.edits.experimental.useWordInsertionView, ['never', 'whenPossible']),
 					useWordReplacementView: stringSet(input.edits?.experimental?.useWordReplacementView, this.defaultValue.edits.experimental.useWordReplacementView, ['never', 'whenPossible']),
-					onlyShowWhenCloseToCursor: boolean(input.edits?.experimental?.onlyShowWhenCloseToCursor, this.defaultValue.edits.experimental.onlyShowWhenCloseToCursor),
 					useGutterIndicator: boolean(input.edits?.experimental?.useGutterIndicator, this.defaultValue.edits.experimental.useGutterIndicator),
 				},
 			},

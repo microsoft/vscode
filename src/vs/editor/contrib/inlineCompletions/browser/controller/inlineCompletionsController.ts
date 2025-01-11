@@ -8,7 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { createHotClass } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ITransaction, autorun, derived, derivedDisposable, derivedObservableWithCache, observableFromEvent, observableSignal, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { ITransaction, autorun, derived, derivedDisposable, derivedObservableWithCache, observableFromEvent, observableSignal, observableValue, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -82,6 +82,13 @@ export class InlineCompletionsController extends Disposable {
 		{ min: 50, max: 50 }
 	);
 
+	private readonly _focusIsInMenu = observableValue<boolean>(this, false);
+	private readonly _focusIsInEditorOrMenu = derived(this, reader => {
+		const editorHasFocus = this._editorObs.isFocused.read(reader);
+		const menuHasFocus = this._focusIsInMenu.read(reader);
+		return editorHasFocus || menuHasFocus;
+	});
+
 	private readonly _cursorIsInIndentation = derived(this, reader => {
 		const cursorPos = this._editorObs.cursorPosition.read(reader);
 		if (cursorPos === null) { return false; }
@@ -114,7 +121,7 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly _hideInlineEditOnSelectionChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => true);
 
-	protected readonly _view = this._register(new InlineCompletionsView(this.editor, this.model, this._instantiationService));
+	protected readonly _view = this._register(new InlineCompletionsView(this.editor, this.model, this._focusIsInMenu, this._instantiationService));
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -190,7 +197,12 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
-		this._register(this.editor.onDidBlurEditorWidget(() => {
+		this._register(autorun(reader => {
+			const isFocused = this._focusIsInEditorOrMenu.read(reader);
+			if (isFocused) {
+				return;
+			}
+
 			// This is a hidden setting very useful for debugging
 			if (this._contextKeyService.getContextKeyValue<boolean>('accessibleViewIsShown')
 				|| this._configurationService.getValue('editor.inlineSuggest.keepOnBlur')

@@ -256,7 +256,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		let tokenEndIndex = 0;
 		let tokenMetadata = 0;
 
-		let charMetadata = 0;
+		let decorationStyleSetBold: boolean | undefined;
+		let decorationStyleSetColor: number | undefined;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
@@ -360,7 +361,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						break;
 					}
 					chars = content.charAt(x);
-					charMetadata = 0;
+					decorationStyleSetColor = undefined;
+					decorationStyleSetBold = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -386,7 +388,18 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 										if (!parsedColor) {
 											throw new BugIndicatingError('Invalid color format ' + value);
 										}
-										charMetadata = parsedColor.toNumber24Bit();
+										decorationStyleSetColor = parsedColor.toNumber32Bit();
+										break;
+									}
+									case 'font-weight': {
+										const parsedValue = parseCssFontWeight(value);
+										if (parsedValue >= 400) {
+											decorationStyleSetBold = true;
+											// TODO: Set bold (https://github.com/microsoft/vscode/issues/237584)
+										} else {
+											decorationStyleSetBold = false;
+											// TODO: Set normal (https://github.com/microsoft/vscode/issues/237584)
+										}
 										break;
 									}
 									default: throw new BugIndicatingError('Unexpected inline decoration style');
@@ -406,7 +419,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, charMetadata);
+					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold);
+					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
 
 					// TODO: Support non-standard character widths
 					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
@@ -484,4 +498,14 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		this._queuedBufferUpdates[0].push(e);
 		this._queuedBufferUpdates[1].push(e);
 	}
+}
+
+function parseCssFontWeight(value: string) {
+	switch (value) {
+		case 'lighter':
+		case 'normal': return 400;
+		case 'bolder':
+		case 'bold': return 700;
+	}
+	return parseInt(value);
 }

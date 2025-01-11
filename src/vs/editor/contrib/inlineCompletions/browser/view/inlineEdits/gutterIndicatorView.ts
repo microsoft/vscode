@@ -5,8 +5,8 @@
 
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
@@ -23,6 +23,7 @@ import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
 import { mapOutFalsy, n, rectToProps } from './utils.js';
 import { localize } from '../../../../../../nls.js';
+import { trackFocus } from '../../../../../../base/browser/dom.js';
 export const inlineEditIndicatorPrimaryForeground = registerColor(
 	'inlineEdit.gutterIndicator.primaryForeground',
 	buttonForeground,
@@ -73,6 +74,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _originalRange: IObservable<LineRange | undefined>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
 		private readonly _shouldShowHover: IObservable<boolean>,
+		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -116,7 +118,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		const layout = this._editorObs.layoutInfo.read(reader);
 
-		const fullViewPort = Rect.fromLeftTopRightBottom(0, 0, layout.width, layout.height);
+		const bottomPadding = 1;
+		const fullViewPort = Rect.fromLeftTopRightBottom(0, 0, layout.width, layout.height - bottomPadding);
 		const viewPortWithStickyScroll = fullViewPort.withTop(this._stickyScrollHeight.read(reader));
 
 		const targetVertRange = s.lineOffsetRange.read(reader);
@@ -158,12 +161,18 @@ export class InlineEditsGutterIndicator extends Disposable {
 		if (this._layout.map(d => d && d.docked).read(reader)) {
 			return {
 				selectionOverride: 'accept' as const,
-				action: () => { this._model.get()?.accept(); }
+				action: () => {
+					this._editorObs.editor.focus();
+					this._model.get()?.accept();
+				}
 			};
 		} else {
 			return {
 				selectionOverride: 'jump' as const,
-				action: () => { this._model.get()?.jump(); }
+				action: () => {
+					this._editorObs.editor.focus();
+					this._model.get()?.jump();
+				}
 			};
 		}
 	});
@@ -178,35 +187,53 @@ export class InlineEditsGutterIndicator extends Disposable {
 			return;
 		}
 
-		const content = this._instantiationService.createInstance(
+		const displayName = derived(this, reader => {
+			const state = this._model.read(reader)?.inlineEditState;
+			const item = state?.read(reader);
+			const completionSource = item?.inlineCompletion?.inlineCompletion.source;
+			// TODO: expose the provider (typed) and expose the provider the edit belongs totyping and get correct edit
+			const displayName = (completionSource?.inlineCompletions as any).edits[0]?.provider?.displayName ?? localize('inlineEdit', "Inline Edit");
+			return displayName;
+		});
+
+		const disposableStore = new DisposableStore();
+		const content = disposableStore.add(this._instantiationService.createInstance(
 			GutterIndicatorMenuContent,
+			displayName,
 			this._hoverSelectionOverride,
 			(focusEditor) => {
-				h?.dispose();
 				if (focusEditor) {
 					this._editorObs.editor.focus();
 				}
+				h?.dispose();
 			},
 			this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.inlineCompletion.source.inlineCompletions.commands),
-		).toDisposableLiveElement();
+		).toDisposableLiveElement());
+
+		const focusTracker = disposableStore.add(trackFocus(content.element));
+		disposableStore.add(focusTracker.onDidBlur(() => this._focusIsInMenu.set(false, undefined)));
+		disposableStore.add(focusTracker.onDidFocus(() => this._focusIsInMenu.set(true, undefined)));
+		disposableStore.add(toDisposable(() => this._focusIsInMenu.set(false, undefined)));
+
 		const h = this._hoverService.showHover({
 			target: this._iconRef.element,
 			content: content.element,
 		}) as HoverWidget | undefined;
 		if (h) {
 			this._hoverVisible = true;
-			h.onDispose(() => {
-				content.dispose();
+			h.onDispose(() => { // TODO:@hediet fix leak
+				disposableStore.dispose();
 				this._hoverVisible = false;
 			});
 		} else {
-			content.dispose();
+			disposableStore.dispose();
 		}
 	}
 
 	private readonly _indicator = n.div({
 		class: 'inline-edits-view-gutter-indicator',
 		onclick: () => this._onClickAction.get().action(),
+		tabIndex: 0,
 		style: {
 			position: 'absolute',
 			overflow: 'visible',
