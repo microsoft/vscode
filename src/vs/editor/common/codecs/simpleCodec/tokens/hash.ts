@@ -4,41 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseToken } from '../../baseToken.js';
+import { Range } from '../../../core/range.js';
+import { Position } from '../../../core/position.js';
 import { Line } from '../../linesCodec/tokens/line.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { Position } from '../../../../../editor/common/core/position.js';
 
 /**
- * A token that represent a `space` with a `range`. The `range`
+ * A token that represent a `#` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class Space extends BaseToken {
+export class Hash extends BaseToken {
 	/**
-	 * The underlying symbol of the `Space` token.
+	 * The underlying symbol of the `LeftBracket` token.
 	 */
-	public static readonly symbol: string = ' ';
+	public static readonly symbol: string = '#';
 
 	/**
 	 * Return text representation of the token.
 	 */
 	public get text(): string {
-		return Space.symbol;
+		return Hash.symbol;
 	}
 
 	/**
-	 * Create new `Space` token with range inside
+	 * Create new `LeftBracket` token with range inside
 	 * the given `Line` at the given `column number`.
 	 */
 	public static newOnLine(
 		line: Line,
 		atColumnNumber: number,
-	): Space {
+	): Hash {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
+		// the tab token length is 1, hence `+ 1`
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
-		return new Space(Range.fromPositions(
+		return new Hash(Range.fromPositions(
 			startPosition,
 			endPosition,
 		));
@@ -48,6 +49,6 @@ export class Space extends BaseToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `space${this.range}`;
+		return `hash${this.range}`;
 	}
 }
