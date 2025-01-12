@@ -51,7 +51,7 @@ export namespace ChatContextKeys {
 
 		// State
 		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
-		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, true), 	// True when chat setup is triggered.
+		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
 
 		// Plans
@@ -60,10 +60,10 @@ export namespace ChatContextKeys {
 		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
 	};
 
-	export const SetupViewKeys = new Set([ChatContextKeys.Setup.triggered.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
+	export const SetupViewKeys = new Set([ChatContextKeys.Setup.hidden.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
 	export const SetupViewCondition = ContextKeyExpr.or(
 		ContextKeyExpr.and(
-			ChatContextKeys.Setup.triggered,
+			ChatContextKeys.Setup.hidden.negate(),
 			ChatContextKeys.Setup.installed.negate()
 		),
 		ContextKeyExpr.and(
