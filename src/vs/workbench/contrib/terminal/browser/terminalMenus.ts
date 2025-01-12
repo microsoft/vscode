@@ -21,10 +21,10 @@ import { ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editor
 const enum ContextMenuGroup {
 	Create = '1_create',
 	Edit = '3_edit',
-	Clear = '5_clear',
-	Kill = '7_kill',
-	Config = '9_config',
-	Navigation = '11_navigation'
+	Navigation = '5_navigation',
+	Clear = '7_clear',
+	Kill = '9_kill',
+	Config = '11_config',
 }
 
 export const enum TerminalMenuBarGroup {
