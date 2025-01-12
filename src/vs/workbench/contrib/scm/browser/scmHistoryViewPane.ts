@@ -1586,54 +1586,59 @@ export class SCMHistoryViewPane extends ViewPane {
 		// If there are any history item references we have to add a submenu item for each orignal action,
 		// and a menu item for each history item ref that matches the `when` clause of the original action.
 		if (historyItemRefMenuItems.length > 0 && element.historyItemViewModel.historyItem.references?.length) {
-			const submenuIds = new Map<string, MenuId>();
+			const historyItemRefActions = new Map<string, ISCMHistoryItemRef[]>();
 
 			for (const ref of element.historyItemViewModel.historyItem.references) {
 				const contextKeyService = this.scopedContextKeyService.createOverlay([
 					['scmHistoryItemRef', ref.id]
 				]);
 
-				for (const [, actions] of this._menuService.getMenuActions(MenuId.SCMHistoryItemRefContext, contextKeyService)) {
-					for (const action of actions) {
-						let subMenuId = submenuIds.get(action.id);
+				const menuActions = this._menuService.getMenuActions(
+					MenuId.SCMHistoryItemRefContext, contextKeyService);
 
-						if (!subMenuId) {
-							subMenuId = MenuId.for(action.id);
-
-							// Get the menu item for the original action so that
-							// we can create a submenu with the same group, order
-							const historyItemRefMenuItem = historyItemRefMenuItems
-								.find(item => item.command.id === action.id);
-
-							// Register the submenu for the original action
-							this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMChangesContext, {
-								title: action.label,
-								submenu: subMenuId,
-								group: historyItemRefMenuItem?.group,
-								order: historyItemRefMenuItem?.order
-							}));
-
-							submenuIds.set(action.id, subMenuId);
-						}
-
-						// Register a new action for the history item ref
-						this._contextMenuDisposables.value.add(registerAction2(class extends Action2 {
-							constructor() {
-								super({
-									id: `${action.id}.${ref.id}`,
-									title: ref.name,
-									menu: {
-										id: subMenuId!,
-										group: ref.category
-									}
-								});
-							}
-							override run(accessor: ServicesAccessor, ...args: any[]): void {
-								const commandService = accessor.get(ICommandService);
-								commandService.executeCommand(action.id, ...args, ref.id);
-							}
-						}));
+				for (const action of menuActions.flatMap(a => a[1])) {
+					if (!historyItemRefActions.has(action.id)) {
+						historyItemRefActions.set(action.id, []);
 					}
+
+					historyItemRefActions.get(action.id)!.push(ref);
+				}
+			}
+
+			// Register submenu, menu items
+			for (const historyItemRefMenuItem of historyItemRefMenuItems) {
+				const actionId = historyItemRefMenuItem.command.id;
+
+				if (!historyItemRefActions.has(actionId)) {
+					continue;
+				}
+
+				// Register the submenu for the original action
+				this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMChangesContext, {
+					title: historyItemRefMenuItem.command.title,
+					submenu: MenuId.for(actionId),
+					group: historyItemRefMenuItem?.group,
+					order: historyItemRefMenuItem?.order
+				}));
+
+				// Register the action for the history item ref
+				for (const historyItemRef of historyItemRefActions.get(actionId) ?? []) {
+					this._contextMenuDisposables.value.add(registerAction2(class extends Action2 {
+						constructor() {
+							super({
+								id: `${actionId}.${historyItemRef.id}`,
+								title: historyItemRef.name,
+								menu: {
+									id: MenuId.for(actionId),
+									group: historyItemRef.category
+								}
+							});
+						}
+						override run(accessor: ServicesAccessor, ...args: any[]): void {
+							const commandService = accessor.get(ICommandService);
+							commandService.executeCommand(actionId, ...args, historyItemRef.id);
+						}
+					}));
 				}
 			}
 		}
