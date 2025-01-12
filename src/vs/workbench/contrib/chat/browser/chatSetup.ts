@@ -172,7 +172,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				await that.context.update({ hidden: false });
 
 				showCopilotView(viewsService, layoutService);
-				ensureSideBarChatViewSize(400, viewDescriptorService, layoutService);
+				ensureSideBarChatViewSize(viewDescriptorService, layoutService);
 
 				if (startSetup === true) {
 					that.controller.value.setup();
@@ -911,26 +911,29 @@ class ChatSetupWelcomeContent extends Disposable {
 			const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", this.context.state.installed ? 'command:github.copilot.open.walkthrough' : defaultChat.documentationUrl);
 			this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
-			const features = this.element.appendChild($('div.chat-features-container'));
-			this.element.appendChild(features);
+			const featuresParent = this.element.appendChild($('div.chat-features-container'));
+			this.element.appendChild(featuresParent);
 
-			const featureChatContainer = features.appendChild($('div.chat-feature-container'));
+			const featuresContainer = this.element.appendChild($('div'));
+			featuresParent.appendChild(featuresContainer);
+
+			const featureChatContainer = featuresContainer.appendChild($('div.chat-feature-container'));
 			featureChatContainer.appendChild(renderIcon(Codicon.code));
 
 			const featureChatLabel = featureChatContainer.appendChild($('span'));
-			featureChatLabel.textContent = localize('featureChat', "Code faster with completions and Inline Chat");
+			featureChatLabel.textContent = localize('featureChat', "Code faster with Completions");
 
-			const featureEditsContainer = features.appendChild($('div.chat-feature-container'));
+			const featureEditsContainer = featuresContainer.appendChild($('div.chat-feature-container'));
 			featureEditsContainer.appendChild(renderIcon(Codicon.editSession));
 
 			const featureEditsLabel = featureEditsContainer.appendChild($('span'));
-			featureEditsLabel.textContent = localize('featureEdits', "Build features and resolve bugs with Copilot Edits");
+			featureEditsLabel.textContent = localize('featureEdits', "Build features with Copilot Edits");
 
-			const featureExploreContainer = features.appendChild($('div.chat-feature-container'));
+			const featureExploreContainer = featuresContainer.appendChild($('div.chat-feature-container'));
 			featureExploreContainer.appendChild(renderIcon(Codicon.commentDiscussion));
 
 			const featureExploreLabel = featureExploreContainer.appendChild($('span'));
-			featureExploreLabel.textContent = localize('featureExplore', "Explore your codebase with chat");
+			featureExploreLabel.textContent = localize('featureExplore', "Explore your codebase with Chat");
 		}
 
 		// Limited SKU
