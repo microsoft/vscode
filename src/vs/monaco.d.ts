@@ -4607,7 +4607,6 @@ declare namespace monaco.editor {
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 				useWordInsertionView?: 'never' | 'whenPossible';
 				useWordReplacementView?: 'never' | 'whenPossible';
-				onlyShowWhenCloseToCursor?: boolean;
 				useGutterIndicator?: boolean;
 			};
 		};
@@ -7277,6 +7276,7 @@ declare namespace monaco.languages {
 		*/
 		readonly completeBracketPairs?: boolean;
 		readonly isInlineEdit?: boolean;
+		readonly showRange?: IRange;
 	}
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -7320,6 +7320,7 @@ declare namespace monaco.languages {
 		 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
 		 */
 		yieldsToGroupIds?: InlineCompletionProviderGroupId[];
+		displayName?: string;
 		toString?(): string;
 	}
 
@@ -8060,7 +8061,7 @@ declare namespace monaco.languages {
 
 	export interface CodeLensList {
 		lenses: CodeLens[];
-		dispose(): void;
+		dispose?(): void;
 	}
 
 	export interface CodeLensProvider {
@@ -8164,6 +8165,7 @@ declare namespace monaco.languages {
 	export interface IInlineEdit {
 		text: string;
 		range: IRange;
+		showRange?: IRange;
 		accepted?: Command;
 		rejected?: Command;
 		shown?: Command;
@@ -8180,6 +8182,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+		displayName?: string;
 		provideInlineEdit(model: editor.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
 		freeInlineEdit(edit: T): void;
 	}

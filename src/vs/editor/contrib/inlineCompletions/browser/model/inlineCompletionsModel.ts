@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -26,11 +27,11 @@ import { TextLength } from '../../../../common/core/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
 import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
-import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
+import { EndOfLinePreference, IModelDecorationOptions, ITextModel, TrackedRangeStickiness } from '../../../../common/model.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
-import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
+import { addPositions, getEndPositionsAfterApplying, getModifiedRangesAfterApplying, substringPos, subtractPositions } from '../utils.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from './inlineCompletionsSource.js';
@@ -54,7 +55,13 @@ export class InlineCompletionsModel extends Disposable {
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
-	private readonly _onlyShowWhenCloseToCursor = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.experimental.onlyShowWhenCloseToCursor);
+	private readonly _acceptCompletionDecorationTimer = this._register(new MutableDisposable());
+	private readonly _acceptCompletionDecoration: IModelDecorationOptions = {
+		description: 'inline-completion-accepted',
+		className: 'inlineCompletionAccepted',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	};
+
 	private readonly _suggestPreviewEnabled = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
 	private readonly _suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
 	private readonly _inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
@@ -358,12 +365,13 @@ export class InlineCompletionsModel extends Disposable {
 
 			const cursorPos = this.primaryPosition.read(reader);
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
+			const cursorInsideShowRange = cursorAtInlineEdit || (item.inlineEdit.inlineCompletion.cursorShowRange?.containsPosition(cursorPos) ?? true);
 
-			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this.primaryPosition.read(reader).lineNumber);
-
-			if (this._onlyShowWhenCloseToCursor.read(reader) && cursorDist > 3 && !item.inlineEdit.request.isExplicitRequest && !this._inAcceptFlow.read(reader)) {
+			if (!cursorInsideShowRange && !this._inAcceptFlow.read(reader)) {
 				return undefined;
 			}
+
+			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this.primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEdit.semanticId);
 
@@ -573,6 +581,8 @@ export class InlineCompletionsModel extends Disposable {
 			completion.source.addRef();
 		}
 
+		this._acceptCompletionDecorationTimer.clear();
+
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
 			editor.executeEdits(
@@ -586,12 +596,18 @@ export class InlineCompletionsModel extends Disposable {
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			const edits = state.edits;
-			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
+			const modifiedRanges = getModifiedRangesAfterApplying(edits);
+			const selections = modifiedRanges.map(r => Selection.fromPositions(r.getEndPosition()));
 			editor.executeEdits('inlineSuggestion.accept', [
 				...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
 				...completion.additionalTextEdits
 			]);
 			editor.setSelections(selections, 'inlineCompletionAccept');
+
+			if (state.kind === 'inlineEdit') {
+				const acceptEditsDecorations = editor.createDecorationsCollection(modifiedRanges.map(r => ({ range: r, options: this._acceptCompletionDecoration })));
+				this._acceptCompletionDecorationTimer.value = disposableTimeout(() => acceptEditsDecorations.clear(), 2500);
+			}
 		}
 
 		// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).

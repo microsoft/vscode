@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equals.js';
 import { createHotClass } from '../../../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { derivedDisposable, ObservablePromise, derived, IObservable, derivedOpts } from '../../../../../../base/common/observable.js';
+import { derivedDisposable, ObservablePromise, derived, IObservable, derivedOpts, ISettableObservable } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { IDiffProviderFactoryService } from '../../../../../browser/widget/diffEditor/diffProviderFactoryService.js';
@@ -99,13 +99,14 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEdit | undefined>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
+		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
 		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
 
-		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEdit, this._model));
+		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEdit, this._model, this._focusIsInMenu));
 	}
 }
 

@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OutputService } from './outputServices.js';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from '../../../services/output/common/output.js';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT } from '../../../services/output/common/output.js';
 import { OutputViewPane } from './outputView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -23,7 +23,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from '../../../services/editor/common/editorService.js';
 import { assertIsDefined } from '../../../../base/common/types.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -37,6 +37,9 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
+import { ViewAction } from '../../../browser/parts/views/viewPane.js';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -107,6 +110,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerShowLogsAction();
 		this.registerOpenLogFileAction();
 		this.registerConfigureActiveOutputLogLevelAction();
+		this.registerFilterActions();
 	}
 
 	private registerSwitchOutputAction(): void {
@@ -523,6 +527,77 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						}
 					});
 				}
+			}
+		}));
+	}
+
+	private registerFilterActions(): void {
+		let order = 0;
+		const registerLogLevel = (logLevel: LogLevel, toggled: ContextKeyExpression) => {
+			this._register(registerAction2(class extends ViewAction<OutputViewPane> {
+				constructor() {
+					super({
+						id: `workbench.actions.${OUTPUT_VIEW_ID}.toggle.${LogLevelToString(logLevel)}`,
+						title: LogLevelToLocalizedString(logLevel).value,
+						metadata: {
+							description: localize2('toggleTraceDescription', "Show or hide {0} messages in the output", LogLevelToString(logLevel))
+						},
+						toggled,
+						menu: {
+							id: viewFilterSubmenu,
+							group: '1_filter',
+							when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID), CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE),
+							order: order++
+						},
+						viewId: OUTPUT_VIEW_ID
+					});
+				}
+				async runInView(serviceAccessor: ServicesAccessor, view: OutputViewPane): Promise<void> {
+					this.toggleLogLevelFilter(serviceAccessor.get(IOutputService), logLevel);
+				}
+				private toggleLogLevelFilter(outputService: IOutputService, logLevel: LogLevel): void {
+					switch (logLevel) {
+						case LogLevel.Trace:
+							outputService.filters.trace = !outputService.filters.trace;
+							break;
+						case LogLevel.Debug:
+							outputService.filters.debug = !outputService.filters.debug;
+							break;
+						case LogLevel.Info:
+							outputService.filters.info = !outputService.filters.info;
+							break;
+						case LogLevel.Warning:
+							outputService.filters.warning = !outputService.filters.warning;
+							break;
+						case LogLevel.Error:
+							outputService.filters.error = !outputService.filters.error;
+							break;
+					}
+				}
+			}));
+		};
+
+		registerLogLevel(LogLevel.Trace, SHOW_TRACE_FILTER_CONTEXT);
+		registerLogLevel(LogLevel.Debug, SHOW_DEBUG_FILTER_CONTEXT);
+		registerLogLevel(LogLevel.Info, SHOW_INFO_FILTER_CONTEXT);
+		registerLogLevel(LogLevel.Warning, SHOW_WARNING_FILTER_CONTEXT);
+		registerLogLevel(LogLevel.Error, SHOW_ERROR_FILTER_CONTEXT);
+
+		this._register(registerAction2(class extends ViewAction<OutputViewPane> {
+			constructor() {
+				super({
+					id: `workbench.actions.${OUTPUT_VIEW_ID}.clearFilterText`,
+					title: localize('clearFiltersText', "Clear filters text"),
+					keybinding: {
+						when: OUTPUT_FILTER_FOCUS_CONTEXT,
+						weight: KeybindingWeight.WorkbenchContrib,
+						primary: KeyCode.Escape
+					},
+					viewId: OUTPUT_VIEW_ID
+				});
+			}
+			async runInView(serviceAccessor: ServicesAccessor, outputView: OutputViewPane): Promise<void> {
+				outputView.clearFilterText();
 			}
 		}));
 	}

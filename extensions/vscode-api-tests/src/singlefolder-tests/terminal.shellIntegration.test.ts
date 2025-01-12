@@ -87,6 +87,16 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
+	if (platform() === 'darwin' || platform() === 'linux') {
+		test('Test if env is set', async () => {
+			const { shellIntegration } = await createTerminalAndWaitForShellIntegration();
+			const env = shellIntegration.env;
+			ok(env);
+			ok(env.PATH);
+			ok(env.PATH.length > 0, 'env.PATH should have a length greater than 0');
+		});
+	}
+
 	test('execution events should fire in order when a command runs', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
@@ -212,7 +222,12 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test('executeCommand(executable, args)', async () => {
+	test('executeCommand(executable, args)', async function () {
+		// HACK: This test has flaked before where the `value` was `e`, not `echo hello`. After an
+		// investigation it's not clear how this happened, so in order to keep some of the value
+		// that the test adds, it will retry after a failure.
+		this.retries(3);
+
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const { execution, endEvent } = executeCommandAsync(shellIntegration, 'echo', ['hello']);
 		const executionSync = await execution;

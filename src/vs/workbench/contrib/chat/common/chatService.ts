@@ -431,6 +431,11 @@ export interface IChatSendRequestOptions {
 	 * The label of the confirmation action that was selected.
 	 */
 	confirmation?: string;
+
+	/**
+	 * Flag to indicate whether a prompt instructions attachment is present.
+	 */
+	hasInstructionAttachments?: boolean;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
