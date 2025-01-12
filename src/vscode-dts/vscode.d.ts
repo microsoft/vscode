@@ -3781,6 +3781,11 @@ declare module 'vscode' {
 		snippet: SnippetString;
 
 		/**
+		 * Whether the snippet edit should be applied with existing whitespace preserved.
+		 */
+		keepWhitespace?: boolean;
+
+		/**
 		 * Create a new snippet edit.
 		 *
 		 * @param range A range.
