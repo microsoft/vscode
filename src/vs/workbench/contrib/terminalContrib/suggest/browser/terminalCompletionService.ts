@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { ITerminalSuggestConfiguration, terminalSuggestConfigSection } from '../common/terminalSuggestConfiguration.js';
 
@@ -164,17 +164,19 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
-			const itemsWithModifiedLabels = this._addDevModeLabel(completionItems, provider.id);
+			for (const item of completionItems) {
+				item.provider = provider.id;
+			}
 
 			if (Array.isArray(completions)) {
-				return itemsWithModifiedLabels;
+				return completionItems;
 			}
 			if (completions.resourceRequestConfig) {
-				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
+				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id);
 				if (resourceCompletions) {
-					itemsWithModifiedLabels.push(...this._addDevModeLabel(resourceCompletions, provider.id));
+					completionItems.push(...resourceCompletions);
 				}
-				return itemsWithModifiedLabels;
+				return completionItems;
 			}
 			return;
 		});
@@ -183,19 +185,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	private _addDevModeLabel(completions: ITerminalCompletion[], providerId: string): ITerminalCompletion[] {
-		const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
-		return completions.map(completion => {
-			// TODO: This providerId check shouldn't be necessary, instead we should ensure this
-			//       function is never called twice
-			if (devModeEnabled && !completion.detail?.includes(providerId)) {
-				completion.detail = `(${providerId}) ${completion.detail ?? ''}`;
-			}
-			return completion;
-		});
-	}
-
-	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, providerId: string): Promise<ITerminalCompletion[] | undefined> {
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
@@ -246,6 +236,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			resourceCompletions.push({
 				label,
+				provider: providerId,
 				kind,
 				isDirectory,
 				isFile: kind === TerminalCompletionItemKind.File,

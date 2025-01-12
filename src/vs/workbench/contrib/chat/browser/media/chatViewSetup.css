@@ -11,6 +11,8 @@
 	}
 
 	.chat-features-container {
+		display: flex;
+		justify-content: center;
 		text-align: initial;
 		border-radius: 2px;
 		border: 1px solid var(--vscode-chat-requestBorder);
