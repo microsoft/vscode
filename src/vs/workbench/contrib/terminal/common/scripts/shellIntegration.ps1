@@ -397,7 +397,9 @@ function Send-Completions {
 		if ($null -eq $completions -or $null -eq $completions.CompletionMatches) {
 			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
 		} else {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
+			$replacementIndex = if ([bool]$completions.PSObject.Properties['ReplacementIndex']) { $completions.ReplacementIndex } else { '' }
+			$replacementLength = if ([bool]$completions.PSObject.Properties['ReplacementLength']) { $completions.ReplacementLength } else { '' }
+			$result += ";$replacementIndex;$($replacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
 			$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
 			# Relative directory completions
 			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
@@ -466,7 +468,9 @@ function Send-Completions {
 			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''))
 		)
 		if ($null -ne $completions) {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
+  			$replacementIndex = if ([bool]$completions.PSObject.Properties['ReplacementIndex']) { $completions.ReplacementIndex } else { '' }
+  			$replacementLength = if ([bool]$completions.PSObject.Properties['ReplacementLength']) { $completions.ReplacementLength } else { '' }
+			$result += ";$replacementIndex;$($replacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
 			$mappedCommands = Compress-Completions($completions)
 			$result += $mappedCommands | ConvertTo-Json -Compress
 		} else {
@@ -482,7 +486,7 @@ function Send-Completions {
 
 function Compress-Completions($completions) {
 	$completions | ForEach-Object {
-		if ($_.CustomIcon) {
+		if ([bool]$_.PSObject.Properties['CustomIcon'] -and $_.CustomIcon) {
 			,@($_.CompletionText, $_.ResultType, $_.ToolTip, $_.CustomIcon)
 		}
 		elseif ($_.CompletionText -eq $_.ToolTip) {
