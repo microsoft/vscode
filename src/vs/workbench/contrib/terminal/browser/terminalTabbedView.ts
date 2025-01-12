@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
-import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from './terminal.js';
@@ -54,7 +54,7 @@ export class TerminalTabbedView extends Disposable {
 	private _width: number | undefined;
 
 	private _cancelContextMenu: boolean = false;
-	private _instanceMenu: IMenu;
+	private readonly _instanceMenu = this._register(new MutableDisposable<IMenu>());
 	private _tabsListMenu: IMenu;
 	private _tabsListEmptyMenu: IMenu;
 
@@ -86,7 +86,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabContainer.appendChild(tabListContainer);
 
 		const activeScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, activeScopedContextKeyService || contextKeyService));
+		this._instanceMenu.value = menuService.createMenu(MenuId.TerminalInstanceContext, activeScopedContextKeyService || contextKeyService);
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, activeScopedContextKeyService || contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
@@ -123,11 +123,10 @@ export class TerminalTabbedView extends Disposable {
 		this._register(this._terminalService.onDidChangeActiveInstance(() => {
 			const terminalScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
 
-			this._instanceMenu.dispose();
-			this._instanceMenu = this._register(menuService.createMenu(
+			this._instanceMenu.value = menuService.createMenu(
 				MenuId.TerminalInstanceContext,
 				terminalScopedContextKeyService || contextKeyService
-			));
+			);
 			this._tabsListMenu.dispose();
 			this._tabsListMenu = this._register(menuService.createMenu(
 				MenuId.TerminalTabContext,
@@ -343,8 +342,8 @@ export class TerminalTabbedView extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
 			const terminal = this._terminalGroupService.activeInstance;
-			if (this._terminalGroupService.instances.length > 0 && terminal) {
-				const result = await terminal.handleMouseEvent(event, this._instanceMenu);
+			if (this._terminalGroupService.instances.length > 0 && terminal && this._instanceMenu.value) {
+				const result = await terminal.handleMouseEvent(event, this._instanceMenu.value);
 				if (typeof result === 'object' && result.cancelContextMenu) {
 					this._cancelContextMenu = true;
 				}
@@ -356,8 +355,8 @@ export class TerminalTabbedView extends Disposable {
 				this._cancelContextMenu = true;
 			}
 			terminalContainer.focus();
-			if (!this._cancelContextMenu) {
-				openContextMenu(dom.getWindow(terminalContainer), event, this._terminalGroupService.activeInstance, this._instanceMenu, this._contextMenuService);
+			if (!this._cancelContextMenu && this._instanceMenu.value) {
+				openContextMenu(dom.getWindow(terminalContainer), event, this._terminalGroupService.activeInstance, this._instanceMenu.value, this._contextMenuService);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
