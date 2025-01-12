@@ -108,6 +108,7 @@
 	font-size: 12px;
 	overflow: hidden; /* always give away space to buttons container */
 	text-overflow: ellipsis;
+	min-width: 15%;
 }
 
 /** Notification: Buttons */
