@@ -201,7 +201,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.RevealInExplorer,
-						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer"),
+						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer View"),
 						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetectionCapability, true)
 					},
 					group: ContextMenuGroup.Navigation,
@@ -332,7 +332,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.RevealInExplorer,
-						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer"),
+						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer View"),
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -695,7 +695,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.RevealInExplorer,
-						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer"),
+						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer View"),
 						precondition: TerminalContextKeys.terminalHasCwdDetectionCapability
 					},
 					group: ContextMenuGroup.Navigation,

@@ -50,7 +50,7 @@ registerContextualInstanceAction({
 });
 registerContextualInstanceAction({
 	id: TerminalCommandId.RevealInExplorer,
-	title: localize2('workbench.action.terminal.revealInExplorer', 'Reveal Current Working Directory in Explorer'),
+	title: localize2('workbench.action.terminal.revealInExplorer', 'Reveal Current Working Directory in Explorer View'),
 	run: async (instance, c, accessor) => {
 		const commandService = accessor.get(ICommandService);
 		if (instance.cwd) {
