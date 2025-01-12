@@ -46,7 +46,7 @@ registerContextualInstanceAction({
 			nativeHostService.showItemInFolder(uri.fsPath);
 		}
 	},
-	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), TerminalContextKeys.terminalHasCwdDetectionCapability)
+	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), TerminalContextKeys.terminalHasCwdDetection)
 });
 registerContextualInstanceAction({
 	id: TerminalCommandId.RevealInExplorer,
@@ -58,7 +58,7 @@ registerContextualInstanceAction({
 			commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
 		}
 	},
-	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), TerminalContextKeys.terminalHasCwdDetectionCapability)
+	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), TerminalContextKeys.terminalHasCwdDetection)
 });
 registerContextualInstanceAction({
 	id: TerminalCommandId.RevealInExternalTerminal,
@@ -70,5 +70,5 @@ registerContextualInstanceAction({
 			commandService.executeCommand('openInTerminal', uri);
 		}
 	},
-	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), TerminalContextKeys.terminalHasCwdDetectionCapability)
+	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), TerminalContextKeys.terminalHasCwdDetection)
 });

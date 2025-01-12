@@ -445,7 +445,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalHasTextContextKey = TerminalContextKeys.textSelected.bindTo(scopedContextKeyService);
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(scopedContextKeyService);
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
-		this._terminalHasCwdDetectionCapabilityContextKey = TerminalContextKeys.terminalHasCwdDetectionCapability.bindTo(scopedContextKeyService);
+		this._terminalHasCwdDetectionCapabilityContextKey = TerminalContextKeys.terminalHasCwdDetection.bindTo(scopedContextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.onDidFocus(() => {

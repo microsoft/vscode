@@ -191,7 +191,7 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.RevealInFinder,
 						title: localize('workbench.action.terminal.revealInFinder', "Reveal Current Working Directory in Finder"),
-						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetectionCapability, true)
+						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetection, true)
 					},
 					group: ContextMenuGroup.Navigation,
 				},
@@ -202,7 +202,7 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.RevealInExplorer,
 						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer View"),
-						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetectionCapability, true)
+						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetection, true)
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -213,7 +213,7 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.RevealInExternalTerminal,
 						title: localize('workbench.action.terminal.revealInExternalTerminal', "Reveal Current Working Directory in External Terminal"),
-						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetectionCapability, true)
+						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetection, true)
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -685,7 +685,7 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.RevealInFinder,
 						title: localize('workbench.action.terminal.revealInFinder', "Reveal Current Working Directory in Finder"),
-						precondition: TerminalContextKeys.terminalHasCwdDetectionCapability
+						precondition: TerminalContextKeys.terminalHasCwdDetection
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -696,7 +696,7 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.RevealInExplorer,
 						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer View"),
-						precondition: TerminalContextKeys.terminalHasCwdDetectionCapability
+						precondition: TerminalContextKeys.terminalHasCwdDetection
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -707,7 +707,7 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.RevealInExternalTerminal,
 						title: localize('workbench.action.terminal.revealInExternalTerminal', "Reveal Current Working Directory in External Terminal"),
-						precondition: TerminalContextKeys.terminalHasCwdDetectionCapability
+						precondition: TerminalContextKeys.terminalHasCwdDetection
 					},
 					group: ContextMenuGroup.Navigation,
 				}
