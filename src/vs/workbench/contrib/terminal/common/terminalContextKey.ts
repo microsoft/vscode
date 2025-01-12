@@ -39,7 +39,7 @@ export const enum TerminalContextKeyStrings {
 	ShellType = 'terminalShellType',
 	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
 	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled',
-	TerminalHasCwdDetectionCapability = 'terminalHasNaiveCwdDetectionCapability',
+	TerminalHasCwdDetectionCapability = 'terminalHasCwdDetectionCapability',
 }
 
 export namespace TerminalContextKeys {
