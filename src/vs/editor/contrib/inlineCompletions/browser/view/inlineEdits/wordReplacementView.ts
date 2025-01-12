@@ -24,7 +24,7 @@ export const transparentHoverBackground = registerColor(
 	'inlineEdit.wordReplacementView.background',
 	{
 		light: transparent(editorHoverStatusBarBackground, 0.1),
-		dark: transparent(editorHoverStatusBarBackground, 0.5),
+		dark: transparent(editorHoverStatusBarBackground, 0.1),
 		hcLight: transparent(editorHoverStatusBarBackground, 0.1),
 		hcDark: transparent(editorHoverStatusBarBackground, 0.1),
 	},

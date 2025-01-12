@@ -12,9 +12,9 @@ import * as crypto from 'crypto';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { getMediaMime } from '../../base/common/mime.js';
 import { isLinux } from '../../base/common/platform.js';
-import { ILogService } from '../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { IServerEnvironmentService } from './serverEnvironmentService.js';
-import { extname, dirname, join, normalize } from '../../base/common/path.js';
+import { extname, dirname, join, normalize, posix } from '../../base/common/path.js';
 import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from '../../base/common/network.js';
 import { generateUuid } from '../../base/common/uuid.js';
 import { IProductService } from '../../platform/product/common/productService.js';
@@ -93,18 +93,18 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 
+const STATIC_PATH = `/static`;
+const CALLBACK_PATH = `/callback`;
+const WEB_EXTENSION_PATH = `/web-extension-resource`;
+
 export class WebClientServer {
 
 	private readonly _webExtensionResourceUrlTemplate: URI | undefined;
 
-	private readonly _staticRoute: string;
-	private readonly _callbackRoute: string;
-	private readonly _webExtensionRoute: string;
-
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
 		private readonly _basePath: string,
-		readonly serverRootPath: string,
+		private readonly _productPath: string,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRequestService private readonly _requestService: IRequestService,
@@ -112,34 +112,30 @@ export class WebClientServer {
 		@ICSSDevelopmentService private readonly _cssDevService: ICSSDevelopmentService
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
-
-		this._staticRoute = `${serverRootPath}/static`;
-		this._callbackRoute = `${serverRootPath}/callback`;
-		this._webExtensionRoute = `${serverRootPath}/web-extension-resource`;
 	}
 
 	/**
 	 * Handle web resources (i.e. only needed by the web client).
 	 * **NOTE**: This method is only invoked when the server has web bits.
 	 * **NOTE**: This method is only invoked after the connection token has been validated.
+	 * @param parsedUrl The URL to handle, including base and product path
+	 * @param pathname The pathname of the URL, without base and product path
 	 */
-	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery, pathname: string): Promise<void> {
 		try {
-			const pathname = parsedUrl.pathname!;
-
-			if (pathname.startsWith(this._staticRoute) && pathname.charCodeAt(this._staticRoute.length) === CharCode.Slash) {
-				return this._handleStatic(req, res, parsedUrl);
+			if (pathname.startsWith(STATIC_PATH) && pathname.charCodeAt(STATIC_PATH.length) === CharCode.Slash) {
+				return this._handleStatic(req, res, pathname.substring(STATIC_PATH.length));
 			}
-			if (pathname === this._basePath) {
+			if (pathname === '/') {
 				return this._handleRoot(req, res, parsedUrl);
 			}
-			if (pathname === this._callbackRoute) {
+			if (pathname === CALLBACK_PATH) {
 				// callback support
 				return this._handleCallback(res);
 			}
-			if (pathname.startsWith(this._webExtensionRoute) && pathname.charCodeAt(this._webExtensionRoute.length) === CharCode.Slash) {
+			if (pathname.startsWith(WEB_EXTENSION_PATH) && pathname.charCodeAt(WEB_EXTENSION_PATH.length) === CharCode.Slash) {
 				// extension resource support
-				return this._handleWebExtensionResource(req, res, parsedUrl);
+				return this._handleWebExtensionResource(req, res, pathname.substring(WEB_EXTENSION_PATH.length));
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -152,15 +148,15 @@ export class WebClientServer {
 	}
 	/**
 	 * Handle HTTP requests for /static/*
+	 * @param resourcePath The path after /static/
 	 */
-	private async _handleStatic(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+	private async _handleStatic(req: http.IncomingMessage, res: http.ServerResponse, resourcePath: string): Promise<void> {
 		const headers: Record<string, string> = Object.create(null);
 
 		// Strip the this._staticRoute from the path
-		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		const relativeFilePath = normalizedPathname.substring(this._staticRoute.length + 1);
+		const normalizedPathname = decodeURIComponent(resourcePath); // support paths that are uri-encoded (e.g. spaces => %20)
 
-		const filePath = join(APP_ROOT, relativeFilePath); // join also normalizes the path
+		const filePath = join(APP_ROOT, normalizedPathname); // join also normalizes the path
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
@@ -175,15 +171,15 @@ export class WebClientServer {
 
 	/**
 	 * Handle extension resources
+	 * @param resourcePath The path after /web-extension-resource/
 	 */
-	private async _handleWebExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+	private async _handleWebExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, resourcePath: string): Promise<void> {
 		if (!this._webExtensionResourceUrlTemplate) {
 			return serveError(req, res, 500, 'No extension gallery service configured.');
 		}
 
-		// Strip `/web-extension-resource/` from the path
-		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		const path = normalize(normalizedPathname.substring(this._webExtensionRoute.length + 1));
+		const normalizedPathname = decodeURIComponent(resourcePath); // support paths that are uri-encoded (e.g. spaces => %20)
+		const path = normalize(normalizedPathname);
 		const uri = URI.parse(path).with({
 			scheme: this._webExtensionResourceUrlTemplate.scheme,
 			authority: path.substring(0, path.indexOf('/')),
@@ -243,7 +239,6 @@ export class WebClientServer {
 	 * Handle HTTP requests for /
 	 */
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-
 		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
 		if (typeof queryConnectionToken === 'string') {
 			// We got a connection token as a query parameter.
@@ -276,14 +271,27 @@ export class WebClientServer {
 			return Array.isArray(val) ? val[0] : val;
 		};
 
+		const replacePort = (host: string, port: string) => {
+			const index = host?.indexOf(':');
+			if (index !== -1) {
+				host = host?.substring(0, index);
+			}
+			host += `:${port}`;
+			return host;
+		};
+
 		const useTestResolver = (!this._environmentService.isBuilt && this._environmentService.args['use-test-resolver']);
-		const remoteAuthority = (
+		let remoteAuthority = (
 			useTestResolver
 				? 'test+test'
 				: (getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host)
 		);
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
+		}
+		const forwardedPort = getFirstHeader('x-forwarded-port');
+		if (forwardedPort) {
+			remoteAuthority = replacePort(remoteAuthority, forwardedPort);
 		}
 
 		function asJSON(value: unknown): string {
@@ -296,6 +304,23 @@ export class WebClientServer {
 			// so we must disable the iframe wrapping because the iframe URL will give a 404
 			_wrapWebWorkerExtHostInIframe = false;
 		}
+
+		// Prefix routes with basePath for clients
+		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			['x-original-host', 'x-forwarded-host', 'x-forwarded-port', 'host'].forEach(header => {
+				const value = getFirstHeader(header);
+				if (value) {
+					this._logService.trace(`[WebClientServer] ${header}: ${value}`);
+				}
+			});
+			this._logService.trace(`[WebClientServer] Request URL: ${req.url}, basePath: ${basePath}, remoteAuthority: ${remoteAuthority}`);
+		}
+
+		const staticRoute = posix.join(basePath, this._productPath, STATIC_PATH);
+		const callbackRoute = posix.join(basePath, this._productPath, CALLBACK_PATH);
+		const webExtensionRoute = posix.join(basePath, this._productPath, WEB_EXTENSION_PATH);
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(path.resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
@@ -314,7 +339,7 @@ export class WebClientServer {
 				resourceUrlTemplate: this._webExtensionResourceUrlTemplate.with({
 					scheme: 'http',
 					authority: remoteAuthority,
-					path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+					path: `${webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
 				}).toString(true)
 			} : undefined
 		} satisfies Partial<IProductConfiguration>;
@@ -328,7 +353,7 @@ export class WebClientServer {
 
 		const workbenchWebConfiguration = {
 			remoteAuthority,
-			serverBasePath: this._basePath,
+			serverBasePath: basePath,
 			_wrapWebWorkerExtHostInIframe,
 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
@@ -336,7 +361,7 @@ export class WebClientServer {
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
 			productConfiguration,
-			callbackRoute: this._callbackRoute
+			callbackRoute: callbackRoute
 		};
 
 		const cookies = cookie.parse(req.headers.cookie || '');
@@ -353,9 +378,9 @@ export class WebClientServer {
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
-			WORKBENCH_WEB_BASE_URL: this._staticRoute,
+			WORKBENCH_WEB_BASE_URL: staticRoute,
 			WORKBENCH_NLS_URL,
-			WORKBENCH_NLS_FALLBACK_URL: `${this._staticRoute}/out/nls.messages.js`
+			WORKBENCH_NLS_FALLBACK_URL: `${staticRoute}/out/nls.messages.js`
 		};
 
 		// DEV ---------------------------------------------------------------------------------------

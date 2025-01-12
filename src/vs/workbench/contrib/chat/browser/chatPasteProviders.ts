@@ -21,6 +21,7 @@ import { Mimes } from '../../../../base/common/mime.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
+import { resizeImage } from './imageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 
@@ -89,19 +90,25 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			tempDisplayName = `${displayName} ${appendValue}`;
 		}
 
-		const imageContext = await getImageAttachContext(currClipboard, mimeType, token, tempDisplayName);
-
-		if (token.isCancellationRequested || !imageContext) {
+		const scaledImageData = await resizeImage(currClipboard);
+		if (token.isCancellationRequested || !scaledImageData) {
 			return;
 		}
+
+		const scaledImageContext = await getImageAttachContext(scaledImageData, mimeType, token, tempDisplayName);
+		if (token.isCancellationRequested || !scaledImageContext) {
+			return;
+		}
+
+		widget.attachmentModel.addContext(scaledImageContext);
 
 		// Make sure to attach only new contexts
 		const currentContextIds = widget.attachmentModel.getAttachmentIDs();
-		if (currentContextIds.has(imageContext.id)) {
+		if (currentContextIds.has(scaledImageContext.id)) {
 			return;
 		}
 
-		const edit = createCustomPasteEdit(model, imageContext, mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
+		const edit = createCustomPasteEdit(model, scaledImageContext, mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
 		return createEditSession(edit);
 	}
 }

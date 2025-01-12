@@ -27,9 +27,11 @@
     }
   },
   "enabledApiProposals": [
-    "contribShareMenu",
-    "contribEditSessions",
     "canonicalUriProvider",
+    "contribEditSessions",
+    "contribShareMenu",
+    "contribSourceControlHistoryItemMenu",
+    "scmHistoryProvider",
     "shareProvider"
   ],
   "contributes": {
@@ -54,6 +56,11 @@
         "command": "github.openOnVscodeDev",
         "title": "Open in vscode.dev",
         "icon": "$(globe)"
+      },
+      {
+        "command": "github.openOnGitHub2",
+        "title": "Open on GitHub",
+        "icon": "$(github)"
       }
     ],
     "continueEditSession": [
@@ -70,6 +77,10 @@
         {
           "command": "github.publish",
           "when": "git-base.gitEnabled && workspaceFolderCount != 0 && remoteName != 'codespaces'"
+        },
+        {
+          "command": "github.openOnGitHub2",
+          "when": "false"
         },
         {
           "command": "github.copyVscodeDevLink",
@@ -126,6 +137,13 @@
           "command": "github.copyVscodeDevLinkWithoutRange",
           "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
           "group": "0_vscode@0"
+        }
+      ],
+      "scm/historyItem/context": [
+        {
+          "command": "github.openOnGitHub2",
+          "when": "github.hasGitHubRepo",
+          "group": "0_view@2"
         }
       ]
     },

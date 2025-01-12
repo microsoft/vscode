@@ -163,15 +163,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (enableExtensionCompletions && !doNotRequestExtensionCompletions) {
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
-
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.prefix, this._promptInputModel.cursorIndex, this.shellType, token, doNotRequestExtensionCompletions);
-		if (!providedCompletions?.length || token.isCancellationRequested) {
-			return;
-		}
-		this._onDidReceiveCompletions.fire();
-
-		this._requestedCompletionsIndex = this._promptInputModel.cursorIndex;
-
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
 			prefix: this._promptInputModel.prefix,
@@ -179,8 +170,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			cursorIndex: this._promptInputModel.cursorIndex,
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
+		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
-		this._leadingLineContent = this._currentPromptInputState.prefix.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, token, doNotRequestExtensionCompletions);
+
+		if (!providedCompletions?.length || token.isCancellationRequested) {
+			return;
+		}
+		this._onDidReceiveCompletions.fire();
+
+		this._cursorIndexDelta = this._promptInputModel.cursorIndex - this._requestedCompletionsIndex;
+		this._leadingLineContent = this._promptInputModel.prefix.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
 
 		const completions = providedCompletions.flat();
 		if (!completions?.length) {
@@ -198,7 +198,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._mostRecentCompletion = undefined;
 
-		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._requestedCompletionsIndex;
 
 		let normalizedLeadingLineContent = this._leadingLineContent;
 
@@ -232,6 +231,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	setScreen(screen: HTMLElement): void {
 		this._screen = screen;
+	}
+
+	toggleExplainMode(): void {
+		this._suggestWidget?.toggleExplainMode();
 	}
 
 	resetWidgetSize(): void {

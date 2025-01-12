@@ -23,7 +23,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { detectEncoding } from './encoding';
 
@@ -560,13 +560,11 @@ class ResourceCommandResolver {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_RENAME:
 			case Status.TYPE_CHANGED:
 				return { original: toGitUri(resource.original, 'HEAD') };
 
 			case Status.MODIFIED:
-			case Status.UNTRACKED:
 				return { original: toGitUri(resource.resourceUri, '~') };
 
 			case Status.DELETED_BY_US:
@@ -843,6 +841,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
+	private unpublishedCommits: Set<string> | undefined = undefined;
 	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
@@ -1090,7 +1089,11 @@ export class Repository implements Disposable {
 	}
 
 	setConfig(key: string, value: string): Promise<string> {
-		return this.run(Operation.Config(false), () => this.repository.config('set', 'local', key, value));
+		return this.run(Operation.Config(false), () => this.repository.config('add', 'local', key, value));
+	}
+
+	unsetConfig(key: string): Promise<string> {
+		return this.run(Operation.Config(false), () => this.repository.config('unset', 'local', key));
 	}
 
 	log(options?: LogOptions & { silent?: boolean }): Promise<Commit[]> {
@@ -1590,8 +1593,13 @@ export class Repository implements Disposable {
 	}
 
 	private async getDefaultBranch(): Promise<Branch | undefined> {
+		const defaultRemote = this.getDefaultRemote();
+		if (!defaultRemote) {
+			return undefined;
+		}
+
 		try {
-			const defaultBranch = await this.repository.getDefaultBranch();
+			const defaultBranch = await this.repository.getDefaultBranch(defaultRemote.name);
 			return defaultBranch;
 		}
 		catch (err) {
@@ -1659,7 +1667,7 @@ export class Repository implements Disposable {
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
-		const refLabel = opts?.detached ? treeish.substring(0, 8) : treeish;
+		const refLabel = opts?.detached ? getCommitShortHash(Uri.file(this.root), treeish) : treeish;
 
 		await this.run(Operation.Checkout(refLabel),
 			async () => {
@@ -1677,7 +1685,7 @@ export class Repository implements Disposable {
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
-		const refLabel = opts.detached ? treeish.substring(0, 8) : treeish;
+		const refLabel = opts.detached ? getCommitShortHash(Uri.file(this.root), treeish) : treeish;
 		await this.run(Operation.CheckoutTracking(refLabel), () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
@@ -1704,6 +1712,14 @@ export class Repository implements Disposable {
 
 	async deleteRef(ref: string): Promise<void> {
 		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
+	}
+
+	getDefaultRemote(): Remote | undefined {
+		if (this.remotes.length === 0) {
+			return undefined;
+		}
+
+		return this.remotes.find(r => r.name === 'origin') ?? this.remotes[0];
 	}
 
 	async addRemote(name: string, url: string): Promise<void> {
@@ -2255,6 +2271,17 @@ export class Repository implements Disposable {
 					this.isCherryPickInProgress(),
 					this.getInputTemplate()]);
 
+			// Reset the list of unpublished commits if HEAD has
+			// changed (ex: checkout, fetch, pull, push, publish, etc.).
+			// The list of unpublished commits will be computed lazily
+			// on demand.
+			if (this.HEAD?.name !== HEAD?.name ||
+				this.HEAD?.commit !== HEAD?.commit ||
+				this.HEAD?.ahead !== HEAD?.ahead ||
+				this.HEAD?.upstream !== HEAD?.upstream) {
+				this.unpublishedCommits = undefined;
+			}
+
 			this._HEAD = HEAD;
 			this._remotes = remotes!;
 			this._submodules = submodules!;
@@ -2729,6 +2756,24 @@ export class Repository implements Disposable {
 		}
 
 		return false;
+	}
+
+	async getUnpublishedCommits(): Promise<Set<string>> {
+		if (this.unpublishedCommits) {
+			return this.unpublishedCommits;
+		}
+
+		if (this.HEAD && this.HEAD.name && this.HEAD.upstream && this.HEAD.ahead && this.HEAD.ahead > 0) {
+			const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+			const ref2 = this.HEAD.name;
+
+			const revList = await this.repository.revList(ref1, ref2);
+			this.unpublishedCommits = new Set<string>(revList);
+		} else {
+			this.unpublishedCommits = new Set<string>();
+		}
+
+		return this.unpublishedCommits;
 	}
 
 	dispose(): void {

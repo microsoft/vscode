@@ -12,6 +12,7 @@
 **/extensions/markdown-math/notebook-out/**
 **/extensions/notebook-renderers/renderer-out/index.js
 **/extensions/simple-browser/media/index.js
+**/extensions/terminal-suggest/src/completions/**
 **/extensions/typescript-language-features/test-workspace/**
 **/extensions/typescript-language-features/extension.webpack.config.js
 **/extensions/typescript-language-features/extension-browser.webpack.config.js
