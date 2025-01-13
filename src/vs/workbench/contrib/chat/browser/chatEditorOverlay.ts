@@ -30,7 +30,7 @@ import { isDiffEditorForEntry } from './chatEditing/chatEditing.js';
 import './media/chatEditorOverlay.css';
 import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
 
-class ChatEditorOverlayWidget implements IOverlayWidget {
+export class ChatEditorOverlayWidget implements IOverlayWidget {
 
 	readonly allowEditorOverflow = true;
 

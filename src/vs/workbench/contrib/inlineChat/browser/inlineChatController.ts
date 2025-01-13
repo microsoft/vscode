@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { Barrier, DeferredPromise, Queue, raceCancellation } from '../../../../base/common/async.js';
+import { Barrier, DeferredPromise, Queue } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -37,6 +38,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
+import { ChatEditingSession } from '../../chat/browser/chatEditing/chatEditingSession.js';
+import { ChatEditorOverlayWidget } from '../../chat/browser/chatEditorOverlay.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
@@ -1139,39 +1142,37 @@ export class InlineChatController implements IEditorContribution {
 			return false;
 		}
 
-		const session = await this._inlineChatSessionService.createSession(this._editor, { wholeRange: anchor, headless: true }, token);
-		if (!session) {
+		const uri = this._editor.getModel().uri;
+		const chatModel = this._chatService.startSession(ChatAgentLocation.Editor, token);
+		const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
+
+		if (!chatModel || !chatRequest?.response) {
 			return false;
 		}
 
-		const request = session.chatModel.addRequest({ text: 'DUMMY', parts: [] }, { variables: [] }, 0);
-		const run = this.run({
-			existingSession: session,
-			headless: true
+		const editSession = this._instaService.createInstance(ChatEditingSession, chatModel.sessionId, Promise.resolve(Number.MAX_SAFE_INTEGER));
+		await editSession.init();
+
+		const overlay = this._instaService.createInstance(ChatEditorOverlayWidget, this._editor);
+		const dddd = autorun(r => {
+			const entry = editSession.readEntry(uri, r);
+			if (entry) {
+				overlay.show(editSession, entry, entry);
+			} else {
+				overlay.hide();
+			}
 		});
 
-		await Event.toPromise(Event.filter(this._onDidEnterState.event, candidate => candidate === State.SHOW_REQUEST));
-
+		// STREAM
+		editSession.acceptTextEdits(this._editor.getModel().uri, [], false, chatRequest.response);
 		for await (const chunk of stream) {
-			session.chatModel.acceptResponseProgress(request, { kind: 'textEdit', uri: this._editor.getModel()!.uri, edits: chunk });
+			editSession.acceptTextEdits(this._editor.getModel().uri, chunk, false, chatRequest.response);
 		}
+		editSession.acceptTextEdits(this._editor.getModel().uri, [], true, chatRequest.response);
+		editSession.resolve();
 
-		if (token.isCancellationRequested) {
-			session.chatModel.cancelRequest(request);
-		} else {
-			session.chatModel.completeResponse(request);
-		}
-
-		await Event.toPromise(Event.filter(this._onDidEnterState.event, candidate => candidate === State.WAIT_FOR_INPUT));
-
-		if (session.hunkData.pending === 0) {
-			// no real changes, just cancel
-			this.cancelSession();
-		}
-
-		const dispo = token.onCancellationRequested(() => this.cancelSession());
-		await raceCancellation(run, token);
-		dispo.dispose();
+		dddd.dispose();
+		editSession.dispose();
 		return true;
 	}
 }
