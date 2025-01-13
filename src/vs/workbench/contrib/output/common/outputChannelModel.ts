@@ -78,7 +78,7 @@ class FileContentProvider extends Disposable implements IContentProvider {
 	watch(): IDisposable {
 		if (!this.watching) {
 			this.logService.trace('Started polling', this.file.toString());
-			this.poll(true);
+			this.poll();
 			this.watching = true;
 		}
 		return toDisposable(() => this.unwatch());
@@ -92,9 +92,9 @@ class FileContentProvider extends Disposable implements IContentProvider {
 		}
 	}
 
-	private poll(immediate?: boolean): void {
+	private poll(): void {
 		const loop = () => this.doWatch().then(() => this.poll());
-		this.syncDelayer.trigger(loop, immediate ? 0 : undefined).catch(error => {
+		this.syncDelayer.trigger(loop).catch(error => {
 			if (!isCancellationError(error)) {
 				throw error;
 			}
