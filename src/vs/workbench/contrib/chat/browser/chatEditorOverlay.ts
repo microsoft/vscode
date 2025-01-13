@@ -28,10 +28,11 @@ import { ChatEditorController } from './chatEditorController.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { isDiffEditorForEntry } from './chatEditing/chatEditing.js';
 import './media/chatEditorOverlay.css';
+import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
-	readonly allowEditorOverflow = false;
+	readonly allowEditorOverflow = true;
 
 	private readonly _domNode: HTMLElement;
 	private readonly _progressNode: HTMLElement;
@@ -47,7 +48,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IEditorService editorService: IEditorService,
-		@IInstantiationService instaService: IInstantiationService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('chat-editor-overlay-widget');
@@ -62,7 +63,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		toolbarNode.classList.add('chat-editor-overlay-toolbar');
 		this._domNode.appendChild(toolbarNode);
 
-		this._toolbar = instaService.createInstance(MenuWorkbenchToolBar, toolbarNode, MenuId.ChatEditingEditorContent, {
+		this._toolbar = _instaService.createInstance(MenuWorkbenchToolBar, toolbarNode, MenuId.ChatEditingEditorContent, {
 			telemetrySource: 'chatEditor.overlayToolbar',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
@@ -226,6 +227,19 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			}
 
 			this._navigationBearings.set({ changeCount: changes, activeIdx, entriesCount: entries.length }, undefined);
+		}));
+
+
+		const editorWithObs = observableFromEvent(this._editor.onDidLayoutChange, () => {
+			const diffEditor = this._instaService.invokeFunction(findDiffEditorContainingCodeEditor, this._editor);
+			return diffEditor
+				? diffEditor.getOriginalEditor().getLayoutInfo().contentWidth + diffEditor.getModifiedEditor().getLayoutInfo().contentWidth
+				: this._editor.getLayoutInfo().contentWidth;
+		});
+
+		this._showStore.add(autorun(r => {
+			const width = editorWithObs.read(r);
+			this._domNode.style.maxWidth = `${width - 20}px`;
 		}));
 
 		if (!this._isAdded) {

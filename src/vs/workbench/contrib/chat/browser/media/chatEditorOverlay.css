@@ -13,6 +13,7 @@
 	align-items: center;
 	z-index: 10;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	overflow: hidden;
 }
 
 @keyframes pulse {
