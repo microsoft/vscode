@@ -262,7 +262,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	readonly onDidRegisterProcessSupport: Event<void>;
 	readonly onDidChangeConnectionState: Event<void>;
-	readonly onAnyInstanceShellTypeChanged: Event<ITerminalInstance>; // Here or on proposed api? - also there is onDidChangeShellType that already exists..
+
 	// Group events
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 
@@ -275,6 +275,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onAnyInstanceProcessIdReady: Event<ITerminalInstance>;
 	readonly onAnyInstanceSelectionChange: Event<ITerminalInstance>;
 	readonly onAnyInstanceTitleChange: Event<ITerminalInstance>;
+	readonly onAnyInstanceShellTypeChanged: Event<ITerminalInstance>;
 
 	/**
 	 * Creates a terminal.
