@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { throttle } from 'vs/base/common/decorators';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ILogService, LogLevel } from '../../../../log/common/log.js';
+import type { ITerminalCommand } from '../capabilities.js';
+import { throttle } from '../../../../../base/common/decorators.js';
 
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {
@@ -23,7 +21,7 @@ const enum PromptInputState {
  * A model of the prompt input state using shell integration and analyzing the terminal buffer. This
  * may not be 100% accurate but provides a best guess.
  */
-export interface IPromptInputModel {
+export interface IPromptInputModel extends IPromptInputModelState {
 	readonly onDidStartInput: Event<IPromptInputModelState>;
 	readonly onDidChangeInput: Event<IPromptInputModelState>;
 	readonly onDidFinishInput: Event<IPromptInputModelState>;
@@ -32,20 +30,37 @@ export interface IPromptInputModel {
 	 */
 	readonly onDidInterrupt: Event<IPromptInputModelState>;
 
-	readonly value: string;
-	readonly cursorIndex: number;
-	readonly ghostTextIndex: number;
-
 	/**
 	 * Gets the prompt input as a user-friendly string where `|` is the cursor position and `[` and
 	 * `]` wrap any ghost text.
+	 *
+	 * @param emptyStringWhenEmpty If true, an empty string is returned when the prompt input is
+	 * empty (as opposed to '|').
 	 */
-	getCombinedString(): string;
+	getCombinedString(emptyStringWhenEmpty?: boolean): string;
 }
 
 export interface IPromptInputModelState {
+	/**
+	 * The full prompt input include ghost text.
+	 */
 	readonly value: string;
+	/**
+	 * The prompt input up to the cursor index, this will always exclude the ghost text.
+	 */
+	readonly prefix: string;
+	/**
+	 * The prompt input from the cursor to the end, this _does not_ include ghost text.
+	 */
+	readonly suffix: string;
+	/**
+	 * The index of the cursor in {@link value}.
+	 */
 	readonly cursorIndex: number;
+	/**
+	 * The index of the start of ghost text in {@link value}. This is -1 when there is no ghost
+	 * text.
+	 */
 	readonly ghostTextIndex: number;
 }
 
@@ -69,6 +84,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _value: string = '';
 	get value() { return this._value; }
+	get prefix() { return this._value.substring(0, this._cursorIndex); }
+	get suffix() { return this._value.substring(this._cursorIndex, this._ghostTextIndex === -1 ? undefined : this._ghostTextIndex); }
 
 	private _cursorIndex: number = 0;
 	get cursorIndex() { return this._cursorIndex; }
@@ -135,7 +152,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 	}
 
-	getCombinedString(): string {
+	getCombinedString(emptyStringWhenEmpty?: boolean): string {
 		const value = this._value.replaceAll('\n', '\u23CE');
 		if (this._cursorIndex === -1) {
 			return value;
@@ -146,6 +163,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			result += `${value.substring(this.ghostTextIndex)}]`;
 		} else {
 			result += value.substring(this.cursorIndex);
+		}
+		if (result === '|' && emptyStringWhenEmpty) {
+			return '';
 		}
 		return result;
 	}
@@ -462,6 +482,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _createStateObject(): IPromptInputModelState {
 		return Object.freeze({
 			value: this._value,
+			prefix: this.prefix,
+			suffix: this.suffix,
 			cursorIndex: this._cursorIndex,
 			ghostTextIndex: this._ghostTextIndex
 		});

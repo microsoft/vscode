@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { DefaultConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
-import { ConfigurationKey, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { Event } from '../../../../../base/common/event.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { DefaultConfiguration } from '../../browser/configuration.js';
+import { ConfigurationKey, IConfigurationCache } from '../../common/configuration.js';
+import { BrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
+import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 
 class ConfigurationCache implements IConfigurationCache {
 	private readonly cache = new Map<string, string>();

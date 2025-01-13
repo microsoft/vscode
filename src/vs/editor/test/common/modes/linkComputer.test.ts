@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILink } from 'vs/editor/common/languages';
-import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ILink } from '../../../common/languages.js';
+import { ILinkComputerTarget, computeLinks } from '../../../common/languages/linkComputer.js';
 
 class SimpleLinkComputerTarget implements ILinkComputerTarget {
 

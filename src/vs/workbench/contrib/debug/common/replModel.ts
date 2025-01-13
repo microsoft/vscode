@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import severity from 'vs/base/common/severity';
-import { isObject, isString } from 'vs/base/common/types';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugConfiguration, IDebugSession, IExpression, INestingReplElement, IReplElement, IReplElementSource, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import severity from '../../../../base/common/severity.js';
+import { isObject, isString } from '../../../../base/common/types.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDebugConfiguration, IDebugSession, IExpression, INestingReplElement, IReplElement, IReplElementSource, IStackFrame } from './debug.js';
+import { ExpressionContainer } from './debugModel.js';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
@@ -76,11 +76,16 @@ export class ReplVariableElement implements INestingReplElement {
 	private readonly id = generateUuid();
 
 	constructor(
+		private readonly session: IDebugSession,
 		public readonly expression: IExpression,
 		public readonly severity: severity,
 		public readonly sourceData?: IReplElementSource,
 	) {
 		this.hasChildren = expression.hasChildren;
+	}
+
+	getSession() {
+		return this.session;
 	}
 
 	getChildren(): IReplElement[] | Promise<IReplElement[]> {
@@ -104,6 +109,10 @@ export class RawObjectReplElement implements IExpression, INestingReplElement {
 
 	getId(): string {
 		return this.id;
+	}
+
+	getSession(): IDebugSession | undefined {
+		return undefined;
 	}
 
 	get value(): string {
@@ -193,6 +202,7 @@ export class ReplGroup implements INestingReplElement {
 	static COUNTER = 0;
 
 	constructor(
+		public readonly session: IDebugSession,
 		public name: string,
 		public autoExpand: boolean,
 		public sourceData?: IReplElementSource
@@ -291,7 +301,7 @@ export class ReplModel {
 			// have formatted it nicely e.g. with ANSI color codes.
 			this.addReplElement(output
 				? new ReplOutputElement(session, getUniqueId(), output, sev, source, expression)
-				: new ReplVariableElement(expression, sev, source));
+				: new ReplVariableElement(session, expression, sev, source));
 			return;
 		}
 
@@ -315,8 +325,8 @@ export class ReplModel {
 		this.addReplElement(element);
 	}
 
-	startGroup(name: string, autoExpand: boolean, sourceData?: IReplElementSource): void {
-		const group = new ReplGroup(name, autoExpand, sourceData);
+	startGroup(session: IDebugSession, name: string, autoExpand: boolean, sourceData?: IReplElementSource): void {
+		const group = new ReplGroup(session, name, autoExpand, sourceData);
 		this.addReplElement(group);
 	}
 

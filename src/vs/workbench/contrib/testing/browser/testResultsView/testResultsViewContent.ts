@@ -3,43 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { findAsync } from 'vs/base/common/arrays';
-import { Limiter } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event, Relay } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { observableValue } from 'vs/base/common/observable';
-import 'vs/css!./testResultsViewContent';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { FloatingClickMenu } from 'vs/platform/actions/browser/floatingMenu';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { CustomStackFrame } from 'vs/workbench/contrib/debug/browser/callStackWidget';
-import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { TestResultStackWidget } from 'vs/workbench/contrib/testing/browser/testResultsView/testMessageStack';
-import { DiffContentProvider, IPeekOutputRenderer, MarkdownTestMessagePeek, PlainTextMessagePeek, TerminalMessagePeek } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsOutput';
-import { equalsSubject, getSubjectTestItem, InspectSubject, MessageSubject, TaskSubject, TestOutputSubject } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
-import { OutputPeekTree } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsTree';
-import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
-import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { capabilityContextKeys, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestFollowup, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestMessageStackFrame, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
+import { findAsync } from '../../../../../base/common/arrays.js';
+import { Limiter } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event, Relay } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
+import { FloatingClickMenu } from '../../../../../platform/actions/browser/floatingMenu.js';
+import { createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { AnyStackFrame, CallStackFrame, CallStackWidget, CustomStackFrame } from '../../../debug/browser/callStackWidget.js';
+import { TestCommandId } from '../../common/constants.js';
+import { IObservableValue } from '../../common/observableValue.js';
+import { capabilityContextKeys, ITestProfileService } from '../../common/testProfileService.js';
+import { LiveTestResult } from '../../common/testResult.js';
+import { ITestFollowup, ITestService } from '../../common/testService.js';
+import { ITestMessageStackFrame, TestRunProfileBitset } from '../../common/testTypes.js';
+import { TestingContextKeys } from '../../common/testingContextKeys.js';
+import * as icons from '../icons.js';
+import { DiffContentProvider, IPeekOutputRenderer, MarkdownTestMessagePeek, PlainTextMessagePeek, TerminalMessagePeek } from './testResultsOutput.js';
+import { equalsSubject, getSubjectTestItem, InspectSubject, MessageSubject, TaskSubject, TestOutputSubject } from './testResultsSubject.js';
+import { OutputPeekTree } from './testResultsTree.js';
+import './testResultsViewContent.css';
 
 const enum SubView {
 	Diff = 0,
@@ -74,6 +74,7 @@ class MessageStackFrame extends CustomStackFrame {
 	}
 
 	public override render(container: HTMLElement): IDisposable {
+		this.message.style.visibility = 'visible';
 		container.appendChild(this.message);
 		return toDisposable(() => this.message.remove());
 	}
@@ -181,7 +182,7 @@ export class TestResultsViewContent extends Disposable {
 	private contextKeyTestMessage!: IContextKey<string>;
 	private contextKeyResultOutdated!: IContextKey<boolean>;
 	private stackContainer!: HTMLElement;
-	private callStackWidget!: TestResultStackWidget;
+	private callStackWidget!: CallStackWidget;
 	private currentTopFrame?: MessageStackFrame;
 	private isDoingLayoutUpdate?: boolean;
 
@@ -207,6 +208,14 @@ export class TestResultsViewContent extends Disposable {
 		};
 	}
 
+	public get onDidChangeContentHeight() {
+		return this.callStackWidget.onDidChangeContentHeight;
+	}
+
+	public get contentHeight() {
+		return this.callStackWidget?.contentHeight || 0;
+	}
+
 	constructor(
 		private readonly editor: ICodeEditor | undefined,
 		private readonly options: {
@@ -217,6 +226,7 @@ export class TestResultsViewContent extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 	}
@@ -230,7 +240,7 @@ export class TestResultsViewContent extends Disposable {
 
 		const messageContainer = this.messageContainer = dom.$('.test-output-peek-message-container');
 		this.stackContainer = dom.append(containerElement, dom.$('.test-output-call-stack-container'));
-		this.callStackWidget = this._register(this.instantiationService.createInstance(TestResultStackWidget, this.stackContainer, this.editor));
+		this.callStackWidget = this._register(this.instantiationService.createInstance(CallStackWidget, this.stackContainer, this.editor));
 		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, this.editor));
 		this.onCloseEmitter.input = this.followupWidget.onClose;
 
@@ -245,7 +255,7 @@ export class TestResultsViewContent extends Disposable {
 		this.contextKeyTestMessage = TestingContextKeys.testMessageContext.bindTo(this.messageContextKeyService);
 		this.contextKeyResultOutdated = TestingContextKeys.testResultOutdated.bindTo(this.messageContextKeyService);
 
-		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
+		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree.testing-stdtree'));
 		const tree = this._register(this.instantiationService.createInstance(
 			OutputPeekTree,
 			treeContainer,
@@ -310,29 +320,82 @@ export class TestResultsViewContent extends Disposable {
 		this.current = opts.subject;
 		return this.contentProvidersUpdateLimiter.queue(async () => {
 			this.currentSubjectStore.clear();
-			const callFrames = (opts.subject instanceof MessageSubject && opts.subject.stack) || [];
+			const callFrames = this.getCallFrames(opts.subject) || [];
 			const topFrame = await this.prepareTopFrame(opts.subject, callFrames);
-			this.callStackWidget.update(topFrame, callFrames);
+			this.setCallStackFrames(topFrame, callFrames);
 
 			this.followupWidget.show(opts.subject);
 			this.populateFloatingClick(opts.subject);
 		});
 	}
 
+	private setCallStackFrames(messageFrame: AnyStackFrame, stack: ITestMessageStackFrame[]) {
+		this.callStackWidget.setFrames([messageFrame, ...stack.map(frame => new CallStackFrame(
+			frame.label,
+			frame.uri,
+			frame.position?.lineNumber,
+			frame.position?.column,
+		))]);
+	}
+
+	/**
+	 * Collapses all displayed stack frames.
+	 */
+	public collapseStack() {
+		this.callStackWidget.collapseAll();
+	}
+
+	private getCallFrames(subject: InspectSubject) {
+		if (!(subject instanceof MessageSubject)) {
+			return undefined;
+		}
+		const frames = subject.stack;
+		if (!frames?.length || !this.editor) {
+			return frames;
+		}
+
+		// If the test extension just sets the top frame as the same location
+		// where the message is displayed, in the case of a peek in an editor,
+		// don't show it again because it's just a duplicate
+		const topFrame = frames[0];
+		const peekLocation = subject.revealLocation;
+		const isTopFrameSame = peekLocation && topFrame.position && topFrame.uri
+			&& topFrame.position.lineNumber === peekLocation.range.startLineNumber
+			&& topFrame.position.column === peekLocation.range.startColumn
+			&& this.uriIdentityService.extUri.isEqual(topFrame.uri, peekLocation.uri);
+
+		return isTopFrameSame ? frames.slice(1) : frames;
+	}
+
 	private async prepareTopFrame(subject: InspectSubject, callFrames: ITestMessageStackFrame[]) {
+		// ensure the messageContainer is in the DOM so renderers can calculate the
+		// dimensions before it's rendered in the list.
+		this.messageContainer.style.visibility = 'hidden';
+		this.stackContainer.appendChild(this.messageContainer);
+
 		const topFrame = this.currentTopFrame = this.instantiationService.createInstance(MessageStackFrame, this.messageContainer, this.followupWidget, subject);
-		topFrame.showHeader.set(callFrames.length > 0, undefined);
+
+		const hasMultipleFrames = callFrames.length > 0;
+		topFrame.showHeader.set(hasMultipleFrames, undefined);
 
 		const provider = await findAsync(this.contentProviders, p => p.update(subject));
 		if (provider) {
-			if (this.dimension) {
-				topFrame.height.set(provider.layout(this.dimension)!, undefined);
+			const width = this.splitView.getViewSize(SubView.Diff);
+			if (width !== -1 && this.dimension) {
+				topFrame.height.set(provider.layout({ width, height: this.dimension?.height }, hasMultipleFrames)!, undefined);
 			}
+
+			if (provider.onScrolled) {
+				this.currentSubjectStore.add(this.callStackWidget.onDidScroll(evt => {
+					provider.onScrolled!(evt);
+				}));
+			}
+
 			if (provider.onDidContentSizeChange) {
 				this.currentSubjectStore.add(provider.onDidContentSizeChange(() => {
 					if (this.dimension && !this.isDoingLayoutUpdate) {
 						this.isDoingLayoutUpdate = true;
-						topFrame.height.set(provider.layout(this.dimension)!, undefined);
+						topFrame.height.set(provider.layout(this.dimension, hasMultipleFrames)!, undefined);
 						this.isDoingLayoutUpdate = false;
 					}
 				}));
@@ -345,7 +408,7 @@ export class TestResultsViewContent extends Disposable {
 	private layoutContentWidgets(dimension: dom.Dimension, width = this.splitView.getViewSize(SubView.Diff)) {
 		this.isDoingLayoutUpdate = true;
 		for (const provider of this.contentProviders) {
-			const frameHeight = provider.layout({ height: dimension.height, width });
+			const frameHeight = provider.layout({ height: dimension.height, width }, !!this.currentTopFrame?.showHeader.get());
 			if (frameHeight) {
 				this.currentTopFrame?.height.set(frameHeight, undefined);
 			}

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteExtensionsScannerService, RemoteExtensionsScannerChannelName } from 'vs/platform/remote/common/remoteExtensionsScanner';
-import * as platform from 'vs/base/common/platform';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IActiveLanguagePackService } from 'vs/workbench/services/localization/common/locale';
-import { IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { Mutable } from 'vs/base/common/types';
+import { IRemoteAgentService } from './remoteAgentService.js';
+import { IRemoteExtensionsScannerService, RemoteExtensionsScannerChannelName } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
+import * as platform from '../../../../base/common/platform.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/remoteUserDataProfiles.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IActiveLanguagePackService } from '../../localization/common/locale.js';
+import { IWorkbenchExtensionManagementService } from '../../extensionManagement/common/extensionManagement.js';
+import { Mutable } from '../../../../base/common/types.js';
 
 class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
 

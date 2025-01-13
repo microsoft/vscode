@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from './cancellation.js';
+import { onUnexpectedError } from './errors.js';
+import { DisposableStore, toDisposable } from './lifecycle.js';
 
 /**
  * The payload that flows in readable stream events.
@@ -186,7 +186,7 @@ export interface ITransformer<Original, Transformed> {
 	error?: IErrorTransformer;
 }
 
-export function newWriteableStream<T>(reducer: IReducer<T>, options?: WriteableStreamOptions): WriteableStream<T> {
+export function newWriteableStream<T>(reducer: IReducer<T> | null, options?: WriteableStreamOptions): WriteableStream<T> {
 	return new WriteableStreamImpl<T>(reducer, options);
 }
 
@@ -221,7 +221,13 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 	private readonly pendingWritePromises: Function[] = [];
 
-	constructor(private reducer: IReducer<T>, private options?: WriteableStreamOptions) { }
+	/**
+	 * @param reducer a function that reduces the buffered data into a single object;
+	 * 				  because some objects can be complex and non-reducible, we also
+	 * 				  allow passing the explicit `null` value to skip the reduce step
+	 * @param options stream options
+	 */
+	constructor(private reducer: IReducer<T> | null, private options?: WriteableStreamOptions) { }
 
 	pause(): void {
 		if (this.state.destroyed) {
@@ -396,18 +402,30 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 	}
 
 	private flowData(): void {
-		if (this.buffer.data.length > 0) {
+		// if buffer is empty, nothing to do
+		if (this.buffer.data.length === 0) {
+			return;
+		}
+
+		// if buffer data can be reduced into a single object,
+		// emit the reduced data
+		if (typeof this.reducer === 'function') {
 			const fullDataBuffer = this.reducer(this.buffer.data);
 
 			this.emitData(fullDataBuffer);
-
-			this.buffer.data.length = 0;
-
-			// When the buffer is empty, resolve all pending writers
-			const pendingWritePromises = [...this.pendingWritePromises];
-			this.pendingWritePromises.length = 0;
-			pendingWritePromises.forEach(pendingWritePromise => pendingWritePromise());
+		} else {
+			// otherwise emit each buffered data instance individually
+			for (const data of this.buffer.data) {
+				this.emitData(data);
+			}
 		}
+
+		this.buffer.data.length = 0;
+
+		// when the buffer is empty, resolve all pending writers
+		const pendingWritePromises = [...this.pendingWritePromises];
+		this.pendingWritePromises.length = 0;
+		pendingWritePromises.forEach(pendingWritePromise => pendingWritePromise());
 	}
 
 	private flowErrors(): void {

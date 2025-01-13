@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookKernel, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { mock } from 'vs/base/test/common/mock';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
-import { IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageService, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
-import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { AsyncIterableObject } from 'vs/base/common/async';
+import { URI } from '../../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { setupInstantiationService } from './testNotebookEditor.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { INotebookKernel, INotebookKernelService, VariablesResult } from '../../common/notebookKernelService.js';
+import { NotebookKernelService } from '../../browser/services/notebookKernelServiceImpl.js';
+import { INotebookService } from '../../common/notebookService.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { NotebookKernelHistoryService } from '../../browser/services/notebookKernelHistoryServiceImpl.js';
+import { IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageService, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { AsyncIterableObject } from '../../../../../base/common/async.js';
 
 suite('NotebookKernelHistoryService', () => {
 

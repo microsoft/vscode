@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { disposableTimeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import severity from 'vs/base/common/severity';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { Markers } from 'vs/workbench/contrib/markers/common/markers';
-import { ConfiguringTask, CustomTask, ITaskEvent, ITaskIdentifier, Task, TaskEventKind } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Action } from '../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import severity from '../../../../base/common/severity.js';
+import * as nls from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWorkspace, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from './debugCommands.js';
+import { IDebugConfiguration } from '../common/debug.js';
+import { Markers } from '../../markers/common/markers.js';
+import { ConfiguringTask, CustomTask, ITaskEvent, ITaskIdentifier, Task, TaskEventKind } from '../../tasks/common/tasks.js';
+import { ITaskService, ITaskSummary } from '../../tasks/common/taskService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 const onceFilter = (event: Event<ITaskEvent>, filter: (e: ITaskEvent) => boolean) => Event.once(Event.filter(event, filter));
 
@@ -286,33 +286,36 @@ export class DebugTaskRunner implements IDisposable {
 					}
 				}, waitTime));
 
-				// Notification shown on any task taking a while to resolve
-				store.add(disposableTimeout(() => {
-					const message = nls.localize('runningTask', "Waiting for preLaunchTask '{0}'...", task.configurationProperties.name);
-					const buttons = [DEBUG_ANYWAY_LABEL_NO_MEMO, ABORT_LABEL];
-					const canConfigure = task instanceof CustomTask || task instanceof ConfiguringTask;
-					if (canConfigure) {
-						buttons.splice(1, 0, nls.localize('configureTask', "Configure Task"));
-					}
+				const hideSlowPreLaunchWarning = this.configurationService.getValue<IDebugConfiguration>('debug').hideSlowPreLaunchWarning;
+				if (!hideSlowPreLaunchWarning) {
+					// Notification shown on any task taking a while to resolve
+					store.add(disposableTimeout(() => {
+						const message = nls.localize('runningTask', "Waiting for preLaunchTask '{0}'...", task.configurationProperties.name);
+						const buttons = [DEBUG_ANYWAY_LABEL_NO_MEMO, ABORT_LABEL];
+						const canConfigure = task instanceof CustomTask || task instanceof ConfiguringTask;
+						if (canConfigure) {
+							buttons.splice(1, 0, nls.localize('configureTask', "Configure Task"));
+						}
 
-					this.progressService.withProgress(
-						{ location: ProgressLocation.Notification, title: message, buttons },
-						() => result.catch(() => { }),
-						(choice) => {
-							if (choice === undefined) {
-								// no-op, keep waiting
-							} else if (choice === 0) { // debug anyway
-								resolve({ exitCode: 0 });
-							} else { // abort or configure
-								resolve({ exitCode: undefined, cancelled: true });
-								this.taskService.terminate(task).catch(() => { });
-								if (canConfigure && choice === 1) { // configure
-									this.taskService.openConfig(task as CustomTask);
+						this.progressService.withProgress(
+							{ location: ProgressLocation.Notification, title: message, buttons },
+							() => result.catch(() => { }),
+							(choice) => {
+								if (choice === undefined) {
+									// no-op, keep waiting
+								} else if (choice === 0) { // debug anyway
+									resolve({ exitCode: 0 });
+								} else { // abort or configure
+									resolve({ exitCode: undefined, cancelled: true });
+									this.taskService.terminate(task).catch(() => { });
+									if (canConfigure && choice === 1) { // configure
+										this.taskService.openConfig(task as CustomTask);
+									}
 								}
 							}
-						}
-					);
-				}, 10_000));
+						);
+					}, 10_000));
+				}
 			}));
 		});
 

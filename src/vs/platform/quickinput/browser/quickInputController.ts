@@ -3,31 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { isString } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
-import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey } from 'vs/platform/quickinput/browser/quickInput';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { mainWindow } from 'vs/base/browser/window';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
-import { QuickPickFocus } from '../common/quickInput';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import 'vs/platform/quickinput/browser/quickInputActions';
+import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Button } from '../../../base/browser/ui/button/button.js';
+import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
+import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
+import Severity from '../../../base/common/severity.js';
+import { isString } from '../../../base/common/types.js';
+import { localize } from '../../../nls.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus } from '../common/quickInput.js';
+import { QuickInputBox } from './quickInputBox.js';
+import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey } from './quickInput.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { QuickInputTree } from './quickInputTree.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import './quickInputActions.js';
+import { autorun, observableValue } from '../../../base/common/observable.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 
 const $ = dom.$;
+
+const VIEWSTATE_STORAGE_KEY = 'workbench.quickInput.viewState';
+
+type QuickInputViewState = {
+	readonly top?: number;
+	readonly left?: number;
+};
 
 export class QuickInputController extends Disposable {
 	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
@@ -58,6 +68,9 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
+	private viewState: QuickInputViewState | undefined;
+	private dndController: QuickInputDragAndDropController | undefined;
+
 	private readonly inQuickInputContext = InQuickInputContextKey.bindTo(this.contextKeyService);
 	private readonly quickInputTypeContext = QuickInputTypeContextKey.bindTo(this.contextKeyService);
 	private readonly endOfQuickInputBoxContext = EndOfQuickInputBoxContextKey.bindTo(this.contextKeyService);
@@ -66,7 +79,8 @@ export class QuickInputController extends Disposable {
 		private options: IQuickInputOptions,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		this.idPrefix = options.idPrefix;
@@ -83,6 +97,7 @@ export class QuickInputController extends Disposable {
 				this.layout(this.layoutService.mainContainerDimension, this.layoutService.mainContainerOffset.quickPickTop);
 			}
 		}));
+		this.viewState = this.loadViewState();
 	}
 
 	private registerKeyModsListeners(window: Window, disposables: DisposableStore): void {
@@ -114,7 +129,7 @@ export class QuickInputController extends Disposable {
 		container.tabIndex = -1;
 		container.style.display = 'none';
 
-		const styleSheet = dom.createStyleSheet(container);
+		const styleSheet = domStylesheetsJs.createStyleSheet(container);
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
@@ -151,11 +166,11 @@ export class QuickInputController extends Disposable {
 		const visibleCountContainer = dom.append(filterContainer, $('.quick-input-visible-count'));
 		visibleCountContainer.setAttribute('aria-live', 'polite');
 		visibleCountContainer.setAttribute('aria-atomic', 'true');
-		const visibleCount = new CountBadge(visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") }, this.styles.countBadge);
+		const visibleCount = this._register(new CountBadge(visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") }, this.styles.countBadge));
 
 		const countContainer = dom.append(filterContainer, $('.quick-input-count'));
 		countContainer.setAttribute('aria-live', 'polite');
-		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge);
+		const count = this._register(new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge));
 
 		const inlineActionBar = this._register(new ActionBar(headerContainer, { hoverDelegate: this.options.hoverDelegate }));
 		inlineActionBar.domNode.classList.add('quick-input-inline-action-bar');
@@ -314,6 +329,36 @@ export class QuickInputController extends Disposable {
 			}
 		}));
 
+		// Drag and Drop support
+		this.dndController = this._register(this.instantiationService.createInstance(
+			QuickInputDragAndDropController, this._container, container, [titleBar, title, headerContainer]));
+
+		// DnD update layout
+		this._register(autorun(reader => {
+			const dndViewState = this.dndController?.dndViewState.read(reader);
+			if (!dndViewState) {
+				return;
+			}
+
+			if (dndViewState.top !== undefined && dndViewState.left !== undefined) {
+				this.viewState = {
+					...this.viewState,
+					top: dndViewState.top,
+					left: dndViewState.left
+				};
+			} else {
+				// Reset position/size
+				this.viewState = undefined;
+			}
+
+			this.updateLayout();
+
+			// Save position
+			if (dndViewState.done) {
+				this.saveViewState(this.viewState);
+			}
+		}));
+
 		this.ui = {
 			container,
 			styleSheet,
@@ -360,10 +405,11 @@ export class QuickInputController extends Disposable {
 		if (this.ui) {
 			this._container = container;
 			dom.append(this._container, this.ui.container);
+			this.dndController?.reparentUI(this._container);
 		}
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: IPickOptions<T> = {}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
 		type R = (O extends { canPickMany: true } ? T[] : T) | undefined;
 		return new Promise<R>((doResolve, reject) => {
 			let resolve = (result: R) => {
@@ -375,7 +421,7 @@ export class QuickInputController extends Disposable {
 				resolve(undefined);
 				return;
 			}
-			const input = this.createQuickPick<T>();
+			const input = this.createQuickPick<T>({ useSeparators: true });
 			let activeItem: T | undefined;
 			const disposables = [
 				input,
@@ -439,6 +485,9 @@ export class QuickInputController extends Disposable {
 				}),
 			];
 			input.title = options.title;
+			if (options.value) {
+				input.value = options.value;
+			}
 			input.canSelectMany = !!options.canPickMany;
 			input.placeholder = options.placeHolder;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
@@ -546,9 +595,11 @@ export class QuickInputController extends Disposable {
 
 	backButton = backButton;
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+	createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: boolean } = { useSeparators: false }): IQuickPick<T, { useSeparators: boolean }> {
 		const ui = this.getUI(true);
-		return new QuickPick<T>(ui);
+		return new QuickPick<T, typeof options>(ui);
 	}
 
 	createInputBox(): IInputBox {
@@ -724,12 +775,13 @@ export class QuickInputController extends Disposable {
 
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
-			this.ui.container.style.top = `${this.titleBarOffset}px`;
-
 			const style = this.ui.container.style;
 			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
-			style.marginLeft = '-' + (width / 2) + 'px';
+
+			// Position
+			style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
@@ -795,6 +847,164 @@ export class QuickInputController extends Disposable {
 			}
 		}
 	}
+
+	private loadViewState(): QuickInputViewState | undefined {
+		try {
+			const data = JSON.parse(this.storageService.get(VIEWSTATE_STORAGE_KEY, StorageScope.APPLICATION, '{}'));
+			if (data.top !== undefined || data.left !== undefined) {
+				return data;
+			}
+		} catch { }
+
+		return undefined;
+	}
+
+	private saveViewState(viewState: QuickInputViewState | undefined): void {
+		const isMainWindow = this.layoutService.activeContainer === this.layoutService.mainContainer;
+		if (!isMainWindow) {
+			return;
+		}
+
+		if (viewState !== undefined) {
+			this.storageService.store(VIEWSTATE_STORAGE_KEY, JSON.stringify(viewState), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(VIEWSTATE_STORAGE_KEY, StorageScope.APPLICATION);
+		}
+	}
 }
+
 export interface IQuickInputControllerHost extends ILayoutService { }
 
+class QuickInputDragAndDropController extends Disposable {
+	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean } | undefined>(this, undefined);
+
+	private readonly _snapThreshold = 20;
+	private readonly _snapLineHorizontalRatio = 0.15;
+	private readonly _snapLineHorizontal: HTMLElement;
+	private readonly _snapLineVertical1: HTMLElement;
+	private readonly _snapLineVertical2: HTMLElement;
+
+	constructor(
+		private _container: HTMLElement,
+		private readonly _quickInputContainer: HTMLElement,
+		private _quickInputDragAreas: HTMLElement[],
+		@ILayoutService private readonly _layoutService: ILayoutService
+	) {
+		super();
+
+		this._snapLineHorizontal = dom.append(this._container, $('.quick-input-widget-snapline.horizontal.hidden'));
+		this._snapLineVertical1 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
+		this._snapLineVertical2 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
+
+		this.registerMouseListeners();
+	}
+
+	reparentUI(container: HTMLElement): void {
+		this._container = container;
+		this._snapLineHorizontal.remove();
+		this._snapLineVertical1.remove();
+		this._snapLineVertical2.remove();
+		dom.append(this._container, this._snapLineHorizontal);
+		dom.append(this._container, this._snapLineVertical1);
+		dom.append(this._container, this._snapLineVertical2);
+	}
+
+	private registerMouseListeners(): void {
+		for (const dragArea of this._quickInputDragAreas) {
+			let top: number | undefined;
+			let left: number | undefined;
+
+			// Double click
+			this._register(dom.addDisposableGenericMouseUpListener(dragArea, (event: MouseEvent) => {
+				const originEvent = new StandardMouseEvent(dom.getWindow(dragArea), event);
+
+				// Ignore event if the target is not the drag area
+				if (originEvent.target !== dragArea) {
+					return;
+				}
+
+				if (originEvent.detail === 2) {
+					top = undefined;
+					left = undefined;
+
+					this.dndViewState.set({ top, left, done: true }, undefined);
+				}
+			}));
+
+			// Mouse down
+			this._register(dom.addDisposableGenericMouseDownListener(dragArea, (e: MouseEvent) => {
+				const activeWindow = dom.getWindow(this._layoutService.activeContainer);
+				const originEvent = new StandardMouseEvent(activeWindow, e);
+
+				// Ignore event if the target is not the drag area
+				if (originEvent.target !== dragArea) {
+					return;
+				}
+
+				// Mouse position offset relative to dragArea
+				const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
+				const dragOffsetX = originEvent.browserEvent.clientX - dragAreaRect.left;
+				const dragOffsetY = originEvent.browserEvent.clientY - dragAreaRect.top;
+
+				// Snap lines
+				let snapLinesVisible = false;
+				const snapCoordinateYTop = this._layoutService.activeContainerOffset.quickPickTop;
+				const snapCoordinateY = Math.round(this._container.clientHeight * this._snapLineHorizontalRatio);
+				const snapCoordinateX = Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
+
+				// Mouse move
+				const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
+					const mouseMoveEvent = new StandardMouseEvent(activeWindow, e);
+					mouseMoveEvent.preventDefault();
+
+					if (!snapLinesVisible) {
+						this._showSnapLines(snapCoordinateY, snapCoordinateX);
+						snapLinesVisible = true;
+					}
+
+					let topCoordinate = e.clientY - dragOffsetY;
+					topCoordinate = Math.max(0, Math.min(topCoordinate, this._container.clientHeight - this._quickInputContainer.clientHeight));
+					topCoordinate = Math.abs(topCoordinate - snapCoordinateYTop) < this._snapThreshold ? snapCoordinateYTop : topCoordinate;
+					topCoordinate = Math.abs(topCoordinate - snapCoordinateY) < this._snapThreshold ? snapCoordinateY : topCoordinate;
+					top = topCoordinate / this._container.clientHeight;
+
+					let leftCoordinate = e.clientX - dragOffsetX;
+					leftCoordinate = Math.max(0, Math.min(leftCoordinate, this._container.clientWidth - this._quickInputContainer.clientWidth));
+					leftCoordinate = Math.abs(leftCoordinate - snapCoordinateX) < this._snapThreshold ? snapCoordinateX : leftCoordinate;
+					left = (leftCoordinate + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth;
+
+					this.dndViewState.set({ top, left, done: false }, undefined);
+				});
+
+				// Mouse up
+				const mouseUpListener = dom.addDisposableGenericMouseUpListener(activeWindow, (e: MouseEvent) => {
+					// Hide snaplines
+					this._hideSnapLines();
+
+					// Save position
+					this.dndViewState.set({ top, left, done: true }, undefined);
+
+					// Dispose listeners
+					mouseMoveListener.dispose();
+					mouseUpListener.dispose();
+				});
+			}));
+		}
+	}
+
+	private _showSnapLines(horizontal: number, vertical: number) {
+		this._snapLineHorizontal.style.top = `${horizontal}px`;
+		this._snapLineVertical1.style.left = `${vertical}px`;
+		this._snapLineVertical2.style.left = `${vertical + this._quickInputContainer.clientWidth}px`;
+
+		this._snapLineHorizontal.classList.remove('hidden');
+		this._snapLineVertical1.classList.remove('hidden');
+		this._snapLineVertical2.classList.remove('hidden');
+	}
+
+	private _hideSnapLines() {
+		this._snapLineHorizontal.classList.add('hidden');
+		this._snapLineVertical1.classList.add('hidden');
+		this._snapLineVertical2.classList.add('hidden');
+	}
+}

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { VSCODE_AUTHORITY } from 'vs/base/common/network';
+import { onUnexpectedError } from '../../../common/errors.js';
+import { Event } from '../../../common/event.js';
+import { VSCODE_AUTHORITY } from '../../../common/network.js';
 
 type ipcMainListener = (event: electron.IpcMainEvent, ...args: any[]) => void;
 

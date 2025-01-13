@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Event, Emitter } from 'vs/base/common/event';
-import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
-import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
-import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { CommentsViewFilterFocusContextKey, ICommentsView } from './comments.js';
+import { MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ViewAction } from '../../../browser/parts/views/viewPane.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { COMMENTS_VIEW_ID } from './commentsTreeViewer.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
+import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export const enum CommentsSortOrder {
 	ResourceAscending = 'resourceAscending',
@@ -74,9 +74,9 @@ export class CommentsFilters extends Disposable {
 		}
 	}
 
-	private _sortBy = CONTEXT_KEY_SORT_BY.bindTo(this.contextKeyService);
+	private _sortBy: IContextKey<CommentsSortOrder> = CONTEXT_KEY_SORT_BY.bindTo(this.contextKeyService);
 	get sortBy(): CommentsSortOrder {
-		return this._sortBy.get()!;
+		return this._sortBy.get() ?? CommentsSortOrder.ResourceAscending;
 	}
 	set sortBy(sortBy: CommentsSortOrder) {
 		if (this._sortBy.get() !== sortBy) {
@@ -208,7 +208,7 @@ registerAction2(class extends ViewAction<ICommentsView> {
 			icon: Codicon.history,
 			viewId: COMMENTS_VIEW_ID,
 			toggled: {
-				condition: ContextKeyExpr.equals('commentsView.sortBy', CommentsSortOrder.UpdatedAtDescending),
+				condition: ContextKeyExpr.equals(CONTEXT_KEY_SORT_BY.key, CommentsSortOrder.UpdatedAtDescending),
 				title: localize('sorting by updated at', "Updated Time"),
 			},
 			menu: {
@@ -229,13 +229,13 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleSortByResource`,
-			title: localize('toggle sorting by resource', "File"),
+			title: localize('toggle sorting by resource', "Position in File"),
 			category: localize('comments', "Comments"),
 			icon: Codicon.history,
 			viewId: COMMENTS_VIEW_ID,
 			toggled: {
-				condition: ContextKeyExpr.equals('commentsView.sortBy', CommentsSortOrder.ResourceAscending),
-				title: localize('sorting by file', "File"),
+				condition: ContextKeyExpr.equals(CONTEXT_KEY_SORT_BY.key, CommentsSortOrder.ResourceAscending),
+				title: localize('sorting by position in file', "Position in File"),
 			},
 			menu: {
 				id: commentSortSubmenu,

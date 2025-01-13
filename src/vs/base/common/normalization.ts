@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LRUCache } from 'vs/base/common/map';
+import { LRUCache } from './map.js';
 
 const nfcCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {

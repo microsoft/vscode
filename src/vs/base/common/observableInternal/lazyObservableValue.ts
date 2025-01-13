@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EqualityComparer } from 'vs/base/common/equals';
-import { ISettableObservable, ITransaction } from 'vs/base/common/observable';
-import { BaseObservable, IObserver, TransactionImpl } from 'vs/base/common/observableInternal/base';
-import { DebugNameData } from 'vs/base/common/observableInternal/debugName';
+import { EqualityComparer } from './commonFacade/deps.js';
+import { BaseObservable, IObserver, ISettableObservable, ITransaction, TransactionImpl } from './base.js';
+import { DebugNameData } from './debugName.js';
+import { getLogger } from './logging.js';
 
 /**
  * Holds off updating observers until the value is actually read.
@@ -43,13 +43,15 @@ export class LazyObservableValue<T, TChange = void>
 		this._isUpToDate = true;
 
 		if (this._deltas.length > 0) {
-			for (const observer of this.observers) {
-				for (const change of this._deltas) {
+			for (const change of this._deltas) {
+				getLogger()?.handleObservableChanged(this, { change, didChange: true, oldValue: '(unknown)', newValue: this._value, hadValue: true });
+				for (const observer of this.observers) {
 					observer.handleChange(this, change);
 				}
 			}
 			this._deltas.length = 0;
 		} else {
+			getLogger()?.handleObservableChanged(this, { change: undefined, didChange: true, oldValue: '(unknown)', newValue: this._value, hadValue: true });
 			for (const observer of this.observers) {
 				observer.handleChange(this, undefined);
 			}

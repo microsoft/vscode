@@ -8,6 +8,7 @@
 		"outDir": "out",
 		"sourceMap": true,
 		"declaration": true,
+		"skipLibCheck": true,
 		"lib": [
 			"esnext", // for #201187
 			"dom"

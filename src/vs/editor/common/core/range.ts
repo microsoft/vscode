@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from './position.js';
 
 /**
  * A range in the editor. This interface is suitable for serialization.
@@ -362,6 +362,10 @@ export class Range {
 	 */
 	public delta(lineCount: number): Range {
 		return new Range(this.startLineNumber + lineCount, this.startColumn, this.endLineNumber + lineCount, this.endColumn);
+	}
+
+	public isSingleLine(): boolean {
+		return this.startLineNumber === this.endLineNumber;
 	}
 
 	// ---

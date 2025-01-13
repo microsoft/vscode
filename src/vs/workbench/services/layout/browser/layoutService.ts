@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Part } from 'vs/workbench/browser/part';
-import { IDimension } from 'vs/base/browser/dom';
-import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
-import { isAuxiliaryWindow } from 'vs/base/browser/window';
-import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar } from 'vs/platform/window/common/window';
-import { isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { Part } from '../../../browser/part.js';
+import { IDimension } from '../../../../base/browser/dom.js';
+import { Direction, IViewSize } from '../../../../base/browser/ui/grid/grid.js';
+import { isMacintosh, isNative, isWeb } from '../../../../base/common/platform.js';
+import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
+import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { isFullscreen, isWCOEnabled } from '../../../../base/browser/browser.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IWorkbenchLayoutService>(ILayoutService);
 
@@ -45,7 +45,7 @@ export const enum LayoutSettings {
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
-	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
+	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled'
 }
 
 export const enum ActivityBarPosition {
@@ -293,6 +293,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	centerMainEditorLayout(active: boolean): void;
 
 	/**
+	 * Get the provided parts size in the main window.
+	 */
+	getSize(part: Parts): IViewSize;
+
+	/**
+	 * Set the provided parts size in the main window.
+	 */
+	setSize(part: Parts, size: IViewSize): void;
+
+	/**
 	 * Resize the provided part in the main window.
 	 */
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void;
@@ -318,14 +328,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
 }
 
-export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean, zenModeActive?: boolean): boolean {
-
+export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
 	if (!hasCustomTitlebar(configurationService)) {
 		return false;
-	}
-
-	if (zenModeActive) {
-		return !configurationService.getValue<boolean>(ZenModeSettings.FULLSCREEN);
 	}
 
 	const inFullscreen = isFullscreen(window);
@@ -380,6 +385,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 }
 
 function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
+
 	// with the command center enabled, we should always show
 	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
 		return false;

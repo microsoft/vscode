@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatRendererContent } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ChatTreeItem } from '../chat.js';
+import { IChatRendererContent } from '../../common/chatViewModel.js';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement;
@@ -20,7 +20,7 @@ export interface IChatContentPart extends IDisposable {
 
 export interface IChatContentPartRenderContext {
 	element: ChatTreeItem;
-	index: number;
 	content: ReadonlyArray<IChatRendererContent>;
+	contentIndex: number;
 	preceedingContentParts: ReadonlyArray<IChatContentPart>;
 }

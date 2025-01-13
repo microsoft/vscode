@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
-import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { Constants } from 'vs/base/common/uint';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, FindMatch, ITextModel } from 'vs/editor/common/model';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
-import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
-import { ReplaceAllCommand } from 'vs/editor/contrib/find/browser/replaceAllCommand';
-import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/browser/replacePattern';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { findFirstIdxMonotonousOrArrLen } from '../../../../base/common/arraysFind.js';
+import { RunOnceScheduler, TimeoutTimer } from '../../../../base/common/async.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from '../../../common/commands/replaceCommand.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CursorChangeReason, ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ICommand, ScrollType } from '../../../common/editorCommon.js';
+import { EndOfLinePreference, FindMatch, ITextModel } from '../../../common/model.js';
+import { SearchParams } from '../../../common/model/textModelSearch.js';
+import { FindDecorations } from './findDecorations.js';
+import { FindReplaceState, FindReplaceStateChangedEvent } from './findState.js';
+import { ReplaceAllCommand } from './replaceAllCommand.js';
+import { parseReplaceString, ReplacePattern } from './replacePattern.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindings } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();

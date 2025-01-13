@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditor/model';
-import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
-import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import './colors';
-import { DiffEditorItemTemplate } from 'vs/editor/browser/widget/multiDiffEditor/diffEditorItemTemplate';
-import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { Range } from 'vs/editor/common/core/range';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
+import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Range } from '../../../common/core/range.js';
+import { IDiffEditor } from '../../../common/editorCommon.js';
+import { ICodeEditor } from '../../editorBrowser.js';
+import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
+import './colors.js';
+import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
+import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
+import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
+import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);

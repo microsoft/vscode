@@ -272,6 +272,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
+		window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
 
 		const fsWatcher = workspace.createFileSystemWatcher('**');
@@ -519,6 +520,31 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 	}
 
+	private onDidChangeActiveTextEditor(): void {
+		const textEditor = window.activeTextEditor;
+
+		if (textEditor === undefined) {
+			commands.executeCommand('setContext', 'git.activeResourceHasUnstagedChanges', false);
+			commands.executeCommand('setContext', 'git.activeResourceHasStagedChanges', false);
+			return;
+		}
+
+		const repository = this.getRepository(textEditor.document.uri);
+		if (!repository) {
+			commands.executeCommand('setContext', 'git.activeResourceHasUnstagedChanges', false);
+			commands.executeCommand('setContext', 'git.activeResourceHasStagedChanges', false);
+			return;
+		}
+
+		const indexResource = repository.indexGroup.resourceStates
+			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
+		const workingTreeResource = repository.workingTreeGroup.resourceStates
+			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
+
+		commands.executeCommand('setContext', 'git.activeResourceHasStagedChanges', indexResource !== undefined);
+		commands.executeCommand('setContext', 'git.activeResourceHasUnstagedChanges', workingTreeResource !== undefined);
+	}
+
 	@sequentialize
 	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
@@ -727,8 +753,10 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const statusListener = repository.onDidRunGitStatus(() => {
 			checkForSubmodules();
 			updateMergeChanges();
+			this.onDidChangeActiveTextEditor();
 		});
 		checkForSubmodules();
+		this.onDidChangeActiveTextEditor();
 
 		const updateOperationInProgressContext = () => {
 			let operationInProgress = false;

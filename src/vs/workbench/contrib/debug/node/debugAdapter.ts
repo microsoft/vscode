@@ -6,15 +6,15 @@
 import * as cp from 'child_process';
 import * as net from 'net';
 import * as stream from 'stream';
-import * as objects from 'vs/base/common/objects';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { Promises } from 'vs/base/node/pfs';
-import * as nls from 'vs/nls';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IPlatformSpecificAdapterContribution } from 'vs/workbench/contrib/debug/common/debug';
-import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
+import * as objects from '../../../../base/common/objects.js';
+import * as path from '../../../../base/common/path.js';
+import * as platform from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import * as nls from '../../../../nls.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IPlatformSpecificAdapterContribution } from '../common/debug.js';
+import { AbstractDebugAdapter } from '../common/abstractDebugAdapter.js';
 
 /**
  * An implementation that communicates via two streams with the debug adapter.
@@ -114,6 +114,11 @@ export abstract class NetworkDebugAdapter extends StreamDebugAdapter {
 			});
 
 			this.socket.on('error', error => {
+				// On ipv6 posix this can be an AggregateError which lacks a message. Use the first.
+				if (error instanceof AggregateError) {
+					error = error.errors[0];
+				}
+
 				if (connected) {
 					this._onError.fire(error);
 				} else {
@@ -222,13 +227,26 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					throw new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter."));
 				}
 			} else {
+				let spawnCommand = command;
+				let spawnArgs = args;
 				const spawnOptions: cp.SpawnOptions = {
 					env: env
 				};
 				if (options.cwd) {
 					spawnOptions.cwd = options.cwd;
 				}
-				this.serverProcess = cp.spawn(command, args, spawnOptions);
+				if (platform.isWindows && (command.endsWith('.bat') || command.endsWith('.cmd'))) {
+					// https://github.com/microsoft/vscode/issues/224184
+					spawnOptions.shell = true;
+					spawnCommand = `"${command}"`;
+					spawnArgs = args.map(a => {
+						a = a.replace(/"/g, '\\"'); // Escape existing double quotes with \
+						// Wrap in double quotes
+						return `"${a}"`;
+					});
+				}
+
+				this.serverProcess = cp.spawn(spawnCommand, spawnArgs, spawnOptions);
 			}
 
 			this.serverProcess.on('error', err => {

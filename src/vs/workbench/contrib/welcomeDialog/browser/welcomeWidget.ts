@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/welcomeWidget';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { $, append, hide } from 'vs/base/browser/dom';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Action, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { localize } from 'vs/nls';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Codicon } from 'vs/base/common/codicons';
-import { LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
-import { Link } from 'vs/platform/opener/browser/link';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-import { contrastBorder, editorWidgetBackground, editorWidgetForeground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import './media/welcomeWidget.css';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
+import { $, append, hide } from '../../../../base/browser/dom.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ButtonBar } from '../../../../base/browser/ui/button/button.js';
+import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { Action, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { localize } from '../../../../nls.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { LinkedText, parseLinkedText } from '../../../../base/common/linkedText.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { Color } from '../../../../base/common/color.js';
+import { contrastBorder, editorWidgetBackground, editorWidgetForeground, widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 
 export class WelcomeWidget extends Disposable implements IOverlayWidget {
 

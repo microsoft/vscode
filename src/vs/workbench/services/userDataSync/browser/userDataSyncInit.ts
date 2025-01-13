@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { AbstractExtensionsInitializer, IExtensionsInitializerPreviewResult } from 'vs/platform/userDataSync/common/extensionsSync';
-import { GlobalStateInitializer, UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
-import { KeybindingsInitializer } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { SettingsInitializer } from 'vs/platform/userDataSync/common/settingsSync';
-import { SnippetsInitializer } from 'vs/platform/userDataSync/common/snippetsSync';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IRemoteUserData, IUserData, IUserDataSyncResourceInitializer, IUserDataSyncLogService, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { getSyncAreaLabel } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { isWeb } from 'vs/base/common/platform';
-import { Barrier, Promises } from 'vs/base/common/async';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { TasksInitializer } from 'vs/platform/userDataSync/common/tasksSync';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IUserDataInitializer } from 'vs/workbench/services/userData/browser/userDataInit';
-import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { AbstractExtensionsInitializer, IExtensionsInitializerPreviewResult } from '../../../../platform/userDataSync/common/extensionsSync.js';
+import { GlobalStateInitializer, UserDataSyncStoreTypeSynchronizer } from '../../../../platform/userDataSync/common/globalStateSync.js';
+import { KeybindingsInitializer } from '../../../../platform/userDataSync/common/keybindingsSync.js';
+import { SettingsInitializer } from '../../../../platform/userDataSync/common/settingsSync.js';
+import { SnippetsInitializer } from '../../../../platform/userDataSync/common/snippetsSync.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { UserDataSyncStoreClient } from '../../../../platform/userDataSync/common/userDataSyncStoreService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { IRemoteUserData, IUserData, IUserDataSyncResourceInitializer, IUserDataSyncLogService, IUserDataSyncStoreManagementService, SyncResource } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from '../../authentication/browser/authenticationService.js';
+import { getSyncAreaLabel } from '../common/userDataSync.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { Barrier, Promises } from '../../../../base/common/async.js';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IExtensionService, toExtensionDescription } from '../../extensions/common/extensions.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { IIgnoredExtensionsManagementService } from '../../../../platform/userDataSync/common/ignoredExtensions.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
+import { TasksInitializer } from '../../../../platform/userDataSync/common/tasksSync.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { IUserDataInitializer } from '../../userData/browser/userDataInit.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 
 export class UserDataSyncInitializer implements IUserDataInitializer {
 

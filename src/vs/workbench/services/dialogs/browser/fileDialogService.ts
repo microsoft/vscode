@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
-import { Schemas } from 'vs/base/common/network';
-import { memoize } from 'vs/base/common/decorators';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { localize } from 'vs/nls';
-import { getMediaOrTextMime } from 'vs/base/common/mime';
-import { basename } from 'vs/base/common/resources';
-import { getActiveWindow, triggerDownload, triggerUpload } from 'vs/base/browser/dom';
-import Severity from 'vs/base/common/severity';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { extractFileListData } from 'vs/platform/dnd/browser/dnd';
-import { Iterable } from 'vs/base/common/iterator';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import { URI } from '../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { AbstractFileDialogService } from './abstractFileDialogService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { HTMLFileSystemProvider } from '../../../../platform/files/browser/htmlFileSystemProvider.js';
+import { localize } from '../../../../nls.js';
+import { getMediaOrTextMime } from '../../../../base/common/mime.js';
+import { basename } from '../../../../base/common/resources.js';
+import { getActiveWindow, triggerDownload, triggerUpload } from '../../../../base/browser/dom.js';
+import Severity from '../../../../base/common/severity.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { extractFileListData } from '../../../../platform/dnd/browser/dnd.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
+import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 

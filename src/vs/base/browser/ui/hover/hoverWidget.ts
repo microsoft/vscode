@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./hoverWidget';
-import { localize } from 'vs/nls';
+import * as dom from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import './hoverWidget.css';
+import { localize } from '../../../../nls.js';
 
 const $ = dom.$;
 
 export const enum HoverPosition {
-	LEFT, RIGHT, BELOW, ABOVE
+	LEFT,
+	RIGHT,
+	BELOW,
+	ABOVE,
 }
 
 export class HoverWidget extends Disposable {
@@ -23,11 +26,12 @@ export class HoverWidget extends Disposable {
 	public readonly contentsDomNode: HTMLElement;
 	public readonly scrollbar: DomScrollableElement;
 
-	constructor() {
+	constructor(fadeIn: boolean) {
 		super();
 
 		this.containerDomNode = document.createElement('div');
 		this.containerDomNode.className = 'monaco-hover';
+		this.containerDomNode.classList.toggle('fade-in', !!fadeIn);
 		this.containerDomNode.tabIndex = 0;
 		this.containerDomNode.setAttribute('role', 'tooltip');
 
@@ -53,7 +57,9 @@ export class HoverAction extends Disposable {
 	public readonly actionLabel: string;
 	public readonly actionKeybindingLabel: string | null;
 
-	private readonly actionContainer: HTMLElement;
+	public readonly actionRenderedLabel: string;
+	public readonly actionContainer: HTMLElement;
+
 	private readonly action: HTMLElement;
 
 	private constructor(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }, keybindingLabel: string | null) {
@@ -70,8 +76,9 @@ export class HoverAction extends Disposable {
 		if (actionOptions.iconClass) {
 			dom.append(this.action, $(`span.icon.${actionOptions.iconClass}`));
 		}
+		this.actionRenderedLabel = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 		const label = dom.append(this.action, $('span'));
-		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
+		label.textContent = this.actionRenderedLabel;
 
 		this._store.add(new ClickAction(this.actionContainer, actionOptions.run));
 		this._store.add(new KeyDownAction(this.actionContainer, actionOptions.run, [KeyCode.Enter, KeyCode.Space]));

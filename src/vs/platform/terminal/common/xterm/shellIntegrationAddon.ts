@@ -3,25 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IShellIntegration, ShellIntegrationStatus } from 'vs/platform/terminal/common/terminal';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
-import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
-import { ILogService } from 'vs/platform/log/common/log';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Emitter } from 'vs/base/common/event';
-import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
+import { IShellIntegration, ShellIntegrationStatus } from '../terminal.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { TerminalCapabilityStore } from '../capabilities/terminalCapabilityStore.js';
+import { CommandDetectionCapability } from '../capabilities/commandDetectionCapability.js';
+import { CwdDetectionCapability } from '../capabilities/cwdDetectionCapability.js';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, IShellEnvDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
+import { PartialCommandDetectionCapability } from '../capabilities/partialCommandDetectionCapability.js';
+import { ILogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { BufferMarkCapability } from '../capabilities/bufferMarkCapability.js';
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
-import { URI } from 'vs/base/common/uri';
-import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
-import { removeAnsiEscapeCodesFromPrompt } from 'vs/base/common/strings';
+import { URI } from '../../../../base/common/uri.js';
+import { sanitizeCwd } from '../terminalEnvironment.js';
+import { removeAnsiEscapeCodesFromPrompt } from '../../../../base/common/strings.js';
+import { ShellEnvDetectionCapability } from '../capabilities/shellEnvDetectionCapability.js';
 
 
 /**
@@ -228,6 +225,20 @@ const enum VSCodeOscPt {
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	SetMark = 'SetMark',
+
+	/**
+	 * Sends the shell's complete environment in JSON format.
+	 *
+	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce>`
+	 *
+	 * - `Environment` - A stringified JSON object containing the shell's complete environment. The
+	 *    variables and values use the same encoding rules as the {@link CommandLine} sequence.
+	 * - `Nonce` - An _mandatory_ nonce to ensure the sequence is not malicious.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvJson = 'EnvJson',
+
 }
 
 /**
@@ -420,6 +431,19 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.ContinuationEnd: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
+				return true;
+			}
+			case VSCodeOscPt.EnvJson: {
+				const arg0 = args[0];
+				const arg1 = args[1];
+				if (arg0 !== undefined) {
+					try {
+						const env = JSON.parse(deserializeMessage(arg0));
+						this._createOrGetShellEnvDetection().setEnvironment(env, arg1 === this._nonce);
+					} catch (e) {
+						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
+					}
+				}
 				return true;
 			}
 			case VSCodeOscPt.RightPromptStart: {
@@ -617,6 +641,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
 		}
 		return bufferMarkDetection;
+	}
+
+	protected _createOrGetShellEnvDetection(): IShellEnvDetectionCapability {
+		let shellEnvDetection = this.capabilities.get(TerminalCapability.ShellEnvDetection);
+		if (!shellEnvDetection) {
+			shellEnvDetection = this._register(new ShellEnvDetectionCapability());
+			this.capabilities.add(TerminalCapability.ShellEnvDetection, shellEnvDetection);
+		}
+		return shellEnvDetection;
 	}
 }
 

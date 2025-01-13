@@ -3,30 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, EventType, getWindow, getWindowId, hide, show } from 'vs/base/browser/dom';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh, isWindows, isLinux, isNative, isBigSurOrNewer } from 'vs/base/common/platform';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { BrowserTitlebarPart as BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { hasNativeTitlebar, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from 'vs/platform/window/common/window';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
-import { IEditorGroupsContainer, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { Event } from '../../../../base/common/event.js';
+import { getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
+import { $, addDisposableListener, append, EventType, getWindow, getWindowId, hide, show } from '../../../../base/browser/dom.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { isMacintosh, isWindows, isLinux, isNative, isBigSurOrNewer } from '../../../../base/common/platform.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { BrowserTitlebarPart as BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart } from '../../../browser/parts/titlebar/titlebarPart.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { hasNativeTitlebar, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { NativeMenubarControl } from './menubarControl.js';
+import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export class NativeTitlebarPart extends BrowserTitlebarPart {
 
@@ -156,17 +160,17 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			})));
 		}
 
-		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh && !hasNativeTitlebar(this.configurationService) && !isWCOEnabled() && this.primaryWindowControls) {
+		// Window Controls (Native Linux when WCO is disabled)
+		if (isLinux && !hasNativeTitlebar(this.configurationService) && !isWCOEnabled() && this.windowControlsContainer) {
 
 			// Minimize
-			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
+			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, () => {
 				this.nativeHostService.minimizeWindow({ targetWindowId });
 			}));
 
 			// Restore
-			this.maxRestoreControl = append(this.primaryWindowControls, $('div.window-icon.window-max-restore'));
+			this.maxRestoreControl = append(this.windowControlsContainer, $('div.window-icon.window-max-restore'));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async () => {
 				const maximized = await this.nativeHostService.isMaximized({ targetWindowId });
 				if (maximized) {
@@ -177,7 +181,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			}));
 
 			// Close
-			const closeIcon = append(this.primaryWindowControls, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
+			const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, () => {
 				this.nativeHostService.closeWindow({ targetWindowId });
 			}));
@@ -200,7 +204,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 				}
 
 				const zoomFactor = getZoomFactor(getWindow(this.element));
-				this.onContextMenu(new MouseEvent('mouseup', { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
+				this.onContextMenu(new MouseEvent(EventType.MOUSE_UP, { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
 			}));
 		}
 
@@ -342,5 +346,52 @@ export class NativeTitleService extends BrowserTitleService {
 
 	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): AuxiliaryNativeTitlebarPart {
 		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart);
+	}
+}
+
+export class LinuxCustomTitlebarExperiment extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.linuxCustomTitlebarExperiment';
+
+	private readonly treatment = this.assignmentService.getTreatment('config.window.experimentalTitleBarStyle');
+
+	constructor(
+		@IProductService productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService
+	) {
+		super();
+
+		if (isLinux && productService.quality === 'stable') {
+			this.handleDefaultTitlebarStyle(); // TODO@bpasero remove me eventually once settled
+		}
+	}
+
+	private handleDefaultTitlebarStyle(): void {
+		this.updateDefaultTitlebarStyle();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.titleBarStyle')) {
+				this.updateDefaultTitlebarStyle();
+			}
+		}));
+	}
+
+	private async updateDefaultTitlebarStyle(): Promise<void> {
+		const titleBarStyle = this.configurationService.inspect('window.titleBarStyle');
+
+		let titleBarStyleOverride: 'custom' | undefined;
+		if (titleBarStyle.applicationValue || titleBarStyle.userValue) {
+			// configured by user or application: clear override
+			titleBarStyleOverride = undefined;
+		} else {
+			// not configured: set override if experiment is active
+			const value = await this.treatment;
+			if (value === 'custom') {
+				titleBarStyleOverride = 'custom';
+			}
+		}
+
+		await this.nativeHostService.overrideDefaultTitlebarStyle(titleBarStyleOverride);
 	}
 }

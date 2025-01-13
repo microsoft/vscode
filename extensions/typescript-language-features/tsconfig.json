@@ -11,12 +11,12 @@
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.createFileSystemWatcher.d.ts",
 		"../../src/vscode-dts/vscode.proposed.codeActionAI.d.ts",
 		"../../src/vscode-dts/vscode.proposed.codeActionRanges.d.ts",
 		"../../src/vscode-dts/vscode.proposed.mappedEditsProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.multiDocumentHighlightProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts",
 		"../../src/vscode-dts/vscode.proposed.documentPaste.d.ts",
+		"../../src/vscode-dts/vscode.proposed.editorHoverVerbosityLevel.d.ts",
 	]
 }

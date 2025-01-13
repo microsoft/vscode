@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { Codicon } from 'vs/base/common/codicons';
-import Severity from 'vs/base/common/severity';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import Severity from '../../../../../base/common/severity.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { spinningLoading } from '../../../../../platform/theme/common/iconRegistry.js';
+import { TerminalStatusList } from '../../browser/terminalStatusList.js';
+import { ITerminalStatus } from '../../common/terminal.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 function statusesEqual(list: TerminalStatusList, expected: [string, Severity][]) {
 	deepStrictEqual(list.statuses.map(e => [e.id, e.severity]), expected);

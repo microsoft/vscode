@@ -1,0 +1,57 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-welcome-view .chat-setup-view {
+	text-align: center;
+
+	p {
+		width: 100%;
+	}
+
+	.chat-features-container {
+		text-align: initial;
+		border-radius: 2px;
+		border: 1px solid var(--vscode-chat-requestBorder);
+		background-color: var(--vscode-chat-requestBackground);
+	}
+
+	.chat-feature-container {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 10px 5px 10px;
+	}
+
+	.chat-feature-container .codicon[class*='codicon-'] {
+		font-size: 16px;
+	}
+
+	.codicon[class*='codicon-'] {
+		font-size: 13px;
+		line-height: 1.4em;
+		vertical-align: bottom;
+	}
+
+	.button-container {
+		padding-top: 20px;
+	}
+
+	/** Dropdown Button */
+	.monaco-button-dropdown {
+		width: 100%;
+	}
+
+	.monaco-button-dropdown .monaco-text-button {
+		width: 100%;
+	}
+
+	/** Single Button */
+	p > .monaco-button {
+		text-align: center;
+		display: inline-block;
+		width: 100%;
+		padding: 4px 7px;
+	}
+}

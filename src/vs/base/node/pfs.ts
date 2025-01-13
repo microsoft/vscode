@@ -6,13 +6,13 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
-import { ResourceQueue, timeout } from 'vs/base/common/async';
-import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { join } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { ResourceQueue, timeout } from '../common/async.js';
+import { isEqualOrParent, isRootOrDriveLetter, randomPath } from '../common/extpath.js';
+import { normalizeNFC } from '../common/normalization.js';
+import { join } from '../common/path.js';
+import { isLinux, isMacintosh, isWindows } from '../common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../common/resources.js';
+import { URI } from '../common/uri.js';
 
 //#region rimraf
 
@@ -717,6 +717,8 @@ export const Promises = new class {
 	get close() { return promisify(fs.close); } 		// not exposed as API due to the `FileHandle` return type of `open`
 
 	get realpath() { return promisify(fs.realpath); }	// `fs.promises.realpath` will use `fs.realpath.native` which we do not want
+
+	get ftruncate() { return promisify(fs.ftruncate); } // not exposed as API in 20.x yet
 
 	//#endregion
 

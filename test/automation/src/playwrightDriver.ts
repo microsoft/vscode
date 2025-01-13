@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from '@playwright/test';
+import type { Protocol } from 'playwright-core/types/protocol';
 import { dirname, join } from 'path';
 import { promises } from 'fs';
 import { IWindowDriver } from './driver';
@@ -81,6 +82,82 @@ export class PlaywrightDriver {
 
 	async didFinishLoad(): Promise<void> {
 		await this.whenLoaded;
+	}
+
+	private _cdpSession: playwright.CDPSession | undefined;
+
+	async startCDP() {
+		if (this._cdpSession) {
+			return;
+		}
+
+		this._cdpSession = await this.page.context().newCDPSession(this.page);
+	}
+
+	async collectGarbage() {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		await this._cdpSession.send('HeapProfiler.collectGarbage');
+	}
+
+	async evaluate(options: Protocol.Runtime.evaluateParameters): Promise<Protocol.Runtime.evaluateReturnValue> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		return await this._cdpSession.send('Runtime.evaluate', options);
+	}
+
+	async releaseObjectGroup(parameters: Protocol.Runtime.releaseObjectGroupParameters): Promise<void> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		await this._cdpSession.send('Runtime.releaseObjectGroup', parameters);
+	}
+
+	async queryObjects(parameters: Protocol.Runtime.queryObjectsParameters): Promise<Protocol.Runtime.queryObjectsReturnValue> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		return await this._cdpSession.send('Runtime.queryObjects', parameters);
+	}
+
+	async callFunctionOn(parameters: Protocol.Runtime.callFunctionOnParameters): Promise<Protocol.Runtime.callFunctionOnReturnValue> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		return await this._cdpSession.send('Runtime.callFunctionOn', parameters);
+	}
+
+	async takeHeapSnapshot(): Promise<string> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		let snapshot = '';
+		const listener = (c: { chunk: string }) => {
+			snapshot += c.chunk;
+		};
+
+		this._cdpSession.addListener('HeapProfiler.addHeapSnapshotChunk', listener);
+
+		await this._cdpSession.send('HeapProfiler.takeHeapSnapshot');
+
+		this._cdpSession.removeListener('HeapProfiler.addHeapSnapshotChunk', listener);
+		return snapshot;
+	}
+
+	async getProperties(parameters: Protocol.Runtime.getPropertiesParameters): Promise<Protocol.Runtime.getPropertiesReturnValue> {
+		if (!this._cdpSession) {
+			throw new Error('CDP not started');
+		}
+
+		return await this._cdpSession.send('Runtime.getProperties', parameters);
 	}
 
 	private async takeScreenshot(name: string): Promise<void> {

@@ -22,10 +22,6 @@
 	border-bottom: none;
 }
 
-.monaco-workbench .workbench-hover:not(.skip-fade-in) {
-	animation: fadein 100ms linear;
-}
-
 .monaco-workbench .workbench-hover.compact {
 	font-size: 12px;
 }

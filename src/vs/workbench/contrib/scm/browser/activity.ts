@@ -3,28 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { basename } from 'vs/base/common/resources';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Iterable } from 'vs/base/common/iterator';
-import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
-import { IEditorGroupContextKeyProvider, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { getRepositoryResourceCount } from 'vs/workbench/contrib/scm/browser/util';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { derivedObservableWithCache, latestChangedValue, observableFromEventOpts } from 'vs/base/common/observableInternal/utils';
-import { Command } from 'vs/editor/common/languages';
+import { localize } from '../../../../nls.js';
+import { basename } from '../../../../base/common/resources.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from '../common/scm.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EditorResourceAccessor } from '../../../common/editor.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { ITitleService } from '../../../services/title/browser/titleService.js';
+import { IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { getRepositoryResourceCount } from './util.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { Command } from '../../../../editor/common/languages.js';
 
 const ActiveRepositoryContextKeys = {
 	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
@@ -38,35 +36,13 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
 		() => this.scmService.repositories);
 
-	private readonly _focusedRepository = observableFromEventOpts<ISCMRepository | undefined>(
-		{ owner: this, equalsFn: () => false },
-		this.scmViewService.onDidFocusRepository,
-		() => this.scmViewService.focusedRepository);
+	private readonly _activeRepositoryHistoryItemRefName = derived(reader => {
+		const repository = this.scmViewService.activeRepository.read(reader);
+		const historyProvider = repository?.provider.historyProvider.read(reader);
+		const historyItemRef = historyProvider?.historyItemRef.read(reader);
 
-	private readonly _activeEditor = observableFromEventOpts(
-		{ owner: this, equalsFn: () => false },
-		this.editorService.onDidActiveEditorChange,
-		() => this.editorService.activeEditor);
-
-	private readonly _activeEditorRepository = derivedObservableWithCache<ISCMRepository | undefined>(this, (reader, lastValue) => {
-		const activeResource = EditorResourceAccessor.getOriginalUri(this._activeEditor.read(reader));
-		if (!activeResource) {
-			return lastValue;
-		}
-
-		const repository = this.scmService.getRepository(activeResource);
-		if (!repository) {
-			return lastValue;
-		}
-
-		return Object.create(repository);
+		return historyItemRef?.name;
 	});
-
-	/**
-	 * The focused repository takes precedence over the active editor repository when the observable
-	 * values are updated in the same transaction (or during the initial read of the observable value).
-	 */
-	private readonly _activeRepository = latestChangedValue(this, [this._activeEditorRepository, this._focusedRepository]);
 
 	private readonly _countBadgeRepositories = derived(this, reader => {
 		switch (this._countBadgeConfig.read(reader)) {
@@ -75,7 +51,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 				return [...Iterable.map(repositories, r => ({ provider: r.provider, resourceCount: this._getRepositoryResourceCount(r) }))];
 			}
 			case 'focused': {
-				const repository = this._activeRepository.read(reader);
+				const repository = this.scmViewService.activeRepository.read(reader);
 				return repository ? [{ provider: repository.provider, resourceCount: this._getRepositoryResourceCount(repository) }] : [];
 			}
 			case 'off':
@@ -105,7 +81,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		@IActivityService private readonly activityService: IActivityService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -126,18 +101,17 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		}));
 
 		this._register(autorunWithStore((reader, store) => {
-			const repository = this._activeRepository.read(reader);
+			const repository = this.scmViewService.activeRepository.read(reader);
 			const commands = repository?.provider.statusBarCommands.read(reader);
 
 			this._updateStatusBar(repository, commands ?? [], store);
 		}));
 
 		this._register(autorun(reader => {
-			const repository = this._activeRepository.read(reader);
-			const historyProvider = repository?.provider.historyProvider.read(reader);
-			const branchName = historyProvider?.currentHistoryItemGroupName.read(reader);
+			const repository = this.scmViewService.activeRepository.read(reader);
+			const historyItemRefName = this._activeRepositoryHistoryItemRefName.read(reader);
 
-			this._updateActiveRepositoryContextKeys(repository?.provider.name, branchName);
+			this._updateActiveRepositoryContextKeys(repository?.provider.name, historyItemRefName);
 		}));
 	}
 

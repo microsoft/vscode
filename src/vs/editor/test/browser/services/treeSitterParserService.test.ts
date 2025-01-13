@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TextModelTreeSitter, TreeSitterImporter, TreeSitterLanguages } from 'vs/editor/browser/services/treeSitter/treeSitterParserService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TextModelTreeSitter, TreeSitterImporter, TreeSitterLanguages } from '../../../browser/services/treeSitter/treeSitterParserService.js';
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { timeout } from 'vs/base/common/async';
-import { ConsoleMainLogger, ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { LogService } from 'vs/platform/log/common/logService';
-import { mock } from 'vs/base/test/common/mock';
+import { createTextModel } from '../../common/testTextModel.js';
+import { timeout } from '../../../../base/common/async.js';
+import { ConsoleMainLogger, ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { LogService } from '../../../../platform/log/common/logService.js';
+import { mock } from '../../../../base/test/common/mock.js';
 
 class MockParser implements Parser {
 	static async init(): Promise<void> { }
@@ -123,10 +123,17 @@ suite('TreeSitterParserService', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('TextModelTreeSitter race condition: first language is slow to load', async function () {
-		class MockTreeSitterParser extends TreeSitterLanguages {
-			public override async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+		class MockTreeSitterLanguages extends TreeSitterLanguages {
+			private async _fetchJavascript(): Promise<void> {
+				await timeout(200);
+				const language = new MockLanguage();
+				language.languageId = 'javascript';
+				this._onDidAddLanguage.fire({ id: 'javascript', language });
+			}
+			public override getOrInitLanguage(languageId: string): Parser.Language | undefined {
 				if (languageId === 'javascript') {
-					await timeout(200);
+					this._fetchJavascript();
+					return undefined;
 				}
 				const language = new MockLanguage();
 				language.languageId = languageId;
@@ -134,11 +141,11 @@ suite('TreeSitterParserService', function () {
 			}
 		}
 
-		const treeSitterParser: TreeSitterLanguages = store.add(new MockTreeSitterParser(treeSitterImporter, {} as any));
+		const treeSitterParser: TreeSitterLanguages = store.add(new MockTreeSitterLanguages(treeSitterImporter, {} as any, { isBuilt: false } as any, new Map()));
 		const textModel = store.add(createTextModel('console.log("Hello, world!");', 'javascript'));
 		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterParser, treeSitterImporter, logService, telemetryService));
 		textModel.setLanguage('typescript');
 		await timeout(300);
-		assert.strictEqual((textModelTreeSitter.tree?.language as MockLanguage).languageId, 'typescript');
+		assert.strictEqual((textModelTreeSitter.parseResult?.language as MockLanguage).languageId, 'typescript');
 	});
 });

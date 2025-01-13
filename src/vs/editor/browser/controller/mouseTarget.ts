@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { IMouseTargetContentEmptyData, IMouseTargetMarginData, IMouseTarget, IMouseTargetContentEmpty, IMouseTargetContentText, IMouseTargetContentWidget, IMouseTargetMargin, IMouseTargetOutsideEditor, IMouseTargetOverlayWidget, IMouseTargetScrollbar, IMouseTargetTextarea, IMouseTargetUnknown, IMouseTargetViewZone, IMouseTargetContentTextData, IMouseTargetViewZoneData, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, CoordinatesRelativeToEditor } from 'vs/editor/browser/editorDom';
-import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
-import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { IViewModel } from 'vs/editor/common/viewModel';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import * as dom from 'vs/base/browser/dom';
-import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { Mutable } from 'vs/base/common/types';
-import { Lazy } from 'vs/base/common/lazy';
+import { IPointerHandlerHelper } from './mouseHandler.js';
+import { IMouseTargetContentEmptyData, IMouseTargetMarginData, IMouseTarget, IMouseTargetContentEmpty, IMouseTargetContentText, IMouseTargetContentWidget, IMouseTargetMargin, IMouseTargetOutsideEditor, IMouseTargetOverlayWidget, IMouseTargetScrollbar, IMouseTargetTextarea, IMouseTargetUnknown, IMouseTargetViewZone, IMouseTargetContentTextData, IMouseTargetViewZoneData, MouseTargetType } from '../editorBrowser.js';
+import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, CoordinatesRelativeToEditor } from '../editorDom.js';
+import { PartFingerprint, PartFingerprints } from '../view/viewPart.js';
+import { ViewLine } from '../viewParts/viewLines/viewLine.js';
+import { IViewCursorRenderData } from '../viewParts/viewCursors/viewCursor.js';
+import { EditorLayoutInfo, EditorOption } from '../../common/config/editorOptions.js';
+import { Position } from '../../common/core/position.js';
+import { Range as EditorRange } from '../../common/core/range.js';
+import { HorizontalPosition } from '../view/renderingContext.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
+import { IViewModel } from '../../common/viewModel.js';
+import { CursorColumns } from '../../common/core/cursorColumns.js';
+import * as dom from '../../../base/browser/dom.js';
+import { AtomicTabMoveOperations, Direction } from '../../common/cursor/cursorAtomicMoveOperations.js';
+import { PositionAffinity } from '../../common/model.js';
+import { InjectedText } from '../../common/modelLineProjectionData.js';
+import { Mutable } from '../../../base/common/types.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import type { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
 
 const enum HitTestResultType {
 	Unknown,
@@ -238,7 +239,7 @@ export class HitTestContext {
 	public readonly viewModel: IViewModel;
 	public readonly layoutInfo: EditorLayoutInfo;
 	public readonly viewDomNode: HTMLElement;
-	public readonly overflowWidgetsDomNode: HTMLElement | null;
+	public readonly viewLinesGpu: ViewLinesGpu | undefined;
 	public readonly lineHeight: number;
 	public readonly stickyTabStops: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
@@ -252,7 +253,7 @@ export class HitTestContext {
 		const options = context.configuration.options;
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
-		this.overflowWidgetsDomNode = viewHelper.overflowWidgetsDomNode ?? null;
+		this.viewLinesGpu = viewHelper.viewLinesGpu;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
@@ -415,7 +416,6 @@ class HitTestRequest extends BareHitTestRequest {
 	private _useHitTestTarget: boolean;
 	private _targetPathCacheElement: HTMLElement | null = null;
 	private _targetPathCacheValue: Uint8Array = new Uint8Array(0);
-	private _targetElement: HTMLElement | null = null;
 
 	public get target(): HTMLElement | null {
 		if (this._useHitTestTarget) {
@@ -425,18 +425,17 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public get targetPath(): Uint8Array {
-		if (this._targetPathCacheElement !== this.target && this._targetElement) {
+		if (this._targetPathCacheElement !== this.target) {
 			this._targetPathCacheElement = this.target;
-			this._targetPathCacheValue = PartFingerprints.collect(this.target, this._targetElement);
+			this._targetPathCacheValue = PartFingerprints.collect(this.target, this._ctx.viewDomNode);
 		}
 		return this._targetPathCacheValue;
 	}
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null, targetElement: HTMLElement | null = null) {
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null) {
 		super(ctx, editorPos, pos, relativePos);
 		this._ctx = ctx;
 		this._eventTarget = eventTarget;
-		this._targetElement = targetElement;
 
 		// If no event target is passed in, we will use the hit test target
 		const hasEventTarget = Boolean(this._eventTarget);
@@ -536,9 +535,9 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTargetForView(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null): IMouseTarget {
+	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null): IMouseTarget {
 		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
-		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, ctx.viewDomNode);
+		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request);
 
@@ -555,16 +554,6 @@ export class MouseTargetFactory {
 			return r;
 		} catch (err) {
 			// console.log(err);
-			return request.fulfillUnknown();
-		}
-	}
-
-	public createMouseTargetForOverflowWidgetsDomNode(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null) {
-		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
-		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, ctx.overflowWidgetsDomNode);
-		try {
-			return MouseTargetFactory._createMouseTarget(ctx, request);
-		} catch (err) {
 			return request.fulfillUnknown();
 		}
 	}
@@ -767,6 +756,32 @@ export class MouseTargetFactory {
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
 				return request.fulfillContentEmpty(pos, detail);
+			}
+		} else {
+			if (ctx.viewLinesGpu) {
+				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+				if (ctx.viewModel.getLineLength(lineNumber) === 0) {
+					const lineWidth = ctx.getLineWidth(lineNumber);
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
+				}
+
+				const lineWidth = ctx.getLineWidth(lineNumber);
+				if (request.mouseContentHorizontalOffset >= lineWidth) {
+					// TODO: This is wrong for RTL
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
+					return request.fulfillContentEmpty(pos, detail);
+				}
+
+				const position = ctx.viewLinesGpu.getPositionAtCoordinate(lineNumber, request.mouseContentHorizontalOffset);
+				if (position) {
+					const detail: IMouseTargetContentTextData = {
+						injectedText: null,
+						mightBeForeignElement: false
+					};
+					return request.fulfillContentText(position, EditorRange.fromPositions(position, position), detail);
+				}
 			}
 		}
 

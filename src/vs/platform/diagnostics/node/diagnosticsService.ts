@@ -5,22 +5,22 @@
 
 import * as fs from 'fs';
 import * as osLib from 'os';
-import { Promises } from 'vs/base/common/async';
-import { getNodeType, parse, ParseError } from 'vs/base/common/json';
-import { Schemas } from 'vs/base/common/network';
-import { basename, join } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { ProcessItem } from 'vs/base/common/processes';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
-import { virtualMachineHint } from 'vs/base/node/id';
-import { IDirent, Promises as pfs } from 'vs/base/node/pfs';
-import { listProcesses } from 'vs/base/node/ps';
-import { IDiagnosticsService, IMachineInfo, IMainProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, isRemoteDiagnosticError, IWorkspaceInformation, PerformanceInfo, SystemInfo, WorkspaceStatItem, WorkspaceStats } from 'vs/platform/diagnostics/common/diagnostics';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { Promises } from '../../../base/common/async.js';
+import { getNodeType, parse, ParseError } from '../../../base/common/json.js';
+import { Schemas } from '../../../base/common/network.js';
+import { basename, join } from '../../../base/common/path.js';
+import { isLinux, isWindows } from '../../../base/common/platform.js';
+import { ProcessItem } from '../../../base/common/processes.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { URI } from '../../../base/common/uri.js';
+import { virtualMachineHint } from '../../../base/node/id.js';
+import { IDirent, Promises as pfs } from '../../../base/node/pfs.js';
+import { listProcesses } from '../../../base/node/ps.js';
+import { IDiagnosticsService, IMachineInfo, IMainProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, isRemoteDiagnosticError, IWorkspaceInformation, PerformanceInfo, SystemInfo, WorkspaceStatItem, WorkspaceStats } from '../common/diagnostics.js';
+import { ByteSize } from '../../files/common/files.js';
+import { IProductService } from '../../product/common/productService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IWorkspace } from '../../workspace/common/workspace.js';
 
 interface ConfigFilePatterns {
 	tag: string;
@@ -28,10 +28,10 @@ interface ConfigFilePatterns {
 	relativePathPattern?: RegExp;
 }
 
-const worksapceStatsCache = new Map<string, Promise<WorkspaceStats>>();
+const workspaceStatsCache = new Map<string, Promise<WorkspaceStats>>();
 export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
 	const cacheKey = `${folder}::${filter.join(':')}`;
-	const cached = worksapceStatsCache.get(cacheKey);
+	const cached = workspaceStatsCache.get(cacheKey);
 	if (cached) {
 		return cached;
 	}
@@ -55,7 +55,8 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'cmake', filePattern: /^.+\.cmake$/i },
 		{ tag: 'github-actions', filePattern: /^.+\.ya?ml$/i, relativePathPattern: /^\.github(?:\/|\\)workflows$/i },
 		{ tag: 'devcontainer.json', filePattern: /^devcontainer\.json$/i },
-		{ tag: 'dockerfile', filePattern: /^(dockerfile|docker\-compose\.ya?ml)$/i }
+		{ tag: 'dockerfile', filePattern: /^(dockerfile|docker\-compose\.ya?ml)$/i },
+		{ tag: 'cursorrules', filePattern: /^\.cursorrules$/i },
 	];
 
 	const fileTypes = new Map<string, number>();
@@ -150,7 +151,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		});
 	});
 
-	worksapceStatsCache.set(cacheKey, statsPromise);
+	workspaceStatsCache.set(cacheKey, statsPromise);
 	return statsPromise;
 }
 

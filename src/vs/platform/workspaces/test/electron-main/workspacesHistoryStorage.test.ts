@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
+import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
+import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, restoreRecentlyOpened, toStoreData } from '../../common/workspaces.js';
 
 suite('History Storage', () => {
 

@@ -2,24 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { h } from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { autorun, derived } from 'vs/base/common/observable';
-import { globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
-import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { DocumentDiffItemViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
-import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IObjectData, IPooledObject } from './objectPool';
-import { ActionRunnerWithContext } from './utils';
+import { h } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, globalTransaction, observableValue } from '../../../../base/common/observable.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService, type IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { observableCodeEditor } from '../../observableCodeEditor.js';
+import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
+import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel.js';
+import { IObjectData, IPooledObject } from './objectPool.js';
+import { ActionRunnerWithContext } from './utils.js';
+import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -94,12 +95,14 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		: undefined;
 
 	private readonly _outerEditorHeight: number;
+	private readonly _contextKeyService: IScopedContextKeyService;
 
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _overflowWidgetsDomNode: HTMLElement,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService _parentContextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -155,13 +158,15 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._container.appendChild(this._elements.root);
 		this._outerEditorHeight = this._headerHeight;
 
-		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
+		this._contextKeyService = this._register(_parentContextKeyService.createScoped(this._elements.actions));
+		const instantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
+		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
 			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.modifiedUri))),
 			menuOptions: {
 				shouldForwardArgs: true,
 			},
 			toolbarOptions: { primaryGroup: g => g.startsWith('navigation') },
-			actionViewItemProvider: (action, options) => createActionViewItem(_instantiationService, action, options),
+			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
 		}));
 	}
 
@@ -173,7 +178,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}
 	}
 
-	private readonly _dataStore = new DisposableStore();
+	private readonly _dataStore = this._register(new DisposableStore());
 
 	private _data: TemplateData | undefined;
 
@@ -248,6 +253,12 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 				this.setData(undefined);
 			}
 		});
+
+		if (data.viewModel.documentDiffItem.contextKeys) {
+			for (const [key, value] of Object.entries(data.viewModel.documentDiffItem.contextKeys)) {
+				this._contextKeyService.createKey(key, value);
+			}
+		}
 	}
 
 	private readonly _headerHeight = /*this._elements.header.clientHeight*/ 40;

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { distinct, equals } from 'vs/base/common/arrays';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
-import { IExtensionsConfigContent, IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { EXTENSION_IDENTIFIER_PATTERN } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { distinct, equals } from '../../../../base/common/arrays.js';
+import { ExtensionRecommendations, ExtensionRecommendation } from './extensionRecommendations.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ExtensionRecommendationReason } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { localize } from '../../../../nls.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IExtensionsConfigContent, IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 
 const WORKSPACE_EXTENSIONS_FOLDER = '.vscode/extensions';
 

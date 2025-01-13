@@ -3,72 +3,71 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize, localize2 } from 'vs/nls';
-import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId, EDIT_SESSIONS_PENDING } from 'vs/workbench/contrib/editSessions/common/editSessions';
-import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { basename, joinPath, relativePath } from 'vs/base/common/resources';
-import { encodeBase64 } from 'vs/base/common/buffer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { EditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/browser/editSessionsStorageService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { UserDataSyncErrorCode, UserDataSyncStoreError, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { getFileNamesMessage, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
-import { Schemas } from 'vs/base/common/network';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { EditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessionsLogService';
-import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
-import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
-import { isNative, isWeb } from 'vs/base/common/platform';
-import { VirtualWorkspaceContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { equals } from 'vs/base/common/objects';
-import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { sha1Hex } from 'vs/base/browser/hash';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Codicon } from 'vs/base/common/codicons';
-import { CancellationError } from 'vs/base/common/errors';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IExtensionsViewPaneContainer, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { WorkspaceStateSynchroniser } from 'vs/workbench/contrib/editSessions/common/workspaceStateSync';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { EditSessionsStoreClient } from 'vs/workbench/contrib/editSessions/common/editSessionsStorageClient';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceIdentityService } from 'vs/workbench/services/workspaces/common/workspaceIdentityService';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ILifecycleService, LifecyclePhase, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId, EDIT_SESSIONS_PENDING } from '../common/editSessions.js';
+import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../../base/common/uri.js';
+import { basename, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { encodeBase64 } from '../../../../base/common/buffer.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { EditSessionsWorkbenchService } from './editSessionsStorageService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { UserDataSyncErrorCode, UserDataSyncStoreError } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { getFileNamesMessage, IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { getVirtualWorkspaceLocation } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { EditSessionsLogService } from '../common/editSessionsLogService.js';
+import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditSessionsDataViews } from './editSessionsViews.js';
+import { EditSessionsFileSystemProvider } from './editSessionsFileSystemProvider.js';
+import { isNative, isWeb } from '../../../../base/common/platform.js';
+import { VirtualWorkspaceContext, WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { equals } from '../../../../base/common/objects.js';
+import { EditSessionIdentityMatch, IEditSessionIdentityService } from '../../../../platform/workspace/common/editSessions.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IOutputService } from '../../../services/output/common/output.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { WorkspaceStateSynchroniser } from '../common/workspaceStateSync.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { EditSessionsStoreClient } from '../common/editSessionsStorageClient.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceIdentityService } from '../../../services/workspaces/common/workspaceIdentityService.js';
+import { hashAsync } from '../../../../base/common/hash.js';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -101,10 +100,7 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const paneCompositePartService = accessor.get(IPaneCompositePartService);
-		const viewlet = await paneCompositePartService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search('@tag:continueOn');
+		return accessor.get(IExtensionsWorkbenchService).openSearch('@tag:continueOn');
 	}
 });
 
@@ -128,7 +124,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 	private registeredCommands = new Set<string>();
 
-	private workspaceStateSynchronizer: IUserDataSynchroniser | undefined;
+	private workspaceStateSynchronizer: WorkspaceStateSynchroniser | undefined;
 	private editSessionsStorageClient: EditSessionsStoreClient | undefined;
 
 	constructor(
@@ -569,7 +565,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
-			await this.workspaceStateSynchronizer?.apply(false, {});
+			await this.workspaceStateSynchronizer?.apply();
 
 			this.logService.info(`Deleting edit session with ref ${ref} after successfully applying it to current workspace...`);
 			await this.editSessionsStorageService.delete('editSessions', ref);
@@ -667,7 +663,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		switch (type) {
 			case (ChangeType.Addition): {
-				const [originalContents, incomingContents] = await Promise.all([sha1Hex(contents), sha1Hex(encodeBase64((await this.fileService.readFile(uriWithIncomingChanges)).value))]);
+				const [originalContents, incomingContents] = await Promise.all([
+					hashAsync(contents),
+					hashAsync(encodeBase64((await this.fileService.readFile(uriWithIncomingChanges)).value))
+				]);
 				return originalContents !== incomingContents;
 			}
 			case (ChangeType.Deletion): {
@@ -744,7 +743,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 
 		// Store contributed workspace state
-		await this.workspaceStateSynchronizer?.sync(null, {});
+		await this.workspaceStateSynchronizer?.sync();
 
 		if (!hasEdits) {
 			this.logService.info('Skipped storing working changes in the cloud as there are no edits to store.');
@@ -824,7 +823,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		// Prompt the user to use edit sessions if they currently could benefit from using it
 		if (this.hasEditSession()) {
-			const quickpick = this.quickInputService.createQuickPick<IQuickPickItem>();
+			const disposables = new DisposableStore();
+			const quickpick = disposables.add(this.quickInputService.createQuickPick<IQuickPickItem>());
 			quickpick.placeholder = localize('continue with cloud changes', "Select whether to bring your working changes with you");
 			quickpick.ok = false;
 			quickpick.ignoreFocusOut = true;
@@ -833,14 +833,14 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			quickpick.items = [withCloudChanges, withoutCloudChanges];
 
 			const continueWithCloudChanges = await new Promise<boolean>((resolve, reject) => {
-				quickpick.onDidAccept(() => {
+				disposables.add(quickpick.onDidAccept(() => {
 					resolve(quickpick.selectedItems[0] === withCloudChanges);
-					quickpick.hide();
-				});
-				quickpick.onDidHide(() => {
+					disposables.dispose();
+				}));
+				disposables.add(quickpick.onDidHide(() => {
 					reject(new CancellationError());
-					quickpick.hide();
-				});
+					disposables.dispose();
+				}));
 				quickpick.show();
 			});
 
@@ -960,7 +960,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async pickContinueEditSessionDestination(): Promise<string | undefined> {
-		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(this.quickInputService.createQuickPick<ContinueEditSessionItem>({ useSeparators: true }));
 
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
 			? this.contextService.getWorkspace().folders[0].name
@@ -972,9 +973,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		});
 
 		const command = await new Promise<string | undefined>((resolve, reject) => {
-			quickPick.onDidHide(() => resolve(undefined));
+			disposables.add(quickPick.onDidHide(() => {
+				disposables.dispose();
+				resolve(undefined);
+			}));
 
-			quickPick.onDidAccept((e) => {
+			disposables.add(quickPick.onDidAccept((e) => {
 				const selection = quickPick.activeItems[0].command;
 
 				if (selection === installAdditionalContinueOnOptionsCommand.id) {
@@ -983,16 +987,16 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					resolve(selection);
 					quickPick.hide();
 				}
-			});
+			}));
 
 			quickPick.show();
 
-			quickPick.onDidTriggerItemButton(async (e) => {
+			disposables.add(quickPick.onDidTriggerItemButton(async (e) => {
 				if (e.item.documentation !== undefined) {
 					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this.commandService.executeCommand(e.item.documentation);
 					void this.openerService.open(uri, { openExternal: true });
 				}
-			});
+			}));
 		});
 
 		quickPick.dispose();

@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorUtils';
-import { colorRegistry, historyItemGroupBase, historyItemGroupLocal, historyItemGroupRemote, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
-import { ISCMHistoryItem } from 'vs/workbench/contrib/scm/common/history';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ColorIdentifier } from '../../../../../platform/theme/common/colorUtils.js';
+import { colorRegistry, historyItemBaseRefColor, historyItemRefColor, historyItemRemoteRefColor, toISCMHistoryItemViewModelArray } from '../../browser/scmHistory.js';
+import { ISCMHistoryItem, ISCMHistoryItemRef } from '../../common/history.js';
+
+function toSCMHistoryItem(id: string, parentIds: string[], references?: ISCMHistoryItemRef[]): ISCMHistoryItem {
+	return { id, parentIds, subject: '', message: '', references } satisfies ISCMHistoryItem;
+}
 
 suite('toISCMHistoryItemViewModelArray', () => {
 
@@ -26,8 +30,8 @@ suite('toISCMHistoryItemViewModelArray', () => {
 
 	test('single commit', () => {
 		const models = [
-			{ id: 'a', parentIds: [], message: '' },
-		] as ISCMHistoryItem[];
+			toSCMHistoryItem('a', []),
+		];
 
 		const viewModels = toISCMHistoryItemViewModelArray(models);
 
@@ -46,12 +50,12 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 */
 	test('linear graph', () => {
 		const models = [
-			{ id: 'a', parentIds: ['b'] },
-			{ id: 'b', parentIds: ['c'] },
-			{ id: 'c', parentIds: ['d'] },
-			{ id: 'd', parentIds: ['e'] },
-			{ id: 'e', parentIds: [] },
-		] as ISCMHistoryItem[];
+			toSCMHistoryItem('a', ['b']),
+			toSCMHistoryItem('b', ['c']),
+			toSCMHistoryItem('c', ['d']),
+			toSCMHistoryItem('d', ['e']),
+			toSCMHistoryItem('e', []),
+		];
 
 		const viewModels = toISCMHistoryItemViewModelArray(models);
 
@@ -110,12 +114,12 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 */
 	test('merge commit (single commit in topic branch)', () => {
 		const models = [
-			{ id: 'a', parentIds: ['b'] },
-			{ id: 'b', parentIds: ['c', 'd'] },
-			{ id: 'd', parentIds: ['c'] },
-			{ id: 'c', parentIds: ['e'] },
-			{ id: 'e', parentIds: ['f'] },
-		] as ISCMHistoryItem[];
+			toSCMHistoryItem('a', ['b']),
+			toSCMHistoryItem('b', ['c', 'd']),
+			toSCMHistoryItem('d', ['c']),
+			toSCMHistoryItem('c', ['e']),
+			toSCMHistoryItem('e', ['f']),
+		];
 
 		const viewModels = toISCMHistoryItemViewModelArray(models);
 
@@ -184,13 +188,13 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 */
 	test('merge commit (multiple commits in topic branch)', () => {
 		const models = [
-			{ id: 'a', parentIds: ['b', 'c'] },
-			{ id: 'c', parentIds: ['d'] },
-			{ id: 'b', parentIds: ['e'] },
-			{ id: 'e', parentIds: ['f'] },
-			{ id: 'f', parentIds: ['d'] },
-			{ id: 'd', parentIds: ['g'] },
-		] as ISCMHistoryItem[];
+			toSCMHistoryItem('a', ['b', 'c']),
+			toSCMHistoryItem('c', ['d']),
+			toSCMHistoryItem('b', ['e']),
+			toSCMHistoryItem('e', ['f']),
+			toSCMHistoryItem('f', ['d']),
+			toSCMHistoryItem('d', ['g']),
+		];
 
 		const viewModels = toISCMHistoryItemViewModelArray(models);
 
@@ -282,13 +286,13 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 */
 	test('create brach from merge commit', () => {
 		const models = [
-			{ id: 'a', parentIds: ['b', 'c'] },
-			{ id: 'c', parentIds: ['b'] },
-			{ id: 'b', parentIds: ['d', 'e'] },
-			{ id: 'e', parentIds: ['f'] },
-			{ id: 'f', parentIds: ['g'] },
-			{ id: 'd', parentIds: ['h'] },
-		] as ISCMHistoryItem[];
+			toSCMHistoryItem('a', ['b', 'c']),
+			toSCMHistoryItem('c', ['b']),
+			toSCMHistoryItem('b', ['d', 'e']),
+			toSCMHistoryItem('e', ['f']),
+			toSCMHistoryItem('f', ['g']),
+			toSCMHistoryItem('d', ['h']),
+		];
 
 		const viewModels = toISCMHistoryItemViewModelArray(models);
 
@@ -387,14 +391,14 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 */
 	test('create multiple branches from a commit', () => {
 		const models = [
-			{ id: 'a', parentIds: ['b', 'c'] },
-			{ id: 'c', parentIds: ['d'] },
-			{ id: 'b', parentIds: ['e', 'f'] },
-			{ id: 'f', parentIds: ['g'] },
-			{ id: 'e', parentIds: ['g'] },
-			{ id: 'd', parentIds: ['g'] },
-			{ id: 'g', parentIds: ['h'] },
-		] as ISCMHistoryItem[];
+			toSCMHistoryItem('a', ['b', 'c']),
+			toSCMHistoryItem('c', ['d']),
+			toSCMHistoryItem('b', ['e', 'f']),
+			toSCMHistoryItem('f', ['g']),
+			toSCMHistoryItem('e', ['g']),
+			toSCMHistoryItem('d', ['g']),
+			toSCMHistoryItem('g', ['h']),
+		] satisfies ISCMHistoryItem[];
 
 		const viewModels = toISCMHistoryItemViewModelArray(models);
 
@@ -513,18 +517,18 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 */
 	test('graph with color map', () => {
 		const models = [
-			{ id: 'a', parentIds: ['b'], labels: [{ title: 'topic' }] },
-			{ id: 'b', parentIds: ['c'] },
-			{ id: 'c', parentIds: ['d'], labels: [{ title: 'origin/topic' }] },
-			{ id: 'd', parentIds: ['e'] },
-			{ id: 'e', parentIds: ['f', 'g'] },
-			{ id: 'g', parentIds: ['h'], labels: [{ title: 'origin/main' }] }
-		] as ISCMHistoryItem[];
+			toSCMHistoryItem('a', ['b'], [{ id: 'topic', name: 'topic' }]),
+			toSCMHistoryItem('b', ['c']),
+			toSCMHistoryItem('c', ['d'], [{ id: 'origin/topic', name: 'origin/topic' }]),
+			toSCMHistoryItem('d', ['e']),
+			toSCMHistoryItem('e', ['f', 'g']),
+			toSCMHistoryItem('g', ['h'], [{ id: 'origin/main', name: 'origin/main' }])
+		];
 
 		const colorMap = new Map<string, ColorIdentifier>([
-			['topic', historyItemGroupLocal],
-			['origin/topic', historyItemGroupRemote],
-			['origin/main', historyItemGroupBase],
+			['topic', historyItemRefColor],
+			['origin/topic', historyItemRemoteRefColor],
+			['origin/main', historyItemBaseRefColor],
 		]);
 
 		const viewModels = toISCMHistoryItemViewModelArray(models, colorMap);
@@ -536,57 +540,57 @@ suite('toISCMHistoryItemViewModelArray', () => {
 
 		assert.strictEqual(viewModels[0].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[0].outputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, historyItemGroupLocal);
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, historyItemRefColor);
 
 		// node b
 		assert.strictEqual(viewModels[1].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[1].inputSwimlanes[0].id, 'b');
-		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, historyItemGroupLocal);
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, historyItemRefColor);
 
 		assert.strictEqual(viewModels[1].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, 'c');
-		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, historyItemGroupLocal);
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, historyItemRefColor);
 
 		// node c
 		assert.strictEqual(viewModels[2].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, 'c');
-		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, historyItemGroupLocal);
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, historyItemRefColor);
 
 		assert.strictEqual(viewModels[2].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, historyItemRemoteRefColor);
 
 		// node d
 		assert.strictEqual(viewModels[3].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'd');
-		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, historyItemRemoteRefColor);
 
 		assert.strictEqual(viewModels[3].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, historyItemRemoteRefColor);
 
 		// node e
 		assert.strictEqual(viewModels[4].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'e');
-		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, historyItemRemoteRefColor);
 
 		assert.strictEqual(viewModels[4].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, 'f');
-		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, historyItemRemoteRefColor);
 		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, 'g');
-		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, historyItemGroupBase);
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, historyItemBaseRefColor);
 
 		// node g
 		assert.strictEqual(viewModels[5].inputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, 'f');
-		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, historyItemRemoteRefColor);
 		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, 'g');
-		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, historyItemGroupBase);
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, historyItemBaseRefColor);
 
 		assert.strictEqual(viewModels[5].outputSwimlanes.length, 2);
 		assert.strictEqual(viewModels[5].outputSwimlanes[0].id, 'f');
-		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, historyItemGroupRemote);
+		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, historyItemRemoteRefColor);
 		assert.strictEqual(viewModels[5].outputSwimlanes[1].id, 'h');
-		assert.strictEqual(viewModels[5].outputSwimlanes[1].color, historyItemGroupBase);
+		assert.strictEqual(viewModels[5].outputSwimlanes[1].color, historyItemBaseRefColor);
 	});
 });

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Event } from 'vs/base/common/event';
+import { CellKind } from '../../common/notebookCommon.js';
+import { withTestNotebook } from './testNotebookEditor.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Event } from '../../../../../base/common/event.js';
 
 suite('CellDecorations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

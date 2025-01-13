@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { RemoteUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
+import { IStorageService } from '../../storage/common/storage.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUserDataProfilesService } from '../common/userDataProfile.js';
+import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
+import { RemoteUserDataProfileStorageService } from '../common/userDataProfileStorageService.js';
 
 export class SharedProcessUserDataProfileStorageService extends RemoteUserDataProfileStorageService {
 

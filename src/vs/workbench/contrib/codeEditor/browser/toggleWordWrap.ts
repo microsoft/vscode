@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, ServicesAccessor, registerDiffEditorContribution, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDiffEditorContribution, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { addDisposableListener, onDidRegisterWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, ServicesAccessor, registerDiffEditorContribution, registerEditorAction, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { IDiffEditorContribution, IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import * as nls from '../../../../nls.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -56,8 +58,7 @@ class ToggleWordWrapAction extends EditorAction {
 	constructor() {
 		super({
 			id: TOGGLE_WORD_WRAP_ID,
-			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
-			alias: 'View: Toggle Word Wrap',
+			label: nls.localize2('toggle.wordwrap', "View: Toggle Word Wrap"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
@@ -69,6 +70,7 @@ class ToggleWordWrapAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const codeEditorService = accessor.get(ICodeEditorService);
+		const instaService = accessor.get(IInstantiationService);
 
 		if (!canToggleWordWrap(codeEditorService, editor)) {
 			return;
@@ -94,7 +96,7 @@ class ToggleWordWrapAction extends EditorAction {
 		writeTransientState(model, newState, codeEditorService);
 
 		// if we are in a diff editor, update the other editor (if possible)
-		const diffEditor = findDiffEditorContainingCodeEditor(editor, codeEditorService);
+		const diffEditor = instaService.invokeFunction(findDiffEditorContainingCodeEditor, editor);
 		if (diffEditor) {
 			const originalEditor = diffEditor.getOriginalEditor();
 			const modifiedEditor = diffEditor.getModifiedEditor();
@@ -105,24 +107,6 @@ class ToggleWordWrapAction extends EditorAction {
 			}
 		}
 	}
-}
-
-/**
- * If `editor` is the original or modified editor of a diff editor, it returns it.
- * It returns null otherwise.
- */
-function findDiffEditorContainingCodeEditor(editor: ICodeEditor, codeEditorService: ICodeEditorService): IDiffEditor | null {
-	if (!editor.getOption(EditorOption.inDiffEditor)) {
-		return null;
-	}
-	for (const diffEditor of codeEditorService.listDiffEditors()) {
-		const originalEditor = diffEditor.getOriginalEditor();
-		const modifiedEditor = diffEditor.getModifiedEditor();
-		if (originalEditor === editor || modifiedEditor === editor) {
-			return diffEditor;
-		}
-	}
-	return null;
 }
 
 class ToggleWordWrapController extends Disposable implements IEditorContribution {
@@ -358,5 +342,5 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		precondition: CAN_TOGGLE_WORD_WRAP
 	},
 	order: 1,
-	group: '5_editor'
+	group: '6_editor'
 });

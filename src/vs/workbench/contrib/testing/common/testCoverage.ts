@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ResourceMap } from 'vs/base/common/map';
-import { deepClone } from 'vs/base/common/objects';
-import { ITransaction, observableSignal } from 'vs/base/common/observable';
-import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { ITransaction, observableSignal } from '../../../../base/common/observable.js';
+import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../../base/common/prefixTree.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { TestId } from './testId.js';
+import { LiveTestResult } from './testResult.js';
+import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage } from './testTypes.js';
 
 export interface ICoverageAccessor {
 	getCoverageDetails: (id: string, testId: string | undefined, token: CancellationToken) => Promise<CoverageDetails[]>;

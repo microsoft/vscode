@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import type { IKeyValueStorage, IExperimentationTelemetry } from 'tas-client-umd';
-import { MementoObject, Memento } from 'vs/workbench/common/memento';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryData } from 'vs/base/common/actions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IAssignmentService } from 'vs/platform/assignment/common/assignment';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { BaseAssignmentService } from 'vs/platform/assignment/common/assignmentService';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { MementoObject, Memento } from '../../../common/memento.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryData } from '../../../../base/common/actions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IAssignmentService } from '../../../../platform/assignment/common/assignment.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { BaseAssignmentService } from '../../../../platform/assignment/common/assignmentService.js';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('WorkbenchAssignmentService');
 

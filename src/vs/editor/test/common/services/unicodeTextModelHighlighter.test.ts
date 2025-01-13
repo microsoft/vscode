@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { UnicodeHighlighterOptions, UnicodeTextModelHighlighter } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Range } from '../../../common/core/range.js';
+import { UnicodeHighlighterOptions, UnicodeTextModelHighlighter } from '../../../common/services/unicodeTextModelHighlighter.js';
+import { createTextModel } from '../testTextModel.js';
 
 suite('UnicodeTextModelHighlighter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

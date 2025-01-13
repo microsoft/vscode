@@ -6,8 +6,8 @@
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue, SettingsEditor } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
-export function setup() {
-	describe('Terminal Persistence', () => {
+export function setup(options?: { skipSuite: boolean }) {
+	(options?.skipSuite ? describe.skip : describe)('Terminal Persistence', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
@@ -75,7 +75,8 @@ export function setup() {
 				await terminal.assertTerminalGroups([
 					[{ name }]
 				]);
-				await terminal.waitForTerminalText(buffer => buffer.some(e => e.includes('terminal_test_content')));
+				// There can be line wrapping, so remove newlines and carriage returns #216464
+				await terminal.waitForTerminalText(buffer => buffer.some(e => e.replaceAll(/[\r\n]/g, '').includes('terminal_test_content')));
 			});
 		});
 	});

@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { distinct, equals } from 'vs/base/common/arrays';
-import { Delayer, disposableTimeout } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event, IValueWithChangeEvent } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/base/common/range';
-import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { IRangeMap, RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
-import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { clamp } from 'vs/base/common/numbers';
+import { DataTransfers, IDragAndDropData } from '../../dnd.js';
+import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getDocument, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
+import { DomEmitter } from '../../event.js';
+import { IMouseWheelEvent } from '../../mouseEvent.js';
+import { EventType as TouchEventType, Gesture, GestureEvent } from '../../touch.js';
+import { SmoothScrollableElement } from '../scrollbar/scrollableElement.js';
+import { distinct, equals, splice } from '../../../common/arrays.js';
+import { Delayer, disposableTimeout } from '../../../common/async.js';
+import { memoize } from '../../../common/decorators.js';
+import { Emitter, Event, IValueWithChangeEvent } from '../../../common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { IRange, Range } from '../../../common/range.js';
+import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
+import { ISpliceable } from '../../../common/sequence.js';
+import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from './list.js';
+import { IRangeMap, RangeMap, shift } from './rangeMap.js';
+import { IRow, RowCache } from './rowCache.js';
+import { BugIndicatingError } from '../../../common/errors.js';
+import { AriaRole } from '../aria/aria.js';
+import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions.js';
+import { clamp } from '../../../common/numbers.js';
 
 interface IItem<T> {
 	readonly id: string;
@@ -82,6 +82,7 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
+	readonly userSelection?: boolean;
 	readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
 	readonly transformOptimization?: boolean;
 	readonly alwaysConsumeMouseWheel?: boolean;
@@ -105,7 +106,7 @@ const DefaultOptions = {
 	horizontalScrolling: false,
 	transformOptimization: true,
 	alwaysConsumeMouseWheel: true,
-};
+} satisfies IListViewOptions<any>;
 
 export class ElementsDragAndDropData<T, TContext = void> implements IDragAndDropData {
 
@@ -173,7 +174,7 @@ export class NativeDragAndDropData implements IDragAndDropData {
 		}
 	}
 
-	getData(): any {
+	getData() {
 		return {
 			types: this.types,
 			files: this.files
@@ -321,6 +322,8 @@ export class ListView<T> implements IListView<T> {
 	private currentDragFeedbackPosition: ListDragOverEffectPosition | undefined;
 	private currentDragFeedbackDisposable: IDisposable = Disposable.None;
 	private onDragLeaveTimeout: IDisposable = Disposable.None;
+	private currentSelectionDisposable: IDisposable = Disposable.None;
+	private currentSelectionBounds: IRange | undefined;
 
 	private readonly disposables: DisposableStore = new DisposableStore();
 
@@ -369,7 +372,7 @@ export class ListView<T> implements IListView<T> {
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
-		options: IListViewOptions<T> = DefaultOptions as IListViewOptions<T>
+		options: IListViewOptions<T> = DefaultOptions
 	) {
 		if (options.horizontalScrolling && options.supportDynamicHeights) {
 			throw new Error('Horizontal scrolling and dynamic heights not supported simultaneously');
@@ -444,6 +447,12 @@ export class ListView<T> implements IListView<T> {
 		this.disposables.add(addDisposableListener(this.domNode, 'drop', e => this.onDrop(this.toDragEvent(e))));
 		this.disposables.add(addDisposableListener(this.domNode, 'dragleave', e => this.onDragLeave(this.toDragEvent(e))));
 		this.disposables.add(addDisposableListener(this.domNode, 'dragend', e => this.onDragEnd(e)));
+		if (options.userSelection) {
+			if (options.dnd) {
+				throw new Error('DND and user selection cannot be used simultaneously');
+			}
+			this.disposables.add(addDisposableListener(this.domNode, 'mousedown', e => this.onPotentialSelectionStart(e)));
+		}
 
 		this.setRowLineHeight = options.setRowLineHeight ?? DefaultOptions.setRowLineHeight;
 		this.setRowHeight = options.setRowHeight ?? DefaultOptions.setRowHeight;
@@ -519,7 +528,7 @@ export class ListView<T> implements IListView<T> {
 
 		if (typeof size === 'undefined') {
 			if (!this.supportDynamicHeights) {
-				console.warn('Dynamic heights not supported');
+				console.warn('Dynamic heights not supported', new Error().stack);
 				return;
 			}
 
@@ -558,6 +567,8 @@ export class ListView<T> implements IListView<T> {
 
 		if (this.supportDynamicHeights) {
 			this._rerender(this.lastRenderTop, this.lastRenderHeight);
+		} else {
+			this._onDidChangeContentHeight.fire(this.contentHeight); // otherwise fired in _rerender()
 		}
 	}
 
@@ -643,7 +654,7 @@ export class ListView<T> implements IListView<T> {
 			this.items = inserted;
 		} else {
 			this.rangeMap.splice(start, deleteCount, inserted);
-			deleted = this.items.splice(start, deleteCount, ...inserted);
+			deleted = splice(this.items, start, deleteCount, inserted);
 		}
 
 		const delta = elements.length - deleteCount;
@@ -768,7 +779,7 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	get firstVisibleIndex(): number {
-		const range = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const range = this.getVisibleRange(this.lastRenderTop, this.lastRenderHeight);
 		return range.start;
 	}
 
@@ -1168,6 +1179,73 @@ export class ListView<T> implements IListView<T> {
 		this.dnd.onDragStart?.(this.currentDragData, event);
 	}
 
+	private onPotentialSelectionStart(e: MouseEvent) {
+		this.currentSelectionDisposable.dispose();
+		const doc = getDocument(this.domNode);
+
+		// Set up both the 'movement store' for watching the mouse, and the
+		// 'selection store' which lasts as long as there's a selection, even
+		// after the usr has stopped modifying it.
+		const selectionStore = this.currentSelectionDisposable = new DisposableStore();
+		const movementStore = selectionStore.add(new DisposableStore());
+
+		// The selection events we get from the DOM are fairly limited and we lack a 'selection end' event.
+		// Selection events also don't tell us where the input doing the selection is. So, make a poor
+		// assumption that a user is using the mouse, and base our events on that.
+		movementStore.add(addDisposableListener(this.domNode, 'selectstart', () => {
+			this.setupDragAndDropScrollTopAnimation(e);
+
+			movementStore.add(addDisposableListener(doc, 'mousemove', e => this.setupDragAndDropScrollTopAnimation(e)));
+
+			// The selection is cleared either on mouseup if there's no selection, or on next mousedown
+			// when `this.currentSelectionDisposable` is reset.
+			selectionStore.add(toDisposable(() => {
+				const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+				this.currentSelectionBounds = undefined;
+				this.render(previousRenderRange, this.lastRenderTop, this.lastRenderHeight, undefined, undefined);
+			}));
+			selectionStore.add(addDisposableListener(doc, 'selectionchange', () => {
+				const selection = doc.getSelection();
+				if (!selection) {
+					return;
+				}
+
+				let start = this.getIndexOfListElement(selection.anchorNode as HTMLElement);
+				let end = this.getIndexOfListElement(selection.focusNode as HTMLElement);
+				if (start !== undefined && end !== undefined) {
+					if (end < start) {
+						[start, end] = [end, start];
+					}
+					this.currentSelectionBounds = { start, end };
+				}
+			}));
+		}));
+
+		movementStore.add(addDisposableListener(doc, 'mouseup', () => {
+			movementStore.dispose();
+
+			if (doc.getSelection()?.isCollapsed !== false) {
+				selectionStore.dispose();
+			}
+		}));
+	}
+
+	private getIndexOfListElement(element: HTMLElement | null): number | undefined {
+		if (!element || !this.domNode.contains(element)) {
+			return undefined;
+		}
+
+		while (element && element !== this.domNode) {
+			if (element.dataset?.index) {
+				return Number(element.dataset.index);
+			}
+
+			element = element.parentElement;
+		}
+
+		return undefined;
+	}
+
 	private onDragOver(event: IListDragEvent<T>): boolean {
 		event.browserEvent.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
 
@@ -1327,7 +1405,7 @@ export class ListView<T> implements IListView<T> {
 
 	// DND scroll top animation
 
-	private setupDragAndDropScrollTopAnimation(event: DragEvent): void {
+	private setupDragAndDropScrollTopAnimation(event: DragEvent | MouseEvent): void {
 		if (!this.dragOverAnimationDisposable) {
 			const viewTop = getTopLeftOffset(this.domNode).top;
 			this.dragOverAnimationDisposable = animate(getWindow(this.domNode), this.animateDragAndDropScrollTop.bind(this, viewTop));
@@ -1401,11 +1479,21 @@ export class ListView<T> implements IListView<T> {
 		return undefined;
 	}
 
-	protected getRenderRange(renderTop: number, renderHeight: number): IRange {
+	private getVisibleRange(renderTop: number, renderHeight: number): IRange {
 		return {
 			start: this.rangeMap.indexAt(renderTop),
 			end: this.rangeMap.indexAfter(renderTop + renderHeight - 1)
 		};
+	}
+
+	protected getRenderRange(renderTop: number, renderHeight: number): IRange {
+		const range = this.getVisibleRange(renderTop, renderHeight);
+		if (this.currentSelectionBounds) {
+			range.start = Math.min(range.start, this.currentSelectionBounds.start);
+			range.end = Math.max(range.end, this.currentSelectionBounds.end + 1);
+		}
+
+		return range;
 	}
 
 	/**
@@ -1519,7 +1607,7 @@ export class ListView<T> implements IListView<T> {
 			item.row.domNode.style.height = '';
 			item.size = item.row.domNode.offsetHeight;
 			if (item.size === 0 && !isAncestor(item.row.domNode, getWindow(item.row.domNode).document.body)) {
-				console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!');
+				console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!', new Error().stack);
 			}
 			item.lastDynamicHeightWidth = this.renderWidth;
 			return item.size - size;

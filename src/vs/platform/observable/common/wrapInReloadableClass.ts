@@ -2,18 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { isHotReloadEnabled } from 'vs/base/common/hotReload';
-import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { autorunWithStore } from 'vs/base/common/observable';
-import { BrandedService, GetLeadingNonServiceArgs, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isHotReloadEnabled } from '../../../base/common/hotReload.js';
+import { readHotReloadableExport } from '../../../base/common/hotReloadHelpers.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { autorunWithStore } from '../../../base/common/observable.js';
+import { BrandedService, GetLeadingNonServiceArgs, IInstantiationService } from '../../instantiation/common/instantiation.js';
 
 /**
  * Wrap a class in a reloadable wrapper.
  * When the wrapper is created, the original class is created.
  * When the original class changes, the instance is re-created.
 */
-export function wrapInReloadableClass0<TArgs extends BrandedService[]>(getClass: () => Result<TArgs>): Result<GetLeadingNonServiceArgs<TArgs>> {
+export function wrapInReloadableClass0<TArgs extends BrandedService[]>(getClass: () => Result<TArgs>): Result<TArgs> {
 	return !isHotReloadEnabled() ? getClass() : createWrapper(getClass, BaseClass0);
 }
 

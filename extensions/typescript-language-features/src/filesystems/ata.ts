@@ -8,8 +8,9 @@ import { conditionalRegistration, requireGlobalConfiguration } from '../language
 import { supportsReadableByteStreams } from '../utils/platform';
 import { AutoInstallerFs } from './autoInstallerFs';
 import { MemFs } from './memFs';
+import { Logger } from '../logging/logger';
 
-export function registerAtaSupport(): vscode.Disposable {
+export function registerAtaSupport(logger: Logger): vscode.Disposable {
 	if (!supportsReadableByteStreams()) {
 		return vscode.Disposable.from();
 	}
@@ -18,11 +19,14 @@ export function registerAtaSupport(): vscode.Disposable {
 		requireGlobalConfiguration('typescript', 'tsserver.web.typeAcquisition.enabled'),
 	], () => {
 		return vscode.Disposable.from(
-			vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs(), {
+			// Ata
+			vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs('global-typings', logger), {
 				isCaseSensitive: true,
-				isReadonly: false
+				isReadonly: false,
 			}),
-			vscode.workspace.registerFileSystemProvider('vscode-node-modules', new AutoInstallerFs(), {
+
+			// Read accesses to node_modules
+			vscode.workspace.registerFileSystemProvider('vscode-node-modules', new AutoInstallerFs(logger), {
 				isCaseSensitive: true,
 				isReadonly: false
 			}));

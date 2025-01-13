@@ -2,21 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'debug.autoExpandLazyVariables',
 		migrateFn: (value: boolean) => {
-			let newValue: string | undefined;
 			if (value === true) {
-				newValue = 'on';
+				return { value: 'on' };
 			} else if (value === false) {
-				newValue = 'off';
+				return { value: 'off' };
 			}
-			return [
-				['debug.autoExpandLazyVariables', { value: newValue }],
-			];
+
+			return [];
 		}
 	}]);

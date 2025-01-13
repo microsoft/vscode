@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export const ILanguageModelStatsService = createDecorator<ILanguageModelStatsService>('ILanguageModelStatsService');
 
@@ -63,7 +64,7 @@ export class LanguageModelStatsService extends Disposable implements ILanguageMo
 	}
 
 	async update(model: string, extensionId: ExtensionIdentifier, agent: string | undefined, tokenCount: number | undefined): Promise<void> {
-		await this.extensionFeaturesManagementService.getAccess(extensionId, 'languageModels');
+		await this.extensionFeaturesManagementService.getAccess(extensionId, CopilotUsageExtensionFeatureId);
 
 		// update model access
 		this.addAccess(model, extensionId.value);
@@ -160,11 +161,14 @@ export class LanguageModelStatsService extends Disposable implements ILanguageMo
 	}
 }
 
+export const CopilotUsageExtensionFeatureId = 'copilot';
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
-	id: 'languageModels',
-	label: localize('Language Models', "Language Models"),
+	id: CopilotUsageExtensionFeatureId,
+	label: localize('Language Models', "Copilot"),
 	description: localize('languageModels', "Language models usage statistics of this extension."),
+	icon: Codicon.copilot,
 	access: {
 		canToggle: false
 	},
+	accessDataLabel: localize('chat', "chat"),
 });

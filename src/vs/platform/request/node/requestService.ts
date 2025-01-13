@@ -6,19 +6,19 @@
 import * as http from 'http';
 import * as https from 'https';
 import { parse as parseUrl } from 'url';
-import { Promises } from 'vs/base/common/async';
-import { streamToBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
-import * as streams from 'vs/base/common/stream';
-import { isBoolean, isNumber } from 'vs/base/common/types';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
-import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
-import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
+import { Promises } from '../../../base/common/async.js';
+import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
+import * as streams from '../../../base/common/stream.js';
+import { isBoolean, isNumber } from '../../../base/common/types.js';
+import { IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
+import { ILogService } from '../../log/common/log.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../common/request.js';
+import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
 interface IHTTPConfiguration {
@@ -54,10 +54,9 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService,
-		@ILoggerService loggerService: ILoggerService
+		@ILogService logService: ILogService,
 	) {
-		super(loggerService);
+		super(logService);
 		this.configure();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('http')) {
@@ -103,7 +102,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 			};
 		}
 
-		return this.logAndRequest(options.isChromiumNetwork ? 'electron' : 'node', options, () => nodeRequest(options, token));
+		return this.logAndRequest(options, () => nodeRequest(options, token));
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {
@@ -116,13 +115,8 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	async lookupKerberosAuthorization(urlStr: string): Promise<string | undefined> {
 		try {
-			const kerberos = await import('kerberos');
-			const url = new URL(urlStr);
-			const spn = this.configurationService.getValue<string>('http.proxyKerberosServicePrincipal')
-				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
-			this.logService.debug('RequestService#lookupKerberosAuthorization Kerberos authentication lookup', `proxyURL:${url}`, `spn:${spn}`);
-			const client = await kerberos.initializeClient(spn);
-			const response = await client.step('');
+			const spnConfig = this.configurationService.getValue<string>('http.proxyKerberosServicePrincipal');
+			const response = await lookupKerberosAuthorization(urlStr, spnConfig, this.logService, 'RequestService#lookupKerberosAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
 			this.logService.debug('RequestService#lookupKerberosAuthorization Kerberos authentication failed', err);
@@ -134,6 +128,17 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 		const proxyAgent = await import('@vscode/proxy-agent');
 		return proxyAgent.loadSystemCertificates({ log: this.logService });
 	}
+}
+
+export async function lookupKerberosAuthorization(urlStr: string, spnConfig: string | undefined, logService: ILogService, logPrefix: string) {
+	const importKerberos = await import('kerberos');
+	const kerberos = importKerberos.default || importKerberos;
+	const url = new URL(urlStr);
+	const spn = spnConfig
+		|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
+	logService.debug(`${logPrefix} Kerberos authentication lookup`, `proxyURL:${url}`, `spn:${spn}`);
+	const client = await kerberos.initializeClient(spn);
+	return client.step('');
 }
 
 async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
@@ -150,7 +155,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
 
-		const opts: https.RequestOptions = {
+		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached' } = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			protocol: endpoint.protocol,
@@ -163,6 +168,10 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		if (options.user && options.password) {
 			opts.auth = options.user + ':' + options.password;
+		}
+
+		if (options.disableCache) {
+			opts.cache = 'no-store';
 		}
 
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {

@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCancelablePromise, firstParallel, timeout } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
-import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { SignService } from 'vs/platform/sign/node/signService';
-import { ExtHostDebugServiceBase, ExtHostDebugSession } from 'vs/workbench/api/common/extHostDebugService';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
-import { ExecutableDebugAdapter, NamedPipeDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import type * as vscode from 'vscode';
-import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
+import * as vscode from 'vscode';
+import { createCancelablePromise, disposableTimeout, firstParallel, RunOnceScheduler, timeout } from '../../../base/common/async.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import * as platform from '../../../base/common/platform.js';
+import * as nls from '../../../nls.js';
+import { IExternalTerminalService } from '../../../platform/externalTerminal/common/externalTerminal.js';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../../platform/externalTerminal/node/externalTerminalService.js';
+import { ISignService } from '../../../platform/sign/common/sign.js';
+import { SignService } from '../../../platform/sign/node/signService.js';
+import { AbstractDebugAdapter } from '../../contrib/debug/common/abstractDebugAdapter.js';
+import { ExecutableDebugAdapter, NamedPipeDebugAdapter, SocketDebugAdapter } from '../../contrib/debug/node/debugAdapter.js';
+import { hasChildProcesses, prepareCommand } from '../../contrib/debug/node/terminals.js';
+import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
+import { IExtHostCommands } from '../common/extHostCommands.js';
+import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration.js';
+import { ExtHostDebugServiceBase, ExtHostDebugSession } from '../common/extHostDebugService.js';
+import { IExtHostEditorTabs } from '../common/extHostEditorTabs.js';
+import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
+import { IExtHostRpcService } from '../common/extHostRpcService.js';
+import { IExtHostTerminalService } from '../common/extHostTerminalService.js';
+import { IExtHostTesting } from '../common/extHostTesting.js';
+import { DebugAdapterExecutable, DebugAdapterNamedPipeServer, DebugAdapterServer, ThemeIcon } from '../common/extHostTypes.js';
+import { IExtHostVariableResolverProvider } from '../common/extHostVariableResolverService.js';
+import { IExtHostWorkspace } from '../common/extHostWorkspace.js';
+import { IExtHostTerminalShellIntegration } from '../common/extHostTerminalShellIntegration.js';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -42,6 +42,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
+		@IExtHostTerminalShellIntegration private _terminalShellIntegrationService: IExtHostTerminalShellIntegration,
 		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
 		@IExtHostCommands commands: IExtHostCommands,
@@ -50,16 +51,16 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands, testing);
 	}
 
-	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
-		switch (adapter.type) {
-			case 'server':
-				return new SocketDebugAdapter(adapter);
-			case 'pipeServer':
-				return new NamedPipeDebugAdapter(adapter);
-			case 'executable':
-				return new ExecutableDebugAdapter(adapter, session.type);
+	protected override createDebugAdapter(adapter: vscode.DebugAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
+		if (adapter instanceof DebugAdapterExecutable) {
+			return new ExecutableDebugAdapter(this.convertExecutableToDto(adapter), session.type);
+		} else if (adapter instanceof DebugAdapterServer) {
+			return new SocketDebugAdapter(this.convertServerToDto(adapter));
+		} else if (adapter instanceof DebugAdapterNamedPipeServer) {
+			return new NamedPipeDebugAdapter(this.convertPipeServerToDto(adapter));
+		} else {
+			return super.createDebugAdapter(adapter, session);
 		}
-		return super.createDebugAdapter(adapter, session);
 	}
 
 	protected override daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
@@ -124,10 +125,34 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			const shellProcessId = await terminal.processId;
 
 			if (giveShellTimeToInitialize) {
-				// give a new terminal some time to initialize the shell
-				await new Promise(resolve => setTimeout(resolve, 1000));
+				// give a new terminal some time to initialize the shell (most recently, #228191)
+				// - If shell integration is available, use that as a deterministic signal
+				// - Debounce content being written to known when the prompt is available
+				// - Give a longer timeout otherwise
+				const enum Timing {
+					DataDebounce = 500,
+					MaxDelay = 5000,
+				}
+
+				const ds = new DisposableStore();
+				await new Promise<void>(resolve => {
+					const scheduler = ds.add(new RunOnceScheduler(resolve, Timing.DataDebounce));
+					ds.add(this._terminalService.onDidWriteTerminalData(e => {
+						if (e.terminal === terminal) {
+							scheduler.schedule();
+						}
+					}));
+					ds.add(this._terminalShellIntegrationService.onDidChangeTerminalShellIntegration(e => {
+						if (e.terminal === terminal) {
+							resolve();
+						}
+					}));
+					ds.add(disposableTimeout(resolve, Timing.MaxDelay));
+				});
+
+				ds.dispose();
 			} else {
-				if (terminal.state.isInteractedWith) {
+				if (terminal.state.isInteractedWith && !terminal.shellIntegration) {
 					terminal.sendText('\u0003'); // Ctrl+C for #106743. Not part of the same command for #107969
 					await timeout(200); // mirroring https://github.com/microsoft/vscode/blob/c67ccc70ece5f472ec25464d3eeb874cfccee9f1/src/vs/workbench/contrib/terminal/browser/terminalInstance.ts#L852-L857
 				}
@@ -147,7 +172,12 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			}
 
 			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand, args.env);
-			terminal.sendText(command);
+
+			if (terminal.shellIntegration) {
+				terminal.shellIntegration.executeCommand(command);
+			} else {
+				terminal.sendText(command);
+			}
 
 			// Mark terminal as unused when its session ends, see #112055
 			const sessionListener = this.onDidTerminateDebugSession(s => {

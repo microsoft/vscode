@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IModelDecoration, InjectedTextOptions } from 'vs/editor/common/model';
+import { IRange } from './core/range.js';
+import { Selection } from './core/selection.js';
+import { IModelDecoration, InjectedTextOptions } from './model.js';
 
 /**
  * An event describing that the current language associated with a model has changed.

@@ -5,12 +5,13 @@
 
 import * as vscode from 'vscode';
 import { DocumentSelector } from '../configuration/documentSelector';
+import { LanguageDescription } from '../configuration/languageDescription';
+import { API } from '../tsServer/api';
+import protocol from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import FileConfigurationManager from './fileConfigurationManager';
 import { conditionalRegistration, requireGlobalConfiguration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
-import protocol from '../tsServer/protocol/protocol';
-import { API } from '../tsServer/api';
-import { LanguageDescription } from '../configuration/languageDescription';
 
 class CopyMetadata {
 	constructor(
@@ -38,19 +39,37 @@ class CopyMetadata {
 	}
 }
 
-const settingId = 'experimental.updateImportsOnPaste';
+const enabledSettingId = 'updateImportsOnPaste.enabled';
 
 class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
-	static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('text', 'jsts', 'pasteWithImports');
+	static readonly kind = vscode.DocumentDropOrPasteEditKind.TextUpdateImports.append('jsts');
 	static readonly metadataMimeType = 'application/vnd.code.jsts.metadata';
 
 	constructor(
 		private readonly _modeId: string,
 		private readonly _client: ITypeScriptServiceClient,
+		private readonly fileConfigurationManager: FileConfigurationManager,
 	) { }
 
-	prepareDocumentPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken) {
+	async prepareDocumentPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken) {
+		if (!this.isEnabled(document)) {
+			return;
+		}
+
+		const file = this._client.toOpenTsFilePath(document);
+		if (!file) {
+			return;
+		}
+
+		const response = await this._client.interruptGetErr(() => this._client.execute('preparePasteEdits', {
+			file,
+			copiedTextSpan: ranges.map(typeConverters.Range.toTextSpan),
+		}, token));
+		if (token.isCancellationRequested || response.type !== 'response' || !response.body) {
+			return;
+		}
+
 		dataTransfer.set(DocumentPasteProvider.metadataMimeType,
 			new vscode.DataTransferItem(new CopyMetadata(document.uri, ranges).toJSON()));
 	}
@@ -62,8 +81,7 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 		_context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
-		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
-		if (!config.get(settingId, false)) {
+		if (!this.isEnabled(document)) {
 			return;
 		}
 
@@ -99,18 +117,24 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const response = await this._client.interruptGetErr(() => this._client.execute('getPasteEdits', {
-			file,
-			// TODO: only supports a single paste for now
-			pastedText: [text],
-			pasteLocations: ranges.map(typeConverters.Range.toTextSpan),
-			copiedFrom
-		}, token));
+		const response = await this._client.interruptGetErr(() => {
+			this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+
+			return this._client.execute('getPasteEdits', {
+				file,
+				// TODO: only supports a single paste for now
+				pastedText: [text],
+				pasteLocations: ranges.map(typeConverters.Range.toTextSpan),
+				copiedFrom
+			}, token);
+		});
 		if (response.type !== 'response' || !response.body?.edits.length || token.isCancellationRequested) {
 			return;
 		}
 
 		const edit = new vscode.DocumentPasteEdit('', vscode.l10n.t("Paste with imports"), DocumentPasteProvider.kind);
+		edit.yieldTo = [vscode.DocumentDropOrPasteEditKind.Text.append('plain')];
+
 		const additionalEdit = new vscode.WorkspaceEdit();
 		for (const edit of response.body.edits) {
 			additionalEdit.set(this._client.toResource(edit.fileName), edit.textChanges.map(typeConverters.TextEdit.fromCodeEdit));
@@ -127,18 +151,23 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
 		return metadata ? CopyMetadata.fromJSON(metadata) : undefined;
 	}
+
+	private isEnabled(document: vscode.TextDocument) {
+		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
+		return config.get(enabledSettingId, true);
+	}
 }
 
-export function register(selector: DocumentSelector, language: LanguageDescription, client: ITypeScriptServiceClient) {
+export function register(selector: DocumentSelector, language: LanguageDescription, client: ITypeScriptServiceClient, fileConfigurationManager: FileConfigurationManager) {
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.Semantic),
-		requireMinVersion(client, API.v560),
-		requireGlobalConfiguration(language.id, settingId),
+		requireMinVersion(client, API.v570),
+		requireGlobalConfiguration(language.id, enabledSettingId),
 	], () => {
-		return vscode.languages.registerDocumentPasteEditProvider(selector.semantic, new DocumentPasteProvider(language.id, client), {
+		return vscode.languages.registerDocumentPasteEditProvider(selector.semantic, new DocumentPasteProvider(language.id, client, fileConfigurationManager), {
 			providedPasteEditKinds: [DocumentPasteProvider.kind],
 			copyMimeTypes: [DocumentPasteProvider.metadataMimeType],
-			pasteMimeTypes: ['text/plain'],
+			pasteMimeTypes: [DocumentPasteProvider.metadataMimeType],
 		});
 	});
 }

@@ -4,13 +4,34 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/274009903e20ac6dc37ba5763fb853744e28c9b2",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/c42cf86959ba238dc8a825bdd07bed6f5e97c978",
 	"name": "YAML Ain't Markup Language",
 	"scopeName": "source.yaml",
 	"patterns": [
 		{
 			"comment": "Default to YAML version 1.2",
-			"include": "source.yaml.1.2"
+			"begin": "\\A",
+			"while": "^",
+			"patterns": [
+				{
+					"include": "source.yaml.1.2"
+				}
+			]
+		},
+		{
+			"comment": "Support legacy FrontMatter integration",
+			"//": "https://github.com/microsoft/vscode-markdown-tm-grammar/pull/162",
+			"begin": "(?<=^-{3,}\\s*+)\\G$",
+			"while": "^(?! {3,0}-{3,}[ \t]*+$|[ \t]*+\\.{3}$)",
+			"patterns": [
+				{
+					"include": "source.yaml.1.2"
+				}
+			]
+		},
+		{
+			"comment": "Basic version for embedding",
+			"include": "source.yaml.embedded"
 		}
 	],
 	"repository": {
@@ -64,7 +85,7 @@
 			"name": "meta.map.key.yaml string.quoted.single.yaml entity.name.tag.yaml",
 			"patterns": [
 				{
-					"match": "[^\t -\\x{10FFFF}]++",
+					"match": "[^\r\n\t -\\x{10FFFF}]++",
 					"name": "invalid.illegal.character.yaml"
 				},
 				{

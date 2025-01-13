@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventType } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
-import { QuickPickItem, IQuickInputService, IQuickPickItem, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
-import { IDetectedLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
-import { TerminalLinkQuickPickEvent, type IDetachedTerminalInstance, type ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { EventType } from '../../../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { localize } from '../../../../../nls.js';
+import { QuickPickItem, IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IDetectedLinks } from './terminalLinkManager.js';
+import { TerminalLinkQuickPickEvent, type IDetachedTerminalInstance, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { ILink } from '@xterm/xterm';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import type { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
-import { Sequencer, timeout } from 'vs/base/common/async';
-import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
-import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import type { TerminalLink } from './terminalLink.js';
+import { Sequencer, timeout } from '../../../../../base/common/async.js';
+import { PickerEditorState } from '../../../../browser/quickaccess.js';
+import { getLinkSuffix } from './terminalLinkParsing.js';
+import { TerminalBuiltinLinkType } from './links.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { basenameOrAuthority, dirname } from '../../../../../base/common/resources.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AccessibleViewProviderId, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 
 export class TerminalLinkQuickpick extends DisposableStore {
 
@@ -32,10 +32,10 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
 	constructor(
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 		this._editorViewState = this.add(instantiationService.createInstance(PickerEditorState));
@@ -75,7 +75,9 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		}
 
 		// Create and show quick pick
-		const pick = this._quickInputService.createQuickPick<IQuickPickItem | ITerminalLinkQuickPickItem>();
+		const pick = this._quickInputService.createQuickPick<IQuickPickItem | ITerminalLinkQuickPickItem>({ useSeparators: true });
+		const disposables = new DisposableStore();
+		disposables.add(pick);
 		pick.items = picks;
 		pick.placeholder = localize('terminal.integrated.openDetectedLink', "Select the link to open, type to filter all links");
 		pick.sortByLabel = false;
@@ -87,7 +89,6 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		// Show all results only when filtering begins, this is done so the quick pick will show up
 		// ASAP with only the viewport entries.
 		let accepted = false;
-		const disposables = new DisposableStore();
 		if (!usingAllLinks) {
 			disposables.add(Event.once(pick.onDidChangeValue)(async () => {
 				const allLinks = await links.all;
@@ -265,7 +266,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		this._editorSequencer.queue(async () => {
 			await this._editorViewState.openTransientEditor({
 				resource: link.uri,
-				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
+				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection }
 			});
 		});
 	}

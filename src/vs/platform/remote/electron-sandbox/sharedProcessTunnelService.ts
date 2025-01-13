@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ISharedProcessTunnelService, ipcSharedProcessTunnelChannelName } from 'vs/platform/remote/common/sharedProcessTunnelService';
+import { registerSharedProcessRemoteService } from '../../ipc/electron-sandbox/services.js';
+import { ISharedProcessTunnelService, ipcSharedProcessTunnelChannelName } from '../common/sharedProcessTunnelService.js';
 
 registerSharedProcessRemoteService(ISharedProcessTunnelService, ipcSharedProcessTunnelChannelName);
