@@ -46,7 +46,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		type: 'object',
 		properties: {},
 		default: {
-			'terminal-suggest': false,
+			'terminal-suggest': true,
 			'pwsh-shell-integration': false,
 		},
 		tags: ['experimental'],
