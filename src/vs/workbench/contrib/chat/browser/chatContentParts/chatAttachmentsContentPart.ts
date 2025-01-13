@@ -55,7 +55,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		private readonly variables: IChatRequestVariableEntry[],
 		private readonly contentReferences: ReadonlyArray<IChatContentReference> = [],
 		private readonly workingSet: ReadonlyArray<URI> = [],
-		public readonly domNode: HTMLElement = dom.$('.chat-attached-context'),
+		public readonly domNode: HTMLElement | undefined = dom.$('.chat-attached-context'),
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -68,12 +68,14 @@ export class ChatAttachmentsContentPart extends Disposable {
 		super();
 
 		this.initAttachedContext(domNode);
+		if (!domNode.childElementCount) {
+			this.domNode = undefined;
+		}
 	}
 
 	private initAttachedContext(container: HTMLElement) {
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
-		dom.setVisibility(Boolean(this.variables.length), this.domNode);
 		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
 
 		this.variables.forEach(async (attachment) => {
