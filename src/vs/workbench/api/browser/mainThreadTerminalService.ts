@@ -355,9 +355,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onShellTypeChanged(terminalId: number): void {
-		const terminalInstanceShellType = this._terminalService.getInstanceFromId(terminalId)?.shellType;
-		if (terminalInstanceShellType) {
-			this._proxy.$acceptTerminalShellType(terminalId, terminalInstanceShellType);
+		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance) {
+			this._proxy.$acceptTerminalShellType(terminalId, terminalInstance.shellType);
 		}
 	}
 
