@@ -56,7 +56,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	id: string = PwshCompletionProviderAddon.ID;
 	triggerCharacters?: string[] | undefined;
 	isBuiltin?: boolean = true;
-	static readonly ID = 'terminal.pwshCompletionProvider';
+	static readonly ID = 'pwsh-shell-integration';
 	static cachedPwshCommands: Set<ITerminalCompletion>;
 	readonly shellTypes = [GeneralShellType.PowerShell];
 	private _codeCompletionsRequested: boolean = false;
@@ -348,7 +348,7 @@ function rawCompletionToITerminalCompletion(rawCompletion: PwshCompletion, repla
 
 	return {
 		label,
-		provider: 'pwsh-script',
+		provider: PwshCompletionProviderAddon.ID,
 		icon,
 		detail,
 		isFile: rawCompletion.ResultType === 3,
