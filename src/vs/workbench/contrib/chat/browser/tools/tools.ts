@@ -49,7 +49,7 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 { changed code }
 // ...existing code...
 
-Here is an example of how you should format an edit to an existing Person class:
+Here is an example of how you should use vscode_editFile to edit an existing Person class:
 {
 	"explanation": "Add an age property to the Person class",
 	"filePath": "/folder/person.ts",
