@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThreeKeyMap } from '../../../../base/common/map.js';
+import { NKeyMap } from '../../../../base/common/map.js';
 
 export interface IDecorationStyleSet {
 	/**
@@ -32,7 +32,7 @@ export class DecorationStyleCache {
 	private _nextId = 1;
 
 	private readonly _cacheById = new Map<number, IDecorationStyleCacheEntry>();
-	private readonly _cacheByStyle = new ThreeKeyMap<number, number, string, IDecorationStyleCacheEntry>();
+	private readonly _cacheByStyle = new NKeyMap<IDecorationStyleCacheEntry, [number, number, string]>();
 
 	getOrCreateEntry(
 		color: number | undefined,
@@ -54,7 +54,7 @@ export class DecorationStyleCache {
 			opacity,
 		};
 		this._cacheById.set(id, entry);
-		this._cacheByStyle.set(color ?? 0, bold ? 1 : 0, opacity === undefined ? '' : opacity.toFixed(2), entry);
+		this._cacheByStyle.set(entry, color ?? 0, bold ? 1 : 0, opacity === undefined ? '' : opacity.toFixed(2));
 		return id;
 	}
 

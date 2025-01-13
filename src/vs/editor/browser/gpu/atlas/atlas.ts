@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { FourKeyMap } from '../../../../base/common/map.js';
+import type { NKeyMap } from '../../../../base/common/map.js';
 import type { IBoundingBox, IRasterizedGlyph } from '../raster/raster.js';
 
 /**
@@ -106,4 +106,9 @@ export const enum UsagePreviewColors {
 	Restricted = '#FF000088',
 }
 
-export type GlyphMap<T> = FourKeyMap</*chars*/string, /*tokenMetadata*/number, /*decorationStyleSetId*/number, /*rasterizerCacheKey*/string, T>;
+export type GlyphMap<T> = NKeyMap<T, [
+	chars: string,
+	tokenMetadata: number,
+	decorationStyleSetId: number,
+	rasterizerCacheKey: string,
+]>;
