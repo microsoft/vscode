@@ -280,7 +280,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const lineIndexCount = this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
 
 		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
-		let dirtyLineStart = Number.MAX_SAFE_INTEGER;
+		let dirtyLineStart = 3000;
 		let dirtyLineEnd = 0;
 
 		// Handle any queued buffer updates
@@ -465,6 +465,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
 
 		// Only write when there is changed data
+		dirtyLineStart = Math.min(dirtyLineStart, this._viewGpuContext.maxGpuLines);
+		dirtyLineEnd = Math.min(dirtyLineEnd, this._viewGpuContext.maxGpuLines);
 		if (dirtyLineStart <= dirtyLineEnd) {
 			// Write buffer and swap it out to unblock writes
 			this._device.queue.writeBuffer(
