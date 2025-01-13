@@ -18,7 +18,7 @@ import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollect
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType, GeneralShellType } from '../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType, GeneralShellType, PosixShellType, WindowsShellType } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Promises } from '../../../base/common/async.js';
@@ -85,7 +85,6 @@ export class ExtHostTerminal extends Disposable {
 	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
-	// TODO: add shellType as TerminalState on in newly created proposed API.
 	private _state: vscode.TerminalState = { isInteractedWith: false, shellType: undefined };
 	private _selection: string | undefined;
 
@@ -265,8 +264,8 @@ export class ExtHostTerminal extends Disposable {
 		return false;
 	}
 
-	public setShellType(shellType: TerminalShellType): void {
-		this._state = shellType;
+	public setShellType(shellType: TerminalShellType | number | undefined): void {
+		this._state = { shellType }; // Why is the Type complaining, its the exact same as in proposed.api
 	}
 
 	public setSelection(selection: string | undefined): void {
@@ -772,11 +771,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return completions;
 	}
 
-	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined): void {
+	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined | number): void {
 		const terminal = this.getTerminalById(id);
-		terminal?.setShellType(shellType);
-
-		this._onDidChangeTerminalState.fire(terminal?.shellType);
+		if (terminal) {
+			terminal?.setShellType(shellType);
+			this._onDidChangeTerminalState.fire(terminal.value);
+		}
 	}
 
 	public registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
