@@ -29,6 +29,10 @@ export interface ITerminalSuggestConfiguration {
 		'pwshCode': boolean;
 		'pwshGit': boolean;
 	};
+	providers: {
+		'terminal-suggest': boolean;
+		'pwsh-shell-integration': boolean;
+	};
 	enableExtensionCompletions: boolean;
 }
 
