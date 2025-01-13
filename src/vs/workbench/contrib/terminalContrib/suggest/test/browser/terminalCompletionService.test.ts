@@ -185,6 +185,16 @@ suite('TerminalCompletionService', () => {
 					replacementLength: 0
 				},
 				{
+					label: `.`,
+					provider: 'builtin',
+					kind: TerminalCompletionItemKind.Folder,
+					detail: 'Source folder',
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: 3,
+					replacementLength: 0
+				},
+				{
 					label: `..${pathSeparator}`,
 					provider: 'builtin',
 					detail: 'Parent folder',
