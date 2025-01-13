@@ -32,7 +32,6 @@ export const enum TerminalContribCommandId {
 export const enum TerminalContribSettingId {
 	SuggestEnabled = TerminalSuggestSettingId.Enabled,
 	StickyScrollEnabled = TerminalStickyScrollSettingId.Enabled,
-	SuggestProviders = TerminalSuggestSettingId.Providers
 }
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since
