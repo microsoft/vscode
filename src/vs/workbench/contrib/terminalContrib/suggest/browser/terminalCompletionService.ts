@@ -6,6 +6,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -200,8 +201,33 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const endsWithSpace = cursorPrefix.endsWith(' ');
 		const lastWord = endsWithSpace ? '' : cursorPrefix.split(' ').at(-1) ?? '';
 
+		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
+		// they are what triggers changes in the directory.
+		let lastSlashIndex: number;
+		if (isWindows) {
+			// TODO: This support is very basic, ideally the slashes supported would depend upon the
+			//       shell type. For example git bash under Windows does not allow using \ as a path
+			//       separator.
+			lastSlashIndex = Math.max(lastWord.lastIndexOf('\\'), lastWord.lastIndexOf('/'));
+		} else {
+			lastSlashIndex = lastWord.lastIndexOf('/');
+		}
+
+		let lastSep = lastWord.lastIndexOf('/');
+		if (isWindows) {
+			const otherLastSep = lastWord.lastIndexOf('\\');
+			lastSep = Math.max(lastSep, otherLastSep);
+		}
+		let lastWordRelativeFolder = lastSlashIndex === -1 ? '' : lastWord.slice(0, lastSlashIndex + 1);
+		if (isWindows) {
+			lastWordRelativeFolder = lastWordRelativeFolder.replaceAll('/', '\\');
+		}
+		console.log('cwd', cwd.fsPath);
+		console.log('lastWord', lastWord);
+		console.log('lastWordRelativeFolder', lastWordRelativeFolder);
+
 		if (foldersRequested) {
-			if (!lastWord.trim()) {
+			if (!lastWordRelativeFolder.trim()) {
 				resourceCompletions.push({
 					label: '.',
 					provider: 'builtin',
@@ -212,10 +238,22 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
 				});
-			}
-			if (lastWord.endsWith('..' + resourceRequestConfig.pathSeparator)) {
+			} else {
 				resourceCompletions.push({
-					label: lastWord + '..' + resourceRequestConfig.pathSeparator,
+					label: lastWordRelativeFolder,
+					provider: 'builtin',
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					detail: 'Source folder',
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
+			// TODO: Refine cases where ..\ shows. For example it looks strange to offer `.\..\`
+			if (isWindows ? lastWordRelativeFolder.match(/[\\\/]/) : lastWordRelativeFolder.includes(resourceRequestConfig.pathSeparator)) {
+				resourceCompletions.push({
+					label: lastWordRelativeFolder + '..' + resourceRequestConfig.pathSeparator,
 					provider: 'builtin',
 					kind: TerminalCompletionItemKind.Folder,
 					isDirectory: true,
@@ -252,21 +290,29 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const fileName = basename(stat.resource.fsPath);
 
 			let label;
-			if (!lastWord.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWord.startsWith('..' + resourceRequestConfig.pathSeparator)) {
-				// add a dot to the beginning of the label if it doesn't already have one
-				label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
-			} else {
-				if (lastWord.endsWith(resourceRequestConfig.pathSeparator)) {
-					label = `${lastWord}${fileName}`;
-				} else {
-					label = `${lastWord}${resourceRequestConfig.pathSeparator}${fileName}`;
-				}
-				if (lastWord.length && lastWord.at(-1) !== resourceRequestConfig.pathSeparator && lastWord.at(-1) !== '.') {
-					label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
-				}
-			}
+			// TODO: This doesn't do the windows path equivalence check
+			// if (!lastWord.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWord.startsWith('..' + resourceRequestConfig.pathSeparator)) {
+			// 	// add a dot to the beginning of the label if it doesn't already have one
+			// 	label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
+			// } else {
+			label = `${lastWordRelativeFolder}${fileName}`;
+			// if (lastWord.endsWith(resourceRequestConfig.pathSeparator)) {
+			// 	label = `${lastWord}${fileName}`;
+			// } else {
+			// 	label = `${lastWord}${resourceRequestConfig.pathSeparator}${fileName}`;
+			// }
+			// if (lastWord.length && lastWord.at(-1) !== resourceRequestConfig.pathSeparator && lastWord.at(-1) !== '.') {
+			// 	label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
+			// }
+			// }
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label = label + resourceRequestConfig.pathSeparator;
+			}
+
+			// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
+			// suggestions should all use `\`
+			if (isWindows) {
+				label = label.replaceAll('/', '\\');
 			}
 
 			resourceCompletions.push({
@@ -280,6 +326,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			});
 		}
 
+		console.log('resourceCompletions', resourceCompletions);
 
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
