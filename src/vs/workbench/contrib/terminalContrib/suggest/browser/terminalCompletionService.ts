@@ -149,6 +149,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		if (!extensionCompletionsEnabled || skipExtensionCompletions) {
 			providers = providers.filter(p => p.isBuiltin);
+			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, token);
 		}
 
 		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
@@ -156,6 +157,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const providerId = p.id;
 			return providerId && providerId in providerConfig && providerConfig[providerId];
 		});
+
 		if (!providers.length) {
 			return;
 		}
