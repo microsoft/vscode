@@ -97,7 +97,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 	[TerminalSuggestSettingId.EnableExtensionCompletions]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enableExtensionCompletions', "Controls whether extension completions are enabled."),
+		markdownDescription: localize('suggest.enableExtensionCompletions', "Controls whether extension completions are enabled. Also be aware of the {0}-setting which controls which providers are enabled.", `\`#${TerminalSuggestSettingId.Providers}#\``),
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
