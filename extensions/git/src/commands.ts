@@ -2539,13 +2539,8 @@ export class CommandCenter {
 		return this._checkout(repository, { treeish });
 	}
 
-	@command('git.checkoutDetached', { repository: true })
-	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
-		return this._checkout(repository, { detached: true, treeish });
-	}
-
-	@command('git.checkoutRef', { repository: true })
-	async checkoutRef(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+	@command('git.graph.checkout', { repository: true })
+	async checkout2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
 		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
 		if (!historyItemRef) {
 			return;
@@ -2569,8 +2564,13 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.checkoutRefDetached', { repository: true })
-	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
+	@command('git.checkoutDetached', { repository: true })
+	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
+		return this._checkout(repository, { detached: true, treeish });
+	}
+
+	@command('git.graph.checkoutDetached', { repository: true })
+	async checkoutDetached2(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
 		if (!historyItem) {
 			return false;
 		}

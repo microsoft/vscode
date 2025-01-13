@@ -454,14 +454,14 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.checkoutRef",
-        "title": "%command.checkoutRef%",
+        "command": "git.graph.checkout",
+        "title": "%command.graphCheckout%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.checkoutRefDetached",
-        "title": "%command.checkoutRefDetached%",
+        "command": "git.graph.checkoutDetached",
+        "title": "%command.graphCheckoutDetached%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1466,11 +1466,11 @@
           "when": "false"
         },
         {
-          "command": "git.checkoutRef",
+          "command": "git.graph.checkout",
           "when": "false"
         },
         {
-          "command": "git.checkoutRefDetached",
+          "command": "git.graph.checkoutDetached",
           "when": "false"
         },
         {
@@ -1997,7 +1997,7 @@
       ],
       "scm/historyItem/context": [
         {
-          "command": "git.checkoutRefDetached",
+          "command": "git.graph.checkoutDetached",
           "when": "scmProvider == git",
           "group": "1_checkout@2"
         },
@@ -2029,7 +2029,7 @@
       ],
       "scm/historyItemRef/context": [
         {
-          "command": "git.checkoutRef",
+          "command": "git.graph.checkout",
           "when": "scmProvider == git",
           "group": "1_checkout@1"
         }
