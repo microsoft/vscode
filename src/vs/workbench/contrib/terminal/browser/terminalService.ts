@@ -165,7 +165,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	@memoize get onAnyInstanceProcessIdReady() { return this._register(this.createOnInstanceEvent(e => e.onProcessIdReady)).event; }
 	@memoize get onAnyInstanceSelectionChange() { return this._register(this.createOnInstanceEvent(e => e.onDidChangeSelection)).event; }
 	@memoize get onAnyInstanceTitleChange() { return this._register(this.createOnInstanceEvent(e => e.onTitleChanged)).event; }
-	@memoize get onAnyInstanceShellTypeChanged() { return this._register(this.createOnInstanceEvent(e => Event.map(e.onDidChangeShellType, () => e, e.store))).event; } // Is this how I map my event properly?
+	@memoize get onAnyInstanceShellTypeChanged() { return this._register(this.createOnInstanceEvent(instance => Event.map(instance.onDidChangeShellType, () => instance))).event; } // Is this how I map my event properly? Would it be e.shellType?
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
