@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
@@ -54,6 +54,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private readonly _stickyScrollWidget: StickyScrollWidget;
 	private readonly _stickyLineCandidateProvider: IStickyLineCandidateProvider;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	private readonly _specialLineHeightListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _widgetState: StickyScrollWidgetState;
 	private _foldingModel: FoldingModel | undefined;
@@ -96,6 +97,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 		this._widgetState = StickyScrollWidgetState.Empty;
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
+		this._register(this._editor.onDidChangeModel(() => this._updateSpecialLineHeightListener()));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			this._readConfigurationChange(e);
 		}));
@@ -131,21 +133,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}));
 		this._onDidResize();
 		this._readConfiguration();
-		const model = this._editor.getModel();
-		if (model) {
-			this._register(model.onDidChangeSpecialLineHeight((e) => {
-				e.changes.forEach((change) => {
-					if (change.ownerId !== this._editor.getIdNumber()) {
-						return;
-					}
-					const lineNumber = change.lineNumber;
-					const indexOfLineNumber = this._widgetState.startLineNumbers.indexOf(lineNumber);
-					if (indexOfLineNumber !== -1) {
-						this._renderStickyScroll(lineNumber);
-					}
-				});
-			}));
-		}
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
@@ -208,6 +195,25 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	public selectEditor(): void {
 		this._editor.focus();
+	}
+
+	private _updateSpecialLineHeightListener(): void {
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+		this._specialLineHeightListener.value = model.onDidChangeSpecialLineHeight((e) => {
+			e.changes.forEach((change) => {
+				if (change.ownerId !== this._editor.getIdNumber()) {
+					return;
+				}
+				const lineNumber = change.lineNumber;
+				const indexOfLineNumber = this._widgetState.startLineNumbers.indexOf(lineNumber);
+				if (indexOfLineNumber !== -1) {
+					this._renderStickyScroll(lineNumber);
+				}
+			});
+		});
 	}
 
 	// True is next, false is previous
