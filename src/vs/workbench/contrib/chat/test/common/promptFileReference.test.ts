@@ -60,7 +60,7 @@ class ExpectedReference extends PromptFileReference {
 			nullPolicyService,
 			nullLogService,
 		);
-		super(uri, nullFileService, nullConfigService);
+		super(uri, nullLogService, nullFileService, nullConfigService);
 
 		this._register(nullFileService);
 		this._register(nullConfigService);
@@ -83,6 +83,7 @@ class TestPromptFileReference extends Disposable {
 		private readonly fileStructure: IFolder,
 		private readonly rootFileUri: URI,
 		private readonly expectedReferences: ExpectedReference[],
+		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
@@ -111,13 +112,13 @@ class TestPromptFileReference extends Disposable {
 		// start resolving references for the specified root file
 		const rootReference = this._register(new PromptFileReference(
 			this.rootFileUri,
+			this.logService,
 			this.fileService,
 			this.configService,
 		));
 
 		// resolve the root file reference including all nested references
-		const resolvedReferences = (await rootReference.resolve(true))
-			.flatten();
+		const resolvedReferences = (await rootReference.resolve(true)).flatten();
 
 		assert.strictEqual(
 			resolvedReferences.length,
@@ -235,7 +236,7 @@ suite('PromptFileReference (Unix)', function () {
 					},
 					{
 						name: 'file2.prompt.md',
-						contents: '## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this #file:./folder1/some-other-folder/file4.prompt.md please!\n ',
+						contents: '## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!\n ',
 					},
 					{
 						name: 'folder1',
@@ -260,7 +261,7 @@ suite('PromptFileReference (Unix)', function () {
 										children: [
 											{
 												name: 'another-file.prompt.md',
-												contents: 'another-file.prompt.md contents\t  #file:../file.txt',
+												contents: 'another-file.prompt.md contents\t  [#file:file.txt](../file.txt)',
 											},
 											{
 												name: 'one_more_file_just_in_case.prompt.md',
@@ -351,14 +352,14 @@ suite('PromptFileReference (Unix)', function () {
 					},
 					{
 						name: 'file2.prompt.md',
-						contents: `## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this #file:./folder1/some-other-folder/file4.prompt.md\n\n#file:${rootFolder}/folder1/some-other-folder/file5.prompt.md\t please!\n\t#file:./file1.md `,
+						contents: `## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this #file:./folder1/some-other-folder/file4.prompt.md\n\n#file:${rootFolder}/folder1/some-other-folder/file5.prompt.md\t please!\n\t[some (snippet!) #name))](./file1.md)`,
 					},
 					{
 						name: 'folder1',
 						children: [
 							{
 								name: 'file3.prompt.md',
-								contents: `\n\n\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content`,
+								contents: `\n\n\t- some seemingly random [another-file.prompt.md](${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md) contents\n some more\t content`,
 							},
 							{
 								name: 'some-other-folder',

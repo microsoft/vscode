@@ -11,7 +11,7 @@ import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resi
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from './simpleCompletionModel.js';
 import { getAriaId, SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
-import { TimeoutTimer } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, disposableTimeout, TimeoutTimer } from '../../../../base/common/async.js';
 import { Emitter, Event, PauseableEmitter } from '../../../../base/common/event.js';
 import { MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -20,6 +20,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/suggestWidgetStatus.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
 
 const $ = dom.$;
 
@@ -66,9 +68,12 @@ export class SimpleSuggestWidget extends Disposable {
 	private _completionModel?: SimpleCompletionModel;
 	private _cappedHeight?: { wanted: number; capped: number };
 	private _forceRenderingAbove: boolean = false;
+	private _explainMode: boolean = false;
+
 	private _preference?: WidgetPositionPreference;
+	private readonly _pendingShowDetails = this._register(new MutableDisposable());
 	private readonly _pendingLayout = this._register(new MutableDisposable());
-	// private _currentSuggestionDetails?: CancelablePromise<void>;
+	private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: SimpleCompletionItem;
 	private _ignoreFocusEvents: boolean = false;
 	readonly element: ResizableHTMLElement;
@@ -76,6 +81,7 @@ export class SimpleSuggestWidget extends Disposable {
 	private readonly _listElement: HTMLElement;
 	private readonly _list: List<SimpleCompletionItem>;
 	private readonly _status?: SuggestWidgetStatus;
+	private readonly _details: SimpleSuggestDetailsOverlay;
 
 	private readonly _showTimeout = this._register(new TimeoutTimer());
 
@@ -97,6 +103,7 @@ export class SimpleSuggestWidget extends Disposable {
 		options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -203,6 +210,10 @@ export class SimpleSuggestWidget extends Disposable {
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 
+		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget));
+		this._register(details.onDidClose(() => this.toggleDetails()));
+		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
+
 		if (options.statusBarMenuId) {
 			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
@@ -231,11 +242,11 @@ export class SimpleSuggestWidget extends Disposable {
 		}
 
 		if (!e.elements.length) {
-			// if (this._currentSuggestionDetails) {
-			// 	this._currentSuggestionDetails.cancel();
-			// 	this._currentSuggestionDetails = undefined;
-			// 	this._focusedItem = undefined;
-			// }
+			if (this._currentSuggestionDetails) {
+				this._currentSuggestionDetails.cancel();
+				this._currentSuggestionDetails = undefined;
+				this._focusedItem = undefined;
+			}
 			this._clearAriaActiveDescendant();
 			return;
 		}
@@ -250,12 +261,13 @@ export class SimpleSuggestWidget extends Disposable {
 
 		if (item !== this._focusedItem) {
 
-			// this._currentSuggestionDetails?.cancel();
-			// this._currentSuggestionDetails = undefined;
+			this._currentSuggestionDetails?.cancel();
+			this._currentSuggestionDetails = undefined;
 
 			this._focusedItem = item;
 
 			this._list.reveal(index);
+
 			const id = getAriaId(index);
 			const node = dom.getActiveWindow().document.activeElement;
 			if (node && id) {
@@ -265,6 +277,40 @@ export class SimpleSuggestWidget extends Disposable {
 			} else {
 				this._clearAriaActiveDescendant();
 			}
+
+			this._currentSuggestionDetails = createCancelablePromise(async token => {
+				const loading = disposableTimeout(() => {
+					if (this._isDetailsVisible()) {
+						this._showDetails(true, false);
+					}
+				}, 250);
+				const sub = token.onCancellationRequested(() => loading.dispose());
+				try {
+					return await Promise.resolve();
+				} finally {
+					loading.dispose();
+					sub.dispose();
+				}
+			});
+
+			this._currentSuggestionDetails.then(() => {
+				if (index >= this._list.length || item !== this._list.element(index)) {
+					return;
+				}
+
+				// item can have extra information, so re-render
+				this._ignoreFocusEvents = true;
+				this._list.splice(index, 1, [item]);
+				this._list.setFocus([index]);
+				this._ignoreFocusEvents = false;
+
+				if (this._isDetailsVisible()) {
+					this._showDetails(false, false);
+				} else {
+					this.element.domNode.classList.remove('docs-side');
+				}
+
+			}).catch();
 		}
 		// emit an event
 		this._onDidFocus.fire({ item, index, model: this._completionModel });
@@ -343,6 +389,7 @@ export class SimpleSuggestWidget extends Disposable {
 			// Reset focus border
 			// this._details.widget.domNode.classList.remove('focused');
 		});
+		this._afterRender();
 	}
 
 	setLineContext(lineContext: LineContext): void {
@@ -379,9 +426,9 @@ export class SimpleSuggestWidget extends Disposable {
 				this._showTimeout.cancel();
 				this.element.domNode.classList.remove('visible');
 				this._list.splice(0, this._list.length);
-				// this._focusedItem = undefined;
+				this._focusedItem = undefined;
 				this._cappedHeight = undefined;
-				// this._explainMode = false;
+				this._explainMode = false;
 				break;
 			case State.Loading:
 				this.element.domNode.classList.add('message');
@@ -453,9 +500,80 @@ export class SimpleSuggestWidget extends Disposable {
 		}, 100);
 	}
 
+
+	toggleDetailsFocus(): void {
+		if (this._state === State.Details) {
+			// Should return the focus to the list item.
+			this._list.setFocus(this._list.getFocus());
+			this._setState(State.Open);
+		} else if (this._state === State.Open) {
+			this._setState(State.Details);
+			if (!this._isDetailsVisible()) {
+				this.toggleDetails(true);
+			} else {
+				this._details.widget.focus();
+			}
+		}
+	}
+
+	toggleDetails(focused: boolean = false): void {
+		if (this._isDetailsVisible()) {
+			// hide details widget
+			this._pendingShowDetails.clear();
+			// this._ctxSuggestWidgetDetailsVisible.set(false);
+			this._setDetailsVisible(false);
+			this._details.hide();
+			this.element.domNode.classList.remove('shows-details');
+
+		} else if ((this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
+			// show details widget (iff possible)
+			// this._ctxSuggestWidgetDetailsVisible.set(true);
+			this._setDetailsVisible(true);
+			this._showDetails(false, focused);
+		}
+	}
+
+	private _showDetails(loading: boolean, focused: boolean): void {
+		this._pendingShowDetails.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.element.domNode), () => {
+			this._pendingShowDetails.clear();
+			this._details.show();
+			let didFocusDetails = false;
+			if (loading) {
+				this._details.widget.renderLoading();
+			} else {
+				this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
+			}
+			if (!this._details.widget.isEmpty) {
+				this._positionDetails();
+				this.element.domNode.classList.add('shows-details');
+				if (focused) {
+					this._details.widget.focus();
+					didFocusDetails = true;
+				}
+			} else {
+				this._details.hide();
+			}
+			if (!didFocusDetails) {
+				// this.editor.focus();
+			}
+		});
+	}
+
+	toggleExplainMode(): void {
+		if (this._list.getFocusedElements()[0]) {
+			this._explainMode = !this._explainMode;
+			if (!this._isDetailsVisible()) {
+				this.toggleDetails();
+			} else {
+				this._showDetails(false, false);
+			}
+		}
+	}
+
+
 	hide(): void {
 		this._pendingLayout.clear();
-		// this._pendingShowDetails.clear();
+		this._pendingShowDetails.clear();
 		// this._loadingTimeout?.dispose();
 
 		this._setState(State.Hidden);
@@ -572,6 +690,23 @@ export class SimpleSuggestWidget extends Disposable {
 		this._resize(width, height);
 	}
 
+	_afterRender() {
+		// if (position === null) {
+		// 	if (this._isDetailsVisible()) {
+		// 		this._details.hide(); //todo@jrieken soft-hide
+		// 	}
+		// 	return;
+		// }
+		if (this._state === State.Empty || this._state === State.Loading) {
+			// no special positioning when widget isn't showing list
+			return;
+		}
+		if (this._isDetailsVisible() && !this._details.widget.isEmpty) {
+			this._details.show();
+		}
+		this._positionDetails();
+	}
+
 	private _resize(width: number, height: number): void {
 		const { width: maxWidth, height: maxHeight } = this.element.maxSize;
 		width = Math.min(maxWidth, width);
@@ -587,8 +722,13 @@ export class SimpleSuggestWidget extends Disposable {
 		this._listElement.style.height = `${height}px`;
 		this.element.layout(height, width);
 
-		// this._positionDetails();
-		// TODO: Position based on preference
+		this._positionDetails();
+	}
+
+	private _positionDetails(): void {
+		if (this._isDetailsVisible()) {
+			this._details.placeAtAnchor(this.element.domNode);
+		}
 	}
 
 	private _getLayoutInfo() {
@@ -680,6 +820,14 @@ export class SimpleSuggestWidget extends Disposable {
 			};
 		}
 		return undefined;
+	}
+
+	private _isDetailsVisible(): boolean {
+		return this._storageService.getBoolean('expandSuggestionDocs', StorageScope.PROFILE, false);
+	}
+
+	private _setDetailsVisible(value: boolean) {
+		this._storageService.store('expandSuggestionDocs', value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	forceRenderingAbove() {

@@ -71,6 +71,9 @@ declare module 'vscode' {
 	}
 
 	export interface InlineEditProvider {
+
+		readonly displayName?: string;
+
 		/**
 		 * Provide inline edit for the given document.
 		 *

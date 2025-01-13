@@ -184,3 +184,7 @@
 		outline-offset: -1px;
 	}
 }
+
+.monaco-editor .inlineCompletionAccepted {
+	background-color: var(--vscode-inlineEdit-acceptedBackground);
+}

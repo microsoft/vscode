@@ -1997,24 +1997,24 @@
       ],
       "scm/historyItem/context": [
         {
+          "command": "git.checkoutRefDetached",
+          "when": "scmProvider == git",
+          "group": "1_checkout@2"
+        },
+        {
           "command": "git.createTag",
           "when": "scmProvider == git",
-          "group": "1_create@1"
+          "group": "2_create@1"
         },
         {
           "command": "git.branch",
           "when": "scmProvider == git",
-          "group": "1_create@2"
+          "group": "2_create@2"
         },
         {
           "command": "git.cherryPickRef",
           "when": "scmProvider == git",
-          "group": "2_modify@1"
-        },
-        {
-          "command": "git.checkoutRefDetached",
-          "when": "scmProvider == git",
-          "group": "2_modify@2"
+          "group": "3_modify@1"
         },
         {
           "command": "git.copyCommitId",
@@ -2027,7 +2027,13 @@
           "group": "9_copy@2"
         }
       ],
-      "scm/historyItemRef/context": [],
+      "scm/historyItemRef/context": [
+        {
+          "command": "git.checkoutRef",
+          "when": "scmProvider == git",
+          "group": "1_checkout@1"
+        }
+      ],
       "editor/title": [
         {
           "command": "git.openFile",

@@ -284,7 +284,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (requestId) {
 			for (const [uri, data] of this._workingSet) {
 				if (data.state !== WorkingSetEntryState.Suggested) {
-					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
+					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent, isMarkedReadonly: data.isMarkedReadonly });
 				}
 			}
 			const linearHistory = this._linearHistory.get();
@@ -417,6 +417,22 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return; // noop
 		}
 
+		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
+	}
+
+	markIsReadonly(resource: URI, isReadonly?: boolean): void {
+		const entry = this._workingSet.get(resource);
+		if (entry) {
+			if (entry.state === WorkingSetEntryState.Transient || entry.state === WorkingSetEntryState.Suggested) {
+				entry.state = WorkingSetEntryState.Attached;
+			}
+			entry.isMarkedReadonly = isReadonly ?? !entry.isMarkedReadonly;
+		} else {
+			this._workingSet.set(resource, {
+				state: WorkingSetEntryState.Attached,
+				isMarkedReadonly: isReadonly ?? true
+			});
+		}
 		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 	}
 
