@@ -42,7 +42,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
-		markdownDescription: localize('suggest.providers', "Controls which shell providers are enabled for terminal suggestions."),
+		markdownDescription: localize('suggest.providers', "Controls which providers are enabled for terminal suggestions.  Also be aware of the {0}-setting which controls if extensions are able to provide suggestions.", `\`#${TerminalSuggestSettingId.EnableExtensionCompletions}#\``),
 		type: 'object',
 		properties: {},
 		default: {
