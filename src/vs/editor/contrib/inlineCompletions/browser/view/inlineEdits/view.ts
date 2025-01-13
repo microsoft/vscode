@@ -175,16 +175,21 @@ export class InlineEditsView extends Disposable {
 
 		if (diff.length === 1 && diff[0].original.length === 1 && diff[0].modified.length === 1) {
 			const inner = diff.flatMap(d => d.innerChanges!);
+			const originalText = edit.originalText.getValueOfRange(inner[0].originalRange);
+			const modifiedText = newText.getValueOfRange(inner[0].modifiedRange);
 			if (inner.every(
 				m => (m.originalRange.isEmpty() && this._useWordInsertionView.read(reader) === 'whenPossible'
 					|| !m.originalRange.isEmpty() && this._useWordReplacementView.read(reader) === 'whenPossible')
 					&& TextLength.ofRange(m.originalRange).columnCount < 100
 					&& TextLength.ofRange(m.modifiedRange).columnCount < 100
+					// If multiple word replacements, check that they are all the same
+					&& edit.originalText.getValueOfRange(m.originalRange) === originalText
+					&& newText.getValueOfRange(m.modifiedRange) === modifiedText
 			)) {
 				return {
 					kind: 'wordReplacements' as const,
 					replacements: inner.map(i =>
-						new SingleTextEdit(i.originalRange, newText.getValueOfRange(i.modifiedRange))
+						new SingleTextEdit(i.originalRange, modifiedText)
 					)
 				};
 			}
