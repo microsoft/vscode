@@ -200,6 +200,43 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const endsWithSpace = cursorPrefix.endsWith(' ');
 		const lastWord = endsWithSpace ? '' : cursorPrefix.split(' ').at(-1) ?? '';
 
+		if (foldersRequested) {
+			if (!lastWord.trim()) {
+				resourceCompletions.push({
+					label: '.',
+					provider: 'builtin',
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					detail: 'Source folder',
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
+			if (lastWord.endsWith('..' + resourceRequestConfig.pathSeparator)) {
+				resourceCompletions.push({
+					label: lastWord + '..' + resourceRequestConfig.pathSeparator,
+					provider: 'builtin',
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			} else {
+				resourceCompletions.push({
+					label: '..' + resourceRequestConfig.pathSeparator,
+					provider: 'builtin',
+					kind: TerminalCompletionItemKind.Folder,
+					detail: 'Parent folder',
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
+		}
+
 		for (const stat of fileStat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
 			if (foldersRequested && stat.isDirectory) {
@@ -243,42 +280,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			});
 		}
 
-		if (foldersRequested) {
-			if (!lastWord.trim()) {
-				resourceCompletions.push({
-					label: '.',
-					provider: 'builtin',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					detail: 'Source folder',
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: lastWord.length
-				});
-			}
-			if (lastWord.endsWith('..' + resourceRequestConfig.pathSeparator)) {
-				resourceCompletions.push({
-					label: lastWord + '..' + resourceRequestConfig.pathSeparator,
-					provider: 'builtin',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: lastWord.length
-				});
-			} else {
-				resourceCompletions.push({
-					label: '..' + resourceRequestConfig.pathSeparator,
-					provider: 'builtin',
-					kind: TerminalCompletionItemKind.Folder,
-					detail: 'Parent folder',
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: lastWord.length
-				});
-			}
-		}
+
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
 }
