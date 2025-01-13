@@ -3,15 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * TODO: @legomushroom - list
+ *
+ *  - what else to port over in the `promptFileReference.test.ts` file?
+ *  - what else to port over in this PR?
+ *  - smoke test the `prompt snippets` / `prompt instructions`
+ */
+
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { assert } from '../../../../../base/common/assert.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { assertDefined } from '../../../../../base/common/types.js';
+import { FilePromptParser } from '../../common/filePromptParser.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { PromptFileReference, TErrorCondition } from '../../common/promptFileReference.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference } from '../../common/promptFileReferenceErrors.js';
+import { FailedToResolveContentsStream, FileOpenFailed, NonPromptSnippetFile, ParseError, RecursiveReference } from '../../common/promptFileReferenceErrors.js';
 
 /**
  * Well-known localized error messages.
@@ -49,14 +58,13 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 * Private reference of the underlying prompt instructions
 	 * reference instance.
 	 */
-	private readonly _reference: PromptFileReference;
+	private readonly _reference: FilePromptParser;
 	/**
 	 * Get the prompt instructions reference instance.
 	 */
-	public get reference(): PromptFileReference {
+	public get reference(): FilePromptParser {
 		return this._reference;
 	}
-
 
 	/**
 	 * Get `URI` for the main reference and `URI`s of all valid
@@ -126,9 +134,18 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 * @returns Error message.
 	 */
 	private getErrorMessage(
-		error: TErrorCondition,
+		error: ParseError,
 		isRootError: boolean,
 	): string {
+		// TODO: @legomushroom - fix this
+		assert(
+			(error instanceof NonPromptSnippetFile) ||
+			(error instanceof FileOpenFailed) ||
+			(error instanceof RecursiveReference) ||
+			(error instanceof FailedToResolveContentsStream),
+			`Uknown error: ${error}`,
+		);
+
 		const { uri } = error;
 
 		// if a child error - the error is somewhere in the nested references tree,
@@ -165,10 +182,10 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 *
 	 * @returns List of errors in the references tree.
 	 */
-	private collectErrorConditions(): TErrorCondition[] {
+	private collectErrorConditions(): ParseError[] {
 		return this.reference
-			// get all references (including the root) as a flat array
-			.flatten()
+			// get entire reference tree
+			.tokensTree
 			// filter out children without error conditions or
 			// the ones that are non-prompt snippet files
 			.filter((childReference) => {
@@ -177,7 +194,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 				return errorCondition && !(errorCondition instanceof NonPromptSnippetFile);
 			})
 			// map to error condition objects
-			.map((childReference): TErrorCondition => {
+			.map((childReference): ParseError => {
 				const { errorCondition } = childReference;
 
 				// `must` always be `true` because of the `filter` call above
@@ -242,7 +259,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 		super();
 
 		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-		this._reference = this._register(this.initService.createInstance(PromptFileReference, uri))
+		this._reference = this._register(this.initService.createInstance(FilePromptParser, uri, []))
 			.onUpdate(this._onUpdate.fire);
 	}
 
@@ -251,7 +268,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 * that it may contain.
 	 */
 	public resolve(): this {
-		this._reference.resolve();
+		this._reference.start();
 
 		return this;
 	}

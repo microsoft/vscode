@@ -73,7 +73,7 @@ export abstract class PromptContentsProviderBase<
 		// ensure that the `onChangeEmitter` always fires with the correct context
 		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
 		// subscribe to the change event emitted by an extending class
-		this._register(this.onChangeEmitter.event(this.onChangeHandler, this));
+		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));
 	}
 
 	/**
@@ -123,7 +123,7 @@ export abstract class PromptContentsProviderBase<
 	 * prompt contents change.
 	 */
 	@cancelPreviousCalls
-	private onChangeHandler(
+	private onContentsChanged(
 		event: TChangeEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): this {
@@ -133,7 +133,7 @@ export abstract class PromptContentsProviderBase<
 
 		promise
 			.then((stream) => {
-				if (cancellationToken?.isCancellationRequested) {
+				if (cancellationToken?.isCancellationRequested || this.disposed) {
 					stream.destroy();
 					throw new CancellationError();
 				}
@@ -162,9 +162,22 @@ export abstract class PromptContentsProviderBase<
 		// TODO: @legomushroom - throw if disposed?
 
 		// `'full'` means "everything has changed"
-		this.onChangeHandler('full');
+		this.onContentsChanged('full');
 
 		return this;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public disposed = false;
+	public override dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+
+		this.disposed = true;
+		super.dispose();
 	}
 
 	/**

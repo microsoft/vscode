@@ -67,6 +67,11 @@ export abstract class BaseDecoder<
 			'Cannot start stream that has already ended.',
 		);
 
+		assert(
+			!this.disposed,
+			'Cannot start stream that has already disposed.',
+		);
+
 		this.stream.on('data', this.tryOnStreamData);
 		this.stream.on('error', this.onStreamError);
 		this.stream.on('end', this.onStreamEnd);
@@ -326,7 +331,19 @@ export abstract class BaseDecoder<
 		return new TransformDecoder(this, transform);
 	}
 
+	/**
+	 * Check whether this object has been disposed.
+	 *
+	 * TODO: @legomushroom - make readonly
+	 */
+	public disposed = false;
 	public override dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+
+		this.disposed = true;
+
 		this.onStreamEnd();
 
 		this.stream.destroy();
@@ -337,7 +354,7 @@ export abstract class BaseDecoder<
 
 /**
  * Transforms a provided stream data type by piping it through
- * a provided `transformData` function.
+ * the specified {@linkcode transformData} callback function.
  */
 class TransformDecoder<
 	I extends BaseDecoder<T, NonNullable<unknown>>,
@@ -350,7 +367,7 @@ class TransformDecoder<
 	) {
 		super(stream);
 
-		Object.setPrototypeOf(this.constructor.prototype, stream);
+		// Object.setPrototypeOf(this.constructor.prototype, stream);
 	}
 
 	protected override onStreamData(data: T): void {

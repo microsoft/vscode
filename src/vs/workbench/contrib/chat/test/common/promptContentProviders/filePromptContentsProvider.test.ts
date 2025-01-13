@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { randomInt } from '../../../../../../base/common/numbers.js';
+import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
+import { Line } from '../../../../../../editor/common/codecs/linesCodec/tokens/line.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { randomInt } from '../../../../../../base/common/numbers.js';
 import { FilePromptContentProvider } from '../../../common/promptContentProviders/filePromptContentsProvider.js';
-import { Line } from '../../../../../../editor/common/codecs/linesCodec/tokens/line.js';
-import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { Schemas } from '../../../../../../base/common/network.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 suite('FilePromptContentsProvider', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,6 +56,7 @@ suite('FilePromptContentsProvider', function () {
 			await fileService.del(fileUri);
 		}
 		await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
+		// TODO: @legomushroom - use the `wait` utility
 		await new Promise((resolve) => setTimeout(resolve, 5));
 
 		const contentsProvider = testDisposables.add(instantiationService.createInstance(
