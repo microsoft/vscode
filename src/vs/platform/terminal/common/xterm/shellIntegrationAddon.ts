@@ -239,34 +239,6 @@ const enum VSCodeOscPt {
 	 */
 	EnvJson = 'EnvJson',
 
-	/**
-	 * The start of the collecting user's environment variables individually.
-	 * Clears any environment residuals in previous sessions.
-	 *
-	 * Format: `OSC 633 ; EnvSingleStart ; <Nonce>`
-	 *
-	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
-	 */
-	EnvSingleStart = 'EnvSingleStart',
-
-	/**
-	 * Sets an entry of single environment variable to transactional pending map of environment variables.
-	 *
-	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> ; <Nonce>`
-	 *
-	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
-	 */
-	EnvSingleEntry = 'EnvSingleEntry',
-
-	/**
-	 * The end of the collecting user's environment variables individually.
-	 * Clears any pending environment variables and fires an event that contains user's environment.
-	 *
-	 * Format: `OSC 633 ; EnvSingleEnd ; <Nonce>`
-	 *
-	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
-	 */
-	EnvSingleEnd = 'EnvSingleEnd'
 }
 
 /**
@@ -472,24 +444,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
 					}
 				}
-				return true;
-			}
-			case VSCodeOscPt.EnvSingleStart: {
-				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === this._nonce);
-				return true;
-			}
-			case VSCodeOscPt.EnvSingleEntry: {
-				const arg0 = args[0];
-				const arg1 = args[1];
-				const arg2 = args[2];
-				if (arg0 !== undefined && arg1 !== undefined) {
-					const env = deserializeMessage(arg1);
-					this._createOrGetShellEnvDetection().setEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
-				}
-				return true;
-			}
-			case VSCodeOscPt.EnvSingleEnd: {
-				this._createOrGetShellEnvDetection().endEnvironmentSingleVar(args[0] === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.RightPromptStart: {
