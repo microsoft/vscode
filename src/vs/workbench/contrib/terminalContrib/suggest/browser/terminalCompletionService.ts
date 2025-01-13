@@ -231,6 +231,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label = label + resourceRequestConfig.pathSeparator;
 			}
+
 			resourceCompletions.push({
 				label,
 				provider,
@@ -242,6 +243,42 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			});
 		}
 
+		if (promptValue.trim() === '') {
+			resourceCompletions.push({
+				label: '.',
+				provider: 'builtin',
+				kind: TerminalCompletionItemKind.Folder,
+				isDirectory: true,
+				isFile: false,
+				detail: 'Source folder',
+				replacementIndex: cursorPosition - lastWord.length,
+				replacementLength: lastWord.length
+			});
+		}
+		if (promptValue.trim() === '' || foldersRequested) {
+			if (!lastWord.endsWith('..' + resourceRequestConfig.pathSeparator)) {
+				resourceCompletions.push({
+					label: '..' + resourceRequestConfig.pathSeparator,
+					provider: 'builtin',
+					kind: TerminalCompletionItemKind.Folder,
+					detail: 'Parent folder',
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			} else {
+				resourceCompletions.push({
+					label: lastWord + '..' + resourceRequestConfig.pathSeparator,
+					provider: 'builtin',
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
+		}
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
 }
