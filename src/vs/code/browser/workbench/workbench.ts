@@ -57,7 +57,7 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 		{ id: 'membrane.refreshPage', handler: () => window.location.reload() },
 		// Invoked when the navigator finishes loading
 		{
-			id: 'membrane.completeInitialization', handler: () => window.completeInitialization()
+			id: 'membrane.completeInitialization', handler: () => window.completeInitialization?.()
 		},
 		{
 			id: 'membrane.getLaunchParams', handler: () => {
