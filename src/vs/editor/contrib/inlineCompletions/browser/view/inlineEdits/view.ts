@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, IObservable, IReader, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -37,6 +37,7 @@ export class InlineEditsView extends Disposable {
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
+		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -143,6 +144,7 @@ export class InlineEditsView extends Disposable {
 				this._uiState.map(s => s && s.originalDisplayRange),
 				this._model,
 				this._sideBySide.isHovered,
+				this._focusIsInMenu,
 			));
 		} else {
 			store.add(new InlineEditsIndicator(

@@ -26,6 +26,7 @@ import { UntitledTextEditorInput } from '../../../services/untitled/common/untit
 import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../common/chatModel.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
+import { resizeImage } from './imageUtils.js';
 
 enum ChatDragAndDropType {
 	FILE_INTERNAL,
@@ -232,7 +233,7 @@ export class ChatDragAndDrop extends Themable {
 
 	private async resolveAttachContext(editorInput: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
 		// Image
-		const imageContext = getImageAttachContext(editorInput);
+		const imageContext = await getImageAttachContext(editorInput, this.fileService);
 		if (imageContext) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 		}
@@ -425,18 +426,20 @@ function getResourceAttachContext(resource: URI, isDirectory: boolean): IChatReq
 	};
 }
 
-function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput): IChatRequestVariableEntry | undefined {
+async function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService): Promise<IChatRequestVariableEntry | undefined> {
 	if (!editor.resource) {
 		return undefined;
 	}
 
 	if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(editor.resource.path)) {
 		const fileName = basename(editor.resource);
+		const readFile = await fileService.readFile(editor.resource);
+		const resizedImage = await resizeImage(readFile.value.buffer);
 		return {
 			id: editor.resource.toString(),
 			name: fileName,
 			fullName: editor.resource.path,
-			value: editor.resource,
+			value: resizedImage,
 			icon: Codicon.fileMedia,
 			isDynamic: true,
 			isImage: true,

@@ -11,6 +11,7 @@ import { Emitter } from '../../../../base/common/event.js';
 
 export interface IStatusbarViewModelEntry {
 	readonly id: string;
+	readonly extensionId: string | undefined;
 	readonly name: string;
 	readonly hasCommand: boolean;
 	readonly alignment: StatusbarAlignment;

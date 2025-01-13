@@ -6,7 +6,7 @@
 import { createStyleSheetFromObservable } from '../../../../../base/browser/domObservable.js';
 import { readHotReloadableExport } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { derived, mapObservableArrayCached, derivedDisposable, constObservable, derivedObservableWithCache, IObservable } from '../../../../../base/common/observable.js';
+import { derived, mapObservableArrayCached, derivedDisposable, constObservable, derivedObservableWithCache, IObservable, ISettableObservable } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
@@ -38,7 +38,7 @@ export class InlineCompletionsView extends Disposable {
 		if (!this._everHadInlineEdit.read(reader)) {
 			return undefined;
 		}
-		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer.hot.read(reader), this._editor, this._inlineEdit, this._model);
+		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer.hot.read(reader), this._editor, this._inlineEdit, this._model, this._focusIsInMenu);
 	})
 		.recomputeInitiallyAndOnChange(this._store);
 
@@ -48,6 +48,7 @@ export class InlineCompletionsView extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
+		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();

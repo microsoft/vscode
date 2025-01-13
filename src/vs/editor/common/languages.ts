@@ -834,6 +834,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 
+	displayName?: string;
+
 	toString?(): string;
 }
 
@@ -2107,7 +2109,7 @@ export interface CodeLens {
 
 export interface CodeLensList {
 	lenses: CodeLens[];
-	dispose(): void;
+	dispose?(): void;
 }
 
 export interface CodeLensProvider {
@@ -2421,6 +2423,7 @@ export enum InlineEditTriggerKind {
 }
 
 export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+	displayName?: string;
 	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
 	freeInlineEdit(edit: T): void;
 }

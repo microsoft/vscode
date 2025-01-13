@@ -841,6 +841,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
+	private unpublishedCommits: Set<string> | undefined = undefined;
 	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
@@ -2270,6 +2271,17 @@ export class Repository implements Disposable {
 					this.isCherryPickInProgress(),
 					this.getInputTemplate()]);
 
+			// Reset the list of unpublished commits if HEAD has
+			// changed (ex: checkout, fetch, pull, push, publish, etc.).
+			// The list of unpublished commits will be computed lazily
+			// on demand.
+			if (this.HEAD?.name !== HEAD?.name ||
+				this.HEAD?.commit !== HEAD?.commit ||
+				this.HEAD?.ahead !== HEAD?.ahead ||
+				this.HEAD?.upstream !== HEAD?.upstream) {
+				this.unpublishedCommits = undefined;
+			}
+
 			this._HEAD = HEAD;
 			this._remotes = remotes!;
 			this._submodules = submodules!;
@@ -2744,6 +2756,24 @@ export class Repository implements Disposable {
 		}
 
 		return false;
+	}
+
+	async getUnpublishedCommits(): Promise<Set<string>> {
+		if (this.unpublishedCommits) {
+			return this.unpublishedCommits;
+		}
+
+		if (this.HEAD && this.HEAD.name && this.HEAD.upstream && this.HEAD.ahead && this.HEAD.ahead > 0) {
+			const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+			const ref2 = this.HEAD.name;
+
+			const revList = await this.repository.revList(ref1, ref2);
+			this.unpublishedCommits = new Set<string>(revList);
+		} else {
+			this.unpublishedCommits = new Set<string>();
+		}
+
+		return this.unpublishedCommits;
 	}
 
 	dispose(): void {

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize2 } from '../../../../nls.js';
 import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -54,7 +54,10 @@ abstract class NavigateAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		const editor = editorService.activeTextEditorControl;
+		let editor = editorService.activeTextEditorControl;
+		if (isDiffEditor(editor)) {
+			editor = editor.getModifiedEditor();
+		}
 		if (!isCodeEditor(editor) || !editor.hasModel()) {
 			return;
 		}
@@ -152,8 +155,13 @@ abstract class AcceptDiscardAction extends Action2 {
 
 		let uri = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel?.uri;
 		if (!uri) {
-			const editor = editorService.activeTextEditorControl;
-			uri = isCodeEditor(editor) && editor.hasModel() ? editor.getModel().uri : undefined;
+			let editor = editorService.activeTextEditorControl;
+			if (isDiffEditor(editor)) {
+				editor = editor.getModifiedEditor();
+			}
+			uri = isCodeEditor(editor) && editor.hasModel()
+				? editor.getModel().uri
+				: undefined;
 		}
 		if (!uri) {
 			return;
@@ -190,12 +198,11 @@ export class RejectAction extends AcceptDiscardAction {
 	}
 }
 
-class UndoHunkAction extends EditorAction2 {
+class RejectHunkAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'chatEditor.action.undoHunk',
-			title: localize2('undo', 'Undo this Change'),
-			shortTitle: localize2('undo2', 'Undo'),
+			title: localize2('undo', 'Discard this Change'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.discard,
@@ -213,7 +220,7 @@ class UndoHunkAction extends EditorAction2 {
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		ChatEditorController.get(editor)?.undoNearestChange(args[0]);
+		ChatEditorController.get(editor)?.rejectNearestChange(args[0]);
 	}
 }
 
@@ -222,7 +229,6 @@ class AcceptHunkAction extends EditorAction2 {
 		super({
 			id: 'chatEditor.action.acceptHunk',
 			title: localize2('acceptHunk', 'Accept this Change'),
-			shortTitle: localize2('acceptHunk2', 'Accept'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.check,
@@ -244,23 +250,31 @@ class AcceptHunkAction extends EditorAction2 {
 	}
 }
 
-class OpenDiffFromHunkAction extends EditorAction2 {
+class OpenDiffAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'chatEditor.action.diffHunk',
-			title: localize2('diff', 'Open Diff'),
+			title: localize2('diff', 'Toggle Diff Editor'),
 			category: CHAT_CATEGORY,
+			toggled: {
+				condition: EditorContextKeys.inDiffEditor,
+				icon: Codicon.goToFile,
+			},
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.diffSingle,
-			menu: {
+			menu: [{
 				id: MenuId.ChatEditingEditorHunk,
 				order: 10
-			}
+			}, {
+				id: MenuId.ChatEditingEditorContent,
+				group: 'a_resolve',
+				order: 2,
+			}]
 		});
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		ChatEditorController.get(editor)?.openDiff(args[0]);
+		ChatEditorController.get(editor)?.toggleDiff(args[0]);
 	}
 }
 
@@ -268,8 +282,8 @@ export function registerChatEditorActions() {
 	registerAction2(class NextAction extends NavigateAction { constructor() { super(true); } });
 	registerAction2(class PrevAction extends NavigateAction { constructor() { super(false); } });
 	registerAction2(AcceptAction);
-	registerAction2(RejectAction);
-	registerAction2(UndoHunkAction);
 	registerAction2(AcceptHunkAction);
-	registerAction2(OpenDiffFromHunkAction);
+	registerAction2(RejectAction);
+	registerAction2(RejectHunkAction);
+	registerAction2(OpenDiffAction);
 }

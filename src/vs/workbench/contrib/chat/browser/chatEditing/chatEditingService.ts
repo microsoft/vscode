@@ -29,11 +29,12 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -91,6 +92,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
 		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
@@ -143,6 +145,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				void this._currentSessionObs.get()?.stop();
 			}
 		}));
+
+		// todo@connor4312: temporary until chatReadonlyPromptReference proposal is finalized
+		const readonlyEnabledContextKey = chatEditingAgentSupportsReadonlyReferencesContextKey.bindTo(contextKeyService);
+		const setReadonlyFilesEnabled = () => {
+			const enabled = extensionService.extensions.some(e => e.enabledApiProposals?.includes('chatReadonlyPromptReference'));
+			readonlyEnabledContextKey.set(enabled);
+		};
+		setReadonlyFilesEnabled();
+		this._register(extensionService.onDidRegisterExtensions(setReadonlyFilesEnabled));
+		this._register(extensionService.onDidChangeExtensions(setReadonlyFilesEnabled));
 
 		this._register(this.lifecycleService.onWillShutdown((e) => {
 			const session = this._currentSessionObs.get();

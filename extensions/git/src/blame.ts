@@ -218,7 +218,9 @@ export class GitBlameController {
 
 			// Remote commands
 			const defaultRemote = repository.getDefaultRemote();
-			if (defaultRemote?.fetchUrl) {
+			const unpublishedCommits = await repository.getUnpublishedCommits();
+
+			if (defaultRemote?.fetchUrl && !unpublishedCommits.has(blameInformation.hash)) {
 				remoteSourceCommands.push(...await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl));
 			}
 		}
@@ -279,7 +281,7 @@ export class GitBlameController {
 		// Commands
 		const hash = commitInformation?.hash ?? blameInformation.hash;
 
-		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, hash]))} "${l10n.t('View Commit')}")`);
+		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, hash]))} "${l10n.t('Open Commit')}")`);
 		markdownString.appendMarkdown('&nbsp;');
 		markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
 
@@ -725,7 +727,7 @@ class GitBlameStatusBarItem {
 			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(window.activeTextEditor.document.uri, template, blameInformation[0].blameInformation)}`;
 			this._statusBarItem.tooltip = await this._controller.getBlameInformationHover(window.activeTextEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
-				title: l10n.t('View Commit'),
+				title: l10n.t('Open Commit'),
 				command: 'git.viewCommit',
 				arguments: [window.activeTextEditor.document.uri, blameInformation[0].blameInformation.hash]
 			} satisfies Command;
