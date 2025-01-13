@@ -12,10 +12,10 @@ import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
-import { fromNow } from '../../../../base/common/date.js';
+import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -40,7 +40,7 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -61,9 +61,9 @@ import { compare } from '../../../../base/common/strings.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -196,7 +196,9 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 			title: localize('goToCurrentHistoryItem', "Go to Current History Item"),
 			icon: Codicon.target,
 			viewId: HISTORY_VIEW_PANE_ID,
-			precondition: ContextKeys.SCMHistoryItemCount.notEqualsTo(0),
+			precondition: ContextKeyExpr.and(
+				ContextKeys.SCMHistoryItemCount.notEqualsTo(0),
+				ContextKeys.SCMCurrentHistoryItemRefInFilter.isEqualTo(true)),
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryTitle,
@@ -236,13 +238,14 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.viewChanges',
-			title: localize('viewChanges', "View Changes"),
+			title: localize('openChanges', "Open Changes"),
 			f1: false,
 			menu: [
 				{
 					id: MenuId.SCMChangesContext,
+					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: '0_view',
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true)
+					order: 1
 				}
 			]
 		});
@@ -457,13 +460,17 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const historyItem = element.historyItemViewModel.historyItem;
 
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		// markdown.appendMarkdown(`$(git-commit) \`${historyItem.displayId ?? historyItem.id}\`\n\n`);
 
 		if (historyItem.author) {
-			markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
+			if (historyItem.authorEmail) {
+				const emailTitle = localize('emailLinkTitle', "Email");
+				markdown.appendMarkdown(`$(account) [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
+			} else {
+				markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
+			}
 
 			if (historyItem.timestamp) {
-				const dateFormatter = new Intl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				const dateFormatter = safeIntl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 				markdown.appendMarkdown(`, $(history) ${fromNow(historyItem.timestamp, true, true)} (${dateFormatter.format(historyItem.timestamp)})`);
 			}
 
@@ -1205,12 +1212,16 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _updateChildrenThrottler = new Throttler();
 
 	private readonly _scmProviderCtx: IContextKey<string | undefined>;
+	private readonly _scmCurrentHistoryItemRefHasRemote: IContextKey<boolean>;
+	private readonly _scmCurrentHistoryItemRefInFilter: IContextKey<boolean>;
+
+	private readonly _contextMenuDisposables = new MutableDisposable<DisposableStore>();
 
 	constructor(
 		options: IViewPaneOptions,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INotificationService private readonly _notificationService: INotificationService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -1230,6 +1241,8 @@ export class SCMHistoryViewPane extends ViewPane {
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
+		this._scmCurrentHistoryItemRefHasRemote = ContextKeys.SCMCurrentHistoryItemRefHasRemote.bindTo(this.scopedContextKeyService);
+		this._scmCurrentHistoryItemRefInFilter = ContextKeys.SCMCurrentHistoryItemRefInFilter.bindTo(this.scopedContextKeyService);
 
 		this._actionRunner = this.instantiationService.createInstance(SCMHistoryViewPaneActionRunner);
 		this._register(this._actionRunner);
@@ -1311,15 +1324,15 @@ export class SCMHistoryViewPane extends ViewPane {
 					return;
 				}
 
-				// Update context
-				this._scmProviderCtx.set(repository.provider.contextValue);
-
 				// HistoryItemId changed (checkout)
 				const historyItemRefId = derived(reader => {
 					return historyProvider.historyItemRef.read(reader)?.id;
 				});
-				store.add(runOnChange(historyItemRefId, () => {
-					this.refresh();
+				store.add(runOnChange(historyItemRefId, async historyItemRefIdValue => {
+					await this.refresh();
+
+					// Update context key (needs to be done after the refresh call)
+					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefIdValue));
 				}));
 
 				// HistoryItemRefs changed
@@ -1342,9 +1355,21 @@ export class SCMHistoryViewPane extends ViewPane {
 				}));
 
 				// HistoryItemRefs filter changed
-				store.add(runOnChange(this._treeViewModel.onDidChangeHistoryItemsFilter, () => {
-					this.refresh();
+				store.add(runOnChange(this._treeViewModel.onDidChangeHistoryItemsFilter, async () => {
+					await this.refresh();
+
+					// Update context key (needs to be done after the refresh call)
+					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
 				}));
+
+				// HistoryItemRemoteRef changed
+				store.add(autorun(reader => {
+					this._scmCurrentHistoryItemRefHasRemote.set(!!historyProvider.historyItemRemoteRef.read(reader));
+				}));
+
+				// Update context
+				this._scmProviderCtx.set(repository.provider.contextValue);
+				this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
 
 				// We skip refreshing the graph on the first execution of the autorun
 				// since the graph for the first repository is rendered when the tree
@@ -1354,7 +1379,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}
 				isFirstRun = false;
 			}));
-		});
+		}, this, this._store);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -1438,16 +1463,11 @@ export class SCMHistoryViewPane extends ViewPane {
 		const repository = this._treeViewModel.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
 		const historyItemRef = historyProvider?.historyItemRef.get();
-		const historyItemFilter = this._treeViewModel.getHistoryItemsFilter();
-
-		if (!repository || !historyItemRef?.revision || !historyItemFilter) {
+		if (!repository || !historyItemRef?.id || !historyItemRef?.revision) {
 			return;
 		}
 
-		// Filter set to `all`, `auto` or it contains the current history item
-		if (Array.isArray(historyItemFilter) &&
-			!historyItemFilter.find(ref => ref.id === historyItemRef.id)) {
-			this._notificationService.info(localize('scmGraphViewRevealCurrentHistoryItem', "The current history item is not present in the source control graph. Please use the history item references picker to expand the set of history items in the graph."));
+		if (!this._isCurrentHistoryItemInFilter(historyItemRef.id)) {
 			return;
 		}
 
@@ -1513,6 +1533,19 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._tree.onContextMenu(this._onContextMenu, this, this._store);
 	}
 
+	private _isCurrentHistoryItemInFilter(historyItemRefId: string | undefined): boolean {
+		if (!historyItemRefId) {
+			return false;
+		}
+
+		const historyItemFilter = this._treeViewModel.getHistoryItemsFilter();
+		if (historyItemFilter === 'all' || historyItemFilter === 'auto') {
+			return true;
+		}
+
+		return Array.isArray(historyItemFilter) && !!historyItemFilter.find(ref => ref.id === historyItemRefId);
+	}
+
 	private async _onDidOpen(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
 		if (!e.element) {
 			return;
@@ -1546,14 +1579,79 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
+		this._contextMenuDisposables.value = new DisposableStore();
+
+		const historyItemRefMenuItems = MenuRegistry.getMenuItems(MenuId.SCMHistoryItemRefContext).filter(item => isIMenuItem(item));
+
+		// If there are any history item references we have to add a submenu item for each orignal action,
+		// and a menu item for each history item ref that matches the `when` clause of the original action.
+		if (historyItemRefMenuItems.length > 0 && element.historyItemViewModel.historyItem.references?.length) {
+			const historyItemRefActions = new Map<string, ISCMHistoryItemRef[]>();
+
+			for (const ref of element.historyItemViewModel.historyItem.references) {
+				const contextKeyService = this.scopedContextKeyService.createOverlay([
+					['scmHistoryItemRef', ref.id]
+				]);
+
+				const menuActions = this._menuService.getMenuActions(
+					MenuId.SCMHistoryItemRefContext, contextKeyService);
+
+				for (const action of menuActions.flatMap(a => a[1])) {
+					if (!historyItemRefActions.has(action.id)) {
+						historyItemRefActions.set(action.id, []);
+					}
+
+					historyItemRefActions.get(action.id)!.push(ref);
+				}
+			}
+
+			// Register submenu, menu items
+			for (const historyItemRefMenuItem of historyItemRefMenuItems) {
+				const actionId = historyItemRefMenuItem.command.id;
+
+				if (!historyItemRefActions.has(actionId)) {
+					continue;
+				}
+
+				// Register the submenu for the original action
+				this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMChangesContext, {
+					title: historyItemRefMenuItem.command.title,
+					submenu: MenuId.for(actionId),
+					group: historyItemRefMenuItem?.group,
+					order: historyItemRefMenuItem?.order
+				}));
+
+				// Register the action for the history item ref
+				for (const historyItemRef of historyItemRefActions.get(actionId) ?? []) {
+					this._contextMenuDisposables.value.add(registerAction2(class extends Action2 {
+						constructor() {
+							super({
+								id: `${actionId}.${historyItemRef.id}`,
+								title: historyItemRef.name,
+								menu: {
+									id: MenuId.for(actionId),
+									group: historyItemRef.category
+								}
+							});
+						}
+						override run(accessor: ServicesAccessor, ...args: any[]): void {
+							const commandService = accessor.get(ICommandService);
+							commandService.executeCommand(actionId, ...args, historyItemRef.id);
+						}
+					}));
+				}
+			}
+		}
+
+		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMChangesContext, this.scopedContextKeyService, {
+			arg: element.repository.provider,
+			shouldForwardArgs: true
+		});
+
 		this.contextMenuService.showContextMenu({
 			contextKeyService: this.scopedContextKeyService,
-			menuId: MenuId.SCMChangesContext,
-			menuActionOptions: {
-				arg: element.repository.provider,
-				shouldForwardArgs: true
-			},
 			getAnchor: () => e.anchor,
+			getActions: () => getFlatContextMenuActions(historyItemMenuActions),
 			getActionsContext: () => element.historyItemViewModel.historyItem
 		});
 	}
@@ -1586,6 +1684,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	override dispose(): void {
+		this._contextMenuDisposables.dispose();
 		this._visibilityDisposables.dispose();
 		super.dispose();
 	}

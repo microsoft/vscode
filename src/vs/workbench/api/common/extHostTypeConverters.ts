@@ -46,7 +46,7 @@ import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
 import * as search from '../../contrib/search/common/search.js';
 import { TestId } from '../../contrib/testing/common/testId.js';
-import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
+import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestRunProfileReference, ITestTag, TestMessageType, TestResultItem, TestRunProfileBitset, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -57,6 +57,7 @@ import * as types from './extHostTypes.js';
 import { IChatResponseTextPart, IChatResponsePromptTsxPart } from '../../contrib/chat/common/languageModels.js';
 import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostTypes.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 
 export namespace Command {
 
@@ -1952,6 +1953,28 @@ export namespace TestTag {
 	export const denamespace = denamespaceTestTag;
 }
 
+export namespace TestRunProfile {
+	export function from(item: types.TestRunProfileBase): ITestRunProfileReference {
+		return {
+			controllerId: item.controllerId,
+			profileId: item.profileId,
+			group: TestRunProfileKind.from(item.kind),
+		};
+	}
+}
+
+export namespace TestRunProfileKind {
+	const profileGroupToBitset: { [K in vscode.TestRunProfileKind]: TestRunProfileBitset } = {
+		[types.TestRunProfileKind.Coverage]: TestRunProfileBitset.Coverage,
+		[types.TestRunProfileKind.Debug]: TestRunProfileBitset.Debug,
+		[types.TestRunProfileKind.Run]: TestRunProfileBitset.Run,
+	};
+
+	export function from(kind: types.TestRunProfileKind): TestRunProfileBitset {
+		return profileGroupToBitset.hasOwnProperty(kind) ? profileGroupToBitset[kind] : TestRunProfileBitset.Run;
+	}
+}
+
 export namespace TestItem {
 	export type Raw = vscode.TestItem;
 
@@ -2148,8 +2171,8 @@ export namespace TestCoverage {
 			statement: fromCoverageCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoverageCount(coverage.branchCoverage),
 			declaration: coverage.declarationCoverage && fromCoverageCount(coverage.declarationCoverage),
-			testIds: coverage instanceof types.FileCoverage && coverage.fromTests.length ?
-				coverage.fromTests.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) : undefined,
+			testIds: coverage instanceof types.FileCoverage && coverage.includesTests.length ?
+				coverage.includesTests.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) : undefined,
 		};
 	}
 }
@@ -2640,11 +2663,14 @@ export namespace ChatResponseTextEditPart {
 		return {
 			kind: 'textEdit',
 			uri: part.uri,
-			edits: part.edits.map(e => TextEdit.from(e))
+			edits: part.edits.map(e => TextEdit.from(e)),
+			done: part.isDone
 		};
 	}
 	export function to(part: Dto<IChatTextEdit>): vscode.ChatResponseTextEditPart {
-		return new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.map(e => TextEdit.to(e)));
+		const result = new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.map(e => TextEdit.to(e)));
+		result.isDone = part.done;
+		return result;
 	}
 
 }
@@ -2773,7 +2799,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, hasReadonlyProposal: boolean): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.isTool);
 		const variableReferences = request.variables.variables.filter(v => !v.isTool);
 		return {
@@ -2782,7 +2808,7 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
-			references: variableReferences.map(ChatPromptReference.to),
+			references: variableReferences.map(v => ChatPromptReference.to(v, hasReadonlyProposal)),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
@@ -2790,6 +2816,15 @@ export namespace ChatAgentRequest {
 			location2,
 			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
 			model
+		};
+	}
+}
+
+export namespace ChatRequestDraft {
+	export function to(request: IChatRequestDraft): vscode.ChatRequestDraft {
+		return {
+			prompt: request.prompt,
+			files: request.files.map((uri) => URI.revive(uri))
 		};
 	}
 }
@@ -2817,7 +2852,7 @@ export namespace ChatLocation {
 }
 
 export namespace ChatPromptReference {
-	export function to(variable: IChatRequestVariableEntry): vscode.ChatPromptReference {
+	export function to(variable: IChatRequestVariableEntry, hasReadonlyProposal: boolean): vscode.ChatPromptReference {
 		const value = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
@@ -2830,7 +2865,8 @@ export namespace ChatPromptReference {
 			value: isUriComponents(value) ? URI.revive(value) :
 				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
 					Location.to(revive(value)) : variable.isImage ? new types.ChatReferenceBinaryData(variable.mimeType ?? 'image/png', () => Promise.resolve(new Uint8Array(Object.values(value)))) : value,
-			modelDescription: variable.modelDescription
+			modelDescription: variable.modelDescription,
+			isReadonly: hasReadonlyProposal ? variable.isMarkedReadonly : undefined,
 		};
 	}
 }
@@ -2917,7 +2953,21 @@ export namespace ChatAgentUserActionEvent {
 		} else if (event.action.kind === 'inlineChat') {
 			return { action: { kind: 'editor', accepted: event.action.action === 'accepted' }, result: ehResult };
 		} else if (event.action.kind === 'chatEditingSessionAction') {
-			return { action: { kind: 'chatEditingSessionAction', outcome: event.action.outcome === 'accepted' ? types.ChatEditingSessionActionOutcome.Accepted : types.ChatEditingSessionActionOutcome.Rejected, uri: URI.revive(event.action.uri), hasRemainingEdits: event.action.hasRemainingEdits }, result: ehResult };
+
+			const outcomes = new Map([
+				['accepted', types.ChatEditingSessionActionOutcome.Accepted],
+				['rejected', types.ChatEditingSessionActionOutcome.Rejected],
+				['saved', types.ChatEditingSessionActionOutcome.Saved],
+			]);
+
+			return {
+				action: {
+					kind: 'chatEditingSessionAction',
+					outcome: outcomes.get(event.action.outcome) ?? types.ChatEditingSessionActionOutcome.Rejected,
+					uri: URI.revive(event.action.uri),
+					hasRemainingEdits: event.action.hasRemainingEdits
+				}, result: ehResult
+			};
 		} else {
 			return { action: event.action, result: ehResult };
 		}

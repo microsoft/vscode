@@ -168,5 +168,7 @@
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
 	"typescript.enablePromptUseWorkspaceTsdk": true,
-	"eslint.useFlatConfig": true
+	"eslint.useFlatConfig": true,
+	"editor.occurrencesHighlightDelay": 0,
+	"typescript.experimental.expandableHover": true,
 }

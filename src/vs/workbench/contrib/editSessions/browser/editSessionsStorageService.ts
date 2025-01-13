@@ -455,6 +455,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	private registerSignInAction() {
+		if (!this.serverConfiguration?.url) {
+			return;
+		}
 		const that = this;
 		const id = 'workbench.editSessions.actions.signIn';
 		const when = ContextKeyExpr.and(ContextKeyExpr.equals(EDIT_SESSIONS_PENDING_KEY, false), ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false));

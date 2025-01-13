@@ -10,7 +10,6 @@ import { IViewDescriptorService, ViewContainer } from '../../../common/views.js'
 import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from '../../../common/activity.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { isUndefined } from '../../../../base/common/types.js';
 
 class ViewContainerActivityByView extends Disposable {
 
@@ -77,31 +76,28 @@ export class ActivityService extends Disposable implements IActivityService {
 
 	showViewContainerActivity(viewContainerId: string, activity: IActivity): IDisposable {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
-		if (viewContainer) {
-			let activities = this.viewContainerActivities.get(viewContainerId);
-			if (!activities) {
-				activities = [];
-				this.viewContainerActivities.set(viewContainerId, activities);
-			}
-			for (let i = 0; i <= activities.length; i++) {
-				if (i === activities.length || isUndefined(activity.priority)) {
-					activities.push(activity);
-					break;
-				} else if (isUndefined(activities[i].priority) || activities[i].priority! <= activity.priority) {
-					activities.splice(i, 0, activity);
-					break;
-				}
+		if (!viewContainer) {
+			return Disposable.None;
+		}
+
+		let activities = this.viewContainerActivities.get(viewContainerId);
+		if (!activities) {
+			activities = [];
+			this.viewContainerActivities.set(viewContainerId, activities);
+		}
+
+		// add activity
+		activities.push(activity);
+
+		this._onDidChangeActivity.fire(viewContainer);
+
+		return toDisposable(() => {
+			activities.splice(activities.indexOf(activity), 1);
+			if (activities.length === 0) {
+				this.viewContainerActivities.delete(viewContainerId);
 			}
 			this._onDidChangeActivity.fire(viewContainer);
-			return toDisposable(() => {
-				activities.splice(activities.indexOf(activity), 1);
-				if (activities.length === 0) {
-					this.viewContainerActivities.delete(viewContainerId);
-				}
-				this._onDidChangeActivity.fire(viewContainer);
-			});
-		}
-		return Disposable.None;
+		});
 	}
 
 	getViewContainerActivities(viewContainerId: string): IActivity[] {

@@ -644,8 +644,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
 	}
 
-	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier): void {
+	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
 		const provider: languages.InlineEditProvider<IdentifiableInlineEdit> = {
+			displayName,
 			provideInlineEdit: async (model: ITextModel, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined> => {
 				return this._proxy.$provideInlineEdit(handle, model.uri, context, token);
 			},
@@ -1018,9 +1019,9 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 
 	private readonly dataTransfers = new DataTransferFileCache();
 
-	public readonly copyMimeTypes?: readonly string[];
-	public readonly pasteMimeTypes?: readonly string[];
-	public readonly providedPasteEditKinds?: readonly HierarchicalKind[];
+	public readonly copyMimeTypes: readonly string[];
+	public readonly pasteMimeTypes: readonly string[];
+	public readonly providedPasteEditKinds: readonly HierarchicalKind[];
 
 	readonly prepareDocumentPaste?: languages.DocumentPasteEditProvider['prepareDocumentPaste'];
 	readonly provideDocumentPasteEdits?: languages.DocumentPasteEditProvider['provideDocumentPasteEdits'];
@@ -1032,9 +1033,9 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 		metadata: IPasteEditProviderMetadataDto,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
-		this.copyMimeTypes = metadata.copyMimeTypes;
-		this.pasteMimeTypes = metadata.pasteMimeTypes;
-		this.providedPasteEditKinds = metadata.providedPasteEditKinds?.map(kind => new HierarchicalKind(kind));
+		this.copyMimeTypes = metadata.copyMimeTypes ?? [];
+		this.pasteMimeTypes = metadata.pasteMimeTypes ?? [];
+		this.providedPasteEditKinds = metadata.providedPasteEditKinds?.map(kind => new HierarchicalKind(kind)) ?? [];
 
 		if (metadata.supportsCopy) {
 			this.prepareDocumentPaste = async (model: ITextModel, selections: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<IReadonlyVSDataTransfer | undefined> => {
@@ -1113,6 +1114,8 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 
 	readonly dropMimeTypes?: readonly string[];
 
+	readonly providedDropEditKinds: readonly HierarchicalKind[] | undefined;
+
 	readonly resolveDocumentDropEdit?: languages.DocumentDropEditProvider['resolveDocumentDropEdit'];
 
 	constructor(
@@ -1122,6 +1125,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
 		this.dropMimeTypes = metadata?.dropMimeTypes ?? ['*/*'];
+		this.providedDropEditKinds = metadata?.providedDropKinds?.map(kind => new HierarchicalKind(kind));
 
 		if (metadata?.supportsResolve) {
 			this.resolveDocumentDropEdit = async (edit, token) => {

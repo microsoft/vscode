@@ -80,7 +80,9 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 			w: glyphWidth,
 			h: glyphHeight,
 			originOffsetX: rasterizedGlyph.originOffset.x,
-			originOffsetY: rasterizedGlyph.originOffset.y
+			originOffsetY: rasterizedGlyph.originOffset.y,
+			fontBoundingBoxAscent: rasterizedGlyph.fontBoundingBoxAscent,
+			fontBoundingBoxDescent: rasterizedGlyph.fontBoundingBoxDescent,
 		};
 
 		// Shift current row

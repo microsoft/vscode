@@ -5,13 +5,15 @@
 
 import { SingleTextEdit } from '../../../../common/core/textEdit.js';
 import { Command } from '../../../../common/languages.js';
+import { InlineCompletionItem } from './provideInlineCompletions.js';
 
 export class InlineEdit {
 	constructor(
 		public readonly edit: SingleTextEdit,
 		public readonly isCollapsed: boolean,
-		public readonly showInlineIfPossible: boolean,
+		public readonly renderExplicitly: boolean,
 		public readonly commands: readonly Command[],
+		public readonly inlineCompletion: InlineCompletionItem,
 	) { }
 
 	public get range() {
@@ -23,6 +25,9 @@ export class InlineEdit {
 	}
 
 	public equals(other: InlineEdit): boolean {
-		return this.edit.equals(other.edit) && this.isCollapsed === other.isCollapsed;
+		return this.edit.equals(other.edit)
+			&& this.isCollapsed === other.isCollapsed
+			&& this.renderExplicitly === other.renderExplicitly
+			&& this.inlineCompletion === other.inlineCompletion;
 	}
 }

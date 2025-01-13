@@ -71,8 +71,8 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 		if (!workingCopyManager) {
 			const factory = new NotebookFileWorkingCopyModelFactory(notebookType, this._notebookService, this._configurationService, this._telemetryService, this._notebookLoggingService);
-			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
-				FileWorkingCopyManager,
+			workingCopyManager = this._instantiationService.createInstance(
+				FileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 				workingCopyTypeId,
 				factory,
 				factory,

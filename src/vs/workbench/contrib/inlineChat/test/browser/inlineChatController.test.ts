@@ -35,7 +35,7 @@ import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameServ
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { InlineChatController, State } from '../../browser/inlineChatController.js';
 import { Session } from '../../browser/inlineChatSession.js';
-import { CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
+import { CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
@@ -67,8 +67,14 @@ import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionSer
 import { TestWorkerService } from './testWorkerService.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
+import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 
-suite('InteractiveChatController', function () {
+suite('InlineChatController', function () {
 
 	const agentData = {
 		extensionId: nullExtensionDescription.identifier,
@@ -159,7 +165,7 @@ suite('InteractiveChatController', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IChatEditingService, new class extends mock<IChatEditingService>() {
-				override onDidCreateEditingSession: Event<IChatEditingSession> = Event.None;
+				override currentEditingSessionObs: IObservable<IChatEditingSession | null> = observableValue(this, null);
 			}],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
@@ -193,13 +199,15 @@ suite('InteractiveChatController', function () {
 			}],
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
+			[ITextModelService, new SyncDescriptor(TextModelResolverService)],
+			[ILanguageModelToolsService, new SyncDescriptor(MockLanguageModelToolsService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
 
 		configurationService = instaService.get(IConfigurationService) as TestConfigurationService;
 		configurationService.setUserConfiguration('chat', { editor: { fontSize: 14, fontFamily: 'default' } });
-		configurationService.setUserConfiguration('inlineChat', { mode: 'livePreview' });
+
 		configurationService.setUserConfiguration('editor', {});
 
 		contextKeyService = instaService.get(IContextKeyService) as MockContextKeyService;
@@ -209,6 +217,8 @@ suite('InteractiveChatController', function () {
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
 		store.add(instaService.get(ILanguageModelsService) as LanguageModelsService);
+
+		store.add(instaService.createInstance(ChatInputBoxContentProvider));
 
 		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
 		model.setEOL(EndOfLineSequence.LF);
@@ -284,7 +294,7 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 10 /* line length */));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 11 /* line length */));
 
 		editor.setSelection(new Range(2, 1, 2, 1));
 		editor.trigger('test', 'type', { text: 'a' });
@@ -394,7 +404,6 @@ suite('InteractiveChatController', function () {
 
 	test.skip('UI is streaming edits minutes after the response is finished #3345', async function () {
 
-		configurationService.setUserConfiguration(InlineChatConfigKeys.Mode, EditMode.Live);
 
 		return runWithFakedTimers({ maxTaskCount: Number.MAX_SAFE_INTEGER }, async () => {
 
@@ -835,7 +844,7 @@ suite('InteractiveChatController', function () {
 
 		model.setValue('');
 
-		const newSession = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		const newSession = await inlineChatSessionService.createSession(editor, {}, CancellationToken.None);
 		assertType(newSession);
 
 		await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.Editor });
@@ -952,5 +961,51 @@ suite('InteractiveChatController', function () {
 
 		const value = contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_RESPONSE_TYPE.key);
 		assert.notStrictEqual(value, InlineChatResponseType.None);
+	});
+
+	test('Restore doesn\'t edit on errored result', async function () {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+
+			const model2 = store.add(instaService.get(IModelService).createModel('ABC', null));
+
+			model.setValue('World');
+
+			store.add(chatAgentService.registerDynamicAgent({
+				id: 'testEditorAgent2',
+				...agentData
+			}, {
+				async invoke(request, progress, history, token) {
+
+					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello1' }] });
+					await timeout(100);
+					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello2' }] });
+					await timeout(100);
+					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello3' }] });
+					await timeout(100);
+
+					return {
+						errorDetails: { message: 'FAILED' }
+					};
+				},
+			}));
+
+			ctrl = instaService.createInstance(TestController, editor);
+
+			// REQUEST 1
+			const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
+			ctrl.run({ message: 'Hello', autoSend: true });
+
+			assert.strictEqual(await p, undefined);
+
+			const p2 = ctrl.awaitStates([State.PAUSE]);
+			editor.setModel(model2);
+			assert.strictEqual(await p2, undefined);
+
+			const p3 = ctrl.awaitStates([...TestController.INIT_SEQUENCE]);
+			editor.setModel(model);
+			assert.strictEqual(await p3, undefined);
+
+			assert.strictEqual(model.getValue(), 'World');
+		});
 	});
 });

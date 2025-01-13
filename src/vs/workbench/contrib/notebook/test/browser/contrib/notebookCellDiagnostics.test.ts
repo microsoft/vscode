@@ -7,7 +7,6 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -55,6 +54,7 @@ suite('notebookCellDiagnostics', () => {
 
 	interface ITestMarkerService extends IMarkerService {
 		markers: ResourceMap<IMarkerData[]>;
+		onMarkersUpdated: Event<void>;
 	}
 
 	setup(function () {
@@ -88,9 +88,12 @@ suite('notebookCellDiagnostics', () => {
 		instantiationService.stub(IChatAgentService, chatAgentService);
 
 		markerService = new class extends mock<ITestMarkerService>() {
+			private _onMarkersUpdated = new Emitter<void>();
+			override onMarkersUpdated = this._onMarkersUpdated.event;
 			override markers: ResourceMap<IMarkerData[]> = new ResourceMap();
 			override changeOne(owner: string, resource: URI, markers: IMarkerData[]) {
 				this.markers.set(resource, markers);
+				this._onMarkersUpdated.fire();
 			}
 		};
 		instantiationService.stub(IMarkerService, markerService);
@@ -107,16 +110,18 @@ suite('notebookCellDiagnostics', () => {
 
 			disposables.add(instantiationService.createInstance(CellDiagnostics, editor));
 
+			cell.model.internalMetadata.lastRunSuccess = false;
 			cell.model.internalMetadata.error = {
-				message: 'error',
+				name: 'error',
+				message: 'something bad happened',
 				stack: 'line 1 : print(x)',
 				uri: cell.uri,
 				location: { startColumn: 1, endColumn: 5, startLineNumber: 1, endLineNumber: 1 }
 			};
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle);
+			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
 
-			await waitForState(cell.excecutionError, error => !!error);
-			assert.strictEqual(cell?.excecutionError.get()?.message, 'error');
+			assert.strictEqual(cell?.executionErrorDiagnostic.get()?.message, 'something bad happened');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 1);
 		}, instantiationService);
 	});
@@ -131,14 +136,18 @@ suite('notebookCellDiagnostics', () => {
 
 			disposables.add(instantiationService.createInstance(CellDiagnostics, editor));
 
+			cell.model.internalMetadata.lastRunSuccess = false;
 			cell.model.internalMetadata.error = {
-				message: 'error',
+				name: 'error',
+				message: 'something bad happened',
 				stack: 'line 1 : print(x)',
 				uri: cell.uri,
 				location: { startColumn: 1, endColumn: 5, startLineNumber: 1, endLineNumber: 1 }
 			};
+			cell2.model.internalMetadata.lastRunSuccess = false;
 			cell2.model.internalMetadata.error = {
-				message: 'another error',
+				name: 'error',
+				message: 'another bad thing happened',
 				stack: 'line 1 : print(y)',
 				uri: cell.uri,
 				location: { startColumn: 1, endColumn: 5, startLineNumber: 1, endLineNumber: 1 }
@@ -146,17 +155,16 @@ suite('notebookCellDiagnostics', () => {
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle);
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell2.handle);
 
-			await waitForState(cell.excecutionError, error => !!error);
-			await waitForState(cell2.excecutionError, error => !!error);
+			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
 			cell.model.internalMetadata.error = undefined;
 
 			// on NotebookCellExecution value will make it look like its currently running
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle, {} as INotebookCellExecution);
 
-			await waitForState(cell.excecutionError, error => error === undefined);
+			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
 
-			assert.strictEqual(cell?.excecutionError.get(), undefined);
-			assert.strictEqual(cell2?.excecutionError.get()?.message, 'another error', 'cell that was not executed should still have an error');
+			assert.strictEqual(cell?.executionErrorDiagnostic.get(), undefined);
+			assert.strictEqual(cell2?.executionErrorDiagnostic.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 0);
 			assert.equal(markerService.markers.get(cell2.uri)?.length, 1);
 		}, instantiationService);

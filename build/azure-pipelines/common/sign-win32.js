@@ -9,9 +9,6 @@ const path = require("path");
 (0, sign_1.main)([
     process.env['EsrpCliDllPath'],
     'sign-windows',
-    process.env['ESRPPKI'],
-    process.env['ESRPAADUsername'],
-    process.env['ESRPAADPassword'],
     path.dirname(process.argv[2]),
     path.basename(process.argv[2])
 ]);

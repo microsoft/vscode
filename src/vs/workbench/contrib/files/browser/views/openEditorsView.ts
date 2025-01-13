@@ -56,6 +56,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 
 const $ = dom.$;
 
@@ -941,5 +942,26 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'openEditors.configure',
+			title: nls.localize('configureOpenEditorsView', 'Configure \'{0}\'', OpenEditorsView.NAME.value),
+			f1: false,
+			icon: Codicon.gear,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: '9_configure',
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
+				order: 10
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const preferencesService = accessor.get(IPreferencesService);
+		preferencesService.openSettings({ jsonEditor: false, query: '@feature:explorer openEditors' });
 	}
 });
