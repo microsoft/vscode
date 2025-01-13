@@ -32,9 +32,9 @@ import { observableCodeEditor } from '../../../../editor/browser/observableCodeE
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/common/quickDiff.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { isDiffEditorForEntry } from './chatEditing/chatEditing.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { IEditorIdentifier } from '../../../common/editor.js';
+import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../common/editor.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
@@ -599,7 +599,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			});
 
 			if (diffEditor && diffEditor.input) {
-				const editorIdent: IEditorIdentifier = { editor: diffEditor.input, groupId: diffEditor.group.id };
 
 				// this is needed, passing the selection doesn't seem to work
 				diffEditor.getControl()?.setSelection(selection);
@@ -609,7 +608,18 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					const state = entry.state.read(r);
 					if (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected) {
 						d.dispose();
-						this._editorService.closeEditor(editorIdent);
+
+						const editorIdents: IEditorIdentifier[] = [];
+						for (const candidate of this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+							if (isDiffEditorInput(candidate.editor)
+								&& isEqual(candidate.editor.original.resource, entry.originalURI)
+								&& isEqual(candidate.editor.modified.resource, entry.modifiedURI)
+							) {
+								editorIdents.push(candidate);
+							}
+						}
+
+						this._editorService.closeEditors(editorIdents);
 					}
 				});
 			}
