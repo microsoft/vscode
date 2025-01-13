@@ -290,6 +290,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
+		if (codeEditorWidgetOptions.contextKeyValues) {
+			for (const [key, value] of Object.entries(codeEditorWidgetOptions.contextKeyValues)) {
+				this._contextKeyService.createKey(key, value);
+			}
+		}
 		this._notificationService = notificationService;
 		this._codeEditorService = codeEditorService;
 		this._commandService = commandService;
@@ -1988,6 +1993,12 @@ export interface ICodeEditorWidgetOptions {
 	 * Defaults to MenuId.SimpleEditorContext or MenuId.EditorContext depending on whether the widget is simple.
 	 */
 	contextMenuId?: MenuId;
+
+	/**
+	 * Define extra context keys that will be defined in the context service
+	 * for the editor.
+	 */
+	contextKeyValues?: Record<string, ContextKeyValue>;
 }
 
 class ModelData {

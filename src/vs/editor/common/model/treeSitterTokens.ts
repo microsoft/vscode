@@ -17,10 +17,10 @@ export class TreeSitterTokens extends AbstractTokens {
 	private _lastLanguageId: string | undefined;
 	private readonly _tokensChangedListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
-	constructor(private readonly _treeSitterService: ITreeSitterParserService,
-		languageIdCodec: ILanguageIdCodec,
+	constructor(languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
-		languageId: () => string) {
+		languageId: () => string,
+		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService) {
 		super(languageIdCodec, textModel, languageId);
 
 		this._initialize();

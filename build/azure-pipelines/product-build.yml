@@ -178,6 +178,9 @@ extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
     sdl:
+      binskim:
+        enabled: false
+        justificationForDisabling: "BinSkim rebaselining is failing"
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json

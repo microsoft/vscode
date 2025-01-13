@@ -330,6 +330,7 @@ export class InlineCompletionItem {
 			range,
 			insertText,
 			snippetInfo,
+			Range.lift(inlineCompletion.showRange) ?? undefined,
 			inlineCompletion.additionalTextEdits || getReadonlyEmptyArray(),
 			inlineCompletion,
 			source,
@@ -345,6 +346,7 @@ export class InlineCompletionItem {
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
+		readonly cursorShowRange: Range | undefined,
 
 		readonly additionalTextEdits: readonly ISingleEditOperation[],
 
@@ -380,6 +382,7 @@ export class InlineCompletionItem {
 			updatedRange,
 			this.insertText,
 			this.snippetInfo,
+			this.cursorShowRange,
 			this.additionalTextEdits,
 			this.sourceInlineCompletion,
 			this.source,

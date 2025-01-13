@@ -15,9 +15,6 @@
   "categories": [
     "Programming Languages"
   ],
-  "enabledApiProposals": [
-    "documentPaste"
-  ],
   "activationEvents": [
     "onLanguage:markdown",
     "onCommand:markdown.api.render",

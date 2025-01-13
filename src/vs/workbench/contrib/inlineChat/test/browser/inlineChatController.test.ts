@@ -35,7 +35,7 @@ import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameServ
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { InlineChatController, State } from '../../browser/inlineChatController.js';
 import { Session } from '../../browser/inlineChatSession.js';
-import { CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
+import { CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
@@ -71,6 +71,8 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 
 suite('InlineChatController', function () {
 
@@ -198,13 +200,14 @@ suite('InlineChatController', function () {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
 			[ITextModelService, new SyncDescriptor(TextModelResolverService)],
+			[ILanguageModelToolsService, new SyncDescriptor(MockLanguageModelToolsService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
 
 		configurationService = instaService.get(IConfigurationService) as TestConfigurationService;
 		configurationService.setUserConfiguration('chat', { editor: { fontSize: 14, fontFamily: 'default' } });
-		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
+
 		configurationService.setUserConfiguration('editor', {});
 
 		contextKeyService = instaService.get(IContextKeyService) as MockContextKeyService;
@@ -401,7 +404,6 @@ suite('InlineChatController', function () {
 
 	test.skip('UI is streaming edits minutes after the response is finished #3345', async function () {
 
-		configurationService.setUserConfiguration(InlineChatConfigKeys.Mode, EditMode.Live);
 
 		return runWithFakedTimers({ maxTaskCount: Number.MAX_SAFE_INTEGER }, async () => {
 
@@ -842,7 +844,7 @@ suite('InlineChatController', function () {
 
 		model.setValue('');
 
-		const newSession = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		const newSession = await inlineChatSessionService.createSession(editor, {}, CancellationToken.None);
 		assertType(newSession);
 
 		await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.Editor });
