@@ -266,6 +266,7 @@ export class ExtHostTerminal extends Disposable {
 
 	public setShellType(shellType: TerminalShellType | number | undefined): void {
 		this._state = { shellType }; // Why is the Type complaining, its the exact same as in proposed.api
+		// Type might be failing because TerminalShellType is defined in proposed api which may differ from already existing TerminalShellType??
 	}
 
 	public setSelection(selection: string | undefined): void {
