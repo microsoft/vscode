@@ -164,9 +164,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
-			for (const item of completionItems) {
-				item.provider = provider.id;
-			}
 
 			if (Array.isArray(completions)) {
 				return completionItems;
@@ -185,7 +182,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, providerId: string): Promise<ITerminalCompletion[] | undefined> {
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string): Promise<ITerminalCompletion[] | undefined> {
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
@@ -236,7 +233,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			resourceCompletions.push({
 				label,
-				provider: providerId,
+				provider,
 				kind,
 				isDirectory,
 				isFile: kind === TerminalCompletionItemKind.File,

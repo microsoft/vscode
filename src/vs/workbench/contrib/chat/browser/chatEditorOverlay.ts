@@ -5,12 +5,10 @@
 
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
-import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { IChatEditingSession, IModifiedFileEntry } from '../common/chatEditingService.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
@@ -25,8 +23,6 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AcceptAction, RejectAction } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
-import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
-import { isDiffEditorForEntry } from './chatEditing/chatEditing.js';
 import './media/chatEditorOverlay.css';
 import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
 
@@ -274,70 +270,3 @@ MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
 	group: 'navigate',
 	order: -1
 });
-
-export class ChatEditorOverlayController implements IEditorContribution {
-
-	static readonly ID = 'editor.contrib.chatOverlayController';
-
-	private readonly _store = new DisposableStore();
-
-	static get(editor: ICodeEditor) {
-		return editor.getContribution<ChatEditorOverlayController>(ChatEditorOverlayController.ID);
-	}
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IChatEditingService chatEditingService: IChatEditingService,
-		@IInstantiationService instaService: IInstantiationService
-	) {
-		const modelObs = observableFromEvent(this._editor.onDidChangeModel, () => this._editor.getModel());
-		const widget = this._store.add(instaService.createInstance(ChatEditorOverlayWidget, this._editor));
-
-
-		this._store.add(autorun(r => {
-			const model = modelObs.read(r);
-			const session = chatEditingService.currentEditingSessionObs.read(r);
-			if (!session || !model) {
-				widget.hide();
-				return;
-			}
-
-			const state = session.state.read(r);
-			if (state === ChatEditingSessionState.Disposed) {
-				widget.hide();
-				return;
-			}
-
-			const entries = session.entries.read(r);
-			const idx = entries.findIndex(e => isEqual(e.modifiedURI, model.uri));
-			if (idx < 0) {
-				widget.hide();
-				return;
-			}
-
-			const entry = entries[idx];
-
-			if (this._editor.getOption(EditorOption.inDiffEditor) && !instaService.invokeFunction(isDiffEditorForEntry, entry, this._editor)) {
-				widget.hide();
-				return;
-			}
-
-			const isModifyingOrModified = entries.some(e => e.state.read(r) === WorkingSetEntryState.Modified || e.isCurrentlyBeingModified.read(r));
-			if (!isModifyingOrModified) {
-				widget.hide();
-				return;
-			}
-
-			if (entry.state.read(r) === WorkingSetEntryState.Accepted || entry.state.read(r) === WorkingSetEntryState.Rejected) {
-				widget.hide();
-				return;
-			}
-			widget.show(session, entry, entries[(idx + 1) % entries.length]);
-
-		}));
-	}
-
-	dispose() {
-		this._store.dispose();
-	}
-}
