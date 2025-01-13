@@ -2875,10 +2875,24 @@ export class CommandCenter {
 	}
 
 	@command('git.deleteBranch', { repository: true })
-	async deleteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
+	async deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
+		await this._deleteBranch(repository, name, force);
+	}
+
+	@command('git.graph.deleteBranch', { repository: true })
+	async deleteBranch2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return;
+		}
+
+		await this._deleteBranch(repository, historyItemRef.name);
+	}
+
+	private async _deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 		if (typeof name === 'string') {
-			run = force => repository.deleteBranch(name, force);
+			run = force => repository.deleteBranch(name!, force);
 		} else {
 			const getBranchPicks = async () => {
 				const refs = await repository.getRefs({ pattern: 'refs/heads' });
@@ -3014,10 +3028,19 @@ export class CommandCenter {
 		const placeHolder = l10n.t('Select a tag to delete');
 		const choice = await this.pickRef<TagDeleteItem | QuickPickItem>(tagPicks(), placeHolder);
 
-
 		if (choice instanceof TagDeleteItem) {
 			await choice.run(repository);
 		}
+	}
+
+	@command('git.graph.deleteTag', { repository: true })
+	async deleteTag2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return;
+		}
+
+		await repository.deleteTag(historyItemRef.name);
 	}
 
 	@command('git.deleteRemoteTag', { repository: true })
@@ -3378,11 +3401,12 @@ export class CommandCenter {
 		await repository.cherryPick(hash);
 	}
 
-	@command('git.cherryPickRef', { repository: true })
-	async cherryPickRef(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+	@command('git.graph.cherryPick', { repository: true })
+	async cherryPick2(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
 		if (!historyItem) {
 			return;
 		}
+
 		await repository.cherryPick(historyItem.id);
 	}
 
