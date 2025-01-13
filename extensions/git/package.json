@@ -644,8 +644,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.cherryPickRef",
-        "title": "%command.cherryPickRef%",
+        "command": "git.graph.cherryPick",
+        "title": "%command.graphCherryPick%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1494,7 +1494,7 @@
           "when": "false"
         },
         {
-          "command": "git.cherryPickRef",
+          "command": "git.graph.cherryPick",
           "when": "false"
         },
         {
@@ -2032,7 +2032,7 @@
           "group": "3_tag@1"
         },
         {
-          "command": "git.cherryPickRef",
+          "command": "git.graph.cherryPick",
           "when": "scmProvider == git",
           "group": "4_modify@1"
         },

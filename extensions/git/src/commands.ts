@@ -3401,11 +3401,12 @@ export class CommandCenter {
 		await repository.cherryPick(hash);
 	}
 
-	@command('git.cherryPickRef', { repository: true })
-	async cherryPickRef(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+	@command('git.graph.cherryPick', { repository: true })
+	async cherryPick2(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
 		if (!historyItem) {
 			return;
 		}
+
 		await repository.cherryPick(historyItem.id);
 	}
 
