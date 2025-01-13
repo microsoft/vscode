@@ -258,6 +258,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 		let decorationStyleSetBold: boolean | undefined;
 		let decorationStyleSetColor: number | undefined;
+		let decorationStyleSetOpacity: number | undefined;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
@@ -363,6 +364,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					chars = content.charAt(x);
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
+					decorationStyleSetOpacity = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -402,6 +404,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 										}
 										break;
 									}
+									case 'opacity': {
+										const parsedValue = parseCssOpacity(value);
+										decorationStyleSetOpacity = parsedValue;
+										break;
+									}
 									default: throw new BugIndicatingError('Unexpected inline decoration style');
 								}
 							}
@@ -419,7 +426,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold);
+					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
 					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
 
 					// TODO: Support non-standard character widths
@@ -508,4 +515,14 @@ function parseCssFontWeight(value: string) {
 		case 'bold': return 700;
 	}
 	return parseInt(value);
+}
+
+function parseCssOpacity(value: string): number {
+	if (value.endsWith('%')) {
+		return parseFloat(value.substring(0, value.length - 1)) / 100;
+	}
+	if (value.match(/^\d+(?:\.\d*)/)) {
+		return parseFloat(value);
+	}
+	return 1;
 }
