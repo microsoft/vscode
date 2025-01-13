@@ -35,6 +35,7 @@ import { isDiffEditorForEntry } from './chatEditing/chatEditing.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../common/editor.js';
+import { ChatEditorOverlayWidget } from './chatEditorOverlay.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
@@ -51,6 +52,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
 
 	private _viewZones: string[] = [];
+
+	private readonly _overlayWidget: ChatEditorOverlayWidget;
+
 	private readonly _ctxHasEditorModification: IContextKey<boolean>;
 	private readonly _ctxRequestInProgress: IContextKey<boolean>;
 
@@ -77,6 +81,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	) {
 		super();
 
+		this._overlayWidget = _instantiationService.createInstance(ChatEditorOverlayWidget, _editor);
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
 		this._ctxRequestInProgress = ctxHasRequestInProgress.bindTo(contextKeyService);
 
@@ -98,11 +103,16 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			if (!session) {
 				return undefined;
 			}
-			const entry = model?.uri ? session.readEntry(model.uri, r) : undefined;
-			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
+
+			const entries = session.entries.read(r);
+			const idx = model?.uri
+				? entries.findIndex(e => isEqual(e.modifiedURI, model.uri))
+				: -1;
+
+			if (idx < 0) {
 				return undefined;
 			}
-			return { session, entry };
+			return { session, entry: entries[idx], entries, idx };
 		});
 
 
@@ -123,11 +133,19 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				return;
 			}
 
-			const { session, entry } = currentEditorEntry;
+			const { session, entries, idx, entry } = currentEditorEntry;
 
-			const entryIndex = session.entries.read(r).indexOf(entry);
-			this._currentEntryIndex.set(entryIndex, undefined);
+			// context
+			this._currentEntryIndex.set(idx, undefined);
 
+			// overlay widget
+			if (entry.state.read(r) === WorkingSetEntryState.Accepted || entry.state.read(r) === WorkingSetEntryState.Rejected) {
+				this._overlayWidget.hide();
+			} else {
+				this._overlayWidget.show(session, entry, entries[(idx + 1) % entries.length]);
+			}
+
+			// scrolling logic
 			if (entry.isCurrentlyBeingModified.read(r)) {
 				// while modified: scroll along unless locked
 				if (!this._scrollLock) {
@@ -215,6 +233,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _clear() {
 		this._clearDiffRendering();
+		this._overlayWidget.hide();
 		this._diffLineDecorations.clear();
 		this._currentChangeIndex.set(undefined, undefined);
 		this._currentEntryIndex.set(undefined, undefined);
