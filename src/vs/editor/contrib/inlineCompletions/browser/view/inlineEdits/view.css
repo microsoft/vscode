@@ -164,6 +164,13 @@
 	.inlineCompletions-char-insert.diff-range-empty {
 		border-left: solid var(--vscode-inlineEdit-modifiedChangedTextBackground) 3px;
 	}
+	
+	.inlineCompletions-char-delete.inline,
+	.inlineCompletions-char-insert.inline {
+		border-radius: 4px;
+		border: 1px solid var(--vscode-editorHoverWidget-border);
+		padding: 2px;
+	}
 }
 
 .monaco-menu-option {
@@ -185,6 +192,6 @@
 	}
 }
 
-.monaco-editor .inlineCompletionAccepted {
+.monaco-editor .inline-completion-accepted {
 	background-color: var(--vscode-inlineEdit-acceptedBackground);
 }
