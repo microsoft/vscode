@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ThreeKeyMap } from '../../../../base/common/map.js';
+
 export interface IDecorationStyleSet {
 	/**
 	 * A 24-bit number representing `color`.
@@ -29,7 +31,8 @@ export class DecorationStyleCache {
 
 	private _nextId = 1;
 
-	private readonly _cache = new Map<number, IDecorationStyleSet>();
+	private readonly _cacheById = new Map<number, IDecorationStyleCacheEntry>();
+	private readonly _cacheByStyle = new ThreeKeyMap<number, number, string, IDecorationStyleCacheEntry>();
 
 	getOrCreateEntry(
 		color: number | undefined,
@@ -39,6 +42,10 @@ export class DecorationStyleCache {
 		if (color === undefined && bold === undefined && opacity === undefined) {
 			return 0;
 		}
+		const result = this._cacheByStyle.get(color ?? 0, bold ? 1 : 0, opacity === undefined ? '' : opacity.toFixed(2));
+		if (result) {
+			return result.id;
+		}
 		const id = this._nextId++;
 		const entry = {
 			id,
@@ -46,7 +53,8 @@ export class DecorationStyleCache {
 			bold,
 			opacity,
 		};
-		this._cache.set(id, entry);
+		this._cacheById.set(id, entry);
+		this._cacheByStyle.set(color ?? 0, bold ? 1 : 0, opacity === undefined ? '' : opacity.toFixed(2), entry);
 		return id;
 	}
 
@@ -54,6 +62,6 @@ export class DecorationStyleCache {
 		if (id === 0) {
 			return undefined;
 		}
-		return this._cache.get(id);
+		return this._cacheById.get(id);
 	}
 }
