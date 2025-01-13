@@ -53,7 +53,7 @@ Here is an example of how you should format an edit to an existing Person class:
 {
 	"explanation": "Add an age property to the Person class",
 	"filePath": "/folder/person.ts",
-	"code": "// ...existing code...\n class Person {\n // ...existing code...\n age: number;\n // ...existing code...\n getAge() {\n return this.age;\n }\n // ...existing code...\n }"
+	"code": "// ...existing code...\\n class Person {\\n // ...existing code...\\n age: number;\\n // ...existing code...\\n getAge() {\\n return this.age;\\n }\n // ...existing code...\n }"
 }
 `;
 
