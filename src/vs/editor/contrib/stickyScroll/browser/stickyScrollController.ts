@@ -139,12 +139,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 						return;
 					}
 					const lineNumber = change.lineNumber;
-					const lineHeight = change.lineHeight;
-					if (lineHeight !== null) {
-						this._stickyScrollWidget.setSpecialLineHeight(lineNumber, lineHeight);
-					} else {
-						this._stickyScrollWidget.deleteSpecialLineHeight(lineNumber);
-					}
 					const indexOfLineNumber = this._widgetState.startLineNumbers.indexOf(lineNumber);
 					if (indexOfLineNumber !== -1) {
 						this._renderStickyScroll(lineNumber);

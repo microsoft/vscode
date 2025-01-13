@@ -203,12 +203,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	public addSpecialLineHeight(lineNumber: number, height: number): void {
-		console.log('addSpecialLineHeight ' + lineNumber + ' ' + height);
 		this._linesLayout.addSpecialLineHeight(lineNumber, height);
 	}
 
 	public removeSpecialLineHeight(lineNumber: number): void {
-		console.log('removeSpecialLineHeight ' + lineNumber);
 		this._linesLayout.removeSpecialLineHeight(lineNumber);
 	}
 

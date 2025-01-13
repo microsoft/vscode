@@ -51,8 +51,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private _cts: CancellationTokenSource | null = null;
 	private _stickyModelProvider: IStickyModelProvider | null = null;
 
-	public readonly specialLineHeights: Map<number, number> = new Map();
-
 	constructor(
 		editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -68,23 +66,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				this.readConfiguration();
 			}
 		}));
-		const model = this._editor.getModel();
-		if (model) {
-			this._register(model.onDidChangeSpecialLineHeight((e) => {
-				e.changes.forEach((change) => {
-					if (change.ownerId !== this._editor.getIdNumber()) {
-						return;
-					}
-					const lineNumber = change.lineNumber;
-					const lineHeight = change.lineHeight;
-					if (lineHeight !== null) {
-						this.specialLineHeights.set(lineNumber, lineHeight);
-					} else {
-						this.specialLineHeights.delete(lineNumber);
-					}
-				});
-			}));
-		}
 		this.readConfiguration();
 	}
 
@@ -199,7 +180,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				const childEndLine = child.range.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
-					const lineHeight = this.specialLineHeights.get(childStartLine) ?? this._editor.getOption(EditorOption.lineHeight);
+					const lineHeight = this._editor.getLineHeightForLineNumber(childStartLine);
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1, topOfElement, lineHeight));
 					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, childStartLine, topOfElement + lineHeight);
 				}

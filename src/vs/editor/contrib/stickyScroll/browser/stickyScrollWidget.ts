@@ -55,7 +55,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
-	private readonly _specialLineHeights: Map<number, number> = new Map();
 
 	private _previousState: StickyScrollWidgetState | undefined;
 	private _lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
@@ -129,14 +128,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	get lineNumberCount(): number {
 		return this._lineNumbers.length;
-	}
-
-	setSpecialLineHeight(lineNumber: number, lineHeight: number): void {
-		this._specialLineHeights.set(lineNumber, lineHeight);
-	}
-
-	deleteSpecialLineHeight(lineNumber: number): void {
-		this._specialLineHeights.delete(lineNumber);
 	}
 
 	getRenderedStickyLine(lineNumber: number): RenderedStickyLine | undefined {
@@ -266,7 +257,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const indexToSumUntil = untilIndex ?? lineNumbers.length;
 		let totalHeight = 0;
 		for (let i = 0; i < indexToSumUntil; i++) {
-			totalHeight += this._specialLineHeights.get(lineNumbers[i]) ?? this._lineHeight;
+			totalHeight += this._editor.getLineHeightForLineNumber(lineNumbers[i]);
 		}
 		return totalHeight;
 	}
@@ -321,7 +312,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			actualInlineDecorations = [];
 		}
 
-		const height = this._specialLineHeights.get(line) ?? this._lineHeight;
+		const height = this._editor.getLineHeightForLineNumber(line);
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
