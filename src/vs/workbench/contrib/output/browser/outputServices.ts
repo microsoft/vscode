@@ -53,7 +53,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 			this.id,
 			this.uri,
 			outputChannelDescriptor.languageId ? languageService.createById(outputChannelDescriptor.languageId) : languageService.createByMimeType(outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME),
-			outputChannelDescriptor.files ? outputChannelDescriptor.files.map((file, index) => ({ file, name: outputChannelDescriptor.fileNames?.[index] ?? '' })) : [])
+			outputChannelDescriptor.files ? outputChannelDescriptor.files.map((file, index) => ({ file, name: outputChannelDescriptor.fileNames?.[index] ?? '' })) : undefined)
 		);
 	}
 

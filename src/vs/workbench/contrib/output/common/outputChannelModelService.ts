@@ -37,7 +37,7 @@ export class OutputChannelModelService implements IOutputChannelModelService {
 	}
 
 	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, files?: IOutputChannelFileInfo[]): IOutputChannelModel {
-		return files ?
+		return files?.length ?
 			files.length === 1 ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, language, files[0])
 				: this.instantiationService.createInstance(MultiFileOutputChannelModel, modelUri, language, files)
 			: this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, language, this.outputDir);
