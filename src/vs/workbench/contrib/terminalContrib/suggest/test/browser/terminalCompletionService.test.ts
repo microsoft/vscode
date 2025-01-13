@@ -24,6 +24,28 @@ suite('TerminalCompletionService', () => {
 	let terminalCompletionService: TerminalCompletionService;
 	const provider: string = 'testProvider';
 
+	const sourceCompletion = {
+		label: `.`,
+		provider: 'builtin',
+		kind: TerminalCompletionItemKind.Folder,
+		detail: 'Source folder',
+		isDirectory: true,
+		isFile: false,
+		replacementIndex: 1,
+		replacementLength: 0
+	};
+
+	const parentCompletion = {
+		label: `..${pathSeparator}`,
+		provider: 'builtin',
+		detail: 'Parent folder',
+		kind: TerminalCompletionItemKind.Folder,
+		isDirectory: true,
+		isFile: false,
+		replacementIndex: 1,
+		replacementLength: 0
+	};
+
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
@@ -89,22 +111,12 @@ suite('TerminalCompletionService', () => {
 				replacementLength: 0
 			},
 			{
-				label: `.`,
-				provider: 'builtin',
-				kind: TerminalCompletionItemKind.Folder,
-				detail: 'Source folder',
-				isDirectory: true,
-				isFile: false,
+				...sourceCompletion,
 				replacementIndex: 1,
 				replacementLength: 0
 			},
 			{
-				label: `..${pathSeparator}`,
-				provider: 'builtin',
-				detail: 'Parent folder',
-				kind: TerminalCompletionItemKind.Folder,
-				isDirectory: true,
-				isFile: false,
+				...parentCompletion,
 				replacementIndex: 1,
 				replacementLength: 0
 			}
@@ -127,12 +139,7 @@ suite('TerminalCompletionService', () => {
 				replacementLength: 1
 			},
 			{
-				label: `..${pathSeparator}`,
-				provider: 'builtin',
-				detail: 'Parent folder',
-				kind: TerminalCompletionItemKind.Folder,
-				isDirectory: true,
-				isFile: false,
+				...parentCompletion,
 				replacementIndex: 1,
 				replacementLength: 1
 			}
@@ -156,12 +163,7 @@ suite('TerminalCompletionService', () => {
 					replacementLength: 2
 				},
 				{
-					label: `..${pathSeparator}`,
-					provider: 'builtin',
-					detail: 'Parent folder',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
+					...parentCompletion,
 					replacementIndex: 1,
 					replacementLength: 2
 				}
@@ -185,22 +187,12 @@ suite('TerminalCompletionService', () => {
 					replacementLength: 0
 				},
 				{
-					label: `.`,
-					provider: 'builtin',
-					kind: TerminalCompletionItemKind.Folder,
-					detail: 'Source folder',
-					isDirectory: true,
-					isFile: false,
+					...sourceCompletion,
 					replacementIndex: 3,
 					replacementLength: 0
 				},
 				{
-					label: `..${pathSeparator}`,
-					provider: 'builtin',
-					detail: 'Parent folder',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
+					...parentCompletion,
 					replacementIndex: 3,
 					replacementLength: 0
 				}
@@ -224,12 +216,7 @@ suite('TerminalCompletionService', () => {
 					replacementLength: 1 // replacing .
 				},
 				{
-					label: `..${pathSeparator}`,
-					provider: 'builtin',
-					detail: 'Parent folder',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
+					...parentCompletion,
 					replacementIndex: 3,
 					replacementLength: 1
 				}
@@ -253,12 +240,7 @@ suite('TerminalCompletionService', () => {
 					replacementLength: 2 // replacing ./
 				},
 				{
-					label: `..${pathSeparator}`,
-					provider: 'builtin',
-					detail: 'Parent folder',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
+					...parentCompletion,
 					replacementIndex: 3,
 					replacementLength: 2
 				}
@@ -282,12 +264,7 @@ suite('TerminalCompletionService', () => {
 					replacementLength: 3 // replacing ./f
 				},
 				{
-					label: `..${pathSeparator}`,
-					provider: 'builtin',
-					detail: 'Parent folder',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
+					...parentCompletion,
 					replacementIndex: 3,
 					replacementLength: 3
 				}
