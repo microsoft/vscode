@@ -200,6 +200,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _updateSpecialLineHeightListener(): void {
 		const model = this._editor.getModel();
 		if (!model) {
+			this._specialLineHeightListener.clear();
 			return;
 		}
 		this._specialLineHeightListener.value = model.onDidChangeSpecialLineHeight((e) => {
