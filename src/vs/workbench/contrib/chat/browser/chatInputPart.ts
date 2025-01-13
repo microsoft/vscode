@@ -1320,12 +1320,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Working set
 		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-list'));
-		this._register(addDisposableListener(workingSetContainer, 'focusin', () => this._inChatEditWorkingSetCtx?.set(true)));
-		this._register(addDisposableListener(workingSetContainer, 'focusout', () => this._inChatEditWorkingSetCtx?.set(false)));
+
 		if (!this._chatEditList) {
 			this._chatEditList = this._chatEditsListPool.get();
 			const list = this._chatEditList.object;
 			this._chatEditsDisposables.add(this._chatEditList);
+			this._register(addDisposableListener(list.getHTMLElement(), 'focus', () => this._inChatEditWorkingSetCtx?.set(true)));
+			this._register(addDisposableListener(list.getHTMLElement(), 'blur', () => this._inChatEditWorkingSetCtx?.set(false)));
 			this._chatEditsDisposables.add(list.onDidFocus(() => {
 				this._onDidFocus.fire();
 			}));
