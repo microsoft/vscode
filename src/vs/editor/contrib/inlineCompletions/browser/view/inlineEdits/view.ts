@@ -168,7 +168,8 @@ export class InlineEditsView extends Disposable {
 
 		if (
 			this._useMixedLinesDiff.read(reader) === 'forStableInsertions'
-			&& isInsertionAfterPosition(diff, edit.cursorPosition)
+			&& isSingleLineInsertionAfterPosition(diff, edit.cursorPosition)
+			|| isSingleLineDeletion(diff)
 		) {
 			return { kind: 'ghostText' as const };
 		}
@@ -210,7 +211,7 @@ export class InlineEditsView extends Disposable {
 	}
 }
 
-function isInsertionAfterPosition(diff: DetailedLineRangeMapping[], position: Position | null) {
+function isSingleLineInsertionAfterPosition(diff: DetailedLineRangeMapping[], position: Position | null) {
 	if (!position) {
 		return false;
 	}
@@ -234,5 +235,20 @@ function isInsertionAfterPosition(diff: DetailedLineRangeMapping[], position: Po
 			return true;
 		}
 		return false;
+	}
+}
+
+function isSingleLineDeletion(diff: DetailedLineRangeMapping[]): boolean {
+	return diff.every(m => m.innerChanges!.every(r => isDeletion(r)));
+
+	function isDeletion(r: RangeMapping) {
+		if (!r.modifiedRange.isEmpty()) {
+			return false;
+		}
+		const isDeletionWithinLine = r.originalRange.startLineNumber === r.originalRange.endLineNumber;
+		if (!isDeletionWithinLine) {
+			return false;
+		}
+		return true;
 	}
 }
