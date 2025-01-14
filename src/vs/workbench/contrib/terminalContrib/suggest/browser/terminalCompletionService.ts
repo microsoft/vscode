@@ -261,16 +261,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const isDirectory = kind === TerminalCompletionItemKind.Folder;
 			const fileName = basename(stat.resource.fsPath);
 
-			let label;
-			if (!lastWordFolder.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWordFolder.startsWith('..' + resourceRequestConfig.pathSeparator)) {
-				// add a dot to the beginning of the label if it doesn't already have one
-				label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
-			} else {
-				label = `${lastWordFolder}${fileName}`;
-				if (lastWordFolder.length && lastWordFolder.at(-1) !== resourceRequestConfig.pathSeparator && lastWordFolder.at(-1) !== '.') {
-					label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
-				}
-			}
+			// Add a . to the start of the path if there isn't one already
+			let label = !/^\.\.?\//.test(lastWordFolder) ? `.${resourceRequestConfig.pathSeparator}${fileName}` : `${lastWordFolder}${fileName}`;
+
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label = `${label}${resourceRequestConfig.pathSeparator}`;
 			}
