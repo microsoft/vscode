@@ -58,7 +58,7 @@
         "icon": "$(globe)"
       },
       {
-        "command": "github.openOnGitHub2",
+        "command": "github.graph.openOnGitHub",
         "title": "Open on GitHub",
         "icon": "$(github)"
       }
@@ -79,7 +79,7 @@
           "when": "git-base.gitEnabled && workspaceFolderCount != 0 && remoteName != 'codespaces'"
         },
         {
-          "command": "github.openOnGitHub2",
+          "command": "github.graph.openOnGitHub",
           "when": "false"
         },
         {
@@ -141,9 +141,16 @@
       ],
       "scm/historyItem/context": [
         {
-          "command": "github.openOnGitHub2",
+          "command": "github.graph.openOnGitHub",
           "when": "github.hasGitHubRepo",
           "group": "0_view@2"
+        }
+      ],
+      "scm/historyItem/hover": [
+        {
+          "command": "github.graph.openOnGitHub",
+          "when": "github.hasGitHubRepo",
+          "group": "1_open@1"
         }
       ]
     },

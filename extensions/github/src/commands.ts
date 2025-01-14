@@ -62,7 +62,7 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 		vscode.env.openExternal(vscode.Uri.parse(link));
 	}));
 
-	disposables.add(vscode.commands.registerCommand('github.openOnGitHub2', async (repository: vscode.SourceControl, historyItem: vscode.SourceControlHistoryItem) => {
+	disposables.add(vscode.commands.registerCommand('github.graph.openOnGitHub', async (repository: vscode.SourceControl, historyItem: vscode.SourceControlHistoryItem) => {
 		if (!repository || !historyItem) {
 			return;
 		}
