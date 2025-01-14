@@ -2911,6 +2911,10 @@ declare namespace monaco.editor {
 		 */
 		readonly rangeLength: number;
 		/**
+		 * The end position of the range that got replaced.
+		 */
+		readonly rangeEndPosition: Position;
+		/**
 		 * The new text for the range.
 		 */
 		readonly text: string;

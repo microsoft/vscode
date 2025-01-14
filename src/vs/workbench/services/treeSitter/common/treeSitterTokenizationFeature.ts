@@ -116,7 +116,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 			// First time we see a tree we need to build a token store.
 			if (!this._tokenizationStoreService.hasTokens(e.textModel)) {
-				const tokens = this.getTokensInRange(e.textModel, 1, maxLine);
+				const lastLineStartOffset = e.textModel.getOffsetAt({ lineNumber: maxLine, column: 1 });
+				const lineEndOffset = e.textModel.getValueLength();
+				const lineLength = lineEndOffset - lastLineStartOffset;
+				const tokens = this.getTokensInRange(e.textModel, 1, maxLine, lineLength);
 				if (tokens) {
 					this._tokenizationStoreService.setTokens(e.textModel, tokens);
 
@@ -138,7 +141,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				new Promise<void>(resolve => {
 					// TODO: Do we need to apply these it reverse order?
 					e.ranges.map(range => {
-						const updates = this.getTokensInRange(e.textModel, range.newRange.startLineNumber, range.newRange.endLineNumber);
+						const updates = this.getTokensInRange(e.textModel, range.newRange.startLineNumber, range.newRange.endLineNumber, range.newRange.endColumn - 1);
 						if (updates) {
 							this._tokenizationStoreService.updateTokens(e.textModel, range.oldRangeLength, updates);
 						}
@@ -167,12 +170,15 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		}
 	}
 
-	public getTokensInRange(textModel: ITextModel, startLine: number, endLine: number): TokenUpdate[] | undefined {
+	public getTokensInRange(textModel: ITextModel, startLine: number, endLine: number, endOffsetInLine: number): TokenUpdate[] | undefined {
 		const tokens: TokenUpdate[] = [];
+		const maxLine = textModel.getLineCount();
 		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 		for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
 			const lineOffset = textModel.getOffsetAt({ lineNumber, column: 1 });
-			const lineTokens = this._tokenize(languageId, lineNumber, lineOffset, textModel);
+			const lineEndOffset = (lineNumber + 1 <= maxLine) ? textModel.getOffsetAt({ lineNumber: lineNumber + 1, column: 1 }) : textModel.getValueLength();
+			const lineLength = lineEndOffset - lineOffset;
+			const lineTokens = this._tokenize(languageId, lineNumber, lineNumber < endLine ? lineLength : endOffsetInLine, lineOffset, textModel);
 			if (!lineTokens) {
 				return undefined;
 			}
@@ -241,13 +247,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._tokenizeEncoded(lineNumber, textModel);
 	}
 
-	private _tokenize(encodedLanguageId: LanguageId, lineNumber: number, lineStartOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
+	private _tokenize(encodedLanguageId: LanguageId, lineNumber: number, endOffsetInLine: number, lineStartOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
 		const stopwatch = StopWatch.create();
-		const maxLine = textModel.getLineCount();
-		const lineEndOffset = (lineNumber + 1 <= maxLine) ? textModel.getOffsetAt({ lineNumber: lineNumber + 1, column: 1 }) : textModel.getValueLength();
-		const lineLength = lineEndOffset - lineStartOffset;
+		const lineLength = endOffsetInLine;
 		const tree = this._getTree(textModel);
-		const captures = this._captureAtRange(lineNumber, { startColumn: 1, endColumnExclusive: 1 + lineLength }, tree?.tree);
+		const captures = this._captureAtRange(lineNumber, { startColumn: 1, endColumnExclusive: endOffsetInLine }, tree?.tree);
 
 		if (captures.length === 0) {
 			if (tree) {
@@ -359,9 +363,12 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	private _tokenizeEncoded(lineNumber: number, textModel: ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined {
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
-		const lineStartOffset = textModel.getOffsetAt({ lineNumber: lineNumber, column: 1 });
+		const lineOffset = textModel.getOffsetAt({ lineNumber: lineNumber, column: 1 });
+		const maxLine = textModel.getLineCount();
+		const lineEndOffset = (lineNumber + 1 <= maxLine) ? textModel.getOffsetAt({ lineNumber: lineNumber + 1, column: 1 }) : textModel.getValueLength();
+		const lineLength = lineEndOffset - lineOffset;
 
-		const result = this._tokenize(encodedLanguageId, lineNumber, lineStartOffset, textModel);
+		const result = this._tokenize(encodedLanguageId, lineNumber, lineLength, lineOffset, textModel);
 		if (!result) {
 			return undefined;
 		}

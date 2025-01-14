@@ -238,6 +238,10 @@ export class TokenStore {
 				node.node.parent = undefined;
 				precedingNodes.push(node.node);
 				continue;
+			} else if (isLeaf(node.node) && (currentOffset < updateOffsetStart)) {
+				// We have a partial preceding node
+				precedingNodes.push({ length: updateOffsetStart - currentOffset, token: node.node.token, height: 0 });
+				continue;
 			}
 
 			if ((updateOffsetStart <= currentOffset) && (currentOffset + node.node.length <= firstUnchangedOffsetAfterUpdate)) {
@@ -247,6 +251,10 @@ export class TokenStore {
 			if (currentOffset >= firstUnchangedOffsetAfterUpdate) {
 				node.node.parent = undefined;
 				postcedingNodes.push(node.node);
+				continue;
+			} else if (isLeaf(node.node) && (currentOffset + node.node.length >= firstUnchangedOffsetAfterUpdate)) {
+				// we have a partial postceeding node
+				postcedingNodes.push({ length: firstUnchangedOffsetAfterUpdate - currentOffset, token: node.node.token, height: 0 });
 				continue;
 			}
 

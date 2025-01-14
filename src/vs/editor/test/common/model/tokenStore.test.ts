@@ -487,7 +487,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 28, length: 1, token: 32836 },
 			{ startOffsetInclusive: 29, length: 2, token: 32836 },
 			{ startOffsetInclusive: 31, length: 3, token: 32836 }, // This is the new line, which consists of 3 characters: \t\r\n
-			{ startOffsetInclusive: 34, length: 3, token: 32836 }
+			{ startOffsetInclusive: 34, length: 2, token: 32836 }
 		]);
 
 		const tokens1 = store.getTokensInRange(36, 59);
@@ -534,6 +534,94 @@ suite('TokenStore', () => {
 
 	});
 
+	test('Insert new line and remove tabs (split tokens)', () => {
+		// class A {
+		// 	a() {
+		// 	}
+		// }
+		//
+		// interface I {
+		//
+		// }
 
+		const store = new TokenStore(textModel);
+		store.buildStore([
+			{ startOffsetInclusive: 0, length: 5, token: 196676 },
+			{ startOffsetInclusive: 5, length: 1, token: 32836 },
+			{ startOffsetInclusive: 6, length: 1, token: 557124 },
+			{ startOffsetInclusive: 7, length: 3, token: 32836 },
+			{ startOffsetInclusive: 10, length: 1, token: 32836 },
+			{ startOffsetInclusive: 11, length: 1, token: 524356 },
+			{ startOffsetInclusive: 12, length: 5, token: 32836 },
+			{ startOffsetInclusive: 17, length: 3, token: 32836 }, // This is the closing curly brace line of a()
+			{ startOffsetInclusive: 20, length: 2, token: 32836 },
+			{ startOffsetInclusive: 22, length: 1, token: 32836 },
+			{ startOffsetInclusive: 23, length: 9, token: 196676 },
+			{ startOffsetInclusive: 32, length: 1, token: 32836 },
+			{ startOffsetInclusive: 33, length: 1, token: 557124 },
+			{ startOffsetInclusive: 34, length: 3, token: 32836 },
+			{ startOffsetInclusive: 37, length: 1, token: 32836 },
+			{ startOffsetInclusive: 38, length: 1, token: 32836 }
+		]);
+
+		const tokens0 = store.getTokensInRange(23, 39);
+		assert.deepStrictEqual(tokens0, [
+			{ startOffsetInclusive: 23, length: 9, token: 196676 },
+			{ startOffsetInclusive: 32, length: 1, token: 32836 },
+			{ startOffsetInclusive: 33, length: 1, token: 557124 },
+			{ startOffsetInclusive: 34, length: 3, token: 32836 },
+			{ startOffsetInclusive: 37, length: 1, token: 32836 },
+			{ startOffsetInclusive: 38, length: 1, token: 32836 }
+		]);
+
+		// Insert a new line after a() { }, which will add 2 tabs
+		store.update(21, [
+			{ startOffsetInclusive: 0, length: 5, token: 196676 },
+			{ startOffsetInclusive: 5, length: 1, token: 32836 },
+			{ startOffsetInclusive: 6, length: 1, token: 557124 },
+			{ startOffsetInclusive: 7, length: 3, token: 32836 },
+			{ startOffsetInclusive: 10, length: 1, token: 32836 },
+			{ startOffsetInclusive: 11, length: 1, token: 524356 },
+			{ startOffsetInclusive: 12, length: 5, token: 32836 },
+			{ startOffsetInclusive: 17, length: 3, token: 32836 },
+			{ startOffsetInclusive: 20, length: 3, token: 32836 },
+			{ startOffsetInclusive: 23, length: 1, token: 32836 }
+		]);
+
+		const tokens1 = store.getTokensInRange(26, 42);
+		assert.deepStrictEqual(tokens1, [
+			{ startOffsetInclusive: 26, length: 9, token: 196676 },
+			{ startOffsetInclusive: 35, length: 1, token: 32836 },
+			{ startOffsetInclusive: 36, length: 1, token: 557124 },
+			{ startOffsetInclusive: 37, length: 3, token: 32836 },
+			{ startOffsetInclusive: 40, length: 1, token: 32836 },
+			{ startOffsetInclusive: 41, length: 1, token: 32836 }
+		]);
+
+		// Insert another new line at the cursor, which will also cause the 2 tabs to be deleted
+		store.update(24, [
+			{ startOffsetInclusive: 0, length: 5, token: 196676 },
+			{ startOffsetInclusive: 5, length: 1, token: 32836 },
+			{ startOffsetInclusive: 6, length: 1, token: 557124 },
+			{ startOffsetInclusive: 7, length: 3, token: 32836 },
+			{ startOffsetInclusive: 10, length: 1, token: 32836 },
+			{ startOffsetInclusive: 11, length: 1, token: 524356 },
+			{ startOffsetInclusive: 12, length: 5, token: 32836 },
+			{ startOffsetInclusive: 17, length: 3, token: 32836 },
+			{ startOffsetInclusive: 20, length: 1, token: 32836 },
+			{ startOffsetInclusive: 21, length: 2, token: 32836 },
+			{ startOffsetInclusive: 23, length: 1, token: 32836 }
+		]);
+
+		const tokens2 = store.getTokensInRange(26, 42);
+		assert.deepStrictEqual(tokens2, [
+			{ startOffsetInclusive: 26, length: 9, token: 196676 },
+			{ startOffsetInclusive: 35, length: 1, token: 32836 },
+			{ startOffsetInclusive: 36, length: 1, token: 557124 },
+			{ startOffsetInclusive: 37, length: 3, token: 32836 },
+			{ startOffsetInclusive: 40, length: 1, token: 32836 },
+			{ startOffsetInclusive: 41, length: 1, token: 32836 }
+		]);
+	});
 });
 

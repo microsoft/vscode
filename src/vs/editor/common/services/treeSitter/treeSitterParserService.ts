@@ -126,6 +126,12 @@ const enum TelemetryParseType {
 	Incremental = 'incrementalParse'
 }
 
+interface ChangedNode {
+	new: Parser.SyntaxNode;
+	old: Parser.SyntaxNode;
+	isContiguousWithPrevious: boolean | undefined;
+}
+
 export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResult {
 	private _tree: Parser.Tree | undefined;
 	private _isDisposed: boolean = false;
@@ -176,7 +182,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			return n && o;
 		};
 
-		const changedNodes: { new: Parser.SyntaxNode; old: Parser.SyntaxNode }[] = [];
+		const changedNodes: ChangedNode[] = [];
 		let next = true;
 		const nextSiblingOrParentSibling = () => {
 			do {
@@ -190,17 +196,21 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			return false;
 		};
 
+		let previousNode: Parser.SyntaxNode | undefined;
 		do {
 			let canGoChild = newCursor.currentNode.childCount > 0;
+
 			if (newCursor.currentNode.hasChanges && newCursor.currentNode.id !== newTree.rootNode.id) {
-				changedNodes.push({ new: newCursor.currentNode, old: oldCursor.currentNode });
+				const isContiguousWithPrevious = changedNodes.length > 0 && previousNode?.id === changedNodes[changedNodes.length - 1].new.id;
+				changedNodes.push({ new: newCursor.currentNode, old: oldCursor.currentNode, isContiguousWithPrevious });
 				canGoChild = false;
 			}
+			previousNode = newCursor.currentNode;
 			next = canGoChild ? gotoFirstChild() : nextSiblingOrParentSibling();
 		} while (next);
 
 		if (this.hasRootChanged(oldTree, changedNodes)) {
-			return [{ new: newTree.rootNode, old: oldTree.rootNode }];
+			return [{ new: newTree.rootNode, old: oldTree.rootNode, isContiguousWithPrevious: undefined }];
 		} else {
 			return changedNodes;
 		}
@@ -213,16 +223,27 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		return false;
 	}
 
-	private calculateRangeChange(changedNodes: { new: Parser.SyntaxNode; old: Parser.SyntaxNode }[] | undefined): RangeChange[] | undefined {
+	private calculateRangeChange(changedNodes: { new: Parser.SyntaxNode; old: Parser.SyntaxNode; isContiguousWithPrevious: boolean | undefined }[] | undefined): RangeChange[] | undefined {
 		if (!changedNodes) {
 			return undefined;
 		}
 
-		const ranges: RangeChange[] = changedNodes.map((node) => {
+		// Collapse conginguous ranges
+		const ranges: RangeChange[] = [];
+		for (let i = 0; i < changedNodes.length; i++) {
+			const node = changedNodes[i];
+
 			const newRange = new Range(node.new.startPosition.row + 1, node.new.startPosition.column + 1, node.new.endPosition.row + 1, node.new.endPosition.column + 1);
-			const oldRangeLength = node.old.endIndex - node.old.startIndex;
-			return { newRange, oldRangeLength };
-		});
+			if (node.isContiguousWithPrevious) {
+				const prevNode = changedNodes[i - 1];
+				const prevRangeChange = ranges[ranges.length - 1];
+				prevRangeChange.newRange = new Range(prevRangeChange.newRange.startLineNumber, prevRangeChange.newRange.startColumn, newRange.startLineNumber, newRange.startColumn);
+				prevRangeChange.oldRangeLength += node.old.endIndex - prevNode.old.startIndex;
+			} else {
+				const oldRangeLength = node.old.endIndex - node.old.startIndex;
+				ranges.push({ newRange, oldRangeLength });
+			}
+		}
 		return ranges;
 	}
 
@@ -253,16 +274,13 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	private _newEdits = true;
 	private _applyEdits(model: ITextModel, changes: IModelContentChange[]) {
 		for (const change of changes) {
-			const newEndOffset = change.rangeOffset + change.text.length;
-			const newEndPosition = model.getPositionAt(newEndOffset);
-
 			this.tree?.edit({
 				startIndex: change.rangeOffset,
 				oldEndIndex: change.rangeOffset + change.rangeLength,
 				newEndIndex: change.rangeOffset + change.text.length,
 				startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
 				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
-				newEndPosition: { row: newEndPosition.lineNumber - 1, column: newEndPosition.column - 1 }
+				newEndPosition: { row: change.rangeEndPosition.lineNumber - 1, column: change.rangeEndPosition.column - 1 }
 			});
 			this._newEdits = true;
 		}

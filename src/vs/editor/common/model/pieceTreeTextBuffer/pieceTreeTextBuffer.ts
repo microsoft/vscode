@@ -509,6 +509,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 			contentChanges.push({
 				range: contentChangeRange,
 				rangeLength: op.rangeLength,
+				rangeEndPosition: this._pieceTree.getPositionAt(op.rangeOffset + op.text.length),
 				text: op.text,
 				rangeOffset: op.rangeOffset,
 				forceMoveMarkers: op.forceMoveMarkers
