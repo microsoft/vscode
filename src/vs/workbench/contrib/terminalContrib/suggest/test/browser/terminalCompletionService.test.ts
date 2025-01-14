@@ -26,7 +26,7 @@ suite('TerminalCompletionService', () => {
 
 	const sourceCompletion = {
 		label: `.`,
-		provider: 'builtin',
+		provider,
 		kind: TerminalCompletionItemKind.Folder,
 		detail: 'Source folder',
 		isDirectory: true,
@@ -37,7 +37,7 @@ suite('TerminalCompletionService', () => {
 
 	const parentCompletion = {
 		label: `..${pathSeparator}`,
-		provider: 'builtin',
+		provider,
 		detail: 'Parent folder',
 		kind: TerminalCompletionItemKind.Folder,
 		isDirectory: true,
@@ -299,7 +299,7 @@ suite('TerminalCompletionService', () => {
 			assert.deepEqual(result, [
 				{
 					label: `..${pathSeparator}..${pathSeparator}`,
-					provider: 'builtin',
+					provider,
 					detail: 'Parent folder',
 					kind: TerminalCompletionItemKind.Folder,
 					isDirectory: true,

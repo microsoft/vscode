@@ -230,7 +230,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (!lastWordRelativeFolder.trim()) {
 				resourceCompletions.push({
 					label: '.',
-					provider: 'builtin',
+					provider,
 					kind: TerminalCompletionItemKind.Folder,
 					isDirectory: true,
 					isFile: false,
@@ -242,7 +242,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			//  else {
 			// resourceCompletions.push({
 			// 	label: lastWordRelativeFolder,
-			// 	provider: 'builtin',
+			// 	provider,
 			// 	kind: TerminalCompletionItemKind.Folder,
 			// 	isDirectory: true,
 			// 	isFile: false,
@@ -256,7 +256,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (isWindows ? lastWordRelativeFolder.match(/[\\\/]/) : lastWordRelativeFolder.includes(resourceRequestConfig.pathSeparator)) {
 					resourceCompletions.push({
 						label: lastWordRelativeFolder + '..' + resourceRequestConfig.pathSeparator,
-						provider: 'builtin',
+						provider,
 						kind: TerminalCompletionItemKind.Folder,
 						detail: 'Parent folder',
 						isDirectory: true,
@@ -267,7 +267,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				} else {
 					resourceCompletions.push({
 						label: '..' + resourceRequestConfig.pathSeparator,
-						provider: 'builtin',
+						provider,
 						kind: TerminalCompletionItemKind.Folder,
 						detail: 'Parent folder',
 						isDirectory: true,
