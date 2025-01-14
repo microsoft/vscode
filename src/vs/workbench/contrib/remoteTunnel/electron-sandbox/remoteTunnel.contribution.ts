@@ -415,7 +415,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			const signedInForProvider = sessions.some(account => account.providerId === authenticationProvider.id);
 			const provider = this.authenticationService.getProvider(authenticationProvider.id);
 			if (!signedInForProvider || provider.supportsMultipleAccounts) {
-				options.push({ label: localize({ key: 'sign in using account', comment: ['{0} will be a auth provider (e.g. Github)'] }, "Sign in with {0}", provider.label), provider: authenticationProvider });
+				options.push({ label: localize({ key: 'sign in using account', comment: ['{0} will be a auth provider (e.g. GitHub)'] }, "Sign in with {0}", provider.label), provider: authenticationProvider });
 			}
 		}
 
