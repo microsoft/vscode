@@ -774,6 +774,8 @@ export interface InlineCompletion {
 	readonly completeBracketPairs?: boolean;
 
 	readonly isInlineEdit?: boolean;
+
+	readonly showRange?: IRange;
 }
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -831,6 +833,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
+
+	displayName?: string;
 
 	toString?(): string;
 }
@@ -2105,7 +2109,7 @@ export interface CodeLens {
 
 export interface CodeLensList {
 	lenses: CodeLens[];
-	dispose(): void;
+	dispose?(): void;
 }
 
 export interface CodeLensProvider {
@@ -2396,6 +2400,7 @@ export interface MappedEditsProvider {
 export interface IInlineEdit {
 	text: string;
 	range: IRange;
+	showRange?: IRange;
 	accepted?: Command;
 	rejected?: Command;
 	shown?: Command;
@@ -2404,6 +2409,12 @@ export interface IInlineEdit {
 
 export interface IInlineEditContext {
 	triggerKind: InlineEditTriggerKind;
+
+	/**
+	 * @experimental
+	 * @internal
+	 */
+	requestUuid?: string;
 }
 
 export enum InlineEditTriggerKind {
@@ -2412,6 +2423,7 @@ export enum InlineEditTriggerKind {
 }
 
 export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+	displayName?: string;
 	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
 	freeInlineEdit(edit: T): void;
 }

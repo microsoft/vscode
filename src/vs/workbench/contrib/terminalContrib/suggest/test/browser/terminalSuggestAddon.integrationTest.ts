@@ -110,6 +110,10 @@ suite('Terminal Contrib Suggest Recordings', () => {
 						pwshCode: true,
 						pwshGit: true
 					},
+					providers: {
+						'terminal-suggest': true,
+						'pwsh-shell-integration': true,
+					},
 					enableExtensionCompletions: false
 				} satisfies ITerminalSuggestConfiguration
 			}

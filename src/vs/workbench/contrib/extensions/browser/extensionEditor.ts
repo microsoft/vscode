@@ -87,25 +87,12 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { ByteSize, IFileService } from '../../../../platform/files/common/files.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
 function toDateString(date: Date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
-}
-
-function toMemoryString(bytes: number) {
-	if (bytes < 1024) {
-		return `${bytes} B`;
-	}
-	if (bytes < 1024 * 1024) {
-		return `${(bytes / 1024).toFixed(1)} KB`;
-	}
-	if (bytes < 1024 * 1024 * 1024) {
-		return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-	}
-	return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
 class NavBar extends Disposable {
@@ -1188,7 +1175,7 @@ class AdditionalDetailsWidget extends Disposable {
 			}
 		}
 		if (extension.size) {
-			const element = $('div', undefined, toMemoryString(extension.size));
+			const element = $('div', undefined, ByteSize.formatSize(extension.size));
 			append(installInfo,
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', { title: localize('size when installed', "Size when installed") }, localize('size', "Size")),
@@ -1209,7 +1196,7 @@ class AdditionalDetailsWidget extends Disposable {
 				if (!cacheSize) {
 					return;
 				}
-				const element = $('div', undefined, toMemoryString(cacheSize));
+				const element = $('div', undefined, ByteSize.formatSize(cacheSize));
 				append(installInfo,
 					$('.more-info-entry', undefined,
 						$('div.more-info-entry-name', { title: localize('disk space used', "Cache size") }, localize('cache size', "Cache")),

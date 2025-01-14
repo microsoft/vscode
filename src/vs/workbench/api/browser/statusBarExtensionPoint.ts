@@ -101,7 +101,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 				color = undefined;
 				backgroundColor = undefined;
 		}
-		const entry: IStatusbarEntry = { name, text, tooltip, command, color, backgroundColor, ariaLabel, role, kind };
+		const entry: IStatusbarEntry = { name, text, tooltip, command, color, backgroundColor, ariaLabel, role, kind, extensionId };
 
 		if (typeof priority === 'undefined') {
 			priority = 0;

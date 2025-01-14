@@ -15,6 +15,7 @@ export const enum TerminalSuggestSettingId {
 	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
 	BuiltinCompletions = 'terminal.integrated.suggest.builtinCompletions',
 	EnableExtensionCompletions = 'terminal.integrated.suggest.enableExtensionCompletions',
+	Providers = 'terminal.integrated.suggest.providers',
 }
 
 export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
@@ -28,6 +29,10 @@ export interface ITerminalSuggestConfiguration {
 		'pwshCode': boolean;
 		'pwshGit': boolean;
 	};
+	providers: {
+		'terminal-suggest': boolean;
+		'pwsh-shell-integration': boolean;
+	};
 	enableExtensionCompletions: boolean;
 }
 
@@ -37,6 +42,17 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script. \n\nFor extension provided completions, {5} will also need to be set.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`', `\`#${TerminalSuggestSettingId.EnableExtensionCompletions}#\``),
 		type: 'boolean',
 		default: false,
+		tags: ['experimental'],
+	},
+	[TerminalSuggestSettingId.Providers]: {
+		restricted: true,
+		markdownDescription: localize('suggest.providers', "Controls which providers are enabled for terminal suggestions.  Also be aware of the {0}-setting which controls if extensions are able to provide suggestions.", `\`#${TerminalSuggestSettingId.EnableExtensionCompletions}#\``),
+		type: 'object',
+		properties: {},
+		default: {
+			'terminal-suggest': true,
+			'pwsh-shell-integration': false,
+		},
 		tags: ['experimental'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
@@ -85,7 +101,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 	[TerminalSuggestSettingId.EnableExtensionCompletions]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enableExtensionCompletions', "Controls whether extension completions are enabled."),
+		markdownDescription: localize('suggest.enableExtensionCompletions', "Controls whether extension completions are enabled. Also be aware of the {0}-setting which controls which providers are enabled.", `\`#${TerminalSuggestSettingId.Providers}#\``),
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],

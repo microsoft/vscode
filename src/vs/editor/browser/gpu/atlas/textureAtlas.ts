@@ -8,7 +8,7 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { FourKeyMap } from '../../../../base/common/map.js';
+import { NKeyMap } from '../../../../base/common/map.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
@@ -50,7 +50,7 @@ export class TextureAtlas extends Disposable {
 	 * so it is not guaranteed to be the actual page the glyph is on. But it is guaranteed that all
 	 * pages with a lower index do not contain the glyph.
 	 */
-	private readonly _glyphPageIndex: GlyphMap<number> = new FourKeyMap();
+	private readonly _glyphPageIndex: GlyphMap<number> = new NKeyMap();
 
 	private readonly _onDidDeleteGlyphs = this._register(new Emitter<void>());
 	readonly onDidDeleteGlyphs = this._onDidDeleteGlyphs.event;
@@ -110,7 +110,7 @@ export class TextureAtlas extends Disposable {
 		this._onDidDeleteGlyphs.fire();
 	}
 
-	getGlyph(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, charMetadata: number): Readonly<ITextureAtlasPageGlyph> {
+	getGlyph(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, decorationStyleSetId: number): Readonly<ITextureAtlasPageGlyph> {
 		// TODO: Encode font size and family into key
 		// Ignore metadata that doesn't affect the glyph
 		tokenMetadata &= ~(MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
@@ -122,27 +122,27 @@ export class TextureAtlas extends Disposable {
 		}
 
 		// Try get the glyph, overflowing to a new page if necessary
-		return this._tryGetGlyph(this._glyphPageIndex.get(chars, tokenMetadata, charMetadata, rasterizer.cacheKey) ?? 0, rasterizer, chars, tokenMetadata, charMetadata);
+		return this._tryGetGlyph(this._glyphPageIndex.get(chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey) ?? 0, rasterizer, chars, tokenMetadata, decorationStyleSetId);
 	}
 
-	private _tryGetGlyph(pageIndex: number, rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, charMetadata: number): Readonly<ITextureAtlasPageGlyph> {
-		this._glyphPageIndex.set(chars, tokenMetadata, charMetadata, rasterizer.cacheKey, pageIndex);
+	private _tryGetGlyph(pageIndex: number, rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, decorationStyleSetId: number): Readonly<ITextureAtlasPageGlyph> {
+		this._glyphPageIndex.set(pageIndex, chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey);
 		return (
-			this._pages[pageIndex].getGlyph(rasterizer, chars, tokenMetadata, charMetadata)
+			this._pages[pageIndex].getGlyph(rasterizer, chars, tokenMetadata, decorationStyleSetId)
 			?? (pageIndex + 1 < this._pages.length
-				? this._tryGetGlyph(pageIndex + 1, rasterizer, chars, tokenMetadata, charMetadata)
+				? this._tryGetGlyph(pageIndex + 1, rasterizer, chars, tokenMetadata, decorationStyleSetId)
 				: undefined)
-			?? this._getGlyphFromNewPage(rasterizer, chars, tokenMetadata, charMetadata)
+			?? this._getGlyphFromNewPage(rasterizer, chars, tokenMetadata, decorationStyleSetId)
 		);
 	}
 
-	private _getGlyphFromNewPage(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, charMetadata: number): Readonly<ITextureAtlasPageGlyph> {
+	private _getGlyphFromNewPage(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, decorationStyleSetId: number): Readonly<ITextureAtlasPageGlyph> {
 		if (this._pages.length >= TextureAtlas.maximumPageCount) {
 			throw new Error(`Attempt to create a texture atlas page past the limit ${TextureAtlas.maximumPageCount}`);
 		}
 		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, this._pages.length, this.pageSize, this._allocatorType));
-		this._glyphPageIndex.set(chars, tokenMetadata, charMetadata, rasterizer.cacheKey, this._pages.length - 1);
-		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, tokenMetadata, charMetadata)!;
+		this._glyphPageIndex.set(this._pages.length - 1, chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey);
+		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, tokenMetadata, decorationStyleSetId)!;
 	}
 
 	public getUsagePreview(): Promise<Blob[]> {

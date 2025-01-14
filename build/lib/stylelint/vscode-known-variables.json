@@ -370,6 +370,7 @@
 		"--vscode-inlineEdit-originalBackground",
 		"--vscode-inlineEdit-originalChangedLineBackground",
 		"--vscode-inlineEdit-originalChangedTextBackground",
+		"--vscode-inlineEdit-acceptedBackground",
 		"--vscode-input-background",
 		"--vscode-input-border",
 		"--vscode-input-foreground",

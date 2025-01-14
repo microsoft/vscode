@@ -214,7 +214,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 								description: 'inserted-text',
 								before: {
 									content: insertedText,
-									inlineClassName: diff.mode === 'ghostText' ? 'ghost-text-decoration' : 'inlineCompletions-char-insert',
+									inlineClassName: diff.mode === 'ghostText' ? 'inlineCompletions-char-insert inline' : 'inlineCompletions-char-insert',
 								},
 								zIndex: 2,
 								showIfCollapsed: true,

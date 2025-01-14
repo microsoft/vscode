@@ -13,6 +13,10 @@ export interface ISimpleCompletion {
 	 */
 	label: string;
 	/**
+	 * The ID of the provider the completion item came from
+	 */
+	provider: string;
+	/**
 	 * The completion's icon to show on the left of the suggest widget.
 	 */
 	icon?: ThemeIcon;

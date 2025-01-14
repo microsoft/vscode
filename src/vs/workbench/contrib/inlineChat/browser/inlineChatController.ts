@@ -43,12 +43,12 @@ import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
 import { IInlineChatSavingService } from './inlineChatSavingService.js';
 import { HunkInformation, Session, StashedSession } from './inlineChatSession.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatError } from './inlineChatSessionServiceImpl.js';
-import { EditModeStrategy, HunkAction, IEditObserver, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from './inlineChatStrategies.js';
+import { HunkAction, IEditObserver, LiveStrategy, ProgressingEditsOptions } from './inlineChatStrategies.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 
 export const enum State {
@@ -131,7 +131,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _sessionStore = this._store.add(new DisposableStore());
 	private readonly _stashedSession = this._store.add(new MutableDisposable<StashedSession>());
 	private _session?: Session;
-	private _strategy?: EditModeStrategy;
+	private _strategy?: LiveStrategy;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -255,10 +255,6 @@ export class InlineChatController implements IEditorContribution {
 		return INLINE_CHAT_ID;
 	}
 
-	private _getMode(): EditMode {
-		return this._configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode);
-	}
-
 	getWidgetPosition(): Position | undefined {
 		return this._ui.value.position;
 	}
@@ -338,7 +334,7 @@ export class InlineChatController implements IEditorContribution {
 			try {
 				session = await this._inlineChatSessionService.createSession(
 					this._editor,
-					{ editMode: this._getMode(), wholeRange: options.initialRange },
+					{ wholeRange: options.initialRange },
 					createSessionCts.token
 				);
 			} catch (error) {
@@ -371,15 +367,7 @@ export class InlineChatController implements IEditorContribution {
 		await session.chatModel.waitForInitialization();
 
 		// create a new strategy
-		switch (session.editMode) {
-			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._editor, this._ui.value);
-				break;
-			case EditMode.Live:
-			default:
-				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._ui.value, session.headless);
-				break;
-		}
+		this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._ui.value, session.headless);
 
 		this._session = session;
 		return State.INIT_UI;
@@ -658,7 +646,6 @@ export class InlineChatController implements IEditorContribution {
 				const newSession = await this._inlineChatSessionService.createSession(
 					newEditor,
 					{
-						editMode: this._getMode(),
 						session: this._session,
 					},
 					CancellationToken.None); // TODO@ulugbekna: add proper cancellation?
@@ -1116,13 +1103,8 @@ export class InlineChatController implements IEditorContribution {
 
 	finishExistingSession(): void {
 		if (this._session) {
-			if (this._session.editMode === EditMode.Preview) {
-				this._log('finishing existing session, using CANCEL', this._session.editMode);
-				this.cancelSession();
-			} else {
-				this._log('finishing existing session, using APPLY', this._session.editMode);
-				this.acceptSession();
-			}
+			this._log('finishing existing session, using APPLY');
+			this.acceptSession();
 		}
 	}
 
@@ -1157,7 +1139,7 @@ export class InlineChatController implements IEditorContribution {
 			return false;
 		}
 
-		const session = await this._inlineChatSessionService.createSession(this._editor, { editMode: EditMode.Live, wholeRange: anchor, headless: true }, token);
+		const session = await this._inlineChatSessionService.createSession(this._editor, { wholeRange: anchor, headless: true }, token);
 		if (!session) {
 			return false;
 		}
