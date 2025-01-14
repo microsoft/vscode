@@ -422,6 +422,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 				const lineNumber = change.lineNumber;
 				const lineHeight = change.lineHeight;
+				console.log('change.lineHeight : ', change.lineHeight);
+				console.log('change.lineNumber : ', change.lineNumber);
 				if (lineHeight !== null) {
 					this.viewLayout.addSpecialLineHeight(lineNumber, lineHeight);
 				} else {
