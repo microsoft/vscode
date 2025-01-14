@@ -224,7 +224,7 @@ suite('TerminalCompletionService', () => {
 		});
 	});
 
-	suite('resolveResources should handle file and directory completions correctly', () => {
+	suite('resolveResources should handle directory completion requests correctly', () => {
 		setup(() => {
 			validResources = [URI.parse('file:///test')];
 			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
@@ -278,6 +278,114 @@ suite('TerminalCompletionService', () => {
 				{ label: `./folder1/../folder1/` },
 				{ label: `./folder1/../../` }
 			], { replacementIndex: 3, replacementLength: 13 });
+		});
+
+		test('./folder1/| should return results for nested folders', async () => {
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/folder1/nestedFolder/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/folder1/nestedFolder2/'), isDirectory: true }
+			];
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder1/', 10, provider);
+
+			assertCompletions(result, [
+				{ label: `./folder1/`, detail: 'test' },
+				{ label: `./folder1/nestedFolder/` },
+				{ label: `./folder1/nestedFolder2/` },
+				{ label: `./folder1/../` }
+			], { replacementIndex: 0, replacementLength: 10 });
+		});
+	});
+	suite('resolveResources should handle file and folder completion requests correctly', () => {
+		test('./| should handle hidden files and folders', async () => {
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/.hiddenFile'), isFile: true },
+				{ resource: URI.parse('file:///test/.hiddenFolder/'), isDirectory: true }
+			];
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				filesRequested: true,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider);
+
+			assertCompletions(result, [
+				{ label: `./`, detail: 'test' },
+				{ label: `./.hiddenFile`, kind: TerminalCompletionItemKind.File },
+				{ label: `./.hiddenFolder/`, kind: TerminalCompletionItemKind.Folder },
+				{ label: `./../`, kind: TerminalCompletionItemKind.Folder }
+			], { replacementIndex: 0, replacementLength: 2 });
+		});
+
+		test('./folder1/f| should return results for files', async () => {
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/folder1/file1'), isFile: true },
+				{ resource: URI.parse('file:///test/folder1/file2'), isFile: true }
+			];
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: false,
+				filesRequested: true,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder1/n', 11, provider);
+
+			assertCompletions(result, [
+				{ label: `./folder1/file1`, kind: TerminalCompletionItemKind.File },
+				{ label: `./folder1/file2`, kind: TerminalCompletionItemKind.File },
+			], { replacementIndex: 0, replacementLength: 11 });
+		});
+
+
+		test('./| should handle root directory correctly', async () => {
+			validResources = [URI.parse('file:///')];
+			childResources = [
+				{ resource: URI.parse('file:///folder1/'), isDirectory: true },
+				{ resource: URI.parse('file:///file1.txt'), isFile: true }
+			];
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///'),
+				foldersRequested: true,
+				filesRequested: true,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider);
+
+			assertCompletions(result, [
+				{ label: `./` },
+				{ label: `./folder1/`, kind: TerminalCompletionItemKind.Folder },
+				{ label: `./file1.txt`, kind: TerminalCompletionItemKind.File },
+				{ label: `./../`, kind: TerminalCompletionItemKind.Folder }
+			], { replacementIndex: 0, replacementLength: 2 });
+		});
+
+		test('./| should prioritize current directory in completions', async () => {
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
+			];
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider);
+
+			assertCompletions(result, [
+				{ label: `./`, detail: 'test' },
+				{ label: `./folder1/` },
+				{ label: `./folder2/` },
+				{ label: `./../`, kind: TerminalCompletionItemKind.Folder }
+			], { replacementIndex: 0, replacementLength: 2 });
 		});
 	});
 });
