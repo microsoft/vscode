@@ -21,9 +21,9 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../platform/log/common/log.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { LOG_ENTRY_REGEX, OutputChannelUpdateMode } from '../../../services/output/common/output.js';
+import { LOG_ENTRY_REGEX, LOG_MIME, OutputChannelUpdateMode, parseLogEntryAt } from '../../../services/output/common/output.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { binarySearch } from '../../../../base/common/arrays.js';
+import { TextModel } from '../../../../editor/common/model/textModel.js';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDispose: Event<void>;
@@ -168,6 +168,7 @@ class MultiFileContentProvider extends Disposable implements IContentProvider {
 
 	constructor(
 		filesInfos: IOutputChannelFileInfo[],
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {
@@ -194,12 +195,37 @@ class MultiFileContentProvider extends Disposable implements IContentProvider {
 
 	async getContent(): Promise<{ readonly content: string; readonly consume: () => void }> {
 		const outputs = await Promise.all(this.fileOutputs.map(output => output.getContent()));
-		const content = combineLogEntries(outputs);
+		const content = this.combineLogEntries(outputs);
 		return {
 			content,
 			consume: () => outputs.forEach(({ consume }) => consume())
 		};
 	}
+
+	private combineLogEntries(outputs: { content: string; name: string }[]): string {
+
+		const logEntries: [number, string][] = [];
+
+		for (const { content, name } of outputs) {
+			const model = this.instantiationService.createInstance(TextModel, content, LOG_MIME, TextModel.DEFAULT_CREATION_OPTIONS, null);
+			for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
+				const logEntry = parseLogEntryAt(model, lineNumber);
+				if (!logEntry) {
+					continue;
+				}
+				lineNumber = logEntry.range.endLineNumber;
+				const content = model.getValueInRange(logEntry.range).replace(LOG_ENTRY_REGEX, `$1 [${name}] $2`);
+				logEntries.push([logEntry.timestamp, content]);
+			}
+		}
+
+		let result = '';
+		for (const [, content] of logEntries.sort((a, b) => a[0] - b[0])) {
+			result += content + '\n';
+		}
+		return result;
+	}
+
 }
 
 export abstract class AbstractFileOutputChannelModel extends Disposable implements IOutputChannelModel {
@@ -440,8 +466,9 @@ export class MultiFileOutputChannelModel extends AbstractFileOutputChannelModel 
 		@IModelService modelService: IModelService,
 		@ILogService logService: ILogService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const multifileOutput = new MultiFileContentProvider(filesInfos, fileService, logService);
+		const multifileOutput = new MultiFileContentProvider(filesInfos, instantiationService, fileService, logService);
 		super(modelUri, language, multifileOutput, modelService, editorWorkerService);
 		this.multifileOutput = this._register(multifileOutput);
 	}
@@ -548,75 +575,4 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 	replace(value: string): void {
 		this.outputChannelModel.then(outputChannelModel => outputChannelModel.replace(value));
 	}
-}
-
-function combineLogEntries(outputs: { content: string; name: string }[]): string {
-	const timestampEntries: Date[] = [];
-	const combinedEntries: string[] = [];
-
-	let startTimestampOfLastOutput: Date | undefined;
-	let endTimestampOfLastOutput: Date | undefined;
-
-	for (const output of outputs) {
-		let startTimestamp: Date | undefined;
-		let timestamp: Date | undefined;
-		const logEntries = output.content.split('\n');
-		for (let index = 0; index < logEntries.length; index++) {
-			const entry = logEntries[index];
-			if (!entry.trim()) {
-				continue;
-			}
-			timestamp = new Date(entry.match(LOG_ENTRY_REGEX)?.[1]!);
-			if (!startTimestamp) {
-				startTimestamp = timestamp;
-			}
-			const entriesToAdd = [entry.replace(LOG_ENTRY_REGEX, `$1 [${output.name}] $2`)];
-			const timestampsToAdd = [timestamp];
-
-			if (startTimestampOfLastOutput && timestamp < startTimestampOfLastOutput) {
-				for (index = index + 1; index < logEntries.length; index++) {
-					const entry = logEntries[index];
-					if (!entry.trim()) {
-						continue;
-					}
-					timestamp = new Date(entry.match(LOG_ENTRY_REGEX)?.[1]!);
-					if (timestamp > startTimestampOfLastOutput) {
-						index--;
-						break;
-					}
-					entriesToAdd.push(entry.replace(LOG_ENTRY_REGEX, `$1 [${output.name}] $2`));
-					timestampsToAdd.push(timestamp);
-				}
-				combinedEntries.unshift(...entriesToAdd);
-				timestampEntries.unshift(...timestampsToAdd);
-				continue;
-			}
-
-			if (endTimestampOfLastOutput && timestamp > endTimestampOfLastOutput) {
-				for (index = index + 1; index < logEntries.length; index++) {
-					const entry = logEntries[index];
-					if (!entry.trim()) {
-						continue;
-					}
-					timestamp = new Date(entry.match(LOG_ENTRY_REGEX)?.[1]!);
-					entriesToAdd.push(entry.replace(LOG_ENTRY_REGEX, `$1 [${output.name}] $2`));
-					timestampsToAdd.push(timestamp);
-				}
-				combinedEntries.push(...entriesToAdd);
-				timestampEntries.push(...timestampsToAdd);
-				break;
-			}
-
-			const idx = binarySearch(timestampEntries, timestamp, (a, b) => a.getTime() - b.getTime());
-			const insertionIndex = idx < 0 ? ~idx : idx;
-			combinedEntries.splice(insertionIndex, 0, ...entriesToAdd);
-			timestampEntries.splice(insertionIndex, 0, ...timestampsToAdd);
-		}
-
-		startTimestampOfLastOutput = startTimestamp;
-		endTimestampOfLastOutput = timestamp;
-	}
-	// Add new empty line at the end
-	combinedEntries.push('');
-	return combinedEntries.join('\n');
 }
