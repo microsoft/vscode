@@ -14,37 +14,45 @@ import { createFileStat } from '../../../../../test/common/workbenchTestServices
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
+const pathSeparator = isWindows ? '\\' : '/';
+
+interface IAssertionTerminalCompletion {
+	label: string;
+	detail?: string;
+	kind?: TerminalCompletionItemKind;
+}
+
+interface IAssertionCommandLineConfig {
+	replacementIndex: number;
+	replacementLength: number;
+}
+
+function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: IAssertionTerminalCompletion[], expectedConfig: IAssertionCommandLineConfig) {
+	assert.deepStrictEqual(
+		actual?.map(e => ({
+			label: e.label,
+			detail: e.detail ?? '',
+			kind: e.kind ?? TerminalCompletionItemKind.Folder,
+			replacementIndex: e.replacementIndex,
+			replacementLength: e.replacementLength,
+		})), expected.map(e => ({
+			label: e.label.replaceAll('/', pathSeparator),
+			detail: e.detail ?? '',
+			kind: e.kind ?? TerminalCompletionItemKind.Folder,
+			replacementIndex: expectedConfig.replacementIndex,
+			replacementLength: expectedConfig.replacementLength,
+		}))
+	);
+}
+
 suite('TerminalCompletionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let validResources: URI[];
 	let childResources: { resource: URI; isFile?: boolean; isDirectory?: boolean }[];
-	const pathSeparator = isWindows ? '\\' : '/';
 	let terminalCompletionService: TerminalCompletionService;
 	const provider: string = 'testProvider';
-
-	const sourceCompletion = {
-		label: `.`,
-		provider,
-		kind: TerminalCompletionItemKind.Folder,
-		detail: '',
-		isDirectory: true,
-		isFile: false,
-		replacementIndex: 1,
-		replacementLength: 0
-	};
-
-	const parentCompletion = {
-		label: `..${pathSeparator}`,
-		provider,
-		detail: '',
-		kind: TerminalCompletionItemKind.Folder,
-		isDirectory: true,
-		isFile: false,
-		replacementIndex: 1,
-		replacementLength: 0
-	};
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
@@ -101,29 +109,14 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 1, provider);
-			assert.deepEqual(result, [
-				{
-					...sourceCompletion,
-					detail: 'test',
-					replacementIndex: 1,
-					replacementLength: 0
-				},
-				{
-					label: `.${pathSeparator}folder1${pathSeparator}`,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 1,
-					replacementLength: 0
-				},
-				{
-					...parentCompletion,
-					replacementIndex: 1,
-					replacementLength: 0
-				},
-			]);
+
+			assertCompletions(result, [
+				{ label: `.`, detail: 'test' },
+				{ label: `./folder1/` },
+				{ label: `../` }
+			], { replacementIndex: 1, replacementLength: 0 });
 		});
+
 		test('.|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
@@ -131,29 +124,14 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.', 2, provider);
-			assert.deepEqual(result, [
-				{
-					...sourceCompletion,
-					detail: 'test',
-					replacementIndex: 1,
-					replacementLength: 1
-				},
-				{
-					label: `.${pathSeparator}folder1${pathSeparator}`,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 1,
-					replacementLength: 1
-				},
-				{
-					...parentCompletion,
-					replacementIndex: 1,
-					replacementLength: 1
-				},
-			]);
+
+			assertCompletions(result, [
+				{ label: `.`, detail: 'test' },
+				{ label: `./folder1/` },
+				{ label: `../` }
+			], { replacementIndex: 1, replacementLength: 1 });
 		});
+
 		test('./|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
@@ -162,40 +140,13 @@ suite('TerminalCompletionService', () => {
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3, provider);
 
-			interface IAssertionTerminalCompletion {
-				label: string;
-				detail?: string;
-				kind?: TerminalCompletionItemKind;
-			}
-
-			interface IAssertionCommandLineConfig {
-				replacementIndex: number;
-				replacementLength: number;
-			}
-
-			function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: IAssertionTerminalCompletion[], expectedConfig: IAssertionCommandLineConfig) {
-				assert.deepStrictEqual(
-					actual?.map(e => ({
-						label: e.label,
-						detail: e.detail ?? '',
-						kind: e.kind ?? TerminalCompletionItemKind.Folder,
-						replacementIndex: e.replacementIndex,
-						replacementLength: e.replacementLength,
-					})), expected.map(e => ({
-						label: e.label,
-						detail: e.detail ?? '',
-						kind: e.kind ?? TerminalCompletionItemKind.Folder,
-						replacementIndex: expectedConfig.replacementIndex,
-						replacementLength: expectedConfig.replacementLength,
-					}))
-				);
-			}
 			assertCompletions(result, [
-				{ label: "./", detail: "test" },
-				{ label: `.${pathSeparator}folder1${pathSeparator}` },
-				{ label: `.${pathSeparator}..${pathSeparator}` },
+				{ label: `./`, detail: 'test' },
+				{ label: `./folder1/` },
+				{ label: `./../` }
 			], { replacementIndex: 1, replacementLength: 2 });
 		});
+
 		test('cd |', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
@@ -203,29 +154,14 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider);
-			assert.deepEqual(result, [
-				{
-					...sourceCompletion,
-					detail: 'test',
-					replacementIndex: 3,
-					replacementLength: 0
-				},
-				{
-					label: `.${pathSeparator}folder1${pathSeparator}`,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 3,
-					replacementLength: 0
-				},
-				{
-					...parentCompletion,
-					replacementIndex: 3,
-					replacementLength: 0
-				},
-			]);
+
+			assertCompletions(result, [
+				{ label: `.`, detail: 'test' },
+				{ label: `./folder1/` },
+				{ label: `../` }
+			], { replacementIndex: 3, replacementLength: 0 });
 		});
+
 		test('cd .|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
@@ -233,29 +169,14 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd .', 4, provider);
-			assert.deepEqual(result, [
-				{
-					...sourceCompletion,
-					detail: 'test',
-					replacementIndex: 3,
-					replacementLength: 1
-				},
-				{
-					label: `.${pathSeparator}folder1${pathSeparator}`,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 3,
-					replacementLength: 1 // replacing .
-				},
-				{
-					...parentCompletion,
-					replacementIndex: 3,
-					replacementLength: 1
-				},
-			]);
+
+			assertCompletions(result, [
+				{ label: `.`, detail: 'test' },
+				{ label: `./folder1/` },
+				{ label: `../` }
+			], { replacementIndex: 3, replacementLength: 1 });
 		});
+
 		test('cd ./|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
@@ -263,34 +184,14 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5, provider);
-			assert.deepEqual(result, [
-				{
-					detail: "test",
-					isDirectory: true,
-					isFile: false,
-					kind: 1,
-					label: "./",
-					provider: "testProvider",
-					replacementIndex: 3,
-					replacementLength: 2,
-				},
-				{
-					label: `.${pathSeparator}folder1${pathSeparator}`,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 3,
-					replacementLength: 2 // replacing ./
-				},
-				{
-					...parentCompletion,
-					label: `.${pathSeparator}..${pathSeparator}`,
-					replacementIndex: 3,
-					replacementLength: 2
-				},
-			]);
+
+			assertCompletions(result, [
+				{ label: `./`, detail: 'test' },
+				{ label: `./folder1/` },
+				{ label: `./../` }
+			], { replacementIndex: 3, replacementLength: 2 });
 		});
+
 		test('cd ./f|', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
@@ -298,38 +199,14 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./f', 6, provider);
-			assert.deepEqual(result, [
-				{
-					label: `.${pathSeparator}`,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					detail: 'test',
-					replacementIndex: 3,
-					replacementLength: 3
-				},
-				{
-					label: `.${pathSeparator}folder1${pathSeparator}`,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 3,
-					replacementLength: 3 // replacing ./f
-				},
-				{
-					detail: "",
-					isDirectory: true,
-					isFile: false,
-					kind: 1,
-					label: "./../",
-					provider: "testProvider",
-					replacementIndex: 3,
-					replacementLength: 3,
-				}
-			]);
+
+			assertCompletions(result, [
+				{ label: `./`, detail: 'test' },
+				{ label: `./folder1/` },
+				{ label: `./../` }
+			], { replacementIndex: 3, replacementLength: 3 });
 		});
+
 		test('cd ./folder1/|', async () => {
 			childResources = [];
 			validResources = [URI.parse('file:///test/folder1/')];
@@ -339,28 +216,11 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./folder1/', 13, provider);
-			assert.deepEqual(result, [
-				{
-					detail: "folder1",
-					isDirectory: true,
-					isFile: false,
-					kind: 1,
-					label: "./folder1/",
-					provider: "testProvider",
-					replacementIndex: 3,
-					replacementLength: 10,
-				},
-				{
-					detail: 'test',
-					isDirectory: true,
-					isFile: false,
-					kind: 1,
-					label: `.${pathSeparator}folder1${pathSeparator}..${pathSeparator}`,
-					replacementIndex: 3,
-					provider,
-					replacementLength: 10
-				}
-			]);
+
+			assertCompletions(result, [
+				{ label: `./folder1/`, detail: 'folder1' },
+				{ label: `./folder1/../`, detail: 'test' }
+			], { replacementIndex: 3, replacementLength: 10 });
 		});
 	});
 
@@ -371,6 +231,7 @@ suite('TerminalCompletionService', () => {
 			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
 			childResources = [childFolder, childFile];
 		});
+
 		test('../| should show ../../', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
@@ -379,38 +240,14 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '../', 3, provider);
-			assert.deepEqual(result, [
-				{
-					label: `..${pathSeparator}`,
-					provider,
-					detail: 'test',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 0,
-					replacementLength: 3
-				},
-				{
-					isDirectory: true,
-					isFile: false,
-					kind: 1,
-					label: "../folder1/",
-					provider: "testProvider",
-					replacementIndex: 0,
-					replacementLength: 3
-				},
-				{
-					label: `..${pathSeparator}..${pathSeparator}`,
-					provider,
-					detail: '',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 0,
-					replacementLength: 3
-				},
-			]);
+
+			assertCompletions(result, [
+				{ label: `../`, detail: 'test' },
+				{ label: `../folder1/` },
+				{ label: `../../` }
+			], { replacementIndex: 0, replacementLength: 3 });
 		});
+
 		test('cd ./folder1/../ should not show duplicate cd ./folder1/../ entries', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
@@ -419,37 +256,12 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./folder1/../', 16, provider);
-			assert.deepEqual(result, [
-				{
-					label: `.${pathSeparator}folder1${pathSeparator}..${pathSeparator}`,
-					provider,
-					detail: 'test',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 3,
-					replacementLength: 13
-				},
-				{
-					label: `.${pathSeparator}folder1${pathSeparator}..${pathSeparator}folder1${pathSeparator}`,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 3,
-					replacementLength: 13
-				},
-				{
-					label: `.${pathSeparator}folder1${pathSeparator}..${pathSeparator}..${pathSeparator}`,
-					provider,
-					detail: '',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 3,
-					replacementLength: 13
-				},
-			]);
+
+			assertCompletions(result, [
+				{ label: `./folder1/../`, detail: 'test' },
+				{ label: `./folder1/../folder1/` },
+				{ label: `./folder1/../../` }
+			], { replacementIndex: 3, replacementLength: 13 });
 		});
 	});
 });
