@@ -33,6 +33,9 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	 * Creates a stream of lines from the text model based on the changes listed in
 	 * the provided event.
 	 *
+	 * Note! this method implements a basic logic which does not take into account
+	 * 		 the `_event` argument for incremental updates. This needs to be improved.
+	 *
 	 * @param _event - event that describes the changes in the text model; `'full'` is
 	 * 				   the special value that means that all contents have changed
 	 * @param cancellationToken - token that cancels this operation
@@ -41,8 +44,6 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		_event: IModelContentChangedEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<ReadableStream<Line>> {
-		// TODO: @legomushroom - use the `event` for incremental updates
-
 		const stream = newWriteableStream<Line>(null);
 		const linesCount = this.model.getLineCount();
 

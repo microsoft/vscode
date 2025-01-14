@@ -15,6 +15,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { FilePromptParser } from '../../common/filePromptParser.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IPromptFileReference } from '../../common/basePromptTypes.js';
+import { randomBoolean } from '../../../../../base/common/randomBoolean.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
@@ -120,9 +121,11 @@ class TestPromptFileReference extends Disposable {
 			this.fileStructure,
 		);
 
-		// TODO: @legomushroom - add description
-		// TODO: @legomushroom - test without the delay
-		await waitRandom(5);
+		// randomly test with and without delay to ensure that the file
+		// reference resolution is not suseptible to race conditions
+		if (randomBoolean()) {
+			await waitRandom(5);
+		}
 
 		// start resolving references for the specified root file
 		const rootReference = this._register(
@@ -133,8 +136,9 @@ class TestPromptFileReference extends Disposable {
 			),
 		).start();
 
-		// TODO: @legomushroom - add description
-		await wait(100);
+		// nested child references are resolved asynchronously in
+		// the background and the process can take some time to complete
+		await wait(50);
 
 		// resolve the root file reference including all nested references
 		const resolvedReferences: readonly (IPromptFileReference | undefined)[] = rootReference.tokensTree;
@@ -278,7 +282,7 @@ suite('PromptFileReference (Unix)', function () {
 					},
 					{
 						name: 'file2.prompt.md',
-						contents: '## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this #file:./folder1/some-other-folder/file4.prompt.md please!\n ',
+						contents: '## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!\n ',
 					},
 					{
 						name: 'folder1',
@@ -303,7 +307,7 @@ suite('PromptFileReference (Unix)', function () {
 										children: [
 											{
 												name: 'another-file.prompt.md',
-												contents: 'another-file.prompt.md contents\t  #file:../file.txt',
+												contents: 'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
 											},
 											{
 												name: 'one_more_file_just_in_case.prompt.md',
@@ -393,14 +397,14 @@ suite('PromptFileReference (Unix)', function () {
 					},
 					{
 						name: 'file2.prompt.md',
-						contents: `### Some Header\n- file \t#file:folder1/file3.prompt.md \n\t- also this #file:./folder1/some-other-folder/file4.prompt.md\n\n#file:${rootFolder}/folder1/some-other-folder/file5.prompt.md\t please!\n\t#file:./file1.md `,
+						contents: `## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this #file:./folder1/some-other-folder/file4.prompt.md\n\n#file:${rootFolder}/folder1/some-other-folder/file5.prompt.md\t please!\n\t[some (snippet!) #name))](./file1.md)`,
 					},
 					{
 						name: 'folder1',
 						children: [
 							{
 								name: 'file3.prompt.md',
-								contents: `\n\n\t- test test contents #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content`,
+								contents: `\n\n\t- some seemingly random [another-file.prompt.md](${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md) contents\n some more\t content`,
 							},
 							{
 								name: 'some-other-folder',

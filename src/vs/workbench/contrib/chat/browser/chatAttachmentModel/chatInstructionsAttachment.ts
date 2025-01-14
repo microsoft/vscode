@@ -6,15 +6,12 @@
 /**
  * TODO: @legomushroom - list
  *
- *  - what else to port over in the `promptFileReference.test.ts` file?
- *  - what else to port over in this PR?
  *  - smoke test the `prompt snippets` / `prompt instructions`
  */
 
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { assert } from '../../../../../base/common/assert.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { FilePromptParser } from '../../common/filePromptParser.js';
@@ -137,17 +134,6 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 		error: ParseError,
 		isRootError: boolean,
 	): string {
-		// TODO: @legomushroom - fix this
-		assert(
-			(error instanceof NonPromptSnippetFile) ||
-			(error instanceof FileOpenFailed) ||
-			(error instanceof RecursiveReference) ||
-			(error instanceof FailedToResolveContentsStream),
-			`Uknown error: ${error}`,
-		);
-
-		const { uri } = error;
-
 		// if a child error - the error is somewhere in the nested references tree,
 		// then use message prefix to highlight that this is not a root error
 		const prefix = (!isRootError)
@@ -155,8 +141,8 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 			: '';
 
 		// if failed to open a file, return approprivate message and the file path
-		if (error instanceof FileOpenFailed) {
-			return `${prefix}${errorMessages.fileOpenFailed} '${uri.path}'.`;
+		if (error instanceof FileOpenFailed || error instanceof FailedToResolveContentsStream) {
+			return `${prefix}${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
 		}
 
 		// if a recursion, provide the entire recursion path so users can use

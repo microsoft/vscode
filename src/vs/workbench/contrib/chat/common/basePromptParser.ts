@@ -15,6 +15,7 @@ import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js'
 import { FileReference } from './codecs/chatPromptCodec/tokens/fileReference.js';
 import { ChatPromptDecoder } from './codecs/chatPromptCodec/chatPromptDecoder.js';
 import { Line } from '../../../../editor/common/codecs/linesCodec/tokens/line.js';
+import { TrackedDisposable } from '../../../../base/common/trackedDisposable.js';
 import { IPromptFileReference, IPromptContentsProvider, TPromptPart } from './basePromptTypes.js';
 import { FilePromptContentProvider } from './promptContentProviders/filePromptContentsProvider.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -79,7 +80,7 @@ export class PromptLine extends Disposable {
 				fileReference.onUpdate(this._onUpdate.fire);
 				fileReference.start();
 
-				this._onUpdate.fire(); // TODO: @legomushroom - do we need this?
+				this._onUpdate.fire();
 
 				return;
 			}
@@ -97,6 +98,8 @@ export class PromptLine extends Disposable {
 
 			this._onUpdate.fire();
 		});
+
+		// TODO: @legomushroom - handle the `onEnd` event?
 
 		stream.write(VSBuffer.fromString(this.lineToken.text));
 		stream.end();
@@ -117,12 +120,9 @@ export class PromptLine extends Disposable {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Start parsing the line contents.
 	 */
 	public start(): this {
-		// TODO: @legomushroom - handle the `onError` and `onEnd` events
-
-		// TODO: @legomushroom - do we need this?
 		this.decoder.start();
 
 		return this;
@@ -146,10 +146,6 @@ export class PromptLine extends Disposable {
 }
 
 /**
- * TODO: @legomushroom - move to the correct place
- */
-
-/**
  * Error conditions that may happen during the file reference resolution.
  */
 export type TErrorCondition = FileOpenFailed | RecursiveReference | NonPromptSnippetFile;
@@ -167,9 +163,7 @@ const PROMPT_SNIPPETS_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
 /**
  * TODO: @legomushroom
  */
-export class BasePromptParser<T extends IPromptContentsProvider> extends Disposable {
-	public disposed: boolean = false;
-
+export class BasePromptParser<T extends IPromptContentsProvider> extends TrackedDisposable {
 	/**
 	 * Prompt lines.
 	 */
@@ -250,16 +244,18 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Disposa
 			this.promptContentsProvider.onContentChanged((streamOrError) => {
 				this._resolveAttempted = true;
 
-				// TODO: @legomushroom - dispose all lines?
+				// dispose all existing lines
+				this.lines.clearAndDisposeAll();
 
+				// if an error received, set up the error condition and stop
 				if (streamOrError instanceof ParseError) {
 					this._errorCondition = streamOrError;
+					this._onUpdate.fire();
 
 					return;
 				}
 
 				const stream = streamOrError;
-
 				stream.on('data', (line) => {
 					this.parseLine(line, [...seenReferences]);
 				});
@@ -309,10 +305,10 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Disposa
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Dispose specific prompt line object.
 	 */
 	private disposeLine(
-		lineNumber: number,
+		lineNumber: number, // note! 1-based index
 	): this {
 		this.lines.deleteAndDispose(lineNumber);
 
@@ -320,7 +316,7 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Disposa
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Parse a single line of the prompt.
 	 */
 	private parseLine(
 		lineToken: Line,
@@ -347,9 +343,6 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Disposa
 
 		line.onUpdate(this._onUpdate.fire);
 		line.start();
-
-		// // TODO: @legomushroom - do we need this?
-		// this._onUpdate.fire();
 
 		return this;
 	}
@@ -401,7 +394,6 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Disposa
 		for (const token of this.tokens) {
 			result.push(token);
 
-			// TODO: @legomushroom - support `markdown links`
 			if (token.type === 'file-reference') {
 				result.push(...token.tokensTree);
 			}
@@ -487,7 +479,6 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Disposa
 			return;
 		}
 
-		this.disposed = true; // TODO: @legomushroom - reuse a common class?
 		this.lines.clearAndDisposeAll();
 		this._onUpdate.fire();
 
@@ -496,9 +487,9 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Disposa
 }
 
 /**
- * Prompt file reference object represents any file reference
- * inside prompt text  contents (e.g. `#file:/path/to/file.md`
- * or `[#file:file.md](/path/to/file.md)`).
+ * Prompt file reference object represents any file reference inside prompt
+ * text contents. For instanve the file variable(`#file:/path/to/file.md`)
+ * or a markdown link(`[#file:file.md](/path/to/file.md)`).
  */
 export class PromptFileReference extends BasePromptParser<FilePromptContentProvider> implements IPromptFileReference {
 	public readonly type = 'file-reference';
@@ -524,7 +515,10 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 	 * Returns a string representation of this object.
 	 */
 	public override toString() {
-		// TODO: @legomushroom - support `markdown links` too
-		return `${FileReference.TOKEN_START}${this.uri.path}`;
+		const prefix = (this.token instanceof FileReference)
+			? FileReference.TOKEN_START
+			: 'md-link:';
+
+		return `${prefix}${this.uri.path}`;
 	}
 }

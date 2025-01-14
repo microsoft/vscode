@@ -10,18 +10,12 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { Line } from '../../../../editor/common/codecs/linesCodec/tokens/line.js';
 
-
-/**
- * TODO: @legomushroom - move to the correct place
- */
-type TOnContentChangedCallback = (streamOrError: ReadableStream<Line> | ParseError) => void;
-
 /**
  * TODO: @legomushroom - move to the correct place
  */
 export interface IPromptContentsProvider extends IDisposable {
 	start(): void;
-	onContentChanged(callback: TOnContentChangedCallback): IDisposable;
+	onContentChanged(callback: (streamOrError: ReadableStream<Line> | ParseError) => void): IDisposable;
 	readonly uri: URI;
 }
 

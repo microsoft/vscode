@@ -5,14 +5,15 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { assert } from '../../../../../base/common/assert.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../../../base/common/stream.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { TrackedDisposable } from '../../../../../base/common/trackedDisposable.js';
 import { Line } from '../../../../../editor/common/codecs/linesCodec/tokens/line.js';
 import { FailedToResolveContentsStream, ParseError } from '../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../base/common/decorators/cancelPreviousCalls.js';
-
 /**
  * Interface for a prompt contents provider. Prompt contents providers are
  * responsible for providing contents of a prompt as a stream of lines and
@@ -60,7 +61,7 @@ export const PROMP_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
  */
 export abstract class PromptContentsProviderBase<
 	TChangeEvent extends NonNullable<unknown>,
-> extends Disposable implements IPromptContentsProvider {
+> extends TrackedDisposable implements IPromptContentsProvider {
 	/**
 	 * Internal event emitter for the prompt contents change event. Classes that extend
 	 * this abstract class are responsible to use this emitter to fire the contents change
@@ -156,28 +157,18 @@ export abstract class PromptContentsProviderBase<
 	}
 
 	/**
-	 * Initiate parsing the contents.
+	 * Start producing the prompt contents data.
 	 */
 	public start(): this {
-		// TODO: @legomushroom - throw if disposed?
+		assert(
+			!this.disposed,
+			'Cannot start contents provider that was already disposed.',
+		);
 
 		// `'full'` means "everything has changed"
 		this.onContentsChanged('full');
 
 		return this;
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public disposed = false;
-	public override dispose(): void {
-		if (this.disposed) {
-			return;
-		}
-
-		this.disposed = true;
-		super.dispose();
 	}
 
 	/**

@@ -5,9 +5,10 @@
 
 import { assert } from '../assert.js';
 import { Emitter } from '../event.js';
+import { IDisposable } from '../lifecycle.js';
 import { ReadableStream } from '../stream.js';
 import { AsyncDecoder } from './asyncDecoder.js';
-import { Disposable, IDisposable } from '../lifecycle.js';
+import { TrackedDisposable } from '../trackedDisposable.js';
 
 /**
  * Event names of {@link ReadableStream} stream.
@@ -23,7 +24,7 @@ export type TStreamListenerNames = 'data' | 'error' | 'end';
 export abstract class BaseDecoder<
 	T extends NonNullable<unknown>,
 	K extends NonNullable<unknown> = NonNullable<unknown>,
-> extends Disposable implements ReadableStream<T> {
+> extends TrackedDisposable implements ReadableStream<T> {
 	/**
 	 * Flag that indicates if the decoder stream has ended.
 	 */
@@ -331,18 +332,10 @@ export abstract class BaseDecoder<
 		return new TransformDecoder(this, transform);
 	}
 
-	/**
-	 * Check whether this object has been disposed.
-	 *
-	 * TODO: @legomushroom - make readonly
-	 */
-	public disposed = false;
 	public override dispose(): void {
 		if (this.disposed) {
 			return;
 		}
-
-		this.disposed = true;
 
 		this.onStreamEnd();
 
@@ -367,6 +360,7 @@ class TransformDecoder<
 	) {
 		super(stream);
 
+		// TODO: @legomushroom - fix this
 		// Object.setPrototypeOf(this.constructor.prototype, stream);
 	}
 

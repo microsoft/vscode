@@ -10,7 +10,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
- * TODO: @legomushroom
+ * Class capable of parsing prompt syntax out of a provided file,
+ * including all the nested child file references it may have.
  */
 export class FilePromptParser extends BasePromptParser<FilePromptContentProvider> {
 	constructor(

@@ -25,7 +25,7 @@ type TWithOptionalCancellationToken<TFunction extends Function> = TFunction exte
  *
  * Therefore to use this decorator, the two conditions must be met:
  *
- * - the decorated method must have an optional {@linkcode CancellationToken} argument at
+ * - the decorated method must have an *optional* {@linkcode CancellationToken} argument at
  * 	 the end of the arguments list
  * - the object that the decorated method belongs to must implement the {@linkcode Disposable};
  *   this requirement comes from the internal implementation of the decorator that
@@ -121,7 +121,6 @@ export function cancelPreviousCalls<
 
 			this._register({
 				dispose: () => {
-					// TODO: @legomushroom - cancel tokens on record dispose?
 					objectRecords.get(this)?.dispose();
 					objectRecords.delete(this);
 				},
@@ -153,17 +152,6 @@ export function cancelPreviousCalls<
 		const cancellationSource = new CancellationTokenSource(token);
 		record.set(methodName, cancellationSource);
 
-		// TODO: @legomushroom - do we need this? if not we can remove the `TrackedDisposableMap`
-		// // if the object is already disposed, cancel the created cancellation token
-		// // source immediatelly, so the original method will be called with the already
-		// // cancelled token instead of a valid one below
-		// if (objectRecord.disposed) {
-		// 	methodRecord.cancellationSource.cancel();
-		// }
-
-		// // update the object instance record with the new cancellation token source
-		// objectRecords.set(this, record);
-
 		// then update or add cancelaltion token at the end of the arguments list
 		if (CancellationToken.isCancellationToken(lastArgument)) {
 			args[args.length - 1] = cancellationSource.token;
@@ -178,37 +166,3 @@ export function cancelPreviousCalls<
 
 	return descriptor;
 }
-
-// TODO: @legomushroom - remove?
-// /**
-//  * An {@linkcode DisposableMap} that tracks its own disposal state
-//  * as the public {@linkcode disposed} property.
-//  */
-// class TrackedDisposableMap<
-// 	TKey extends NonNullable<unknown>,
-// 	TValue extends IDisposable,
-// > extends DisposableMap<TKey, TValue> {
-// 	/**
-// 	 * Check if the map is disposed.
-// 	 **/
-// 	public get disposed(): boolean {
-// 		return this._disposed;
-// 	}
-
-// 	/**
-// 	 * Private property to track the `disposed` state of the map.
-// 	 */
-// 	private _disposed: boolean = false;
-
-// 	/**
-// 	 * Dispose the map and update its `disposed` flag.
-// 	 */
-// 	public override dispose(): void {
-// 		if (this._disposed) {
-// 			return;
-// 		}
-
-// 		this._disposed = true;
-// 		super.dispose();
-// 	}
-// }
