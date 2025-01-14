@@ -666,6 +666,11 @@
 	outline-offset: -1px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer button:focus-visible .category-progress {
+	bottom: 1px;
+	width: 99%;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button.button-link {
 	position: absolute;
 	left: 40px;
