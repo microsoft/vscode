@@ -410,7 +410,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
-		const foldingIcon = new StickyFoldingIcon(isCollapsed, startLineNumber, foldingRegions.getEndLineNumber(indexOfFoldingRegion), this._lineHeight);
+		const height = this._editor.getLineHeightForLineNumber(line);
+		const foldingIcon = new StickyFoldingIcon(isCollapsed, startLineNumber, foldingRegions.getEndLineNumber(indexOfFoldingRegion), new dom.Dimension(this._lineHeight, height));
 		foldingIcon.setVisible(this._isOnGlyphMargin ? true : (isCollapsed || showFoldingControls === 'always'));
 		foldingIcon.domNode.setAttribute(STICKY_IS_FOLDING_ICON_ATTR, '');
 		return foldingIcon;
@@ -532,11 +533,11 @@ class StickyFoldingIcon {
 		public isCollapsed: boolean,
 		public foldingStartLine: number,
 		public foldingEndLine: number,
-		public dimension: number
+		public dimension: dom.Dimension
 	) {
 		this.domNode = document.createElement('div');
-		this.domNode.style.width = `${dimension}px`;
-		this.domNode.style.height = `${dimension}px`;
+		this.domNode.style.width = `${dimension.width}px`;
+		this.domNode.style.height = `${dimension.height}px`;
 		this.domNode.className = ThemeIcon.asClassName(isCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
 	}
 
