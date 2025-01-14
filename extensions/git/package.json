@@ -448,20 +448,20 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.graph.checkout",
+        "title": "%command.graphCheckout%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.checkoutDetached",
         "title": "%command.checkoutDetached%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.checkoutRef",
-        "title": "%command.checkoutRef%",
-        "category": "Git",
-        "enablement": "!operationInProgress"
-      },
-      {
-        "command": "git.checkoutRefDetached",
-        "title": "%command.checkoutRefDetached%",
+        "command": "git.graph.checkoutDetached",
+        "title": "%command.graphCheckoutDetached%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -480,6 +480,12 @@
       {
         "command": "git.deleteBranch",
         "title": "%command.deleteBranch%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.deleteBranch",
+        "title": "%command.graphDeleteBranch%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -516,6 +522,12 @@
       {
         "command": "git.deleteTag",
         "title": "%command.deleteTag%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.deleteTag",
+        "title": "%command.graphDeleteTag%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -632,8 +644,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.cherryPickRef",
-        "title": "%command.cherryPickRef%",
+        "command": "git.graph.cherryPick",
+        "title": "%command.graphCherryPick%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1466,15 +1478,23 @@
           "when": "false"
         },
         {
-          "command": "git.checkoutRef",
+          "command": "git.graph.checkout",
           "when": "false"
         },
         {
-          "command": "git.checkoutRefDetached",
+          "command": "git.graph.checkoutDetached",
           "when": "false"
         },
         {
-          "command": "git.cherryPickRef",
+          "command": "git.graph.deleteBranch",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.deleteTag",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.cherryPick",
           "when": "false"
         },
         {
@@ -1997,24 +2017,24 @@
       ],
       "scm/historyItem/context": [
         {
-          "command": "git.checkoutRefDetached",
+          "command": "git.graph.checkoutDetached",
           "when": "scmProvider == git",
           "group": "1_checkout@2"
         },
         {
-          "command": "git.createTag",
-          "when": "scmProvider == git",
-          "group": "2_create@1"
-        },
-        {
           "command": "git.branch",
           "when": "scmProvider == git",
-          "group": "2_create@2"
+          "group": "2_branch@2"
         },
         {
-          "command": "git.cherryPickRef",
+          "command": "git.createTag",
           "when": "scmProvider == git",
-          "group": "3_modify@1"
+          "group": "3_tag@1"
+        },
+        {
+          "command": "git.graph.cherryPick",
+          "when": "scmProvider == git",
+          "group": "4_modify@1"
         },
         {
           "command": "git.copyCommitId",
@@ -2029,9 +2049,19 @@
       ],
       "scm/historyItemRef/context": [
         {
-          "command": "git.checkoutRef",
+          "command": "git.graph.checkout",
           "when": "scmProvider == git",
           "group": "1_checkout@1"
+        },
+        {
+          "command": "git.graph.deleteBranch",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\//",
+          "group": "2_branch@2"
+        },
+        {
+          "command": "git.graph.deleteTag",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/tags\\//",
+          "group": "3_tag@2"
         }
       ],
       "editor/title": [

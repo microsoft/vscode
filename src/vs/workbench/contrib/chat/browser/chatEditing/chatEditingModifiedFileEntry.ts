@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
@@ -26,7 +26,9 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason } from '../../../../common/editor.js';
@@ -130,6 +132,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._telemetryInfo.requestId;
 	}
 
+	private readonly _diffTrimWhitespace: IObservable<boolean>;
+
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
@@ -139,6 +143,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
+		@IConfigurationService configService: IConfigurationService,
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
@@ -185,6 +190,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 		this._register(toDisposable(() => {
 			this._clearCurrentEditLineDecoration();
+		}));
+
+		this._diffTrimWhitespace = observableConfigValue('diffEditor.ignoreTrimWhitespace', true, configService);
+		this._register(autorun(r => {
+			this._diffTrimWhitespace.read(r);
+			this._updateDiffInfoSeq();
 		}));
 	}
 
@@ -413,10 +424,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		const docVersionNow = this.doc.getVersionId();
 		const snapshotVersionNow = this.docSnapshot.getVersionId();
 
+		const ignoreTrimWhitespace = this._diffTrimWhitespace.get();
+
 		const diff = await this._editorWorkerService.computeDiff(
 			this.docSnapshot.uri,
 			this.doc.uri,
-			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
+			{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
 			'advanced'
 		);
 

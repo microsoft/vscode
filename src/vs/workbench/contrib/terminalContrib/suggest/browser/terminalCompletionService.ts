@@ -12,7 +12,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
-import { ITerminalSuggestConfiguration, terminalSuggestConfigSection } from '../common/terminalSuggestConfiguration.js';
+import { ITerminalSuggestConfiguration, terminalSuggestConfigSection, TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -149,6 +149,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		if (!extensionCompletionsEnabled || skipExtensionCompletions) {
 			providers = providers.filter(p => p.isBuiltin);
+			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, token);
+		}
+
+		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
+		providers = providers.filter(p => {
+			const providerId = p.id;
+			return providerId && providerId in providerConfig && providerConfig[providerId];
+		});
+
+		if (!providers.length) {
+			return;
 		}
 
 		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, token);
@@ -164,10 +175,12 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
-			for (const item of completionItems) {
-				item.provider = provider.id;
+			if (provider.isBuiltin) {
+				//TODO: why is this needed?
+				for (const item of completionItems) {
+					item.provider = provider.id;
+				}
 			}
-
 			if (Array.isArray(completions)) {
 				return completionItems;
 			}
@@ -185,7 +198,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, providerId: string): Promise<ITerminalCompletion[] | undefined> {
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string): Promise<ITerminalCompletion[] | undefined> {
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
@@ -236,7 +249,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			resourceCompletions.push({
 				label,
-				provider: providerId,
+				provider,
 				kind,
 				isDirectory,
 				isFile: kind === TerminalCompletionItemKind.File,
