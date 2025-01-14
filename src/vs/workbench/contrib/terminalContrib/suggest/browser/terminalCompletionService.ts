@@ -259,10 +259,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				continue;
 			}
 			const isDirectory = kind === TerminalCompletionItemKind.Folder;
-			const fileName = basename(stat.resource.fsPath);
+			const resourceName = basename(stat.resource.fsPath);
 
 			// Add a . to the start of the path if there isn't one already
-			let label = !/^\.\.?\//.test(lastWordFolder) ? `.${resourceRequestConfig.pathSeparator}${fileName}` : `${lastWordFolder}${fileName}`;
+			let label = !/^\.\.?\//.test(lastWordFolder) ? `.${resourceRequestConfig.pathSeparator}${resourceName}` : `${lastWordFolder}${resourceName}`;
 
 			// Ensure directories end with a path separator
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
