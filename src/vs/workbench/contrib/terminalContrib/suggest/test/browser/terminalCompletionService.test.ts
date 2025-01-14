@@ -228,8 +228,9 @@ suite('TerminalCompletionService', () => {
 		setup(() => {
 			validResources = [URI.parse('file:///test')];
 			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false };
-			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true };
-			childResources = [childFolder, childFile];
+			const childFile = { resource: URI.parse('file:///test/a-lengthy-file'), name: 'a-lengthy-file', isDirectory: false, isFile: true };
+			const childFile2 = { resource: URI.parse('file:///test/b'), name: 'b', isDirectory: false, isFile: true };
+			childResources = [childFolder, childFile, childFile2];
 		});
 
 		test('../| should show ../../', async () => {
@@ -246,6 +247,21 @@ suite('TerminalCompletionService', () => {
 				{ label: `../folder1/` },
 				{ label: `../../` }
 			], { replacementIndex: 0, replacementLength: 3 });
+		});
+
+		test('./| should show files in alphabetical order', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				filesRequested: true,
+				foldersRequested: false,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider);
+
+			assertCompletions(result, [
+				{ label: `./a-lengthy-file`, kind: TerminalCompletionItemKind.File },
+				{ label: `./b`, kind: TerminalCompletionItemKind.File },
+			], { replacementIndex: 0, replacementLength: 2 });
 		});
 
 		test('cd ./folder1/../ should not show duplicate cd ./folder1/../ entries', async () => {
