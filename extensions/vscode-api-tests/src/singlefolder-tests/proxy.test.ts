@@ -5,7 +5,7 @@
 
 import * as https from 'https';
 import 'mocha';
-import { assertNoRpc, delay } from '../utils';
+import { assertNoRpc } from '../utils';
 import { pki } from 'node-forge';
 import { AddressInfo } from 'net';
 import { resetCaches } from '@vscode/proxy-agent';
