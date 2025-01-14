@@ -198,15 +198,27 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			}
 			next = canGoChild ? gotoFirstChild() : nextSiblingOrParentSibling();
 		} while (next);
-		return changedNodes;
+
+		if (this.hasRootChanged(oldTree, changedNodes)) {
+			return [{ new: newTree.rootNode, old: oldTree.rootNode }];
+		} else {
+			return changedNodes;
+		}
+	}
+
+	private hasRootChanged(oldTree: Parser.Tree, changedNodes: { new: Parser.SyntaxNode; old: Parser.SyntaxNode }[] | undefined) {
+		if (changedNodes?.length === oldTree.rootNode.childCount) {
+			return changedNodes.every(node => node.old.parent?.id === oldTree.rootNode.id);
+		}
+		return false;
 	}
 
 	private calculateRangeChange(changedNodes: { new: Parser.SyntaxNode; old: Parser.SyntaxNode }[] | undefined): RangeChange[] | undefined {
 		if (!changedNodes) {
 			return undefined;
 		}
-		const ranges: RangeChange[] = changedNodes.map((node) => {
 
+		const ranges: RangeChange[] = changedNodes.map((node) => {
 			const newRange = new Range(node.new.startPosition.row + 1, node.new.startPosition.column + 1, node.new.endPosition.row + 1, node.new.endPosition.column + 1);
 			const oldRangeLength = node.old.endIndex - node.old.startIndex;
 			return { newRange, oldRangeLength };
