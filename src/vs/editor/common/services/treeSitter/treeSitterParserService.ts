@@ -5,12 +5,12 @@
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter } from '../../../common/services/treeSitterParserService.js';
-import { IModelService } from '../../../common/services/model.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter, RangeChange } from '../treeSitterParserService.js';
+import { IModelService } from '../model.js';
 import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ITextModel } from '../../../common/model.js';
+import { ITextModel } from '../../model.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IModelContentChange } from '../../../common/textModelEvents.js';
+import { IModelContentChange } from '../../textModelEvents.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -21,7 +21,7 @@ import { CancellationToken, cancelOnDispose } from '../../../../base/common/canc
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { PromiseResult } from '../../../../base/common/observable.js';
-import { Range } from '../../../common/core/range.js';
+import { Range } from '../../core/range.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -32,8 +32,8 @@ function getModuleLocation(environmentService: IEnvironmentService): AppResource
 }
 
 export class TextModelTreeSitter extends Disposable implements ITextModelTreeSitter {
-	private _onDidChangeParseResult: Emitter<Range[]> = this._register(new Emitter<Range[]>());
-	public readonly onDidChangeParseResult: Event<Range[]> = this._onDidChangeParseResult.event;
+	private _onDidChangeParseResult: Emitter<RangeChange[]> = this._register(new Emitter<RangeChange[]>());
+	public readonly onDidChangeParseResult: Event<RangeChange[]> = this._onDidChangeParseResult.event;
 	private _parseResult: TreeSitterParseResult | undefined;
 
 	get parseResult(): ITreeSitterParseResult | undefined { return this._parseResult; }
@@ -82,13 +82,13 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		}
 
 		const treeSitterTree = this._languageSessionDisposables.add(new TreeSitterParseResult(new Parser(), language, this._logService, this._telemetryService));
+		this._parseResult = treeSitterTree;
 		this._languageSessionDisposables.add(this.model.onDidChangeContent(e => this._onDidChangeContent(treeSitterTree, e.changes)));
 		await this._onDidChangeContent(treeSitterTree, []);
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		this._parseResult = treeSitterTree;
 		return this._parseResult;
 	}
 
@@ -114,12 +114,10 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	}
 
 	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, changes: IModelContentChange[]) {
-		const diff = await treeSitterTree.onDidChangeContent(this.model, changes);
-		if (!diff || diff.length > 0) {
-			// Tree sitter is 0 based, text model is 1 based
-			const ranges = diff ? diff.map(r => new Range(r.startPosition.row + 1, r.startPosition.column + 1, r.endPosition.row + 1, r.endPosition.column + 1)) : [this.model.getFullModelRange()];
-			this._onDidChangeParseResult.fire(ranges);
-		}
+		const changedNodes = await treeSitterTree.onDidChangeContent(this.model, changes);
+		// Tree sitter is 0 based, text model is 1 based
+		const ranges: RangeChange[] = changedNodes ?? [{ newRange: this.model.getFullModelRange(), oldRangeLength: this.model.getValueLength() }];
+		this._onDidChangeParseResult.fire(ranges);
 	}
 }
 
@@ -150,10 +148,82 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	}
 	get isDisposed() { return this._isDisposed; }
 
+	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree) {
+		const newCursor = newTree.walk();
+		const oldCursor = oldTree.walk();
+		const gotoNextSibling = () => {
+			const n = newCursor.gotoNextSibling();
+			const o = oldCursor.gotoNextSibling();
+			if (n !== o) {
+				throw new Error('Trees are out of sync');
+			}
+			return n && o;
+		};
+		const gotoParent = () => {
+			const n = newCursor.gotoParent();
+			const o = oldCursor.gotoParent();
+			if (n !== o) {
+				throw new Error('Trees are out of sync');
+			}
+			return n && o;
+		};
+		const gotoFirstChild = () => {
+			const n = newCursor.gotoFirstChild();
+			const o = oldCursor.gotoFirstChild();
+			if (n !== o) {
+				throw new Error('Trees are out of sync');
+			}
+			return n && o;
+		};
+
+		const changedNodes: { new: Parser.SyntaxNode; old: Parser.SyntaxNode }[] = [];
+		let next = true;
+		const nextSiblingOrParentSibling = () => {
+			do {
+				if (newCursor.currentNode.nextSibling) {
+					return gotoNextSibling();
+				}
+				if (newCursor.currentNode.parent) {
+					gotoParent();
+				}
+			} while (newCursor.currentNode.nextSibling || newCursor.currentNode.parent);
+			return false;
+		};
+
+		do {
+			let canGoChild = newCursor.currentNode.childCount > 0;
+			if (newCursor.currentNode.hasChanges && newCursor.currentNode.id !== newTree.rootNode.id) {
+				changedNodes.push({ new: newCursor.currentNode, old: oldCursor.currentNode });
+				canGoChild = false;
+			}
+			next = canGoChild ? gotoFirstChild() : nextSiblingOrParentSibling();
+		} while (next);
+		return changedNodes;
+	}
+
+	private calculateRangeChange(changedNodes: { new: Parser.SyntaxNode; old: Parser.SyntaxNode }[] | undefined): RangeChange[] | undefined {
+		if (!changedNodes) {
+			return undefined;
+		}
+		const ranges: RangeChange[] = changedNodes.map((node) => {
+
+			const newRange = new Range(node.new.startPosition.row + 1, node.new.startPosition.column + 1, node.new.endPosition.row + 1, node.new.endPosition.column + 1);
+			const oldRangeLength = node.old.endIndex - node.old.startIndex;
+			return { newRange, oldRangeLength };
+		});
+		return ranges;
+	}
+
 	private _onDidChangeContentQueue: Promise<void> = Promise.resolve();
-	public async onDidChangeContent(model: ITextModel, changes: IModelContentChange[]): Promise<Parser.Range[] | undefined> {
+	public async onDidChangeContent(model: ITextModel, changes: IModelContentChange[]): Promise<RangeChange[] | undefined> {
 		const oldTree = this.tree?.copy();
 		this._applyEdits(model, changes);
+		let changedNodes: RangeChange[] | undefined = undefined;
+		if (this.tree && oldTree) {
+			// The nodes from the old tree that have changed
+			changedNodes = this.calculateRangeChange(this.findChangedNodes(this.tree, oldTree));
+		}
+
 		return new Promise(resolve => {
 			this._onDidChangeContentQueue = this._onDidChangeContentQueue.then(async () => {
 				if (this.isDisposed) {
@@ -161,8 +231,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 					return;
 				}
 				await this._parseAndUpdateTree(model);
-				resolve((this.tree && oldTree) ? oldTree.getChangedRanges(this.tree) : undefined);
-
+				resolve(changedNodes);
 			}).catch((e) => {
 				this._logService.error('Error parsing tree-sitter tree', e);
 			});
@@ -357,8 +426,10 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	private readonly _treeSitterLanguages: TreeSitterLanguages;
 
 	public readonly onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
-	private _onDidUpdateTree: Emitter<{ textModel: ITextModel; ranges: Range[] }> = this._register(new Emitter());
-	public readonly onDidUpdateTree: Event<{ textModel: ITextModel; ranges: Range[] }> = this._onDidUpdateTree.event;
+	private _onDidUpdateTree: Emitter<{ textModel: ITextModel; ranges: RangeChange[] }> = this._register(new Emitter());
+	public readonly onDidUpdateTree: Event<{ textModel: ITextModel; ranges: RangeChange[] }> = this._onDidUpdateTree.event;
+
+	public isTest: boolean = false;
 
 	constructor(@IModelService private readonly _modelService: IModelService,
 		@IFileService fileService: IFileService,
@@ -387,10 +458,11 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		return textModelTreeSitter?.textModelTreeSitter.parseResult;
 	}
 
+	/**
+	 * For testing
+	 */
 	async getTree(content: string, languageId: string): Promise<Parser.Tree | undefined> {
-		await this._init;
-
-		const language = await this._treeSitterLanguages.getLanguage(languageId);
+		const language = await this.getLanguage(languageId);
 		const Parser = await this._treeSitterImporter.getParserClass();
 		if (language) {
 			const parser = new Parser();
@@ -400,12 +472,26 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		return undefined;
 	}
 
+	/**
+	 * For testing
+	 */
+	async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+		await this._init;
+		return this._treeSitterLanguages.getLanguage(languageId);
+	}
+
 	private async _doInitParser() {
 		const Parser = await this._treeSitterImporter.getParserClass();
 		const environmentService = this._environmentService;
+		const isTest = this.isTest;
 		await Parser.init({
 			locateFile(_file: string, _folder: string) {
-				return FileAccess.asBrowserUri(`${getModuleLocation(environmentService)}/${FILENAME_TREESITTER_WASM}`).toString(true);
+				const location: AppResourcePath = `${getModuleLocation(environmentService)}/${FILENAME_TREESITTER_WASM}`;
+				if (isTest) {
+					return FileAccess.asFileUri(location).toString(true);
+				} else {
+					return FileAccess.asBrowserUri(location).toString(true);
+				}
 			}
 		});
 		return true;
@@ -469,12 +555,13 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		this._modelService.getModels().forEach(model => this._createTextModelTreeSitter(model));
 	}
 
-	public getTextModelTreeSitter(model: ITextModel): ITextModelTreeSitter {
-		return new TextModelTreeSitter(model, this._treeSitterLanguages, this._treeSitterImporter, this._logService, this._telemetryService, false);
+	public async getTextModelTreeSitter(model: ITextModel, parseImmediately: boolean = false): Promise<ITextModelTreeSitter> {
+		await this.getLanguage(model.getLanguageId());
+		return this._createTextModelTreeSitter(model, parseImmediately);
 	}
 
-	private _createTextModelTreeSitter(model: ITextModel) {
-		const textModelTreeSitter = new TextModelTreeSitter(model, this._treeSitterLanguages, this._treeSitterImporter, this._logService, this._telemetryService);
+	private _createTextModelTreeSitter(model: ITextModel, parseImmediately: boolean = true): ITextModelTreeSitter {
+		const textModelTreeSitter = new TextModelTreeSitter(model, this._treeSitterLanguages, this._treeSitterImporter, this._logService, this._telemetryService, parseImmediately);
 		const disposables = new DisposableStore();
 		disposables.add(textModelTreeSitter);
 		disposables.add(textModelTreeSitter.onDidChangeParseResult((ranges) => this._onDidUpdateTree.fire({ textModel: model, ranges })));
@@ -483,6 +570,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 			disposables,
 			dispose: disposables.dispose.bind(disposables)
 		});
+		return textModelTreeSitter;
 	}
 
 	private _addGrammar(languageId: string, grammarName: string) {
