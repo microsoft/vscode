@@ -298,12 +298,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 			let label;
 			// TODO: This doesn't do the windows path equivalence check
+
 			if (!lastWordRelativeFolder.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWordRelativeFolder.startsWith('..' + resourceRequestConfig.pathSeparator)) {
 				// add a dot to the beginning of the label if it doesn't already have one
 				label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
 			} else {
 				// label = `${lastWordRelativeFolder}${fileName}`;
-				if (lastWordRelativeFolder.endsWith(resourceRequestConfig.pathSeparator)) {
+				const endsWithSlash = lastWordRelativeFolder.endsWith(resourceRequestConfig.pathSeparator);
+				const includesFileName = lastWordRelativeFolder.includes(fileName);
+				if (endsWithSlash && includesFileName) {
+					label = `${lastWordRelativeFolder}`;
+				} else if (endsWithSlash) {
 					label = `${lastWordRelativeFolder}${fileName}`;
 				} else {
 					label = `${lastWordRelativeFolder}${resourceRequestConfig.pathSeparator}${fileName}`;

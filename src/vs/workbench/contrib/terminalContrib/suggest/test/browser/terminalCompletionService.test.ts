@@ -283,6 +283,35 @@ suite('TerminalCompletionService', () => {
 				}
 			]);
 		});
+		test('cd ./folder1/|', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./folder1/', 13, provider);
+			assert.deepEqual(result, [
+				{
+					detail: '',
+					isDirectory: true,
+					isFile: false,
+					kind: 1,
+					label: `.${pathSeparator}folder1${pathSeparator}..${pathSeparator}`,
+					replacementIndex: 3,
+					provider,
+					replacementLength: 10
+				},
+				{
+					label: `.${pathSeparator}folder1${pathSeparator}`,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: 3,
+					replacementLength: 10 // replacing ./folder1/
+				}
+			]);
+		});
 	});
 
 	suite('resolveResources should handle file and directory completions correctly', () => {
