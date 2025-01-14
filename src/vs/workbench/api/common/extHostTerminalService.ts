@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto, ITerminalCompletionContextDto } from './extHost.protocol.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -258,19 +258,40 @@ export class ExtHostTerminal extends Disposable {
 
 	public setInteractedWith(): boolean {
 		if (!this._state.isInteractedWith) {
-			this._state = { isInteractedWith: true };
+			this._state = {
+				...this._state,
+				isInteractedWith: true
+			};
 			return true;
 		}
 		return false;
 	}
 
-	public setShellTypeWith(shellType: TerminalShellType | number | undefined): boolean {
-		// Type might be failing because TerminalShellType is once again defined in proposed api which may differ from already existing TerminalShellType??
-		this._state = { ...this._state, shellType }; // Retain isInteractedWith field??
+	public setShellType(shellType: TerminalShellType | number | undefined): boolean {
+		let extHostType: vscode.TerminalShellType | undefined;
+		switch (shellType) {
+			case PosixShellType.Bash: extHostType = vscode.TerminalShellType.Bash;
+			case PosixShellType.Fish: extHostType = vscode.TerminalShellType.Fish;
+			case PosixShellType.Sh: extHostType = vscode.TerminalShellType.Sh;
+			case PosixShellType.Csh: extHostType = vscode.TerminalShellType.Csh;
+			case PosixShellType.Ksh: extHostType = vscode.TerminalShellType.Ksh;
+			case PosixShellType.Zsh: extHostType = vscode.TerminalShellType.Zsh;
+			case WindowsShellType.CommandPrompt: extHostType = vscode.TerminalShellType.CommandPrompt;
+			case WindowsShellType.GitBash: extHostType = vscode.TerminalShellType.GitBash;
+			case GeneralShellType.PowerShell: extHostType = vscode.TerminalShellType.PowerShell;
+			case GeneralShellType.Python: extHostType = vscode.TerminalShellType.Python;
+			case GeneralShellType.Julia: extHostType = vscode.TerminalShellType.Julia;
+			case GeneralShellType.NuShell: extHostType = vscode.TerminalShellType.NuShell;
+		}
 
-		return true;
+		if (this._state.shellType !== shellType) {
+			this._state = {
+				...this._state,
+				shellType: extHostType
+			};
+		}
 
-		// TODO: When do I return false? when isInteractedWith is TRUE && I do not set shellType?
+		return false;
 	}
 
 	public setSelection(selection: string | undefined): void {
@@ -778,8 +799,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined | number): void {
 		const terminal = this.getTerminalById(id);
-		const changedShellType = terminal?.setShellTypeWith(shellType);
-		if (terminal && changedShellType) {
+		if (terminal?.setShellType(shellType)) {
 			this._onDidChangeTerminalState.fire(terminal.value);
 		}
 	}
