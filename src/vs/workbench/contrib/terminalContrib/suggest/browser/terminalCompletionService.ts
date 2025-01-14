@@ -239,19 +239,21 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
 				});
+			} else {
+				// const isProperPath = lastWordRelativeFolder.match(/\.^[a-zA-Z]:\\/) || lastWordRelativeFolder.match(/\.^[a-zA-Z]:\//);
+				// if (isProperPath) {
+				resourceCompletions.push({
+					label: lastWordRelativeFolder,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					detail: basename(cwd.fsPath),
+					replacementIndex: cursorPosition - lastWordRelativeFolder.length,
+					replacementLength: lastWordRelativeFolder.length
+				});
+				// }
 			}
-			//  else {
-			// resourceCompletions.push({
-			// 	label: lastWordRelativeFolder,
-			// 	provider,
-			// 	kind: TerminalCompletionItemKind.Folder,
-			// 	isDirectory: true,
-			// 	isFile: false,
-			// 	detail: 'Source folder',
-			// 	replacementIndex: cursorPosition - lastWord.length,
-			// 	replacementLength: lastWord.length
-			// });
-			// }
 			if (foldersRequested && (!lastWordRelativeFolder.trim() || lastWord.charAt(lastWord.length - 1).match(/[\\\/\.]/))) {
 				// TODO: Refine cases where ..\ shows. For example it looks strange to offer `.\..\`
 				if (isWindows ? lastWordRelativeFolder.match(/[\\\/]/) : lastWordRelativeFolder.includes(resourceRequestConfig.pathSeparator)) {
@@ -306,13 +308,14 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				// label = `${lastWordRelativeFolder}${fileName}`;
 				const endsWithSlash = lastWordRelativeFolder.endsWith(resourceRequestConfig.pathSeparator);
 				const includesFileName = lastWordRelativeFolder.includes(fileName);
-				if (endsWithSlash && includesFileName) {
-					label = `${lastWordRelativeFolder}`;
-				} else if (endsWithSlash) {
-					label = `${lastWordRelativeFolder}${fileName}`;
-				} else {
-					label = `${lastWordRelativeFolder}${resourceRequestConfig.pathSeparator}${fileName}`;
-				}
+				// if (endsWithSlash && includesFileName) {
+				// 	label = `${lastWordRelativeFolder}`;
+				// } else
+				// if (endsWithSlash && !includesFileName) {
+				// 	label = `${lastWordRelativeFolder}${fileName}`;
+				// } else {
+				label = `${lastWordRelativeFolder}${fileName}`;
+				// }
 				if (lastWordRelativeFolder.length && lastWordRelativeFolder.at(-1) !== resourceRequestConfig.pathSeparator && lastWordRelativeFolder.at(-1) !== '.') {
 					label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
 				}
