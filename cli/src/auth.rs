@@ -135,7 +135,7 @@ impl StoredCredential {
 				.map(|e| Utc::now() + chrono::Duration::minutes(5) > e)
 				.unwrap_or(false),
 
-			// Make an auth request to Github. Mark the credential as expired
+			// Make an auth request to GitHub. Mark the credential as expired
 			// only on a verifiable 4xx code. We don't error on any failed
 			// request since then a drop in connection could "require" a refresh
 			AuthProvider::Github => {
@@ -744,7 +744,7 @@ impl Auth {
 						interval_s += 5; // https://www.rfc-editor.org/rfc/rfc8628#section-3.5
 						trace!(self.log, "refresh poll failed, slowing down");
 					}
-					// Github returns a non-standard 429 to slow down
+					// GitHub returns a non-standard 429 to slow down
 					Err(AnyError::StatusError(e)) if e.status_code == 429 => {
 						interval_s += 5; // https://www.rfc-editor.org/rfc/rfc8628#section-3.5
 						trace!(self.log, "refresh poll failed, slowing down");
