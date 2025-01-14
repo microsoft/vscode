@@ -34,7 +34,7 @@ export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restor
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
 
 const configurationKey = 'workbench.startupEditor';
-const oldConfigurationKey = 'workbench.welcome.enabled';
+// const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
 
 export class StartupPageEditorResolverContribution implements IWorkbenchContribution {
@@ -105,7 +105,12 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		// Wait for resolving startup editor until we are restored to reduce startup pressure
 		await this.lifecycleService.when(LifecyclePhase.Restored);
 
-		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
+		// Skip welcome page if startup editor is set to 'none'
+		if (this.configurationService.getValue(configurationKey) === 'none') {
+			return;
+		}
+
+		// Show telemetry opt-out notice on first launch unless startup editor is explicitly set to 'none'
 		if (
 			this.productService.enableTelemetry
 			&& this.productService.showTelemetryOptOut
@@ -228,11 +233,9 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 	}
 
 	const startupEditor = configurationService.inspect<string>(configurationKey);
-	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
-		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
-		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
-			return welcomeEnabled.value;
-		}
+
+	if (startupEditor.value === 'none') {
+		return false;
 	}
 
 	return startupEditor.value === 'welcomePage'
