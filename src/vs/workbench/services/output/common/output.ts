@@ -36,6 +36,7 @@ export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 export const CONTEXT_ACTIVE_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+export const CONTEXT_ACTIVE_LOG_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput.isLog', false);
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE = new RawContextKey<boolean>('activeLogOutput.levelSettable', false);
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL = new RawContextKey<string>('activeLogOutput.level', '');
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT = new RawContextKey<boolean>('activeLogOutput.levelIsDefault', false);
@@ -47,6 +48,8 @@ export const SHOW_INFO_FILTER_CONTEXT = new RawContextKey<boolean>('output.filte
 export const SHOW_WARNING_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.warning', true);
 export const SHOW_ERROR_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.error', true);
 export const OUTPUT_FILTER_FOCUS_CONTEXT = new RawContextKey<boolean>('outputFilterFocus', false);
+
+export const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) (\[(info|trace|debug|error|warning)\])/;
 
 export interface IOutputViewFilters {
 	readonly onDidChange: Event<void>;
@@ -102,6 +105,16 @@ export interface IOutputService {
 	 * Allows to register on active output channel change.
 	 */
 	onActiveOutputChannel: Event<string>;
+
+	/**
+	 * Register a compound log channel with the given channels.
+	 */
+	registerCompoundLogChannel(channels: IFileOutputChannelDescriptor[]): string;
+
+	/**
+	 * Save the logs to a file.
+	 */
+	saveOutputAs(...channels: IFileOutputChannelDescriptor[]): Promise<void>;
 }
 
 export enum OutputChannelUpdateMode {
@@ -163,18 +176,19 @@ export interface IOutputChannelDescriptor {
 	label: string;
 	log: boolean;
 	languageId?: string;
-	file?: URI;
+	files?: URI[];
+	fileNames?: string[];
 	extensionId?: string;
 }
 
 export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {
-	file: URI;
+	files: URI[];
 }
 
 export interface IOutputChannelRegistry {
 
 	readonly onDidRegisterChannel: Event<string>;
-	readonly onDidRemoveChannel: Event<string>;
+	readonly onDidRemoveChannel: Event<IOutputChannelDescriptor>;
 
 	/**
 	 * Make an output channel known to the output world.
@@ -201,10 +215,10 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 	private channels = new Map<string, IOutputChannelDescriptor>();
 
 	private readonly _onDidRegisterChannel = new Emitter<string>();
-	readonly onDidRegisterChannel: Event<string> = this._onDidRegisterChannel.event;
+	readonly onDidRegisterChannel = this._onDidRegisterChannel.event;
 
-	private readonly _onDidRemoveChannel = new Emitter<string>();
-	readonly onDidRemoveChannel: Event<string> = this._onDidRemoveChannel.event;
+	private readonly _onDidRemoveChannel = new Emitter<IOutputChannelDescriptor>();
+	readonly onDidRemoveChannel = this._onDidRemoveChannel.event;
 
 	public registerChannel(descriptor: IOutputChannelDescriptor): void {
 		if (!this.channels.has(descriptor.id)) {
@@ -224,8 +238,11 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 	}
 
 	public removeChannel(id: string): void {
-		this.channels.delete(id);
-		this._onDidRemoveChannel.fire(id);
+		const channel = this.channels.get(id);
+		if (channel) {
+			this.channels.delete(id);
+			this._onDidRemoveChannel.fire(channel);
+		}
 	}
 }
 

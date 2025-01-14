@@ -959,6 +959,10 @@ export class SearchResultModel extends SettingsTreeModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
+			} else if (a.matchType === SettingMatchType.KeyMatch) {
+				// The match types are the same and are KeyMatch.
+				// Sort by the number of words matched in the key.
+				return b.keyMatchSize - a.keyMatchSize;
 			} else if (a.matchType === SettingMatchType.RemoteMatch) {
 				// The match types are the same and are RemoteMatch.
 				// Sort by score.

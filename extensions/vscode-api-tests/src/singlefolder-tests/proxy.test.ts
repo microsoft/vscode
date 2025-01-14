@@ -105,18 +105,27 @@ import { middleware, Straightforward } from 'straightforward';
 			await proxyListen;
 			const proxyPort = (sf.server.address() as AddressInfo).port;
 
-			await vscode.workspace.getConfiguration().update('integration-test.http.proxy', `PROXY 127.0.0.1:${proxyPort}`, vscode.ConfigurationTarget.Global);
-			await delay(1000); // Wait for the configuration change to propagate.
-			await new Promise<void>((resolve, reject) => {
-				https.get(url, res => {
-					if (res.statusCode === 418) {
-						resolve();
-					} else {
-						reject(new Error(`Unexpected status code (expected 418): ${res.statusCode}`));
+			for (let i = 0; i < 3; i++) {
+				await vscode.workspace.getConfiguration().update('integration-test.http.proxy', `PROXY 127.0.0.1:${proxyPort}`, vscode.ConfigurationTarget.Global);
+				await delay(1000); // Wait for the configuration change to propagate.
+				try {
+					await new Promise<void>((resolve, reject) => {
+						https.get(url, res => {
+							if (res.statusCode === 418) {
+								resolve();
+							} else {
+								reject(new Error(`Unexpected status code (expected 418): ${res.statusCode}`));
+							}
+						})
+							.on('error', reject);
+					});
+					break; // Exit the loop if the request is successful
+				} catch (err) {
+					if (i === 2) {
+						throw err; // Rethrow the error if it's the last attempt
 					}
-				})
-					.on('error', reject);
-			});
+				}
+			}
 
 			authEnabled = true;
 			await new Promise<void>((resolve, reject) => {
@@ -130,18 +139,27 @@ import { middleware, Straightforward } from 'straightforward';
 					.on('error', reject);
 			});
 
-			await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', `${user}:${pass}`, vscode.ConfigurationTarget.Global);
-			await delay(1000); // Wait for the configuration change to propagate.
-			await new Promise<void>((resolve, reject) => {
-				https.get(url, res => {
-					if (res.statusCode === 204) {
-						resolve();
-					} else {
-						reject(new Error(`Unexpected status code (expected 204): ${res.statusCode}`));
+			for (let i = 0; i < 3; i++) {
+				await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', `${user}:${pass}`, vscode.ConfigurationTarget.Global);
+				await delay(1000); // Wait for the configuration change to propagate.
+				try {
+					await new Promise<void>((resolve, reject) => {
+						https.get(url, res => {
+							if (res.statusCode === 204) {
+								resolve();
+							} else {
+								reject(new Error(`Unexpected status code (expected 204): ${res.statusCode}`));
+							}
+						})
+							.on('error', reject);
+					});
+					break; // Exit the loop if the request is successful
+				} catch (err) {
+					if (i === 2) {
+						throw err; // Rethrow the error if it's the last attempt
 					}
-				})
-					.on('error', reject);
-			});
+				}
+			}
 		} finally {
 			sf.close();
 			await vscode.workspace.getConfiguration().update('integration-test.http.proxy', undefined, vscode.ConfigurationTarget.Global);

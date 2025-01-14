@@ -87,6 +87,23 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
+	if (platform() === 'darwin' || platform() === 'linux') {
+		// TODO: Enable when this is enabled in stable, otherwise it will break the stable product builds only
+		test.skip('Test if env is set', async () => {
+			const { shellIntegration } = await createTerminalAndWaitForShellIntegration();
+			await new Promise<void>(r => {
+				disposables.push(window.onDidChangeTerminalShellIntegration(e => {
+					if (e.shellIntegration.env) {
+						r();
+					}
+				}));
+			});
+			ok(shellIntegration.env);
+			ok(shellIntegration.env.PATH);
+			ok(shellIntegration.env.PATH.length > 0, 'env.PATH should have a length greater than 0');
+		});
+	}
+
 	test('execution events should fire in order when a command runs', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
