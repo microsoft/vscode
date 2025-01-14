@@ -260,6 +260,7 @@
 	overflow-wrap: anywhere;
 }
 
+.interactive-item-container .value > :last-child,
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child {
 	margin-bottom: 0px;
 }
@@ -291,18 +292,14 @@
 	margin: 16px 0 8px 0;
 }
 
-.interactive-item-container.editing-session .value .rendered-markdown p {
-	margin: 0;
+.interactive-item-container.editing-session .value .rendered-markdown p:has(+ [data-code] > .chat-codeblock-pill-widget) {
+	margin-bottom: 8px;
 }
 
 .interactive-item-container.editing-session .value .rendered-markdown h3 {
 	font-size: 13px;
 	margin: 0 0 8px 0;
 	font-weight: unset;
-}
-
-.interactive-item-container.editing-session .value .rendered-markdown [data-code] {
-	margin: 8px 0 16px 0;
 }
 
 .interactive-item-container .value .rendered-markdown {
@@ -334,7 +331,7 @@
 	}
 }
 
-.interactive-item-container .value .rendered-markdown p {
+.interactive-item-container .value .rendered-markdown {
 	line-height: 1.5em;
 }
 
@@ -386,10 +383,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* #endregion list indent rules */
-
-.interactive-item-container .value .rendered-markdown li {
-	line-height: 1.3rem;
-}
 
 .interactive-item-container .value .rendered-markdown img {
 	max-width: 100%;

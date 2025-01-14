@@ -140,7 +140,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this.widget.refreshParsedInput();
 
 		// if the `prompt snippets` feature is enabled, and file is a `prompt snippet`,
-		// start resolving nested file references immediatelly and subscribe to updates
+		// start resolving nested file references immediately and subscribe to updates
 		if (variable instanceof ChatFileReference && variable.isPromptSnippetFile) {
 			// subscribe to variable changes
 			variable.onUpdate(() => {

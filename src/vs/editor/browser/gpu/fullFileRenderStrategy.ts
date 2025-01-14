@@ -258,6 +258,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 		let decorationStyleSetBold: boolean | undefined;
 		let decorationStyleSetColor: number | undefined;
+		let decorationStyleSetOpacity: number | undefined;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
@@ -279,7 +280,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const lineIndexCount = this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
 
 		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
-		let dirtyLineStart = Number.MAX_SAFE_INTEGER;
+		let dirtyLineStart = 3000;
 		let dirtyLineEnd = 0;
 
 		// Handle any queued buffer updates
@@ -363,6 +364,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					chars = content.charAt(x);
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
+					decorationStyleSetOpacity = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -402,6 +404,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 										}
 										break;
 									}
+									case 'opacity': {
+										const parsedValue = parseCssOpacity(value);
+										decorationStyleSetOpacity = parsedValue;
+										break;
+									}
 									default: throw new BugIndicatingError('Unexpected inline decoration style');
 								}
 							}
@@ -419,7 +426,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold);
+					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
 					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
 
 					// TODO: Support non-standard character widths
@@ -458,6 +465,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
 
 		// Only write when there is changed data
+		dirtyLineStart = Math.min(dirtyLineStart, this._viewGpuContext.maxGpuLines);
+		dirtyLineEnd = Math.min(dirtyLineEnd, this._viewGpuContext.maxGpuLines);
 		if (dirtyLineStart <= dirtyLineEnd) {
 			// Write buffer and swap it out to unblock writes
 			this._device.queue.writeBuffer(
@@ -508,4 +517,14 @@ function parseCssFontWeight(value: string) {
 		case 'bold': return 700;
 	}
 	return parseInt(value);
+}
+
+function parseCssOpacity(value: string): number {
+	if (value.endsWith('%')) {
+		return parseFloat(value.substring(0, value.length - 1)) / 100;
+	}
+	if (value.match(/^\d+(?:\.\d*)/)) {
+		return parseFloat(value);
+	}
+	return 1;
 }

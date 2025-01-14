@@ -77,7 +77,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 		// Open and configure chat view
 		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID);
-		ensureSideBarChatViewSize(400, this.viewDescriptorService, this.layoutService);
+		ensureSideBarChatViewSize(this.viewDescriptorService, this.layoutService);
 
 		// Only do this once
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
