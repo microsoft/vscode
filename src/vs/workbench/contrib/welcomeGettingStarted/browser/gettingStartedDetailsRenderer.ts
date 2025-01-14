@@ -210,6 +210,14 @@ export class GettingStartedDetailsRenderer {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
+					video {
+						max-width: 530px;
+						min-width: 350px;
+						height: 100%;
+						width: 100%;
+						object-fit: cover;
+						transform: translateY(50%);
+					}
 				</style>
 			</head>
 			<body>
