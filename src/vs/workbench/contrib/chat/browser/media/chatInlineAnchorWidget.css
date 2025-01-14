@@ -29,8 +29,10 @@
 .chat-inline-anchor-widget .icon {
 	vertical-align: middle;
 	line-height: 1em;
-	font-size: 90%;
+	font-size: 90% !important;
 	overflow: hidden;
+
+	top: 0 !important;
 }
 
 .show-file-icons.chat-inline-anchor-widget .icon::before {
@@ -42,6 +44,7 @@
 	background-position: center;
 	background-repeat: no-repeat;
 
+	padding: 0 !important;
 	margin-right: 3px;
 	margin-bottom: 1px;
 

@@ -101,7 +101,7 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 			const mode = basename(file.location).replace(/\.json$/, '');
 			existing.push({
 				label: basename(file.location),
-				description: `(${languageService.getLanguageName(mode)})`,
+				description: `(${languageService.getLanguageName(mode) ?? mode})`,
 				filepath: file.location
 			});
 			seen.add(mode);

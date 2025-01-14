@@ -552,6 +552,9 @@ export class GettingStartedPage extends EditorPane {
 			} else if (stepToExpand.media.type === 'markdown') {
 				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [stepToExpand.media.root], allowScripts: true }, title: '', extension: undefined }));
 				this.webview.mountTo(this.stepMediaComponent, this.window);
+			} else if (stepToExpand.media.type === 'video') {
+				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [stepToExpand.media.root], allowScripts: true }, title: '', extension: undefined }));
+				this.webview.mountTo(this.stepMediaComponent, this.window);
 			}
 		}
 
@@ -559,6 +562,7 @@ export class GettingStartedPage extends EditorPane {
 
 			this.stepsContent.classList.add('image');
 			this.stepsContent.classList.remove('markdown');
+			this.stepsContent.classList.remove('video');
 
 			const media = stepToExpand.media;
 			const mediaElement = $<HTMLImageElement>('img');
@@ -584,6 +588,7 @@ export class GettingStartedPage extends EditorPane {
 		else if (stepToExpand.media.type === 'svg') {
 			this.stepsContent.classList.add('image');
 			this.stepsContent.classList.remove('markdown');
+			this.stepsContent.classList.remove('video');
 
 			const media = stepToExpand.media;
 			this.webview.setHtml(await this.detailsRenderer.renderSVG(media.path));
@@ -621,6 +626,7 @@ export class GettingStartedPage extends EditorPane {
 
 			this.stepsContent.classList.remove('image');
 			this.stepsContent.classList.add('markdown');
+			this.stepsContent.classList.remove('video');
 
 			const media = stepToExpand.media;
 
@@ -702,6 +708,46 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 		}
+		else if (stepToExpand.media.type === 'video') {
+			this.stepsContent.classList.add('video');
+			this.stepsContent.classList.remove('markdown');
+			this.stepsContent.classList.remove('image');
+
+			const media = stepToExpand.media;
+
+			const themeType = this.themeService.getColorTheme().type;
+			const videoPath = media.path[themeType];
+			const videoPoster = media.poster ? media.poster[themeType] : undefined;
+
+			const rawHTML = await this.detailsRenderer.renderVideo(videoPath, videoPoster);
+			this.webview.setHtml(rawHTML);
+
+			let isDisposed = false;
+			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
+
+			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
+				// Render again since color vars change
+				const themeType = this.themeService.getColorTheme().type;
+				const videoPath = media.path[themeType];
+				const videoPoster = media.poster ? media.poster[themeType] : undefined;
+				const body = await this.detailsRenderer.renderVideo(videoPath, videoPoster);
+
+				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+					this.webview.setHtml(body);
+				}
+			}));
+
+			this.stepDisposables.add(this.webview.onMessage(async e => {
+				const message: string = e.message as string;
+				if (message === 'playVideo') {
+					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', {
+						command: 'playVideo',
+						walkthroughId: this.currentWalkthrough?.id,
+						argument: stepId,
+					});
+				}
+			}));
+		}
 	}
 
 	async selectStepLoose(id: string) {
@@ -738,6 +784,10 @@ export class GettingStartedPage extends EditorPane {
 				if (node.getAttribute('data-step-id') !== id) {
 					node.classList.remove('expanded');
 					node.setAttribute('aria-expanded', 'false');
+					const codiconElement = node.querySelector('.codicon');
+					if (codiconElement) {
+						codiconElement.removeAttribute('tabindex');
+					}
 				}
 			});
 			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus && this.shouldAnimate() ? SLIDE_TRANSITION_TIME_MS : 0);
@@ -747,6 +797,10 @@ export class GettingStartedPage extends EditorPane {
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
 			this.buildMediaComponent(id, true);
+			const codiconElement = stepElement.querySelector('.codicon');
+			if (codiconElement) {
+				codiconElement.setAttribute('tabindex', '0');
+			}
 			this.gettingStartedService.progressByEvent('stepSelected:' + id);
 			const step = this.currentWalkthrough?.steps?.find(step => step.id === id);
 			if (step) {
@@ -907,6 +961,7 @@ export class GettingStartedPage extends EditorPane {
 					this.hasScrolledToFirstCategory = true;
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
+					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
 					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
 					this.setSlide('details', true /* firstLaunch */);
 					return;
@@ -1181,6 +1236,7 @@ export class GettingStartedPage extends EditorPane {
 			reset(this.stepsContent);
 			this.editorInput.selectedCategory = categoryID;
 			this.editorInput.selectedStep = stepId;
+			this.editorInput.walkthroughPageTitle = ourCategory.walkthroughPageTitle;
 			this.currentWalkthrough = ourCategory;
 			this.buildCategorySlide(categoryID, stepId);
 			this.setSlide('details');
@@ -1414,7 +1470,6 @@ export class GettingStartedPage extends EditorPane {
 							'data-done-step-id': step.id,
 							'x-dispatch': 'toggleStepCompletion:' + step.id,
 							'role': 'checkbox',
-							'tabindex': '0',
 							'aria-checked': step.done ? 'true' : 'false'
 						});
 
@@ -1432,6 +1487,10 @@ export class GettingStartedPage extends EditorPane {
 					if (step.media.type === 'image') {
 						stepDescription.appendChild(
 							$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", step.media.altText) }),
+						);
+					} else if (step.media.type === 'video') {
+						stepDescription.appendChild(
+							$('.video-description', { 'aria-label': localize('videoShowing', "Video showing {0}", step.media.altText) }),
 						);
 					}
 
@@ -1502,7 +1561,6 @@ export class GettingStartedPage extends EditorPane {
 			"{0} collects usage data. Read our {1} and learn how to {2}.", this.productService.nameShort, privacyStatementButton, optOutButton);
 
 		parent.append(mdRenderer.render({ value: text, isTrusted: true }).element);
-		mdRenderer.dispose();
 	}
 
 	private getKeybindingLabel(command: string) {
@@ -1530,6 +1588,7 @@ export class GettingStartedPage extends EditorPane {
 				this.editorInput.selectedCategory = undefined;
 				this.editorInput.selectedStep = undefined;
 				this.editorInput.showTelemetryNotice = false;
+				this.editorInput.walkthroughPageTitle = undefined;
 
 				if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
 					// extensions may have changed in the time since we last displayed the walkthrough list
@@ -1612,9 +1671,9 @@ export class GettingStartedInputSerializer implements IEditorSerializer {
 		return instantiationService.invokeFunction(accessor => {
 			try {
 				const { selectedCategory, selectedStep } = JSON.parse(serializedEditorInput);
-				return new GettingStartedInput({ selectedCategory, selectedStep }, accessor.get(IWalkthroughsService));
+				return new GettingStartedInput({ selectedCategory, selectedStep });
 			} catch { }
-			return new GettingStartedInput({}, accessor.get(IWalkthroughsService));
+			return new GettingStartedInput({});
 
 		});
 	}

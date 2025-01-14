@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IAITextQuery, IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
+import { IAITextQuery, IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -138,7 +138,7 @@ export interface ISearchResult {
 	toggleHighlights(value: boolean, ai?: boolean): void;
 	getRangeHighlightDecorations(ai?: boolean): RangeHighlightDecorations;
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any>;
-
+	setAIQueryUsingTextQuery(query?: ITextQuery | null): void;
 	dispose(): void;
 }
 
@@ -160,7 +160,7 @@ export interface ITextSearchHeading {
 	groupFilesByFolder(fileMatches: ISearchTreeFileMatch[]): { byFolder: Map<URI, ISearchTreeFileMatch[]>; other: ISearchTreeFileMatch[] };
 	isEmpty(): boolean;
 	findFolderSubstr(resource: URI): ISearchTreeFolderMatch | undefined;
-	query: ITextQuery | null;
+	query: ITextSearchQuery | null;
 	folderMatches(): ISearchTreeFolderMatch[];
 	matches(): ISearchTreeFileMatch[];
 	showHighlights: boolean;
@@ -195,7 +195,7 @@ export interface ISearchTreeFolderMatch {
 	clear(clearingAll?: boolean): void;
 	showHighlights: boolean;
 	searchModel: ISearchModel;
-	query: ITextQuery | null;
+	query: ITextSearchQuery | null;
 	replace(match: ISearchTreeFileMatch): Promise<any>;
 	replacingAll: boolean;
 	bindModel(model: ITextModel): void;

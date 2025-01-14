@@ -10,7 +10,7 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
@@ -113,21 +113,21 @@ steps:
   - task: AzureCLI@2
     displayName: Fetch secrets from Azure
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       scriptType: pscore
       scriptLocation: inlineScript
       addSpnToEnvironment: true
       inlineScript: |
         Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
+        Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
   - script: |
       set -e
       AZURE_STORAGE_ACCOUNT="vscodeweb" \
       AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+      AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
         node build/azure-pipelines/upload-cdn
     displayName: Upload to CDN
 
@@ -136,7 +136,7 @@ steps:
       AZURE_STORAGE_ACCOUNT="vscodeweb" \
       AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+      AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
         node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
     displayName: Upload sourcemaps (Web Main)
 
@@ -145,28 +145,16 @@ steps:
       AZURE_STORAGE_ACCOUNT="vscodeweb" \
       AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+      AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
         node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
     displayName: Upload sourcemaps (Web Internal)
-
-    # upload only the workbench.web.main.js source maps because
-    # we just compiled these bits in the previous step and the
-    # general task to upload source maps has already been run
-  - script: |
-      set -e
-      AZURE_STORAGE_ACCOUNT="ticino" \
-      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
-        node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
-    displayName: Upload sourcemaps (Deprecated)
 
   - script: |
       set -e
       AZURE_STORAGE_ACCOUNT="vscodeweb" \
       AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+      AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
         node build/azure-pipelines/upload-nlsmetadata
     displayName: Upload NLS Metadata
 

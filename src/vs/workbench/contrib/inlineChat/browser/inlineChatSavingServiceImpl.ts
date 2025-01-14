@@ -171,7 +171,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 
 		const result = await this._dialogService.confirm({
 			message,
-			detail: localize('detail', "AI-generated changes may be incorect and should be reviewed before saving."),
+			detail: localize('detail', "AI-generated changes may be incorrect and should be reviewed before saving."),
 			primaryButton: localize('save', "Save"),
 			cancelButton: localize('discard', "Cancel"),
 			checkbox: {

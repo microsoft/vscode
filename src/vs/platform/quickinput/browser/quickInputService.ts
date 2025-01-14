@@ -195,6 +195,10 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		return this.controller.cancel();
 	}
 
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void {
+		this.controller.setAlignment(alignment);
+	}
+
 	override updateStyles() {
 		if (this.hasController) {
 			this.controller.applyStyles(this.computeStyles());

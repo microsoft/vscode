@@ -129,7 +129,7 @@ suite(`Notebook Model Store Sync`, () => {
 		assert.strictEqual(editsApplied.length, 1);
 		assert.strictEqual(cellMetadataUpdates.length, 1);
 		const newMetadata = cellMetadataUpdates[0].newCellMetadata;
-		assert.deepStrictEqual(newMetadata, { metadata: {} });
+		assert.deepStrictEqual(newMetadata, { execution_count: null, metadata: {} });
 	});
 	test('Add cell id if nbformat is 4.5', async () => {
 		sinon.stub(notebook, 'metadata').get(() => ({ nbformat: 4, nbformat_minor: 5 }));
@@ -160,7 +160,8 @@ suite(`Notebook Model Store Sync`, () => {
 		assert.strictEqual(editsApplied.length, 1);
 		assert.strictEqual(cellMetadataUpdates.length, 1);
 		const newMetadata = cellMetadataUpdates[0].newCellMetadata || {};
-		assert.strictEqual(Object.keys(newMetadata).length, 2);
+		assert.strictEqual(Object.keys(newMetadata).length, 3);
+		assert.deepStrictEqual(newMetadata.execution_count, null);
 		assert.deepStrictEqual(newMetadata.metadata, {});
 		assert.ok(newMetadata.id);
 	});
@@ -195,7 +196,8 @@ suite(`Notebook Model Store Sync`, () => {
 		assert.strictEqual(editsApplied.length, 1);
 		assert.strictEqual(cellMetadataUpdates.length, 1);
 		const newMetadata = cellMetadataUpdates[0].newCellMetadata || {};
-		assert.strictEqual(Object.keys(newMetadata).length, 2);
+		assert.strictEqual(Object.keys(newMetadata).length, 3);
+		assert.deepStrictEqual(newMetadata.execution_count, null);
 		assert.deepStrictEqual(newMetadata.metadata, {});
 		assert.strictEqual(newMetadata.id, '1234');
 	});
@@ -276,7 +278,8 @@ suite(`Notebook Model Store Sync`, () => {
 		assert.strictEqual(editsApplied.length, 1);
 		assert.strictEqual(cellMetadataUpdates.length, 1);
 		const newMetadata = cellMetadataUpdates[0].newCellMetadata || {};
-		assert.strictEqual(Object.keys(newMetadata).length, 2);
+		assert.strictEqual(Object.keys(newMetadata).length, 3);
+		assert.deepStrictEqual(newMetadata.execution_count, null);
 		assert.deepStrictEqual(newMetadata.metadata, { collapsed: true, scrolled: true, vscode: { languageId: 'javascript' } });
 		assert.strictEqual(newMetadata.id, '1234');
 	});
@@ -369,7 +372,8 @@ suite(`Notebook Model Store Sync`, () => {
 		assert.strictEqual(editsApplied.length, 1);
 		assert.strictEqual(cellMetadataUpdates.length, 1);
 		const newMetadata = cellMetadataUpdates[0].newCellMetadata || {};
-		assert.strictEqual(Object.keys(newMetadata).length, 2);
+		assert.strictEqual(Object.keys(newMetadata).length, 3);
+		assert.deepStrictEqual(newMetadata.execution_count, null);
 		assert.deepStrictEqual(newMetadata.metadata, { collapsed: true, scrolled: true });
 		assert.strictEqual(newMetadata.id, '1234');
 	});
@@ -419,7 +423,8 @@ suite(`Notebook Model Store Sync`, () => {
 		assert.strictEqual(editsApplied.length, 1);
 		assert.strictEqual(cellMetadataUpdates.length, 1);
 		const newMetadata = cellMetadataUpdates[0].newCellMetadata || {};
-		assert.strictEqual(Object.keys(newMetadata).length, 2);
+		assert.strictEqual(Object.keys(newMetadata).length, 3);
+		assert.deepStrictEqual(newMetadata.execution_count, null);
 		assert.deepStrictEqual(newMetadata.metadata, { collapsed: true, scrolled: true, vscode: { languageId: 'powershell' } });
 		assert.strictEqual(newMetadata.id, '1234');
 	});

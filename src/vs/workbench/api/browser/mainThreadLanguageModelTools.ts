@@ -30,11 +30,11 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
+	async $invokeTool(dto: IToolInvocation, token?: CancellationToken): Promise<IToolResult> {
 		return await this._languageModelToolsService.invokeTool(
 			dto,
 			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
-			token,
+			token ?? CancellationToken.None,
 		);
 	}
 

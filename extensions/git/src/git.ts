@@ -62,6 +62,7 @@ export interface LogFileOptions {
 	/** Optional. Specifies whether to start retrieving log entries in reverse order. */
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
+	readonly shortStats?: boolean;
 }
 
 function parseVersion(raw: string): string {
@@ -315,7 +316,7 @@ export interface IGitOptions {
 	gitPath: string;
 	userAgent: string;
 	version: string;
-	env?: any;
+	env?: { [key: string]: string };
 }
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -369,7 +370,8 @@ export class Git {
 	readonly path: string;
 	readonly userAgent: string;
 	readonly version: string;
-	private env: any;
+	readonly env: { [key: string]: string };
+
 	private commandsToLog: string[] = [];
 
 	private _onOutput = new EventEmitter();
@@ -502,7 +504,7 @@ export class Git {
 			const repoUri = Uri.file(repositoryRootPath);
 			const pathUri = Uri.file(pathInsidePossibleRepository);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
+				const match = /^[\/]?([a-zA-Z])[:\/]/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
 
@@ -1054,6 +1056,76 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 	return result;
 }
 
+export interface BlameInformation {
+	readonly hash: string;
+	readonly subject?: string;
+	readonly authorName?: string;
+	readonly authorEmail?: string;
+	readonly authorDate?: number;
+	readonly ranges: {
+		readonly startLineNumber: number;
+		readonly endLineNumber: number;
+	}[];
+}
+
+function parseGitBlame(data: string): BlameInformation[] {
+	const lineSeparator = /\r?\n/;
+	const commitRegex = /^([0-9a-f]{40})/gm;
+
+	const blameInformation = new Map<string, BlameInformation>();
+
+	let commitHash: string | undefined = undefined;
+	let authorName: string | undefined = undefined;
+	let authorEmail: string | undefined = undefined;
+	let authorTime: number | undefined = undefined;
+	let message: string | undefined = undefined;
+	let startLineNumber: number | undefined = undefined;
+	let endLineNumber: number | undefined = undefined;
+
+	for (const line of data.split(lineSeparator)) {
+		// Commit
+		const commitMatch = line.match(commitRegex);
+		if (!commitHash && commitMatch) {
+			const segments = line.split(' ');
+
+			commitHash = commitMatch[0];
+			startLineNumber = Number(segments[2]);
+			endLineNumber = Number(segments[2]) + Number(segments[3]) - 1;
+		}
+
+		// Commit properties
+		if (commitHash && line.startsWith('author ')) {
+			authorName = line.substring('author '.length);
+		}
+		if (commitHash && line.startsWith('author-mail ')) {
+			authorEmail = line.substring('author-mail '.length);
+		}
+		if (commitHash && line.startsWith('author-time ')) {
+			authorTime = Number(line.substring('author-time '.length)) * 1000;
+		}
+		if (commitHash && line.startsWith('summary ')) {
+			message = line.substring('summary '.length);
+		}
+
+		// Commit end
+		if (commitHash && startLineNumber && endLineNumber && line.startsWith('filename ')) {
+			const existingCommit = blameInformation.get(commitHash);
+			if (existingCommit) {
+				existingCommit.ranges.push({ startLineNumber, endLineNumber });
+				blameInformation.set(commitHash, existingCommit);
+			} else {
+				blameInformation.set(commitHash, {
+					hash: commitHash, authorName, authorEmail, authorDate: authorTime, subject: message, ranges: [{ startLineNumber, endLineNumber }]
+				});
+			}
+
+			commitHash = authorName = authorEmail = authorTime = message = startLineNumber = endLineNumber = undefined;
+		}
+	}
+
+	return Array.from(blameInformation.values());
+}
+
 export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
@@ -1095,11 +1167,11 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
-	async config(scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
-		const args = ['config'];
+	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
+		const args = ['config', `--${command}`];
 
 		if (scope) {
-			args.push('--' + scope);
+			args.push(`--${scope}`);
 		}
 
 		args.push(key);
@@ -1212,6 +1284,10 @@ export class Repository {
 			} else {
 				args.push(options.hash);
 			}
+		}
+
+		if (options?.shortStats) {
+			args.push('--shortstat');
 		}
 
 		if (options?.sortByAuthorDate) {
@@ -1587,9 +1663,9 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async stage(path: string, data: string): Promise<void> {
+	async stage(path: string, data: string, encoding: string): Promise<void> {
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
-		child.stdin!.end(data, 'utf8');
+		child.stdin!.end(iconv.encode(data, encoding));
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
@@ -1808,6 +1884,16 @@ export class Repository {
 
 	async mergeAbort(): Promise<void> {
 		await this.exec(['merge', '--abort']);
+	}
+
+	async mergeContinue(): Promise<void> {
+		const args = ['merge', '--continue'];
+
+		try {
+			await this.exec(args, { env: { GIT_EDITOR: 'true' } });
+		} catch (commitErr) {
+			await this.handleCommitError(commitErr);
+		}
 	}
 
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
@@ -2134,6 +2220,25 @@ export class Repository {
 			}
 
 			throw err;
+		}
+	}
+
+	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
+		try {
+			const args = ['blame', '--root', '--incremental'];
+
+			if (ref) {
+				args.push(ref);
+			}
+
+			args.push('--', sanitizePath(path));
+
+			const result = await this.exec(args);
+
+			return parseGitBlame(result.stdout.trim());
+		}
+		catch (err) {
+			return undefined;
 		}
 	}
 
@@ -2674,8 +2779,8 @@ export class Repository {
 		return Promise.reject<Branch>(new Error(`No such branch: ${name}.`));
 	}
 
-	async getDefaultBranch(): Promise<Branch> {
-		const result = await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+	async getDefaultBranch(remoteName: string): Promise<Branch> {
+		const result = await this.exec(['symbolic-ref', '--short', `refs/remotes/${remoteName}/HEAD`]);
 		if (!result.stdout || result.stderr) {
 			throw new Error('No default branch');
 		}
@@ -2741,6 +2846,15 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
+	}
+
+	async revList(ref1: string, ref2: string): Promise<string[]> {
+		const result = await this.exec(['rev-list', `${ref1}..${ref2}`]);
+		if (result.stderr) {
+			return [];
+		}
+
+		return result.stdout.trim().split('\n');
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {

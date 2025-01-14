@@ -37,7 +37,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IAction, SubmenuAction } from '../../../base/common/actions.js';
 import { Composite } from '../composite.js';
 import { ViewsSubMenu } from './views/viewPaneContainer.js';
-import { createAndFillInActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 
@@ -98,6 +98,11 @@ export interface IPaneCompositePart extends IView {
 	 * Returns id of visible view containers following the visual order.
 	 */
 	getVisiblePaneCompositeIds(): string[];
+
+	/**
+	 * Returns id of all view containers following the visual order.
+	 */
+	getPaneCompositeIds(): string[];
 }
 
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
@@ -137,6 +142,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		nameForTelemetry: string,
 		compositeCSSClass: string,
 		titleForegroundColor: string | undefined,
+		titleBorderColor: string | undefined,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -177,6 +183,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			nameForTelemetry,
 			compositeCSSClass,
 			titleForegroundColor,
+			titleBorderColor,
 			partId,
 			partOptions
 		);
@@ -268,6 +275,20 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.emptyPaneMessageElement.appendChild(messageElement);
 		parent.appendChild(this.emptyPaneMessageElement);
 
+		const setDropBackgroundFeedback = (visible: boolean) => {
+			const updateActivityBarBackground = !this.getActiveComposite() || !visible;
+			const backgroundColor = visible ? this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)?.toString() || '' : '';
+
+			if (this.titleContainer && updateActivityBarBackground) {
+				this.titleContainer.style.backgroundColor = backgroundColor;
+			}
+			if (this.headerFooterCompositeBarContainer && updateActivityBarBackground) {
+				this.headerFooterCompositeBarContainer.style.backgroundColor = backgroundColor;
+			}
+
+			this.emptyPaneMessageElement!.style.backgroundColor = backgroundColor;
+		};
+
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragOver: (e) => {
 				EventHelper.stop(e.eventData, true);
@@ -280,20 +301,20 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				EventHelper.stop(e.eventData, true);
 				if (this.paneCompositeBar.value) {
 					const validDropTarget = this.paneCompositeBar.value.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
-					this.emptyPaneMessageElement!.style.backgroundColor = validDropTarget ? this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)?.toString() || '' : '';
+					setDropBackgroundFeedback(validDropTarget);
 				}
 			},
 			onDragLeave: (e) => {
 				EventHelper.stop(e.eventData, true);
-				this.emptyPaneMessageElement!.style.backgroundColor = '';
+				setDropBackgroundFeedback(false);
 			},
 			onDragEnd: (e) => {
 				EventHelper.stop(e.eventData, true);
-				this.emptyPaneMessageElement!.style.backgroundColor = '';
+				setDropBackgroundFeedback(false);
 			},
 			onDrop: (e) => {
 				EventHelper.stop(e.eventData, true);
-				this.emptyPaneMessageElement!.style.backgroundColor = '';
+				setDropBackgroundFeedback(false);
 				if (this.paneCompositeBar.value) {
 					this.paneCompositeBar.value.dndHandler.drop(e.dragAndDropData, undefined, e.eventData);
 				} else {
@@ -536,6 +557,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return this.paneCompositeBar.value?.getVisiblePaneCompositeIds() ?? [];
 	}
 
+	getPaneCompositeIds(): string[] {
+		return this.paneCompositeBar.value?.getPaneCompositeIds() ?? [];
+	}
+
 	getActivePaneComposite(): IPaneComposite | undefined {
 		return <IPaneComposite>this.getActiveComposite();
 	}
@@ -585,7 +610,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private layoutEmptyMessage(): void {
 		const visible = !this.getActiveComposite();
-		this.emptyPaneMessageElement?.classList.toggle('visible', visible);
+		this.element.classList.toggle('empty', visible);
 		if (visible) {
 			this.titleLabel?.updateTitle('', '');
 		}
@@ -652,11 +677,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const viewPaneContainer = (this.getActivePaneComposite() as PaneComposite)?.getViewPaneContainer();
 		if (viewPaneContainer) {
 			const disposables = new DisposableStore();
-			const viewsActions: IAction[] = [];
 			const scopedContextKeyService = disposables.add(this.contextKeyService.createScoped(this.element));
 			scopedContextKeyService.createKey('viewContainer', viewPaneContainer.viewContainer.id);
 			const menu = this.menuService.getMenuActions(ViewsSubMenu, scopedContextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
-			createAndFillInActionBarActions(menu, { primary: viewsActions, secondary: [] }, () => true);
+			const viewsActions = getActionBarActions(menu, () => true).primary;
 			disposables.dispose();
 			return viewsActions.length > 1 && viewsActions.some(a => a.enabled) ? new SubmenuAction('views', localize('views', "Views"), viewsActions) : undefined;
 		}
@@ -666,5 +690,4 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected abstract shouldShowCompositeBar(): boolean;
 	protected abstract getCompositeBarOptions(): IPaneCompositeBarOptions;
 	protected abstract getCompositeBarPosition(): CompositeBarPosition;
-
 }

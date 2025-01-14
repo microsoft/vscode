@@ -229,7 +229,6 @@ export default tseslint.config(
 						'src/vs/workbench/api/test/node/extHostTunnelService.test.ts',
 						'src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts',
 						'src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts',
-						'src/vs/workbench/contrib/editSessions/test/browser/editSessions.test.ts',
 						'src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts',
 						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts',
 						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts',
@@ -256,11 +255,19 @@ export default tseslint.config(
 			'local': pluginLocal,
 		},
 		rules: {
+			'no-restricted-syntax': [
+				'warn',
+				{
+					'selector': `TSArrayType > TSUnionType`,
+					'message': 'Use Array<...> for arrays of union types.'
+				},
+			],
 			'local/vscode-dts-create-func': 'warn',
 			'local/vscode-dts-literal-or-types': 'warn',
 			'local/vscode-dts-string-type-literals': 'warn',
 			'local/vscode-dts-interface-naming': 'warn',
 			'local/vscode-dts-cancellation': 'warn',
+			'local/vscode-dts-use-export': 'warn',
 			'local/vscode-dts-use-thenable': 'warn',
 			'local/vscode-dts-region-comments': 'warn',
 			'local/vscode-dts-vscode-in-comments': 'warn',
@@ -818,6 +825,7 @@ export default tseslint.config(
 						'string_decoder',
 						'tas-client-umd',
 						'tls',
+						'undici-types',
 						'url',
 						'util',
 						'v8-inspect-profiler',
@@ -826,6 +834,7 @@ export default tseslint.config(
 						'worker_threads',
 						'@xterm/addon-clipboard',
 						'@xterm/addon-image',
+						'@xterm/addon-ligatures',
 						'@xterm/addon-search',
 						'@xterm/addon-serialize',
 						'@xterm/addon-unicode11',

@@ -12,14 +12,13 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { Mimes } from '../../../../../base/common/mime.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import * as strings from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ClipboardDataToCopy, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 
 export namespace TextAreaSyntethicEvents {
@@ -617,41 +616,6 @@ export class TextAreaInput extends Disposable {
 		}
 	}
 }
-
-export const ClipboardEventUtils = {
-
-	getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
-		const text = clipboardData.getData(Mimes.text);
-		let metadata: ClipboardStoredMetadata | null = null;
-		const rawmetadata = clipboardData.getData('vscode-editor-data');
-		if (typeof rawmetadata === 'string') {
-			try {
-				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
-				if (metadata.version !== 1) {
-					metadata = null;
-				}
-			} catch (err) {
-				// no problem!
-			}
-		}
-
-		if (text.length === 0 && metadata === null && clipboardData.files.length > 0) {
-			// no textual data pasted, generate text from file names
-			const files: File[] = Array.prototype.slice.call(clipboardData.files, 0);
-			return [files.map(file => file.name).join('\n'), null];
-		}
-
-		return [text, metadata];
-	},
-
-	setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
-		clipboardData.setData(Mimes.text, text);
-		if (typeof html === 'string') {
-			clipboardData.setData('text/html', html);
-		}
-		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
-	}
-};
 
 export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrapper {
 

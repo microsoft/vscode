@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../dom.js';
+import * as domStylesheetsJs from '../../domStylesheets.js';
 import { IMouseEvent } from '../../mouseEvent.js';
 import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
 import { commonPrefixLength } from '../../../common/arrays.js';
@@ -83,7 +84,7 @@ export class BreadcrumbsWidget {
 		this._disposables.add(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
 		container.appendChild(this._scrollable.getDomNode());
 
-		const styleElement = dom.createStyleSheet(this._domNode);
+		const styleElement = domStylesheetsJs.createStyleSheet(this._domNode);
 		this._style(styleElement, styles);
 
 		const focusTracker = dom.trackFocus(this._domNode);
@@ -281,6 +282,7 @@ export class BreadcrumbsWidget {
 			removed = this._items.splice(prefix, this._items.length - prefix, ...items.slice(prefix));
 			this._render(prefix);
 			dispose(removed);
+			dispose(items.slice(0, prefix));
 			this._focus(-1, undefined);
 		} catch (e) {
 			const newError = new Error(`BreadcrumbsItem#setItems: newItems: ${items.length}, prefix: ${prefix}, removed: ${removed.length}`);

@@ -187,8 +187,8 @@ class EditSettingRenderer extends Disposable {
 	) {
 		super();
 
-		this.editPreferenceWidgetForCursorPosition = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
-		this.editPreferenceWidgetForMouseMove = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
+		this.editPreferenceWidgetForCursorPosition = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
+		this.editPreferenceWidgetForMouseMove = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
 		this.toggleEditPreferencesForMouseMoveDelayer = new Delayer<void>(75);
 
 		this._register(this.editPreferenceWidgetForCursorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCursorPosition, e)));
@@ -753,7 +753,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 
 	private generatePreviewSettingMarker(setting: ISetting): IMarkerData {
 		return {
-			severity: MarkerSeverity.Info,
+			severity: MarkerSeverity.Hint,
 			...setting.range,
 			message: PREVIEW_INDICATOR_DESCRIPTION
 		};
@@ -761,7 +761,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 
 	private generateExperimentalSettingMarker(setting: ISetting): IMarkerData {
 		return {
-			severity: MarkerSeverity.Info,
+			severity: MarkerSeverity.Hint,
 			...setting.range,
 			message: EXPERIMENTAL_INDICATOR_DESCRIPTION
 		};

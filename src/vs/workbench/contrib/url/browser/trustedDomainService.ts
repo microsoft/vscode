@@ -5,7 +5,7 @@
 
 import { WindowIdleValue } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -41,7 +41,7 @@ export class TrustedDomainService extends Disposable implements ITrustedDomainSe
 			});
 		};
 		this._staticTrustedDomainsResult = initStaticDomainsResult();
-		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, TRUSTED_DOMAINS_STORAGE_KEY, this._register(new DisposableStore()))(() => {
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, TRUSTED_DOMAINS_STORAGE_KEY, this._store)(() => {
 			this._staticTrustedDomainsResult?.dispose();
 			this._staticTrustedDomainsResult = initStaticDomainsResult();
 		}));

@@ -130,6 +130,12 @@ class CodeLensAdapter {
 			lenses: [],
 		};
 		for (let i = 0; i < lenses.length; i++) {
+
+			if (!Range.isRange(lenses[i].range)) {
+				console.warn('INVALID code lens, range is not defined', this._extension.identifier.value);
+				continue;
+			}
+
 			result.lenses.push({
 				cacheId: [cacheId, i],
 				range: typeConvert.Range.from(lenses[i].range),
@@ -1345,7 +1351,8 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 						text: context.selectedSuggestionInfo.text
 					}
 					: undefined,
-			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind]
+			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
+			requestUuid: context.requestUuid,
 		}, token);
 
 		if (!result) {
@@ -1422,6 +1429,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					: undefined,
 			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
 			userPrompt: context.userPrompt,
+			requestUuid: context.requestUuid,
 		}, token);
 
 		if (!result) {
@@ -1518,7 +1526,8 @@ class InlineEditAdapter {
 	async provideInlineEdits(uri: URI, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const result = await this._provider.provideInlineEdit(doc, {
-			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind]
+			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
+			requestUuid: context.requestUuid,
 		}, token);
 
 		if (!result) {
@@ -1554,12 +1563,26 @@ class InlineEditAdapter {
 			rejectCommand = this._commands.toInternal(result.rejected, disposableStore);
 		}
 
+		let shownCommand: languages.Command | undefined = undefined;
+		if (result.shown) {
+			if (!disposableStore) {
+				disposableStore = new DisposableStore();
+			}
+			shownCommand = this._commands.toInternal(result.shown, disposableStore);
+		}
+
+		if (!disposableStore) {
+			disposableStore = new DisposableStore();
+		}
 		const langResult: extHostProtocol.IdentifiableInlineEdit = {
 			pid,
 			text: result.text,
 			range: typeConvert.Range.from(result.range),
+			showRange: typeConvert.Range.from(result.showRange),
 			accepted: acceptCommand,
 			rejected: rejectCommand,
+			shown: shownCommand,
+			commands: result.commands?.map(c => this._commands.toInternal(c, disposableStore)),
 		};
 
 		return langResult;
@@ -2706,7 +2729,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerInlineEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineEditProvider): vscode.Disposable {
 		const adapter = new InlineEditAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
-		this._proxy.$registerInlineEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier);
+		this._proxy.$registerInlineEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier, provider.displayName || extension.name);
 		return this._createDisposable(handle);
 	}
 
@@ -2893,9 +2916,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
 
-		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), isProposedApiEnabled(extension, 'documentPaste') && metadata ? {
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), metadata ? {
 			supportsResolve: !!provider.resolveDocumentDropEdit,
 			dropMimeTypes: metadata.dropMimeTypes,
+			providedDropKinds: metadata.providedDropEditKinds?.map(x => x.value),
 		} : undefined);
 
 		return this._createDisposable(handle);

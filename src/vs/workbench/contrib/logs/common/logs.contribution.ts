@@ -143,7 +143,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	private registerLogChannel(logger: ILoggerResource): void {
 		const channel = this.outputChannelRegistry.getChannel(logger.id);
-		if (channel && this.uriIdentityService.extUri.isEqual(channel.file, logger.resource)) {
+		if (channel?.files?.length === 1 && this.uriIdentityService.extUri.isEqual(channel.files[0], logger.resource)) {
 			return;
 		}
 		const disposables = new DisposableStore();
@@ -152,14 +152,14 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 			try {
 				await this.whenFileExists(logger.resource, 1, token);
 				const existingChannel = this.outputChannelRegistry.getChannel(logger.id);
-				const remoteLogger = existingChannel?.file?.scheme === Schemas.vscodeRemote ? this.loggerService.getRegisteredLogger(existingChannel.file) : undefined;
+				const remoteLogger = existingChannel?.files?.[0].scheme === Schemas.vscodeRemote ? this.loggerService.getRegisteredLogger(existingChannel.files[0]) : undefined;
 				if (remoteLogger) {
 					this.deregisterLogChannel(remoteLogger);
 				}
 				const hasToAppendRemote = existingChannel && logger.resource.scheme === Schemas.vscodeRemote;
 				const id = hasToAppendRemote ? `${logger.id}.remote` : logger.id;
 				const label = hasToAppendRemote ? nls.localize('remote name', "{0} (Remote)", logger.name ?? logger.id) : logger.name ?? logger.id;
-				this.outputChannelRegistry.registerChannel({ id, label, file: logger.resource, log: true, extensionId: logger.extensionId });
+				this.outputChannelRegistry.registerChannel({ id, label, files: [logger.resource], log: true, extensionId: logger.extensionId });
 				disposables.add(toDisposable(() => this.outputChannelRegistry.removeChannel(id)));
 				if (remoteLogger) {
 					this.registerLogChannel(remoteLogger);

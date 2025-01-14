@@ -8,6 +8,7 @@ import * as cp from 'child_process';
 import { Codicon } from '../../../base/common/codicons.js';
 import { basename, delimiter, normalize } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
+import { findExecutable } from '../../../base/node/processes.js';
 import { isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import * as pfs from '../../../base/node/pfs.js';
@@ -15,7 +16,7 @@ import { enumeratePowerShellInstallations } from '../../../base/node/powershell.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from '../common/terminal.js';
-import { findExecutable, getWindowsBuildNumber } from './terminalEnvironment.js';
+import { getWindowsBuildNumber } from './terminalEnvironment.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { dirname, resolve } from 'path';
 

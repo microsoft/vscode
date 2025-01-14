@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
 import * as types from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -182,6 +183,7 @@ export interface IConfigurationModel {
 	contents: any;
 	keys: string[];
 	overrides: IOverrides[];
+	raw?: IStringDictionary<any>;
 }
 
 export interface IOverrides {
@@ -194,7 +196,8 @@ export interface IConfigurationData {
 	defaults: IConfigurationModel;
 	policy: IConfigurationModel;
 	application: IConfigurationModel;
-	user: IConfigurationModel;
+	userLocal: IConfigurationModel;
+	userRemote: IConfigurationModel;
 	workspace: IConfigurationModel;
 	folders: [UriComponents, IConfigurationModel][];
 }
@@ -258,6 +261,10 @@ export function removeFromValueTree(valueTree: any, key: string): void {
 }
 
 function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
+	if (!valueTree) {
+		return;
+	}
+
 	const first = segments.shift()!;
 	if (segments.length === 0) {
 		// Reached last segment
@@ -279,7 +286,9 @@ function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
 /**
  * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
  */
-export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T {
+export function getConfigurationValue<T>(config: any, settingPath: string): T | undefined;
+export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue: T): T;
+export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T | undefined {
 	function accessSetting(config: any, path: string[]): any {
 		let current = config;
 		for (const component of path) {

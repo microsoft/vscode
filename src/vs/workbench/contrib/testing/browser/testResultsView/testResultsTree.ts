@@ -24,7 +24,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { MenuEntryActionViewItem, createAndFillInActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, fillInActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -669,11 +669,11 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	/** @inheritdoc */
 	public renderTemplate(container: HTMLElement): TemplateData {
 		const templateDisposable = new DisposableStore();
-		const wrapper = dom.append(container, dom.$('.test-peek-item'));
-		const icon = dom.append(wrapper, dom.$('.state'));
-		const label = dom.append(wrapper, dom.$('.name'));
+		container.classList.add('testing-stdtree-container');
+		const icon = dom.append(container, dom.$('.state'));
+		const label = dom.append(container, dom.$('.label'));
 
-		const actionBar = new ActionBar(wrapper, {
+		const actionBar = new ActionBar(container, {
 			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
 					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
@@ -906,7 +906,7 @@ class TreeActionsProvider {
 		const contextOverlay = this.contextKeyService.createOverlay(contextKeys);
 		const result = { primary, secondary };
 		const menu = this.menuService.getMenuActions(id, contextOverlay, { arg: element.context });
-		createAndFillInActionBarActions(menu, result, 'inline');
+		fillInActionBarActions(menu, result, 'inline');
 		return result;
 	}
 }

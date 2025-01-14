@@ -12,7 +12,7 @@ import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from './coreA
 import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_HAS_OUTPUTS } from '../../common/notebookContextKeys.js';
 import * as icons from '../notebookIcons.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { copyCellOutput } from '../contrib/clipboard/cellOutputClipboard.js';
+import { copyCellOutput } from '../viewModel/cellOutputTextHelper.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ICellOutputViewModel, ICellViewModel, INotebookEditor, getNotebookEditorFromEditorPane } from '../notebookBrowser.js';
 import { CellKind, CellUri } from '../../common/notebookCommon.js';

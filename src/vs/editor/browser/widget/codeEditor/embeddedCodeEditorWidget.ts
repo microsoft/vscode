@@ -13,7 +13,7 @@ import { ILanguageFeaturesService } from '../../../common/services/languageFeatu
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 
@@ -60,4 +60,12 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		objects.mixin(this._overwriteOptions, newOptions, true);
 		super.updateOptions(this._overwriteOptions);
 	}
+}
+
+export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
+	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+	if (editor instanceof EmbeddedCodeEditorWidget) {
+		return editor.getParentEditor();
+	}
+	return editor;
 }
