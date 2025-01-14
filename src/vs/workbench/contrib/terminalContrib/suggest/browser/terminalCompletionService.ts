@@ -264,6 +264,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			// Add a . to the start of the path if there isn't one already
 			let label = !/^\.\.?\//.test(lastWordFolder) ? `.${resourceRequestConfig.pathSeparator}${fileName}` : `${lastWordFolder}${fileName}`;
 
+			// Ensure directories end with a path separator
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label = `${label}${resourceRequestConfig.pathSeparator}`;
 			}
