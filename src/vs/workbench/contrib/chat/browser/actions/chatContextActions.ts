@@ -250,7 +250,7 @@ class AttachFileToChatAction extends AttachFileAction {
 				id: MenuId.ChatCommandCenter,
 				group: 'b_chat_context',
 				when: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
-				order: 10,
+				order: 15,
 			}, {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
@@ -287,7 +287,7 @@ class AttachSelectionToChatAction extends Action2 {
 				id: MenuId.ChatCommandCenter,
 				group: 'b_chat_context',
 				when: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
-				order: 15,
+				order: 10,
 			}, {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
@@ -352,7 +352,7 @@ class AttachFileToEditingSessionAction extends AttachFileAction {
 				id: MenuId.ChatCommandCenter,
 				group: 'c_edits_context',
 				when: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
-				order: 10,
+				order: 15,
 			}, {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
@@ -388,7 +388,7 @@ class AttachSelectionToEditingSessionAction extends Action2 {
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'c_edits_context',
-				order: 15,
+				order: 10,
 			}
 		});
 	}
