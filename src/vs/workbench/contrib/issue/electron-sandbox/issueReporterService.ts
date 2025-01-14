@@ -20,7 +20,7 @@ import { IIssueFormService, IssueReporterData, IssueType } from '../common/issue
 // ref https://github.com/microsoft/vscode/issues/159191
 const MAX_URL_LENGTH = 7500;
 
-// Github API and issues on web has a limit of 65536. We chose 65500 to play it safe.
+// GitHub API and issues on web has a limit of 65536. We chose 65500 to play it safe.
 // ref https://github.com/github/issues/issues/12858
 const MAX_GITHUB_API_LENGTH = 65500;
 
