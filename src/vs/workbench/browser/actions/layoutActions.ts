@@ -32,6 +32,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { TitlebarStyle } from '../../../platform/window/common/window.js';
 import { IPreferencesService } from '../../services/preferences/common/preferences.js';
+import { QuickInputAlignmentContextKey } from '../../../platform/quickinput/browser/quickInput.js';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -48,6 +49,9 @@ const panelAlignmentLeftIcon = registerIcon('panel-align-left', Codicon.layoutPa
 const panelAlignmentRightIcon = registerIcon('panel-align-right', Codicon.layoutPanelRight, localize('panelBottomRight', "Represents the bottom panel alignment set to the right"));
 const panelAlignmentCenterIcon = registerIcon('panel-align-center', Codicon.layoutPanelCenter, localize('panelBottomCenter', "Represents the bottom panel alignment set to the center"));
 const panelAlignmentJustifyIcon = registerIcon('panel-align-justify', Codicon.layoutPanelJustify, localize('panelBottomJustify', "Represents the bottom panel alignment set to justified"));
+
+const quickInputAlignmentTopIcon = registerIcon('quickInputAlignmentTop', Codicon.arrowUp, localize('quickInputAlignmentTop', "Represents quick input alignment set to the top"));
+const quickInputAlignmentCenterIcon = registerIcon('quickInputAlignmentCenter', Codicon.circle, localize('quickInputAlignmentCenter', "Represents quick input alignment set to the center"));
 
 const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('fullScreenIcon', "Represents full screen"));
 const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
@@ -1284,6 +1288,42 @@ registerAction2(DecreaseViewSizeAction);
 registerAction2(DecreaseViewWidthAction);
 registerAction2(DecreaseViewHeightAction);
 
+//#region Quick Input Alignment Actions
+
+registerAction2(class AlignQuickInputTopAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.alignQuickInputTop',
+			title: localize2('alignQuickInputTop', 'Align Quick Input Top'),
+			f1: false
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.setAlignment('top');
+	}
+});
+
+registerAction2(class AlignQuickInputCenterAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.alignQuickInputCenter',
+			title: localize2('alignQuickInputCenter', 'Align Quick Input Center'),
+			f1: false
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.setAlignment('center');
+	}
+});
+
+//#endregion
+
 type ContextualLayoutVisualIcon = { iconA: ThemeIcon; iconB: ThemeIcon; whenA: ContextKeyExpression };
 type LayoutVisualIcon = ThemeIcon | ContextualLayoutVisualIcon;
 
@@ -1355,6 +1395,11 @@ const AlignPanelActions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.alignPanelJustify', PanelAlignmentContext.isEqualTo('justify'), localize('justifyPanel', "Justify"), panelAlignmentJustifyIcon),
 ];
 
+const QuickInputActions: CustomizeLayoutItem[] = [
+	CreateOptionLayoutItem('workbench.action.alignQuickInputTop', QuickInputAlignmentContextKey.isEqualTo('top'), localize('top', "Top"), quickInputAlignmentTopIcon),
+	CreateOptionLayoutItem('workbench.action.alignQuickInputCenter', QuickInputAlignmentContextKey.isEqualTo('center'), localize('center', "Center"), quickInputAlignmentCenterIcon),
+];
+
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsMainWindowFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
 	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode"), zenModeIcon),
@@ -1362,7 +1407,7 @@ const MiscLayoutOptions: CustomizeLayoutItem[] = [
 ];
 
 const LayoutContextKeySet = new Set<string>();
-for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...MiscLayoutOptions]) {
+for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...QuickInputActions, ...MiscLayoutOptions]) {
 	for (const key of active.keys()) {
 		LayoutContextKeySet.add(key);
 	}
@@ -1444,6 +1489,11 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				label: localize('panelAlignment', "Panel Alignment")
 			},
 			...AlignPanelActions.map(toQuickPickItem),
+			{
+				type: 'separator',
+				label: localize('quickOpen', "Quick Input Position Presets")
+			},
+			...QuickInputActions.map(toQuickPickItem),
 			{
 				type: 'separator',
 				label: localize('layoutModes', "Modes"),

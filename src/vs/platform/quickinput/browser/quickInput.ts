@@ -38,6 +38,9 @@ export const inQuickInputContextKeyValue = 'inQuickInput';
 export const InQuickInputContextKey = new RawContextKey<boolean>(inQuickInputContextKeyValue, false, localize('inQuickInput', "Whether keyboard focus is inside the quick input control"));
 export const inQuickInputContext = ContextKeyExpr.has(inQuickInputContextKeyValue);
 
+export const quickInputAlignmentContextKeyValue = 'quickInputAlignment';
+export const QuickInputAlignmentContextKey = new RawContextKey<'top' | 'center' | undefined>(quickInputAlignmentContextKeyValue, 'top', localize('quickInputAlignment', "The alignment of the quick input"));
+
 export const quickInputTypeContextKeyValue = 'quickInputType';
 export const QuickInputTypeContextKey = new RawContextKey<QuickInputType>(quickInputTypeContextKeyValue, undefined, localize('quickInputType', "The type of the currently visible quick input"));
 
