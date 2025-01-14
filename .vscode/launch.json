@@ -131,7 +131,7 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "VS Code Github Tests",
+			"name": "VS Code GitHub Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"${workspaceFolder}/extensions/github/testWorkspace",
