@@ -216,7 +216,7 @@ suite('TerminalCompletionService', () => {
 			childResources = [];
 		});
 
-		test('/usr/| Absolute path input should show correct results', async () => {
+		test('/usr/| Missing . should show correct results', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///'),
 				foldersRequested: true,
