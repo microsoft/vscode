@@ -112,7 +112,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
 		}));
-		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon));
+		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', pwshCompletionProviderAddon.id, pwshCompletionProviderAddon));
 		// If completions are requested, pause and queue input events until completions are
 		// received. This fixing some problems in PowerShell, particularly enter not executing
 		// when typing quickly and some characters being printed twice. On Windows this isn't
@@ -178,6 +178,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		addon.shellType = this._ctx.instance.shellType;
+		if (!this._ctx.instance.xterm?.raw) {
+			return;
+		}
+		// Relies on shell type being set
+		this._loadPwshCompletionAddon(this._ctx.instance.xterm.raw);
 	}
 }
 
