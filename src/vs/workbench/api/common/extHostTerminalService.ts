@@ -270,10 +270,10 @@ export class ExtHostTerminal extends Disposable {
 
 	public setShellType(shellType: TerminalShellType | number | undefined): boolean {
 		let extHostType: vscode.TerminalShellType | undefined;
-		switch (shellType) { // Following same order from proposed.terminalShellType.d.ts
-			case PosixShellType.Bash: extHostType = 1;
+		switch (shellType) {
+			case PosixShellType.Sh: extHostType = 1;
 			case PosixShellType.Fish: extHostType = 2;
-			case PosixShellType.Sh: extHostType = 3;
+			case PosixShellType.Bash: extHostType = 3;
 			case PosixShellType.Csh: extHostType = 4;
 			case PosixShellType.Ksh: extHostType = 5;
 			case PosixShellType.Zsh: extHostType = 6;

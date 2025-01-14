@@ -11,9 +11,9 @@ declare module 'vscode' {
 	 * Known terminal shell types.
 	 */
 	export enum TerminalShellType {
-		Bash = 1,
+		Sh = 1,
+		Bash,
 		Fish,
-		Sh,
 		Csh,
 		Ksh,
 		Zsh,
