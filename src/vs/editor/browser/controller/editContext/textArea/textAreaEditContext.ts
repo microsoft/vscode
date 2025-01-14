@@ -752,7 +752,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					(textareaSpansSingleToken ? viewLineData.tokens.getPresentation(startTokenIndex) : null)
 				);
 
-				this.textArea.domNode.scrollTop = this._heightOfLinesBetween(lineNumber, lineNumber + lineCount);
+				this.textArea.domNode.scrollTop = lineCount * lineHeight;
 				this.textArea.domNode.scrollLeft = scrollLeft;
 
 				this._doRender({
@@ -811,7 +811,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
 			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? newlinecount(this.textArea.domNode.value.substring(0, this.textArea.domNode.selectionStart));
-			this.textArea.domNode.scrollTop = this._heightOfLinesBetween(lineNumber, lineNumber + lineCount);
+			this.textArea.domNode.scrollTop = lineCount * lineHeight;
 			return;
 		}
 
@@ -823,14 +823,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
 		});
-	}
-
-	private _heightOfLinesBetween(startLineNumber: number, endLineNumberExclusive: number): number {
-		let height: number = 0;
-		for (let lineNumber = startLineNumber; lineNumber < endLineNumberExclusive; lineNumber++) {
-			height += this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
-		}
-		return height;
 	}
 
 	private _renderAtTopLeft(): void {
@@ -853,6 +845,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const tac = this.textAreaCover;
 
 		applyFontInfo(ta, this._fontInfo);
+		ta.setLineHeight(renderData.height);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
 		ta.setWidth(renderData.width);
