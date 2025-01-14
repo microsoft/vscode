@@ -164,12 +164,26 @@
 	.inlineCompletions-char-insert.diff-range-empty {
 		border-left: solid var(--vscode-inlineEdit-modifiedChangedTextBackground) 3px;
 	}
-	
-	.inlineCompletions-char-delete.inline,
-	.inlineCompletions-char-insert.inline {
+
+	.inlineCompletions-char-delete.single-line-inline,
+	.inlineCompletions-char-insert.single-line-inline {
 		border-radius: 4px;
 		border: 1px solid var(--vscode-editorHoverWidget-border);
 		padding: 2px;
+	}
+
+	.inlineCompletions-char-delete.single-line-inline.empty,
+	.inlineCompletions-char-insert.single-line-inline.empty {
+		display: none;
+	}
+
+	/* Adjustments due to being a decoration */
+	.inlineCompletions-char-delete.single-line-inline {
+		margin: -2px 0 0 -2px;
+	}
+
+	.inlineCompletions.strike-through {
+		text-decoration-thickness: 1px;
 	}
 }
 
@@ -194,4 +208,8 @@
 
 .monaco-editor .inline-completion-accepted {
 	background-color: var(--vscode-inlineEdit-acceptedBackground);
+}
+
+.inline-edits-view-gutter-indicator .codicon{
+	margin-top: 1px; /* TODO: Move into gutter DOM initialization */
 }
