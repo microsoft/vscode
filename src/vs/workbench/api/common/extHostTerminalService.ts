@@ -18,7 +18,7 @@ import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollect
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType, GeneralShellType, PosixShellType, WindowsShellType } from '../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Promises } from '../../../base/common/async.js';
@@ -27,7 +27,6 @@ import { TerminalQuickFix, ViewColumn } from './extHostTypeConverters.js';
 import { IExtHostCommands } from './extHostCommands.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
-// import { TerminalShellType, TerminalShellType } from 'vscode';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -270,19 +269,22 @@ export class ExtHostTerminal extends Disposable {
 
 	public setShellType(shellType: TerminalShellType | number | undefined): boolean {
 		let extHostType: vscode.TerminalShellType | undefined;
+		// Problem: Turns out shellType is a string, so we need to map it..
+
 		switch (shellType) {
-			case PosixShellType.Sh: extHostType = 1;
-			case PosixShellType.Fish: extHostType = 2;
-			case PosixShellType.Bash: extHostType = 3;
-			case PosixShellType.Csh: extHostType = 4;
-			case PosixShellType.Ksh: extHostType = 5;
-			case PosixShellType.Zsh: extHostType = 6;
-			case WindowsShellType.CommandPrompt: extHostType = 7;
-			case WindowsShellType.GitBash: extHostType = 8;
-			case GeneralShellType.PowerShell: extHostType = 9;
-			case GeneralShellType.Python: extHostType = 10;
-			case GeneralShellType.Julia: extHostType = 11;
-			case GeneralShellType.NuShell: extHostType = 12;
+			case 'sh': extHostType = 1; break;
+			case 'fish': extHostType = 2; break;
+			case 'bash': extHostType = 3; break;
+			case 'csh': extHostType = 4; break;
+			case 'ksh': extHostType = 5; break;
+			case 'zsh': extHostType = 6; break;
+			case 'cmd': extHostType = 7; break;
+			case 'gitbash': extHostType = 8; break;
+			case 'pwsh': extHostType = 9; break;
+			case 'python': extHostType = 10; break;
+			case 'julia': extHostType = 11; break;
+			case 'nu': extHostType = 12; break;
+			// TODO: default? as undefined?
 		}
 
 		if (this._state.shellType !== shellType) {

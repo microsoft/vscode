@@ -362,7 +362,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _onShellTypeChanged(terminalId: number): void {
 		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
-			this._proxy.$acceptTerminalShellType(terminalId, terminalInstance.shellType);
+			this._proxy.$acceptTerminalShellType(terminalId, terminalInstance.shellType); // why is this magically being converted into string?
 		}
 	}
 

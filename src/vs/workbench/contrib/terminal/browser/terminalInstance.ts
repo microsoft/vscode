@@ -1905,14 +1905,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._processManager.setDimensions(rawXterm.cols, rawXterm.rows);
 	}
 
-	setShellType(shellType: TerminalShellType | undefined) {
+	setShellType(shellType: TerminalShellType | undefined) { // Why is shellType being shown as string here as well...
 		if (this._shellType === shellType) {
 			return;
 		}
 		if (shellType) {
 			this._shellType = shellType;
 			this._terminalShellTypeContextKey.set(shellType?.toString());
-			this._onDidChangeShellType.fire(shellType);
+			this._onDidChangeShellType.fire(shellType); //shellType here is string... WHY
 		}
 	}
 
