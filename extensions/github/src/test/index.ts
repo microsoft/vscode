@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as testRunner from '../../../../test/integration/electron/testrunner';
 
-const suite = 'Github Tests';
+const suite = 'GitHub Tests';
 
 const options: import('mocha').MochaOptions = {
 	ui: 'tdd',
