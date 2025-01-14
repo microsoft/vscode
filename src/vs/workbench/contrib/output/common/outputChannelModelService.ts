@@ -9,7 +9,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { toLocalISOString } from '../../../../base/common/date.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { DelegatedOutputChannelModel, FileOutputChannelModel, IOutputChannelModel } from './outputChannelModel.js';
+import { DelegatedOutputChannelModel, FileOutputChannelModel, IOutputChannelFileInfo, IOutputChannelModel, MultiFileOutputChannelModel } from './outputChannelModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageSelection } from '../../../../editor/common/languages/language.js';
 
@@ -18,7 +18,7 @@ export const IOutputChannelModelService = createDecorator<IOutputChannelModelSer
 export interface IOutputChannelModelService {
 	readonly _serviceBrand: undefined;
 
-	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, file?: URI): IOutputChannelModel;
+	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, files?: IOutputChannelFileInfo[]): IOutputChannelModel;
 
 }
 
@@ -36,8 +36,11 @@ export class OutputChannelModelService implements IOutputChannelModelService {
 		this.outputLocation = joinPath(environmentService.windowLogsPath, `output_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 	}
 
-	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, file?: URI): IOutputChannelModel {
-		return file ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, language, file) : this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, language, this.outputDir);
+	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, files?: IOutputChannelFileInfo[]): IOutputChannelModel {
+		return files?.length ?
+			files.length === 1 ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, language, files[0])
+				: this.instantiationService.createInstance(MultiFileOutputChannelModel, modelUri, language, files)
+			: this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, language, this.outputDir);
 	}
 
 	private _outputDir: Promise<URI> | null = null;
