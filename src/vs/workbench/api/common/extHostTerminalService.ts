@@ -264,9 +264,13 @@ export class ExtHostTerminal extends Disposable {
 		return false;
 	}
 
-	public setShellType(shellType: TerminalShellType | number | undefined): void {
-		this._state = { ...this._state, shellType }; // Retain isInteractedWith field??
+	public setShellTypeWith(shellType: TerminalShellType | number | undefined): boolean {
 		// Type might be failing because TerminalShellType is once again defined in proposed api which may differ from already existing TerminalShellType??
+		this._state = { ...this._state, shellType }; // Retain isInteractedWith field??
+
+		return true;
+
+		// TODO: When do I return false? when isInteractedWith is TRUE && I do not set shellType?
 	}
 
 	public setSelection(selection: string | undefined): void {
@@ -774,8 +778,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined | number): void {
 		const terminal = this.getTerminalById(id);
-		if (terminal) {
-			terminal?.setShellType(shellType);
+		const changedShellType = terminal?.setShellTypeWith(shellType);
+		if (terminal && changedShellType) {
 			this._onDidChangeTerminalState.fire(terminal.value);
 		}
 	}
