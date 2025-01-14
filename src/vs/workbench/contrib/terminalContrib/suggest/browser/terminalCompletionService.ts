@@ -199,91 +199,54 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
-		const endsWithSpace = cursorPrefix.endsWith(' ');
-		const lastWord = endsWithSpace ? '' : cursorPrefix.split(' ').at(-1) ?? '';
+
+		// The last word (or argument). When the cursor is following a space it will be the empty
+		// string
+		const lastWord = cursorPrefix.endsWith(' ') ? '' : cursorPrefix.split(' ').at(-1) ?? '';
 
 		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
 		// they are what triggers changes in the directory.
 		let lastSlashIndex: number;
 		if (isWindows) {
-			// TODO: This support is very basic, ideally the slashes supported would depend upon the
-			//       shell type. For example git bash under Windows does not allow using \ as a path
-			//       separator.
 			lastSlashIndex = Math.max(lastWord.lastIndexOf('\\'), lastWord.lastIndexOf('/'));
 		} else {
 			lastSlashIndex = lastWord.lastIndexOf('/');
 		}
 
-		let lastSep = lastWord.lastIndexOf('/');
+		// The _complete_ folder of the last word. For example if the last word is `./src/file`,
+		// this will be `./src/`. This also always ends in the path separator if it is not the empty
+		// string and path separators are normalized on Windows.
+		let lastWordFolder = lastSlashIndex === -1 ? '' : lastWord.slice(0, lastSlashIndex + 1);
 		if (isWindows) {
-			const otherLastSep = lastWord.lastIndexOf('\\');
-			lastSep = Math.max(lastSep, otherLastSep);
+			lastWordFolder = lastWordFolder.replaceAll('/', '\\');
 		}
-		let lastWordRelativeFolder = lastSlashIndex === -1 ? '' : lastWord.slice(0, lastSlashIndex + 1);
-		if (isWindows) {
-			lastWordRelativeFolder = lastWordRelativeFolder.replaceAll('/', '\\');
-		}
-		// console.log('cwd', cwd.fsPath);
-		// console.log('lastWord', lastWord);
-		// console.log('lastWordRelativeFolder', lastWordRelativeFolder);
 
+		// Add current directory. This should be shown at the top because it will be an exact match
+		// and therefore highlight the detail, plus it improves the experience when runOnEnter is
+		// used.
+		//
+		// For example:
+		// - `|` -> `.`, this does not have the trailing `/` intentionally as it's common to
+		//   complete the current working directory and we do not want to complete `./` when
+		//   `runOnEnter` is used.
+		// - `./src/|` -> `./src/`
 		if (foldersRequested) {
-			if (!lastWordRelativeFolder.trim()) {
-				resourceCompletions.push({
-					label: '.',
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					detail: basename(cwd.fsPath),
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: lastWord.length
-				});
-			} else {
-				// const isProperPath = lastWordRelativeFolder.match(/\.^[a-zA-Z]:\\/) || lastWordRelativeFolder.match(/\.^[a-zA-Z]:\//);
-				// if (isProperPath) {
-				resourceCompletions.push({
-					label: lastWordRelativeFolder,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					detail: basename(cwd.fsPath),
-					replacementIndex: cursorPosition - lastWordRelativeFolder.length,
-					replacementLength: lastWordRelativeFolder.length
-				});
-				// }
-			}
-			if (foldersRequested && (!lastWordRelativeFolder.trim() || lastWord.charAt(lastWord.length - 1).match(/[\\\/\.]/))) {
-				// TODO: Refine cases where ..\ shows. For example it looks strange to offer `.\..\`
-				if (isWindows ? lastWordRelativeFolder.match(/[\\\/]/) : lastWordRelativeFolder.includes(resourceRequestConfig.pathSeparator)) {
-					const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
-					resourceCompletions.push({
-						label: lastWordRelativeFolder + '..' + resourceRequestConfig.pathSeparator,
-						provider,
-						kind: TerminalCompletionItemKind.Folder,
-						detail: basename(parentDir.path),
-						isDirectory: true,
-						isFile: false,
-						replacementIndex: cursorPosition - lastWord.length,
-						replacementLength: lastWord.length
-					});
-				} else {
-					const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
-					resourceCompletions.push({
-						label: '..' + resourceRequestConfig.pathSeparator,
-						provider,
-						kind: TerminalCompletionItemKind.Folder,
-						detail: basename(parentDir.path),
-						isDirectory: true,
-						isFile: false,
-						replacementIndex: cursorPosition - lastWord.length,
-						replacementLength: lastWord.length
-					});
-				}
-			}
+			resourceCompletions.push({
+				label: lastWordFolder.length === 0 ? '.' : lastWordFolder,
+				provider,
+				kind: TerminalCompletionItemKind.Folder,
+				isDirectory: true,
+				isFile: false,
+				detail: basename(cwd.fsPath),
+				replacementIndex: cursorPosition - lastWord.length,
+				replacementLength: lastWord.length
+			});
 		}
 
+		// Add all direct children files or folders
+		//
+		// For example:
+		// - `cd ./src/` -> `cd ./src/folder1`, ...
 		for (const stat of fileStat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
 			if (foldersRequested && stat.isDirectory) {
@@ -299,31 +262,18 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const fileName = basename(stat.resource.fsPath);
 
 			let label;
-			// TODO: This doesn't do the windows path equivalence check
-
-			if (!lastWordRelativeFolder.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWordRelativeFolder.startsWith('..' + resourceRequestConfig.pathSeparator)) {
+			if (!lastWordFolder.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWordFolder.startsWith('..' + resourceRequestConfig.pathSeparator)) {
 				// add a dot to the beginning of the label if it doesn't already have one
 				label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
 			} else {
-				// label = `${lastWordRelativeFolder}${fileName}`;
-				const endsWithSlash = lastWordRelativeFolder.endsWith(resourceRequestConfig.pathSeparator);
-				const includesFileName = lastWordRelativeFolder.includes(fileName);
-				// if (endsWithSlash && includesFileName) {
-				// 	label = `${lastWordRelativeFolder}`;
-				// } else
-				// if (endsWithSlash && !includesFileName) {
-				// 	label = `${lastWordRelativeFolder}${fileName}`;
-				// } else {
-				label = `${lastWordRelativeFolder}${fileName}`;
-				// }
-				if (lastWordRelativeFolder.length && lastWordRelativeFolder.at(-1) !== resourceRequestConfig.pathSeparator && lastWordRelativeFolder.at(-1) !== '.') {
+				label = `${lastWordFolder}${fileName}`;
+				if (lastWordFolder.length && lastWordFolder.at(-1) !== resourceRequestConfig.pathSeparator && lastWordFolder.at(-1) !== '.') {
 					label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
 				}
 			}
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
-				label = label + resourceRequestConfig.pathSeparator;
+				label = `${label}${resourceRequestConfig.pathSeparator}`;
 			}
-
 
 			// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
 			// suggestions should all use `\`
@@ -342,7 +292,27 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			});
 		}
 
-		// console.log('resourceCompletions', resourceCompletions);
+		// Add parent directory to the bottom of the list because it's not as useful as other suggestions
+		//
+		// For example:
+		// - `|` -> `../`
+		// - `./src/|` -> `./src/../`
+		//
+		// On Windows, the path seprators are normalized to `\`:
+		// - `./src/|` -> `.\src\..\`
+		if (foldersRequested) {
+			const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
+			resourceCompletions.push({
+				label: lastWordFolder + '..' + resourceRequestConfig.pathSeparator,
+				provider,
+				kind: TerminalCompletionItemKind.Folder,
+				detail: basename(parentDir.path),
+				isDirectory: true,
+				isFile: false,
+				replacementIndex: cursorPosition - lastWord.length,
+				replacementLength: lastWord.length
+			});
+		}
 
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
