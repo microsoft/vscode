@@ -86,7 +86,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _focusIsInEditorOrMenu = derived(this, reader => {
 		const editorHasFocus = this._editorObs.isFocused.read(reader);
 		const menuHasFocus = this._focusIsInMenu.read(reader);
-		return editorHasFocus || menuHasFocus;
+		return editorHasFocus || menuHasFocus || true;
 	});
 
 	private readonly _cursorIsInIndentation = derived(this, reader => {

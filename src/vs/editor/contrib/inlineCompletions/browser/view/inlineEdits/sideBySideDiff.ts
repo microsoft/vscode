@@ -99,12 +99,12 @@ export const modifiedBorder = registerColor(
 export const acceptedDecorationBackgroundColor = registerColor(
 	'inlineEdit.acceptedBackground',
 	{
-		light: transparent(modifiedChangedTextOverlayColor, 0.5),
-		dark: transparent(modifiedChangedTextOverlayColor, 0.5),
+		light: transparent(modifiedChangedTextOverlayColor, 0.75),
+		dark: transparent(modifiedChangedTextOverlayColor, 0.75),
 		hcDark: modifiedChangedTextOverlayColor,
 		hcLight: modifiedChangedTextOverlayColor
 	},
-	localize('inlineEdit.acceptedBackground', 'Background color for the accepted text after appying an inline edit.'),
+	localize('inlineEdit.acceptedBackground', 'Background color for the accepted text after applying an inline edit.'),
 	true
 );
 

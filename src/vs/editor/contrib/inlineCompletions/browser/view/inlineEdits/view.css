@@ -164,7 +164,7 @@
 	.inlineCompletions-char-insert.diff-range-empty {
 		border-left: solid var(--vscode-inlineEdit-modifiedChangedTextBackground) 3px;
 	}
-	
+
 	.inlineCompletions-char-delete.inline,
 	.inlineCompletions-char-insert.inline {
 		border-radius: 4px;
