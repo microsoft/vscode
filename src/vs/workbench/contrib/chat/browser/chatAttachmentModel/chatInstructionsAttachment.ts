@@ -171,7 +171,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	private collectErrorConditions(): ParseError[] {
 		return this.reference
 			// get entire reference tree
-			.tokensTree
+			.allReferences
 			// filter out children without error conditions or
 			// the ones that are non-prompt snippet files
 			.filter((childReference) => {

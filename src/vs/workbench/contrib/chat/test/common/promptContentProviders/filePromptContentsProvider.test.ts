@@ -8,13 +8,14 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { randomInt } from '../../../../../../base/common/numbers.js';
+import { assertDefined } from '../../../../../../base/common/types.js';
 import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { Line } from '../../../../../../editor/common/codecs/linesCodec/tokens/line.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { LinesDecoder } from '../../../../../../editor/common/codecs/linesCodec/linesDecoder.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
@@ -64,7 +65,7 @@ suite('FilePromptContentsProvider', function () {
 			fileUri,
 		));
 
-		let streamOrError: ReadableStream<Line> | Error | undefined;
+		let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
 		testDisposables.add(contentsProvider.onContentChanged((event) => {
 			streamOrError = event;
 		}));
@@ -72,12 +73,17 @@ suite('FilePromptContentsProvider', function () {
 
 		await new Promise((resolve) => setTimeout(resolve, 25));
 
-		assert(
-			streamOrError instanceof BaseDecoder,
-			`Provider must produce a stream of lines, got '${streamOrError}'.`,
+		assertDefined(
+			streamOrError,
+			'The `streamOrError` must be defined.',
 		);
 
-		const stream = testDisposables.add(streamOrError);
+		assert(
+			!(streamOrError instanceof Error),
+			`Provider must produce a byte stream, got '${streamOrError}'.`,
+		);
+
+		const stream = new LinesDecoder(streamOrError);
 
 		const receivedLines = await stream.consumeAll();
 		assert.strictEqual(

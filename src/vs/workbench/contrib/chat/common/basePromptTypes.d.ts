@@ -5,17 +5,17 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { ParseError } from './promptFileReferenceErrors.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
-import { Line } from '../../../../editor/common/codecs/linesCodec/tokens/line.js';
 
 /**
  * TODO: @legomushroom - move to the correct place
  */
 export interface IPromptContentsProvider extends IDisposable {
 	start(): void;
-	onContentChanged(callback: (streamOrError: ReadableStream<Line> | ParseError) => void): IDisposable;
+	onContentChanged(callback: (streamOrError: ReadableStream<VSBuffer> | ParseError) => void): IDisposable;
 	readonly uri: URI;
 }
 
@@ -32,7 +32,7 @@ export interface IPromptFileReference extends IPromptPart {
 	readonly path: string;
 	readonly resolveFailed: boolean | undefined;
 	readonly errorCondition: ParseError | undefined;
-	tokensTree: readonly TPromptPart[];
+	allReferences: readonly TPromptPart[];
 	allValidFileReferenceUris: readonly URI[];
 	validFileReferences: readonly IPromptFileReference[];
 }

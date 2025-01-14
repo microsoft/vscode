@@ -6,15 +6,8 @@
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { extUri } from '../../../../base/common/resources.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { newWriteableStream } from '../../../../base/common/stream.js';
-import { assert, assertNever } from '../../../../base/common/assert.js';
-import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { ChatPromptCodec } from './codecs/chatPromptCodec/chatPromptCodec.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { FileReference } from './codecs/chatPromptCodec/tokens/fileReference.js';
-import { ChatPromptDecoder } from './codecs/chatPromptCodec/chatPromptDecoder.js';
-import { Line } from '../../../../editor/common/codecs/linesCodec/tokens/line.js';
 import { TrackedDisposable } from '../../../../base/common/trackedDisposable.js';
 import { IPromptFileReference, IPromptContentsProvider, TPromptPart } from './basePromptTypes.js';
 import { FilePromptContentProvider } from './promptContentProviders/filePromptContentsProvider.js';
@@ -26,124 +19,6 @@ import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError } 
 /**
  * TODO: @legomushroom - move to the correct place
  */
-
-/**
- * Represents a single line of a prompt.
- */
-export class PromptLine extends Disposable {
-	/**
-	 * Tokens of the line.
-	 */
-	private _tokens: TPromptPart[] = [];
-
-	/**
-	 * The event is fired when the line is updated.
-	 */
-	private readonly _onUpdate = this._register(new Emitter<void>());
-
-	/**
-	 * Associated prompt decoder instance.
-	 */
-	private decoder: ChatPromptDecoder;
-
-	constructor(
-		public readonly lineToken: Line,
-		public readonly dirname: URI,
-		protected readonly seenReferences: string[] = [],
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IConfigurationService protected readonly configService: IConfigurationService,
-	) {
-		super();
-
-		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-
-		const stream = newWriteableStream<VSBuffer>(null);
-		this.decoder = this._register(ChatPromptCodec.decode(stream));
-
-		const { startLineNumber } = lineToken.range;
-		this.decoder.onData((token) => {
-			// because the decoder works on top of single line, we
-			// need to update token's line number to the correct one
-			token.withRange({
-				startLineNumber: startLineNumber,
-				endLineNumber: startLineNumber,
-			});
-
-			// if a file reference token, create a new file reference instance
-			if (token instanceof FileReference || token instanceof MarkdownLink) {
-				// TODO: @legomushroom - ensure that MD link is a file link
-				const fileReference = this.instantiationService
-					.createInstance(PromptFileReference, token, dirname, [...seenReferences]);
-
-				this._tokens.push(fileReference);
-
-				fileReference.onUpdate(this._onUpdate.fire);
-				fileReference.start();
-
-				this._onUpdate.fire();
-
-				return;
-			}
-
-			// TODO: @legomushroom - better way to error out on unsupported token
-			assertNever(
-				token,
-				`Unsupported token '${token}'.`,
-			);
-		});
-
-		this.decoder.onError((error) => {
-			// TODO: @legomushroom - handle the error
-			console.log(`[line decoder] error: ${error}`);
-
-			this._onUpdate.fire();
-		});
-
-		// TODO: @legomushroom - handle the `onEnd` event?
-
-		stream.write(VSBuffer.fromString(this.lineToken.text));
-		stream.end();
-	}
-
-	/**
-	 * Subscribe to line updates.
-	 */
-	public onUpdate(callback: () => void): void {
-		this._register(this._onUpdate.event(callback));
-	}
-
-	/**
-	 * Get tokens of the line.
-	 */
-	public get tokens(): readonly TPromptPart[] {
-		return [...this._tokens];
-	}
-
-	/**
-	 * Start parsing the line contents.
-	 */
-	public start(): this {
-		this.decoder.start();
-
-		return this;
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public override dispose(): void {
-		this.decoder.dispose();
-
-		for (const token of this._tokens) {
-			// if token has a `dispose` function, call it
-			if ('dispose' in token && typeof token.dispose === 'function') {
-				token.dispose();
-			}
-		}
-
-		super.dispose();
-	}
-}
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -161,13 +36,15 @@ export const PROMP_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
 const PROMPT_SNIPPETS_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
 
 /**
- * TODO: @legomushroom
+ * Base prompt parser class that provides a common interface for all
+ * prompt parsers that are responsible for parsing chat prompt syntax.
  */
-export class BasePromptParser<T extends IPromptContentsProvider> extends TrackedDisposable {
+export abstract class BasePromptParser<T extends IPromptContentsProvider> extends TrackedDisposable {
+
 	/**
-	 * Prompt lines.
+	 * List of file references in the current branch of the file reference tree.
 	 */
-	private readonly lines: DisposableMap<number, PromptLine> = this._register(new DisposableMap());
+	private readonly _references: PromptFileReference[] = [];
 
 	/**
 	 * The event is fired when lines or their content change.
@@ -244,8 +121,8 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Tracked
 			this.promptContentsProvider.onContentChanged((streamOrError) => {
 				this._resolveAttempted = true;
 
-				// dispose all existing lines
-				this.lines.clearAndDisposeAll();
+				// dispose all existing references
+				this.disposeReferences();
 
 				// if an error received, set up the error condition and stop
 				if (streamOrError instanceof ParseError) {
@@ -255,25 +132,62 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Tracked
 					return;
 				}
 
-				const stream = streamOrError;
-				stream.on('data', (line) => {
-					this.parseLine(line, [...seenReferences]);
-				});
-
+				const stream = ChatPromptCodec.decode(streamOrError);
 				stream.on('error', (error) => {
 					// TODO: @legomushroom - handle the error?
-					stream.destroy();
+					stream.dispose();
 				});
 
 				stream.on('end', () => {
-					stream.destroy();
+					stream.dispose();
 				});
 
-				if (stream instanceof BaseDecoder) {
-					stream.start();
-				}
+				stream.on('data', (token) => {
+					if (token instanceof FileReference) {
+						this.onReference(token, [...seenReferences]);
+					}
+
+					// note! the `isURL` is a simple check and needs to be improved
+					// 		 to truly handle only prompt snippet file references
+					if (token instanceof MarkdownLink && !token.isURL) {
+						this.onReference(token, [...seenReferences]);
+					}
+				});
+
+				stream.start();
 			}),
 		);
+	}
+
+	/**
+	 * Handle a new reference token inside prompt contents.
+	 */
+	private onReference(
+		token: FileReference | MarkdownLink,
+		seenReferences: string[],
+	): this {
+		const fileReference = this.instantiationService
+			.createInstance(PromptFileReference, token, this.dirname, seenReferences);
+
+		this._references.push(fileReference);
+
+		fileReference.onUpdate(this._onUpdate.fire);
+		fileReference.start();
+
+		this._onUpdate.fire();
+
+		return this;
+	}
+
+	/**
+	 * Dispose all currently held references.
+	 */
+	private disposeReferences() {
+		for (const reference of [...this._references]) {
+			reference.dispose();
+		}
+
+		this._references.length = 0;
 	}
 
 	/**
@@ -305,49 +219,6 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Tracked
 	}
 
 	/**
-	 * Dispose specific prompt line object.
-	 */
-	private disposeLine(
-		lineNumber: number, // note! 1-based index
-	): this {
-		this.lines.deleteAndDispose(lineNumber);
-
-		return this;
-	}
-
-	/**
-	 * Parse a single line of the prompt.
-	 */
-	private parseLine(
-		lineToken: Line,
-		seenReferences: string[],
-	): this {
-		const { startLineNumber } = lineToken.range;
-
-		this.disposeLine(startLineNumber);
-		this._onUpdate.fire();
-
-		// TODO: @legomushroom - how to better handle the error case?
-		assert(
-			!this.lines.has(startLineNumber),
-			`Must not contain line ${startLineNumber}.`,
-		);
-
-		const line = this.instantiationService.createInstance(
-			PromptLine,
-			lineToken,
-			this.dirname,
-			[...seenReferences],
-		);
-		this.lines.set(startLineNumber, line);
-
-		line.onUpdate(this._onUpdate.fire);
-		line.start();
-
-		return this;
-	}
-
-	/**
 	 * Check if the prompt snippets feature is enabled.
 	 * @see {@link PROMPT_SNIPPETS_CONFIG_KEY}
 	 */
@@ -368,34 +239,24 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Tracked
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get a list of immediate child references of the prompt.
 	 */
-	public get tokens(): readonly TPromptPart[] {
-		const result = [];
-
-		// TODO: @legomushroom
-		// // then add self to the result
-		// result.push(this);
-
-		// get getTokensed children references
-		for (const line of this.lines.values()) {
-			result.push(...line.tokens);
-		}
-
-		return result;
+	public get references(): readonly TPromptPart[] {
+		return [...this._references];
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get a list of all references of the prompt, including
+	 * all possible nested references its children may contain.
 	 */
-	public get tokensTree(): readonly TPromptPart[] {
+	public get allReferences(): readonly TPromptPart[] {
 		const result: TPromptPart[] = [];
 
-		for (const token of this.tokens) {
-			result.push(token);
+		for (const reference of this.references) {
+			result.push(reference);
 
-			if (token.type === 'file-reference') {
-				result.push(...token.tokensTree);
+			if (reference.type === 'file-reference') {
+				result.push(...reference.allReferences);
 			}
 		}
 
@@ -420,7 +281,7 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Tracked
 	 * Get list of all valid file references.
 	 */
 	public get validFileReferences(): readonly IPromptFileReference[] {
-		return this.tokens
+		return this.references
 			// TODO: @legomushroom
 			// // skip the root reference itself (this variable)
 			// .slice(1)
@@ -430,7 +291,6 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Tracked
 					return false;
 				}
 
-				// TODO: @legomushroom
 				return reference.type === 'file-reference';
 			});
 	}
@@ -479,7 +339,7 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Tracked
 			return;
 		}
 
-		this.lines.clearAndDisposeAll();
+		this.disposeReferences();
 		this._onUpdate.fire();
 
 		super.dispose();

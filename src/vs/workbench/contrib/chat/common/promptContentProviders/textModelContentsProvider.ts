@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Line } from '../../../../../editor/common/codecs/linesCodec/tokens/line.js';
 import { newWriteableStream, ReadableStream } from '../../../../../base/common/stream.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 
@@ -30,8 +30,8 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	}
 
 	/**
-	 * Creates a stream of lines from the text model based on the changes listed in
-	 * the provided event.
+	 * Creates a stream of binary data from the text model based on the changes
+	 * listed in the provided event.
 	 *
 	 * Note! this method implements a basic logic which does not take into account
 	 * 		 the `_event` argument for incremental updates. This needs to be improved.
@@ -43,8 +43,8 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	protected override async getContentsStream(
 		_event: IModelContentChangedEvent | 'full',
 		cancellationToken?: CancellationToken,
-	): Promise<ReadableStream<Line>> {
-		const stream = newWriteableStream<Line>(null);
+	): Promise<ReadableStream<VSBuffer>> {
+		const stream = newWriteableStream<VSBuffer>(null);
 		const linesCount = this.model.getLineCount();
 
 		// provide the changed lines to the stream incrementaly and asynchronously
@@ -58,10 +58,9 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 				return;
 			}
 
-			// write the current line to the stream;
-			// line numbers are `1-based` hence the `i + 1`
+			// write the current line to the stream
 			stream.write(
-				new Line(i + 1, this.model.getLineContent(i)),
+				VSBuffer.fromString(this.model.getLineContent(i)),
 			);
 
 			// use the next line in the next iteration

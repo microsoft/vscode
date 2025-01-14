@@ -7,11 +7,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ReadableStream } from '../../../../../base/common/stream.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { TrackedDisposable } from '../../../../../base/common/trackedDisposable.js';
-import { Line } from '../../../../../editor/common/codecs/linesCodec/tokens/line.js';
 import { FailedToResolveContentsStream, ParseError } from '../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../base/common/decorators/cancelPreviousCalls.js';
 /**
@@ -32,11 +31,11 @@ export interface IPromptContentsProvider extends IDisposable {
 
 	/**
 	 * Event that fires when the prompt contents change. The event is either a
-	 * {@linkcode ReadableStream<Line>} stream with changed lines or an instance
-	 * of the {@linkcode ParseError} error.
+	 * {@linkcode VSBufferReadableStream} stream with changed contents or
+	 * an instance of the {@linkcode ParseError} error.
 	 */
 	onContentChanged(
-		callback: (streamOrError: ReadableStream<Line> | ParseError) => void,
+		callback: (streamOrError: VSBufferReadableStream | ParseError) => void,
 	): IDisposable;
 }
 
@@ -88,7 +87,7 @@ export abstract class PromptContentsProviderBase<
 	protected abstract getContentsStream(
 		changesEvent: TChangeEvent | 'full',
 		cancellationToken?: CancellationToken,
-	): Promise<ReadableStream<Line>>;
+	): Promise<VSBufferReadableStream>;
 
 	/**
 	 * URI reference associated with the prompt contents.
@@ -105,11 +104,11 @@ export abstract class PromptContentsProviderBase<
 	 * Event emitter for the prompt contents change event.
 	 * See {@linkcode onContentChanged} for more details.
 	 */
-	private readonly onContentChangedEmitter = this._register(new Emitter<ReadableStream<Line> | ParseError>());
+	private readonly onContentChangedEmitter = this._register(new Emitter<VSBufferReadableStream | ParseError>());
 
 	/**
 	 * Event that fires when the prompt contents change. The event is either
-	 * a `ReadableStream<Line>` stream with changed lines or an instance of
+	 * a `VSBufferReadableStream` stream with changed contents or an instance of
 	 * the `ParseError` class representing a parsing failure case.
 	 *
 	 * `Note!` this field is meant to be used by the external consumers of the prompt

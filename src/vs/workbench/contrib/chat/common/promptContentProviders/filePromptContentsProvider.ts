@@ -7,11 +7,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { BaseDecoder } from '../../../../../base/common/codecs/baseDecoder.js';
-import { Line } from '../../../../../editor/common/codecs/linesCodec/tokens/line.js';
 import { FileOpenFailed, NonPromptSnippetFile } from '../promptFileReferenceErrors.js';
-import { LinesDecoder } from '../../../../../editor/common/codecs/linesCodec/linesDecoder.js';
 import { IPromptContentsProvider, PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
 
@@ -62,7 +60,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	protected async getContentsStream(
 		event: FileChangesEvent | 'full',
 		cancellationToken?: CancellationToken,
-	): Promise<BaseDecoder<Line>> {
+	): Promise<VSBufferReadableStream> {
 		if (cancellationToken?.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -122,18 +120,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 			throw new NonPromptSnippetFile(this.uri);
 		}
 
-		// create a stream of lines from the file stream
-		const stream = new LinesDecoder(fileStream.value)
-			// filter out all non-line tokens from the stream
-			.transform((token) => {
-				if (token instanceof Line) {
-					return token;
-				}
-
-				return null;
-			});
-
-		return stream;
+		return fileStream.value;
 	}
 
 	/**
