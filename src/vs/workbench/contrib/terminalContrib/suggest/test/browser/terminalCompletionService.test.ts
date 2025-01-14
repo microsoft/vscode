@@ -28,7 +28,7 @@ suite('TerminalCompletionService', () => {
 		label: `.`,
 		provider,
 		kind: TerminalCompletionItemKind.Folder,
-		detail: 'Source folder',
+		detail: '',
 		isDirectory: true,
 		isFile: false,
 		replacementIndex: 1,
@@ -38,7 +38,7 @@ suite('TerminalCompletionService', () => {
 	const parentCompletion = {
 		label: `..${pathSeparator}`,
 		provider,
-		detail: 'Parent folder',
+		detail: '',
 		kind: TerminalCompletionItemKind.Folder,
 		isDirectory: true,
 		isFile: false,
@@ -104,6 +104,7 @@ suite('TerminalCompletionService', () => {
 			assert.deepEqual(result, [
 				{
 					...sourceCompletion,
+					detail: 'test',
 					replacementIndex: 1,
 					replacementLength: 0
 				},
@@ -133,6 +134,7 @@ suite('TerminalCompletionService', () => {
 			assert.deepEqual(result, [
 				{
 					...sourceCompletion,
+					detail: 'test',
 					replacementIndex: 1,
 					replacementLength: 1
 				},
@@ -187,6 +189,7 @@ suite('TerminalCompletionService', () => {
 			assert.deepEqual(result, [
 				{
 					...sourceCompletion,
+					detail: 'test',
 					replacementIndex: 3,
 					replacementLength: 0
 				},
@@ -216,6 +219,7 @@ suite('TerminalCompletionService', () => {
 			assert.deepEqual(result, [
 				{
 					...sourceCompletion,
+					detail: 'test',
 					replacementIndex: 3,
 					replacementLength: 1
 				},
@@ -300,7 +304,7 @@ suite('TerminalCompletionService', () => {
 				{
 					label: `..${pathSeparator}..${pathSeparator}`,
 					provider,
-					detail: 'Parent folder',
+					detail: '',
 					kind: TerminalCompletionItemKind.Folder,
 					isDirectory: true,
 					isFile: false,

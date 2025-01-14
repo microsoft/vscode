@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -234,7 +235,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					kind: TerminalCompletionItemKind.Folder,
 					isDirectory: true,
 					isFile: false,
-					detail: 'Source folder',
+					detail: basename(cwd.fsPath),
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
 				});
@@ -254,22 +255,24 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (foldersRequested && (!lastWordRelativeFolder.trim() || lastWord.charAt(lastWord.length - 1).match(/[\\\/\.]/))) {
 				// TODO: Refine cases where ..\ shows. For example it looks strange to offer `.\..\`
 				if (isWindows ? lastWordRelativeFolder.match(/[\\\/]/) : lastWordRelativeFolder.includes(resourceRequestConfig.pathSeparator)) {
+					const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
 					resourceCompletions.push({
 						label: lastWordRelativeFolder + '..' + resourceRequestConfig.pathSeparator,
 						provider,
 						kind: TerminalCompletionItemKind.Folder,
-						detail: 'Parent folder',
+						detail: basename(parentDir.path),
 						isDirectory: true,
 						isFile: false,
 						replacementIndex: cursorPosition - lastWord.length,
 						replacementLength: lastWord.length
 					});
 				} else {
+					const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
 					resourceCompletions.push({
 						label: '..' + resourceRequestConfig.pathSeparator,
 						provider,
 						kind: TerminalCompletionItemKind.Folder,
-						detail: 'Parent folder',
+						detail: basename(parentDir.path),
 						isDirectory: true,
 						isFile: false,
 						replacementIndex: cursorPosition - lastWord.length,
