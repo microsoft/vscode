@@ -113,7 +113,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerOpenLogFileAction();
 		this.registerConfigureActiveOutputLogLevelAction();
 		this.registerFilterActions();
-		this.registerSaveLogsAsAction();
+		this.registerExportLogsAction();
 	}
 
 	private registerSwitchOutputAction(): void {
@@ -182,7 +182,11 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					id: 'workbench.action.output.addCompoundLog',
 					title: nls.localize2('addCompoundLog', "Add Compound Log..."),
 					category: Categories.Developer,
-					f1: true
+					f1: true,
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+					}],
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
@@ -402,6 +406,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 						group: 'export',
+						order: 1
 					}],
 				});
 			}
@@ -695,14 +700,20 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		}));
 	}
 
-	private registerSaveLogsAsAction(): void {
+	private registerExportLogsAction(): void {
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.action.saveLogsAs`,
-					title: nls.localize2('saveLogsAs', "Save Logs As..."),
+					id: `workbench.action.exportLogs`,
+					title: nls.localize2('exportLogs', "Export Logs..."),
 					f1: true,
 					category: Categories.Developer,
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: 'export',
+						order: 2,
+					}],
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
