@@ -41,6 +41,10 @@ import { localize, localize2 } from '../../../../nls.js';
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { basename } from '../../../../base/common/resources.js';
+
+const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -114,6 +118,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerConfigureActiveOutputLogLevelAction();
 		this.registerFilterActions();
 		this.registerExportLogsAction();
+		this.registerImportLogAction();
 	}
 
 	private registerSwitchOutputAction(): void {
@@ -144,7 +149,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		const registerOutputChannels = (channels: IOutputChannelDescriptor[]) => {
 			for (const channel of channels) {
 				const title = channel.label;
-				const group = channel.files && channel.files.length > 1 ? '2_compound_logs' : channel.extensionId ? '0_ext_outputchannels' : '1_core_outputchannels';
+				const group = (channel.files?.length && channel.files.length > 1) || channel.id.startsWith(IMPORTED_LOG_ID_PREFIX) ? '2_custom_logs' : channel.extensionId ? '0_ext_outputchannels' : '1_core_outputchannels';
 				registeredChannels.set(channel.id, registerAction2(class extends Action2 {
 					constructor() {
 						super({
@@ -186,6 +191,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: '2_add',
 					}],
 				});
 			}
@@ -405,7 +411,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
-						group: 'export',
+						group: '1_export',
 						order: 1
 					}],
 				});
@@ -711,7 +717,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
-						group: 'export',
+						group: '1_export',
 						order: 2,
 					}],
 				});
@@ -743,6 +749,53 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				const result = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log"), canPickMany: true });
 				if (result?.length) {
 					await outputService.saveOutputAs(...result);
+				}
+			}
+		}));
+	}
+
+	private registerImportLogAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.importLog`,
+					title: nls.localize2('importLog', "Import Log..."),
+					f1: true,
+					category: Categories.Developer,
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: '2_add',
+						order: 2,
+					}],
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const outputService = accessor.get(IOutputService);
+				const fileDialogService = accessor.get(IFileDialogService);
+				const result = await fileDialogService.showOpenDialog({
+					title: nls.localize('importLogFile', "Import Log File"),
+					canSelectFiles: true,
+					canSelectFolders: false,
+					canSelectMany: true,
+					filters: [{
+						name: nls.localize('logFiles', "Log Files"),
+						extensions: ['log']
+					}]
+				});
+
+				if (result?.length) {
+					const channelName = basename(result[0]);
+					const channelId = `${IMPORTED_LOG_ID_PREFIX}${Date.now()}`;
+					// Register and show the channel
+					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({
+						id: channelId,
+						label: channelName,
+						log: true,
+						files: result,
+						fileNames: result.map(r => basename(r).split('.')[0])
+					});
+					outputService.showChannel(channelId);
 				}
 			}
 		}));
