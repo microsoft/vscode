@@ -207,6 +207,7 @@ export class SimpleCompletionModel {
 				}
 				// Then by file extension length ascending
 				score = a.fileExtLow.length - b.fileExtLow.length;
+				// Then by label alphabetically
 				score = a.completion.label.localeCompare(b.completion.label);
 			}
 			return score;
