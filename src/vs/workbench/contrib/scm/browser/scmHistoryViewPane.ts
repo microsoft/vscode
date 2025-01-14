@@ -6,7 +6,7 @@
 import './media/scm.css';
 import * as platform from '../../../../base/common/platform.js';
 import { $, append, h, reset } from '../../../../base/browser/dom.js';
-import { IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverAction, IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
@@ -242,7 +242,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: [
 				{
-					id: MenuId.SCMChangesContext,
+					id: MenuId.SCMHistoryItemContext,
 					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: '0_view',
 					order: 1
@@ -325,7 +325,9 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		private readonly hoverDelegate: IHoverDelegate,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
@@ -344,11 +346,12 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
+		const provider = node.element.repository.provider;
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
 		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this._getHoverContent(node.element), {
-			actions: this._getHoverActions(historyItem),
+			actions: this._getHoverActions(provider, historyItem),
 		});
 		templateData.elementDisposables.add(historyItemHover);
 
@@ -356,7 +359,6 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.isCurrent);
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
-		const provider = node.element.repository.provider;
 		const historyItemRef = provider.historyProvider.get()?.historyItemRef?.get();
 		const extraClasses = historyItemRef?.revision === historyItem.id ? ['history-item-current'] : [];
 		const [matches, descriptionMatches] = this._processMatches(historyItemViewModel, node.filterData);
@@ -438,7 +440,12 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		append(templateData.labelContainer, elements.root);
 	}
 
-	private _getHoverActions(historyItem: ISCMHistoryItem) {
+	private _getHoverActions(provider: ISCMProvider, historyItem: ISCMHistoryItem): IHoverAction[] {
+		const actions = this._menuService.getMenuActions(MenuId.SCMHistoryItemHover, this._contextKeyService, {
+			arg: provider,
+			shouldForwardArgs: true
+		}).flatMap(item => item[1]);
+
 		return [
 			{
 				commandId: 'workbench.scm.action.graph.copyHistoryItemId',
@@ -446,12 +453,18 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 				label: historyItem.displayId ?? historyItem.id,
 				run: () => this._clipboardService.writeText(historyItem.id)
 			},
-			{
-				commandId: 'workbench.scm.action.graph.copyHistoryItemMessage',
-				iconClass: 'codicon.codicon-copy',
-				label: localize('historyItemMessage', "Message"),
-				run: () => this._clipboardService.writeText(historyItem.message)
-			}
+			...actions.map(action => {
+				const iconClass = ThemeIcon.isThemeIcon(action.item.icon)
+					? ThemeIcon.asClassNameArray(action.item.icon).join('.')
+					: undefined;
+
+				return {
+					commandId: action.id,
+					label: action.label,
+					iconClass,
+					run: () => action.run(historyItem)
+				};
+			}) satisfies IHoverAction[]
 		];
 	}
 
@@ -1614,7 +1627,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}
 
 				// Register the submenu for the original action
-				this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMChangesContext, {
+				this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMHistoryItemContext, {
 					title: historyItemRefMenuItem.command.title,
 					submenu: MenuId.for(actionId),
 					group: historyItemRefMenuItem?.group,
@@ -1643,7 +1656,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			}
 		}
 
-		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMChangesContext, this.scopedContextKeyService, {
+		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMHistoryItemContext, this.scopedContextKeyService, {
 			arg: element.repository.provider,
 			shouldForwardArgs: true
 		});
