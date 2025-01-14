@@ -105,8 +105,16 @@ import { middleware, Straightforward } from 'straightforward';
 			await proxyListen;
 			const proxyPort = (sf.server.address() as AddressInfo).port;
 
+			const configChange = new Promise<void>((resolve) => {
+				const disposable = vscode.workspace.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration('integration-test.http.proxy')) {
+						disposable.dispose();
+						resolve();
+					}
+				});
+			});
 			await vscode.workspace.getConfiguration().update('integration-test.http.proxy', `PROXY 127.0.0.1:${proxyPort}`, vscode.ConfigurationTarget.Global);
-			await delay(1000); // Wait for the configuration change to propagate.
+			await configChange;
 			await new Promise<void>((resolve, reject) => {
 				https.get(url, res => {
 					if (res.statusCode === 418) {
@@ -130,8 +138,16 @@ import { middleware, Straightforward } from 'straightforward';
 					.on('error', reject);
 			});
 
+			const authConfigChange = new Promise<void>((resolve) => {
+				const disposable = vscode.workspace.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration('integration-test.http.proxyAuth')) {
+						disposable.dispose();
+						resolve();
+					}
+				});
+			});
 			await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', `${user}:${pass}`, vscode.ConfigurationTarget.Global);
-			await delay(1000); // Wait for the configuration change to propagate.
+			await authConfigChange;
 			await new Promise<void>((resolve, reject) => {
 				https.get(url, res => {
 					if (res.statusCode === 204) {
