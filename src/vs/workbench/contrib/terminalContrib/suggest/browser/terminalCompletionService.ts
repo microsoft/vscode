@@ -222,9 +222,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		if (isWindows) {
 			lastWordRelativeFolder = lastWordRelativeFolder.replaceAll('/', '\\');
 		}
-		console.log('cwd', cwd.fsPath);
-		console.log('lastWord', lastWord);
-		console.log('lastWordRelativeFolder', lastWordRelativeFolder);
+		// console.log('cwd', cwd.fsPath);
+		// console.log('lastWord', lastWord);
+		// console.log('lastWordRelativeFolder', lastWordRelativeFolder);
 
 		if (foldersRequested) {
 			if (!lastWordRelativeFolder.trim()) {
@@ -238,40 +238,44 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
 				});
-			} else {
-				resourceCompletions.push({
-					label: lastWordRelativeFolder,
-					provider: 'builtin',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					detail: 'Source folder',
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: lastWord.length
-				});
 			}
-			// TODO: Refine cases where ..\ shows. For example it looks strange to offer `.\..\`
-			if (isWindows ? lastWordRelativeFolder.match(/[\\\/]/) : lastWordRelativeFolder.includes(resourceRequestConfig.pathSeparator)) {
-				resourceCompletions.push({
-					label: lastWordRelativeFolder + '..' + resourceRequestConfig.pathSeparator,
-					provider: 'builtin',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: lastWord.length
-				});
-			} else {
-				resourceCompletions.push({
-					label: '..' + resourceRequestConfig.pathSeparator,
-					provider: 'builtin',
-					kind: TerminalCompletionItemKind.Folder,
-					detail: 'Parent folder',
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: lastWord.length
-				});
+			//  else {
+			// resourceCompletions.push({
+			// 	label: lastWordRelativeFolder,
+			// 	provider: 'builtin',
+			// 	kind: TerminalCompletionItemKind.Folder,
+			// 	isDirectory: true,
+			// 	isFile: false,
+			// 	detail: 'Source folder',
+			// 	replacementIndex: cursorPosition - lastWord.length,
+			// 	replacementLength: lastWord.length
+			// });
+			// }
+			if (foldersRequested && (!lastWordRelativeFolder.trim() || lastWord.charAt(lastWord.length - 1).match(/[\\\/\.]/))) {
+				// TODO: Refine cases where ..\ shows. For example it looks strange to offer `.\..\`
+				if (isWindows ? lastWordRelativeFolder.match(/[\\\/]/) : lastWordRelativeFolder.includes(resourceRequestConfig.pathSeparator)) {
+					resourceCompletions.push({
+						label: lastWordRelativeFolder + '..' + resourceRequestConfig.pathSeparator,
+						provider: 'builtin',
+						kind: TerminalCompletionItemKind.Folder,
+						detail: 'Parent folder',
+						isDirectory: true,
+						isFile: false,
+						replacementIndex: cursorPosition - lastWord.length,
+						replacementLength: lastWord.length
+					});
+				} else {
+					resourceCompletions.push({
+						label: '..' + resourceRequestConfig.pathSeparator,
+						provider: 'builtin',
+						kind: TerminalCompletionItemKind.Folder,
+						detail: 'Parent folder',
+						isDirectory: true,
+						isFile: false,
+						replacementIndex: cursorPosition - lastWord.length,
+						replacementLength: lastWord.length
+					});
+				}
 			}
 		}
 
@@ -291,23 +295,24 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 			let label;
 			// TODO: This doesn't do the windows path equivalence check
-			// if (!lastWord.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWord.startsWith('..' + resourceRequestConfig.pathSeparator)) {
-			// 	// add a dot to the beginning of the label if it doesn't already have one
-			// 	label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
-			// } else {
-			label = `${lastWordRelativeFolder}${fileName}`;
-			// if (lastWord.endsWith(resourceRequestConfig.pathSeparator)) {
-			// 	label = `${lastWord}${fileName}`;
-			// } else {
-			// 	label = `${lastWord}${resourceRequestConfig.pathSeparator}${fileName}`;
-			// }
-			// if (lastWord.length && lastWord.at(-1) !== resourceRequestConfig.pathSeparator && lastWord.at(-1) !== '.') {
-			// 	label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
-			// }
-			// }
+			if (!lastWordRelativeFolder.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWordRelativeFolder.startsWith('..' + resourceRequestConfig.pathSeparator)) {
+				// add a dot to the beginning of the label if it doesn't already have one
+				label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
+			} else {
+				// label = `${lastWordRelativeFolder}${fileName}`;
+				if (lastWordRelativeFolder.endsWith(resourceRequestConfig.pathSeparator)) {
+					label = `${lastWordRelativeFolder}${fileName}`;
+				} else {
+					label = `${lastWordRelativeFolder}${resourceRequestConfig.pathSeparator}${fileName}`;
+				}
+				if (lastWordRelativeFolder.length && lastWordRelativeFolder.at(-1) !== resourceRequestConfig.pathSeparator && lastWordRelativeFolder.at(-1) !== '.') {
+					label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
+				}
+			}
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label = label + resourceRequestConfig.pathSeparator;
 			}
+
 
 			// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
 			// suggestions should all use `\`
@@ -326,7 +331,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			});
 		}
 
-		console.log('resourceCompletions', resourceCompletions);
+		// console.log('resourceCompletions', resourceCompletions);
 
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}

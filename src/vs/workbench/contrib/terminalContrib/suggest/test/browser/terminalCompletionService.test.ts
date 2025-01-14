@@ -101,25 +101,26 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 1, provider);
-			assert.deepEqual(result, [{
-				label: `.${pathSeparator}folder1${pathSeparator}`,
-				provider,
-				kind: TerminalCompletionItemKind.Folder,
-				isDirectory: true,
-				isFile: false,
-				replacementIndex: 1,
-				replacementLength: 0
-			},
-			{
-				...sourceCompletion,
-				replacementIndex: 1,
-				replacementLength: 0
-			},
-			{
-				...parentCompletion,
-				replacementIndex: 1,
-				replacementLength: 0
-			}
+			assert.deepEqual(result, [
+				{
+					...sourceCompletion,
+					replacementIndex: 1,
+					replacementLength: 0
+				},
+				{
+					...parentCompletion,
+					replacementIndex: 1,
+					replacementLength: 0
+				},
+				{
+					label: `.${pathSeparator}folder1${pathSeparator}`,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: 1,
+					replacementLength: 0
+				},
 			]);
 		});
 		test('.|', async () => {
@@ -129,20 +130,26 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.', 2, provider);
-			assert.deepEqual(result, [{
-				label: `.${pathSeparator}folder1${pathSeparator}`,
-				provider,
-				kind: TerminalCompletionItemKind.Folder,
-				isDirectory: true,
-				isFile: false,
-				replacementIndex: 1,
-				replacementLength: 1
-			},
-			{
-				...parentCompletion,
-				replacementIndex: 1,
-				replacementLength: 1
-			}
+			assert.deepEqual(result, [
+				{
+					...sourceCompletion,
+					replacementIndex: 1,
+					replacementLength: 1
+				},
+				{
+					...parentCompletion,
+					replacementIndex: 1,
+					replacementLength: 1
+				},
+				{
+					label: `.${pathSeparator}folder1${pathSeparator}`,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: 1,
+					replacementLength: 1
+				}
 			]);
 		});
 		test('./|', async () => {
@@ -154,6 +161,12 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3, provider);
 			assert.deepEqual(result, [
 				{
+					...parentCompletion,
+					label: `.${pathSeparator}..${pathSeparator}`,
+					replacementIndex: 1,
+					replacementLength: 2
+				},
+				{
 					label: `.${pathSeparator}folder1${pathSeparator}`,
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
@@ -162,11 +175,6 @@ suite('TerminalCompletionService', () => {
 					replacementIndex: 1,
 					replacementLength: 2
 				},
-				{
-					...parentCompletion,
-					replacementIndex: 1,
-					replacementLength: 2
-				}
 			]);
 		});
 		test('cd |', async () => {
@@ -178,15 +186,6 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider);
 			assert.deepEqual(result, [
 				{
-					label: `.${pathSeparator}folder1${pathSeparator}`,
-					provider,
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 3,
-					replacementLength: 0
-				},
-				{
 					...sourceCompletion,
 					replacementIndex: 3,
 					replacementLength: 0
@@ -195,7 +194,16 @@ suite('TerminalCompletionService', () => {
 					...parentCompletion,
 					replacementIndex: 3,
 					replacementLength: 0
-				}
+				},
+				{
+					label: `.${pathSeparator}folder1${pathSeparator}`,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: 3,
+					replacementLength: 0
+				},
 			]);
 		});
 		test('cd .|', async () => {
@@ -207,6 +215,16 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd .', 4, provider);
 			assert.deepEqual(result, [
 				{
+					...sourceCompletion,
+					replacementIndex: 3,
+					replacementLength: 1
+				},
+				{
+					...parentCompletion,
+					replacementIndex: 3,
+					replacementLength: 1
+				},
+				{
 					label: `.${pathSeparator}folder1${pathSeparator}`,
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
@@ -215,11 +233,6 @@ suite('TerminalCompletionService', () => {
 					replacementIndex: 3,
 					replacementLength: 1 // replacing .
 				},
-				{
-					...parentCompletion,
-					replacementIndex: 3,
-					replacementLength: 1
-				}
 			]);
 		});
 		test('cd ./|', async () => {
@@ -231,6 +244,12 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5, provider);
 			assert.deepEqual(result, [
 				{
+					...parentCompletion,
+					label: `.${pathSeparator}..${pathSeparator}`,
+					replacementIndex: 3,
+					replacementLength: 2
+				},
+				{
 					label: `.${pathSeparator}folder1${pathSeparator}`,
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
@@ -238,11 +257,6 @@ suite('TerminalCompletionService', () => {
 					isFile: false,
 					replacementIndex: 3,
 					replacementLength: 2 // replacing ./
-				},
-				{
-					...parentCompletion,
-					replacementIndex: 3,
-					replacementLength: 2
 				}
 			]);
 		});
@@ -262,11 +276,6 @@ suite('TerminalCompletionService', () => {
 					isFile: false,
 					replacementIndex: 3,
 					replacementLength: 3 // replacing ./f
-				},
-				{
-					...parentCompletion,
-					replacementIndex: 3,
-					replacementLength: 3
 				}
 			]);
 		});
@@ -289,6 +298,16 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '../', 3, provider);
 			assert.deepEqual(result, [
 				{
+					label: `..${pathSeparator}..${pathSeparator}`,
+					provider: 'builtin',
+					detail: 'Parent folder',
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: 0,
+					replacementLength: 3
+				},
+				{
 					isDirectory: true,
 					isFile: false,
 					kind: 1,
@@ -297,15 +316,6 @@ suite('TerminalCompletionService', () => {
 					replacementIndex: 0,
 					replacementLength: 3
 				},
-				{
-					label: `..${pathSeparator}..${pathSeparator}`,
-					provider: 'builtin',
-					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
-					replacementIndex: 0,
-					replacementLength: 3
-				}
 			]);
 		});
 	});
