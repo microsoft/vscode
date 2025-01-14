@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { AbstractTextResourceEditor } from '../../../browser/parts/editor/textResourceEditor.js';
-import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT } from '../../../services/output/common/output.js';
+import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, LOG_ENTRY_REGEX } from '../../../services/output/common/output.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -346,8 +346,6 @@ interface ILogEntry {
 	readonly lineRange: [number, number];
 }
 
-const logEntryRegex = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) \[(info|trace|debug|error|warn)\]/;
-
 export class FilterController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'output.editor.contrib.filterController';
@@ -406,7 +404,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 	private computeLogEntries(model: ITextModel): void {
 		this.logEntries = undefined;
 		const firstLine = model.getLineContent(1);
-		if (!logEntryRegex.test(firstLine)) {
+		if (!LOG_ENTRY_REGEX.test(firstLine)) {
 			return;
 		}
 
@@ -422,15 +420,15 @@ export class FilterController extends Disposable implements IEditorContribution 
 		const lineCount = model.getLineCount();
 		for (let lineNumber = fromLine; lineNumber <= lineCount; lineNumber++) {
 			const lineContent = model.getLineContent(lineNumber);
-			const match = logEntryRegex.exec(lineContent);
+			const match = LOG_ENTRY_REGEX.exec(lineContent);
 			if (match) {
-				const logLevel = this.parseLogLevel(match[2]);
+				const logLevel = this.parseLogLevel(match[3]);
 				const startLine = lineNumber;
 				let endLine = lineNumber;
 
 				while (endLine < lineCount) {
 					const nextLineContent = model.getLineContent(endLine + 1);
-					if (model.getLineFirstNonWhitespaceColumn(endLine + 1) === 0 || logEntryRegex.test(nextLineContent)) {
+					if (model.getLineFirstNonWhitespaceColumn(endLine + 1) === 0 || LOG_ENTRY_REGEX.test(nextLineContent)) {
 						break;
 					}
 					endLine++;
@@ -520,7 +518,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 				return LogLevel.Debug;
 			case 'info':
 				return LogLevel.Info;
-			case 'warn':
+			case 'warning':
 				return LogLevel.Warning;
 			case 'error':
 				return LogLevel.Error;

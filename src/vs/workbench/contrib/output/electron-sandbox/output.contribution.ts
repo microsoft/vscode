@@ -39,8 +39,8 @@ registerAction2(class OpenInConsoleAction extends Action2 {
 			return;
 		}
 		const descriptor = outputService.getChannelDescriptors().find(c => c.id === channel.id);
-		if (descriptor?.file && descriptor.file.scheme === Schemas.file) {
-			hostService.openExternal(descriptor.file.toString(true), 'open');
+		if (descriptor?.files?.length === 1 && descriptor.files[0].scheme === Schemas.file) {
+			hostService.openExternal(descriptor.files[0].toString(true), 'open');
 		}
 	}
 });

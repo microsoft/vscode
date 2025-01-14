@@ -293,7 +293,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					transition: 'rotate 0.2s ease-in-out',
 				}
 			}, [
-				renderIcon(Codicon.arrowRight)
+				renderIcon(Codicon.arrowRight) // TODO: allow setting css here, is this already supported?
 			])
 		]),
 	])).keepUpdated(this._store);
