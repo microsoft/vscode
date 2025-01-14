@@ -106,6 +106,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			this._canvas.height = canvasDim;
 		}
 
+		this._ctx.save();
+
 		const decorationStyleSet = ViewGpuContext.decorationStyleCache.getStyleSet(decorationStyleSetId);
 
 		// TODO: Support workbench.fontAliasing
@@ -139,7 +141,12 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		}
 		this._ctx.textBaseline = 'top';
 
+		if (decorationStyleSet?.opacity !== undefined) {
+			this._ctx.globalAlpha = decorationStyleSet.opacity;
+		}
+
 		this._ctx.fillText(chars, originX, originY);
+		this._ctx.restore();
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
 		this._findGlyphBoundingBox(imageData, this._workGlyph.boundingBox);

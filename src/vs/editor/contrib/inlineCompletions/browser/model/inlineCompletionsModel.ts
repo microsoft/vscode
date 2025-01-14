@@ -58,7 +58,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _acceptCompletionDecorationTimer = this._register(new MutableDisposable());
 	private readonly _acceptCompletionDecoration: IModelDecorationOptions = {
 		description: 'inline-completion-accepted',
-		className: 'inlineCompletionAccepted',
+		className: 'inline-completion-accepted',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
