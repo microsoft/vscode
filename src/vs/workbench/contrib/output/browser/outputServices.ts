@@ -10,7 +10,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, IOutputViewFilters, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT } from '../../../services/output/common/output.js';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, IOutputViewFilters, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, IFileOutputChannelDescriptor } from '../../../services/output/common/output.js';
 import { OutputLinkProvider } from './outputLinkProvider.js';
 import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -24,6 +24,11 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SetLogLevelAction } from '../../logs/common/logsActions.js';
 import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { localize } from '../../../../nls.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -44,7 +49,12 @@ class OutputChannel extends Disposable implements IOutputChannel {
 		this.id = outputChannelDescriptor.id;
 		this.label = outputChannelDescriptor.label;
 		this.uri = URI.from({ scheme: Schemas.outputChannel, path: this.id });
-		this.model = this._register(outputChannelModelService.createOutputChannelModel(this.id, this.uri, outputChannelDescriptor.languageId ? languageService.createById(outputChannelDescriptor.languageId) : languageService.createByMimeType(outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME), outputChannelDescriptor.file));
+		this.model = this._register(outputChannelModelService.createOutputChannelModel(
+			this.id,
+			this.uri,
+			outputChannelDescriptor.languageId ? languageService.createById(outputChannelDescriptor.languageId) : languageService.createByMimeType(outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME),
+			outputChannelDescriptor.files ? outputChannelDescriptor.files.map((file, index) => ({ file, name: outputChannelDescriptor.fileNames?.[index] ?? '' })) : undefined)
+		);
 	}
 
 	append(output: string): void {
@@ -175,6 +185,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private readonly activeOutputChannelContext: IContextKey<string>;
 	private readonly activeFileOutputChannelContext: IContextKey<boolean>;
+	private readonly activeLogOutputChannelContext: IContextKey<boolean>;
 	private readonly activeOutputChannelLevelSettableContext: IContextKey<boolean>;
 	private readonly activeOutputChannelLevelContext: IContextKey<string>;
 	private readonly activeOutputChannelLevelIsDefaultContext: IContextKey<boolean>;
@@ -184,13 +195,15 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService textModelResolverService: ITextModelService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerService private readonly loggerService: ILoggerService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDefaultLogLevelsService private readonly defaultLogLevelsService: IDefaultLogLevelsService
+		@IDefaultLogLevelsService private readonly defaultLogLevelsService: IDefaultLogLevelsService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, '');
@@ -199,12 +212,13 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this._register(this.onActiveOutputChannel(channel => this.activeOutputChannelContext.set(channel)));
 
 		this.activeFileOutputChannelContext = CONTEXT_ACTIVE_FILE_OUTPUT.bindTo(contextKeyService);
+		this.activeLogOutputChannelContext = CONTEXT_ACTIVE_LOG_FILE_OUTPUT.bindTo(contextKeyService);
 		this.activeOutputChannelLevelSettableContext = CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE.bindTo(contextKeyService);
 		this.activeOutputChannelLevelContext = CONTEXT_ACTIVE_OUTPUT_LEVEL.bindTo(contextKeyService);
 		this.activeOutputChannelLevelIsDefaultContext = CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT.bindTo(contextKeyService);
 
 		// Register as text model content provider for output
-		this._register(textModelResolverService.registerTextModelContentProvider(Schemas.outputChannel, this));
+		this._register(textModelService.registerTextModelContentProvider(Schemas.outputChannel, this));
 		this._register(instantiationService.createInstance(OutputLinkProvider));
 
 		// Create output channels for already registered channels
@@ -212,7 +226,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		for (const channelIdentifier of registry.getChannels()) {
 			this.onDidRegisterChannel(channelIdentifier.id);
 		}
-		this._register(registry.onDidRegisterChannel(this.onDidRegisterChannel, this));
+		this._register(registry.onDidRegisterChannel(id => this.onDidRegisterChannel(id)));
 
 		// Set active channel to first channel if not set
 		if (!this.activeChannel) {
@@ -282,6 +296,66 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return this.activeChannel;
 	}
 
+	registerCompoundLogChannel(channels: IFileOutputChannelDescriptor[]): string {
+		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+		channels.sort((a, b) => a.label.localeCompare(b.label));
+		const id = channels.map(r => r.id.toLowerCase()).join('-');
+		if (!outputChannelRegistry.getChannel(id)) {
+			outputChannelRegistry.registerChannel({
+				id,
+				label: channels.map(r => r.label).join(', '),
+				log: channels.some(r => r.log),
+				files: channels.map(r => r.files[0]),
+				fileNames: channels.map(r => r.label)
+			});
+		}
+		return id;
+	}
+
+	async saveOutputAs(...channels: IFileOutputChannelDescriptor[]): Promise<void> {
+		let channel: IOutputChannel | undefined;
+		if (channels.length > 1) {
+			const compoundChannelId = this.registerCompoundLogChannel(channels);
+			channel = this.getChannel(compoundChannelId);
+		} else {
+			channel = this.getChannel(channels[0].id);
+		}
+
+		if (!channel) {
+			return;
+		}
+
+		try {
+			const name = channels.length > 1 ? 'output' : channels[0].label;
+			const uri = await this.fileDialogService.showSaveDialog({
+				title: localize('saveLog.dialogTitle', "Save Output As"),
+				availableFileSystems: [Schemas.file],
+				defaultUri: joinPath(await this.fileDialogService.defaultFilePath(), `${name}.log`),
+				filters: [{
+					name,
+					extensions: ['log']
+				}]
+			});
+
+			if (!uri) {
+				return;
+			}
+
+			const modelRef = await this.textModelService.createModelReference(channel.uri);
+			try {
+				await this.fileService.writeFile(uri, VSBuffer.fromString(modelRef.object.textEditorModel.getValue()));
+			} finally {
+				modelRef.dispose();
+			}
+			return;
+		}
+		finally {
+			if (channels.length > 1) {
+				Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(channel.id);
+			}
+		}
+	}
+
 	private async onDidRegisterChannel(channelId: string): Promise<void> {
 		const channel = this.createChannel(channelId);
 		this.channels.set(channelId, channel);
@@ -322,14 +396,14 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private setLevelContext(): void {
 		const descriptor = this.activeChannel?.outputChannelDescriptor;
-		const channelLogLevel = descriptor?.log ? this.loggerService.getLogLevel(descriptor.file) : undefined;
+		const channelLogLevel = descriptor?.log && descriptor.files?.length === 1 ? this.loggerService.getLogLevel(descriptor.files[0]) : undefined;
 		this.activeOutputChannelLevelContext.set(channelLogLevel !== undefined ? LogLevelToString(channelLogLevel) : '');
 	}
 
 	private async setLevelIsDefaultContext(): Promise<void> {
 		const descriptor = this.activeChannel?.outputChannelDescriptor;
-		if (descriptor?.log) {
-			const channelLogLevel = this.loggerService.getLogLevel(descriptor.file);
+		if (descriptor?.log && descriptor.files?.length === 1) {
+			const channelLogLevel = this.loggerService.getLogLevel(descriptor.files[0]);
 			const channelDefaultLogLevel = await this.defaultLogLevelsService.getDefaultLogLevel(descriptor.extensionId);
 			this.activeOutputChannelLevelIsDefaultContext.set(channelDefaultLogLevel === channelLogLevel);
 		} else {
@@ -340,7 +414,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private setActiveChannel(channel: OutputChannel | undefined): void {
 		this.activeChannel = channel;
 		const descriptor = channel?.outputChannelDescriptor;
-		this.activeFileOutputChannelContext.set(!!descriptor?.file);
+		this.activeFileOutputChannelContext.set(descriptor?.files?.length === 1);
+		this.activeLogOutputChannelContext.set(!!descriptor?.log);
 		this.activeOutputChannelLevelSettableContext.set(descriptor !== undefined && SetLogLevelAction.isLevelSettable(descriptor));
 		this.setLevelIsDefaultContext();
 		this.setLevelContext();

@@ -168,23 +168,29 @@ export class InlineEditsView extends Disposable {
 
 		if (
 			this._useMixedLinesDiff.read(reader) === 'forStableInsertions'
-			&& isInsertionAfterPosition(diff, edit.cursorPosition)
+			&& isSingleLineInsertionAfterPosition(diff, edit.cursorPosition)
+			|| isSingleLineDeletion(diff)
 		) {
 			return { kind: 'ghostText' as const };
 		}
 
 		if (diff.length === 1 && diff[0].original.length === 1 && diff[0].modified.length === 1) {
 			const inner = diff.flatMap(d => d.innerChanges!);
+			const originalText = edit.originalText.getValueOfRange(inner[0].originalRange);
+			const modifiedText = newText.getValueOfRange(inner[0].modifiedRange);
 			if (inner.every(
 				m => (m.originalRange.isEmpty() && this._useWordInsertionView.read(reader) === 'whenPossible'
 					|| !m.originalRange.isEmpty() && this._useWordReplacementView.read(reader) === 'whenPossible')
 					&& TextLength.ofRange(m.originalRange).columnCount < 100
 					&& TextLength.ofRange(m.modifiedRange).columnCount < 100
+					// If multiple word replacements, check that they are all the same
+					&& edit.originalText.getValueOfRange(m.originalRange) === originalText
+					&& newText.getValueOfRange(m.modifiedRange) === modifiedText
 			)) {
 				return {
 					kind: 'wordReplacements' as const,
 					replacements: inner.map(i =>
-						new SingleTextEdit(i.originalRange, newText.getValueOfRange(i.modifiedRange))
+						new SingleTextEdit(i.originalRange, modifiedText)
 					)
 				};
 			}
@@ -205,7 +211,7 @@ export class InlineEditsView extends Disposable {
 	}
 }
 
-function isInsertionAfterPosition(diff: DetailedLineRangeMapping[], position: Position | null) {
+function isSingleLineInsertionAfterPosition(diff: DetailedLineRangeMapping[], position: Position | null) {
 	if (!position) {
 		return false;
 	}
@@ -229,5 +235,20 @@ function isInsertionAfterPosition(diff: DetailedLineRangeMapping[], position: Po
 			return true;
 		}
 		return false;
+	}
+}
+
+function isSingleLineDeletion(diff: DetailedLineRangeMapping[]): boolean {
+	return diff.every(m => m.innerChanges!.every(r => isDeletion(r)));
+
+	function isDeletion(r: RangeMapping) {
+		if (!r.modifiedRange.isEmpty()) {
+			return false;
+		}
+		const isDeletionWithinLine = r.originalRange.startLineNumber === r.originalRange.endLineNumber;
+		if (!isDeletionWithinLine) {
+			return false;
+		}
+		return true;
 	}
 }

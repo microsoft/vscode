@@ -1518,7 +1518,7 @@ export class Repository implements Disposable {
 	async getBranches(query: BranchQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return await this.run(Operation.GetBranches, async () => {
 			const refs = await this.getRefs(query, cancellationToken);
-			return refs.filter(value => (value.type === RefType.Head || value.type === RefType.RemoteHead) && (query.remote || !value.remote));
+			return refs.filter(value => value.type === RefType.Head || (value.type === RefType.RemoteHead && query.remote));
 		});
 	}
 

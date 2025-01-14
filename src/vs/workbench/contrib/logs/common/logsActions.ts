@@ -52,11 +52,11 @@ export class SetLogLevelAction extends Action {
 		const extensionLogs: LogChannelQuickPickItem[] = [], logs: LogChannelQuickPickItem[] = [];
 		const logLevel = this.loggerService.getLogLevel();
 		for (const channel of this.outputService.getChannelDescriptors()) {
-			if (!SetLogLevelAction.isLevelSettable(channel) || !channel.file) {
+			if (!SetLogLevelAction.isLevelSettable(channel) || channel.files?.length !== 1) {
 				continue;
 			}
-			const channelLogLevel = this.loggerService.getLogLevel(channel.file) ?? logLevel;
-			const item: LogChannelQuickPickItem = { id: channel.id, resource: channel.file, label: channel.label, description: channelLogLevel !== logLevel ? this.getLabel(channelLogLevel) : undefined, extensionId: channel.extensionId };
+			const channelLogLevel = this.loggerService.getLogLevel(channel.files[0]) ?? logLevel;
+			const item: LogChannelQuickPickItem = { id: channel.id, resource: channel.files[0], label: channel.label, description: channelLogLevel !== logLevel ? this.getLabel(channelLogLevel) : undefined, extensionId: channel.extensionId };
 			if (channel.extensionId) {
 				extensionLogs.push(item);
 			} else {
@@ -97,7 +97,7 @@ export class SetLogLevelAction extends Action {
 	}
 
 	static isLevelSettable(channel: IOutputChannelDescriptor): boolean {
-		return channel.log && channel.file !== undefined && channel.id !== telemetryLogId && channel.id !== extensionTelemetryLogChannelId;
+		return channel.log && channel.files?.length === 1 && channel.id !== telemetryLogId && channel.id !== extensionTelemetryLogChannelId;
 	}
 
 	private async setLogLevelForChannel(logChannel: LogChannelQuickPickItem): Promise<void> {
