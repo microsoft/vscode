@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto, ITerminalCompletionContextDto } from './extHost.protocol.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -27,6 +27,7 @@ import { TerminalQuickFix, ViewColumn } from './extHostTypeConverters.js';
 import { IExtHostCommands } from './extHostCommands.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
+// import { TerminalShellType, TerminalShellType } from 'vscode';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -269,19 +270,19 @@ export class ExtHostTerminal extends Disposable {
 
 	public setShellType(shellType: TerminalShellType | number | undefined): boolean {
 		let extHostType: vscode.TerminalShellType | undefined;
-		switch (shellType) {
-			case PosixShellType.Bash: extHostType = vscode.TerminalShellType.Bash;
-			case PosixShellType.Fish: extHostType = vscode.TerminalShellType.Fish;
-			case PosixShellType.Sh: extHostType = vscode.TerminalShellType.Sh;
-			case PosixShellType.Csh: extHostType = vscode.TerminalShellType.Csh;
-			case PosixShellType.Ksh: extHostType = vscode.TerminalShellType.Ksh;
-			case PosixShellType.Zsh: extHostType = vscode.TerminalShellType.Zsh;
-			case WindowsShellType.CommandPrompt: extHostType = vscode.TerminalShellType.CommandPrompt;
-			case WindowsShellType.GitBash: extHostType = vscode.TerminalShellType.GitBash;
-			case GeneralShellType.PowerShell: extHostType = vscode.TerminalShellType.PowerShell;
-			case GeneralShellType.Python: extHostType = vscode.TerminalShellType.Python;
-			case GeneralShellType.Julia: extHostType = vscode.TerminalShellType.Julia;
-			case GeneralShellType.NuShell: extHostType = vscode.TerminalShellType.NuShell;
+		switch (shellType) { // Following same order from proposed.terminalShellType.d.ts
+			case PosixShellType.Bash: extHostType = 1;
+			case PosixShellType.Fish: extHostType = 2;
+			case PosixShellType.Sh: extHostType = 3;
+			case PosixShellType.Csh: extHostType = 4;
+			case PosixShellType.Ksh: extHostType = 5;
+			case PosixShellType.Zsh: extHostType = 6;
+			case WindowsShellType.CommandPrompt: extHostType = 7;
+			case WindowsShellType.GitBash: extHostType = 8;
+			case GeneralShellType.PowerShell: extHostType = 9;
+			case GeneralShellType.Python: extHostType = 10;
+			case GeneralShellType.Julia: extHostType = 11;
+			case GeneralShellType.NuShell: extHostType = 12;
 		}
 
 		if (this._state.shellType !== shellType) {

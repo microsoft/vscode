@@ -11,18 +11,18 @@ declare module 'vscode' {
 	 * Known terminal shell types.
 	 */
 	export enum TerminalShellType {
-		Sh = 1,
-		CommandPrompt,
-		PowerShell,
-		GitBash,
-		Bash,
+		Bash = 1,
+		Fish,
+		Sh,
+		Csh,
+		Ksh,
 		Zsh,
+		CommandPrompt,
+		GitBash,
+		PowerShell,
 		Python,
 		Julia,
-		NuShell,
-		Fish,
-		Csh,
-		Ksh
+		NuShell
 	}
 
 	// NOTE: State since this the shellType can change multiple times and this comes with an event.
