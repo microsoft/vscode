@@ -98,6 +98,19 @@ export class InlineCompletionsModel extends Disposable {
 				}
 			}
 		}));
+		this._register(autorun(reader => {
+			/** @description handle text edits collapsing */
+			const inlineCompletions = this._source.inlineCompletions.read(reader);
+			if (!inlineCompletions) {
+				return;
+			}
+			for (const inlineCompletion of inlineCompletions.inlineCompletions) {
+				const singleEdit = inlineCompletion.toSingleTextEdit(reader);
+				if (singleEdit.isEmpty) {
+					this.stop();
+				}
+			}
+		}));
 
 		this._register(autorun(reader => {
 			this._editorObs.versionId.read(reader);
