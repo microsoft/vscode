@@ -236,28 +236,54 @@ suite('TerminalCompletionService', () => {
 				{ label: '/usr/../' }
 			], { replacementIndex: 0, replacementLength: 5 });
 		});
+		if (isWindows) {
+			if (isWindows) {
+				test('.\\folder | Case insensitivity should resolve correctly on Windows', async () => {
+					const resourceRequestConfig: TerminalResourceRequestConfig = {
+						cwd: URI.parse('file:///C:/test'),
+						foldersRequested: true,
+						pathSeparator: '\\'
+					};
+					validResources = [URI.parse('file:///C:/test')];
+					childResources = [
+						{ resource: URI.parse('file:///C:/test/FolderA/'), isDirectory: true }
+					];
 
-		test('./folder| Case sensitivity should resolve correctly on Mac/Unix', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
-				cwd: URI.parse('file:///test'),
-				foldersRequested: true,
-				pathSeparator: '/'
-			};
-			validResources = [URI.parse('file:///test')];
-			childResources = [
-				{ resource: URI.parse('file:///test/FolderA/'), isDirectory: true },
-				{ resource: URI.parse('file:///test/foldera/'), isDirectory: true }
-			];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder', 8, provider);
+					// Simulate case-insensitive completion handling
+					const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.\\folder', 8, provider);
 
-			assertCompletions(result, [
-				{ label: './', detail: 'test' },
-				{ label: './FolderA/' },
-				{ label: './foldera/' },
-				{ label: './../' }
-			], { replacementIndex: 0, replacementLength: 8 });
-		});
+					assertCompletions(result, [
+						{ label: '.\\', detail: 'test' },
+						{ label: '.\\FolderA\\' }, // Matches case-insensitively
+						{ label: '..\\' }
+					], { replacementIndex: 0, replacementLength: 8 });
+				});
+			}
+		} else {
+			test('./folder | Case sensitivity should resolve correctly on Mac/Unix', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.parse('file:///test'),
+					foldersRequested: true,
+					pathSeparator: '/'
+				};
+				validResources = [URI.parse('file:///test')];
+				childResources = [
+					{ resource: URI.parse('file:///test/FolderA/'), isDirectory: true },
+					{ resource: URI.parse('file:///test/foldera/'), isDirectory: true }
+				];
 
+				// Simulate case-sensitive completion handling
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder', 8, provider);
+
+				assertCompletions(result, [
+					{ label: './', detail: 'test' },
+					{ label: './FolderA/' }, // Case-sensitive match
+					{ label: './foldera/' }, // Case-sensitive match
+					{ label: './../' }
+				], { replacementIndex: 0, replacementLength: 8 });
+			});
+
+		}
 		test('| Empty input should resolve to current directory', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),

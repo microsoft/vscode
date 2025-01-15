@@ -185,6 +185,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string): Promise<ITerminalCompletion[] | undefined> {
+		const resolvedPromptValue = promptValue.replaceAll(/[\\/]/g, resourceRequestConfig.pathSeparator);
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
@@ -198,7 +199,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		const resourceCompletions: ITerminalCompletion[] = [];
-		const cursorPrefix = promptValue.substring(0, cursorPosition);
+		const cursorPrefix = resolvedPromptValue.substring(0, cursorPosition);
 
 		// The last word (or argument). When the cursor is following a space it will be the empty
 		// string
