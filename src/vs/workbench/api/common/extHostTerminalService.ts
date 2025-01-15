@@ -267,7 +267,7 @@ export class ExtHostTerminal extends Disposable {
 		return false;
 	}
 
-	public setShellType(shellType: TerminalShellType | number | undefined): boolean {
+	public setShellType(shellType: TerminalShellType | undefined): boolean {
 		let extHostType: vscode.TerminalShellType | undefined;
 		// Problem: Turns out shellType is a string, so we need to map it..
 
