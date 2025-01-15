@@ -120,6 +120,7 @@ export class WordReplacementView extends Disposable {
 						borderRadius: '4px',
 						boxSizing: 'border-box',
 						background: 'var(--vscode-inlineEdit-originalChangedTextBackground)',
+						pointerEvents: 'none',
 					}
 				}, []),
 				n.div({
@@ -131,6 +132,7 @@ export class WordReplacementView extends Disposable {
 						border: '1px solid var(--vscode-editorHoverWidget-border)',
 						//background: 'rgba(122, 122, 122, 0.12)', looks better
 						background: 'var(--vscode-inlineEdit-wordReplacementView-background)',
+						pointerEvents: 'none',
 					}
 				}, []),
 
