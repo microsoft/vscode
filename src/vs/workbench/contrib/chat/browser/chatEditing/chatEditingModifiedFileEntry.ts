@@ -134,6 +134,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	private readonly _diffTrimWhitespace: IObservable<boolean>;
 
+	private _refCounter: number = 1;
+
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
@@ -197,6 +199,17 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this._diffTrimWhitespace.read(r);
 			this._updateDiffInfoSeq();
 		}));
+	}
+
+	override dispose(): void {
+		if (--this._refCounter === 0) {
+			super.dispose();
+		}
+	}
+
+	acquire() {
+		this._refCounter++;
+		return this;
 	}
 
 	private _clearCurrentEditLineDecoration() {

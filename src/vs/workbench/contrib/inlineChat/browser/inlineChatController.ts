@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { Barrier, DeferredPromise, Queue } from '../../../../base/common/async.js';
+import { Barrier, DeferredPromise, Queue, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -38,11 +38,10 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
-import { ChatEditingSession } from '../../chat/browser/chatEditing/chatEditingSession.js';
-import { ChatEditorOverlayWidget } from '../../chat/browser/chatEditorOverlay.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
@@ -147,6 +146,7 @@ export class InlineChatController implements IEditorContribution {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 	) {
@@ -1137,42 +1137,56 @@ export class InlineChatController implements IEditorContribution {
 		return this._currentRun;
 	}
 
-	async reviewEdits(anchor: IRange, stream: AsyncIterable<TextEdit[]>, token: CancellationToken) {
+	async reviewEdits(stream: AsyncIterable<TextEdit[]>, token: CancellationToken) {
 		if (!this._editor.hasModel()) {
 			return false;
 		}
 
 		const uri = this._editor.getModel().uri;
 		const chatModel = this._chatService.startSession(ChatAgentLocation.Editor, token);
-		const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
 
-		if (!chatModel || !chatRequest?.response) {
+		if (!chatModel) {
 			return false;
 		}
 
-		const editSession = this._instaService.createInstance(ChatEditingSession, chatModel.sessionId, Promise.resolve(Number.MAX_SAFE_INTEGER));
-		await editSession.init();
+		const editSession = await this._chatEditingService.createAdhocEditingSession(chatModel.sessionId);
 
-		const overlay = this._instaService.createInstance(ChatEditorOverlayWidget, this._editor);
-		const dddd = autorun(r => {
-			const entry = editSession.readEntry(uri, r);
-			if (entry) {
-				overlay.show(editSession, entry, entry);
-			} else {
-				overlay.hide();
-			}
-		});
+		//
+		const store = new DisposableStore();
+		store.add(chatModel);
+		store.add(editSession);
 
 		// STREAM
-		editSession.acceptTextEdits(this._editor.getModel().uri, [], false, chatRequest.response);
+		const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
+		assertType(chatRequest.response);
+		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
 		for await (const chunk of stream) {
-			editSession.acceptTextEdits(this._editor.getModel().uri, chunk, false, chatRequest.response);
-		}
-		editSession.acceptTextEdits(this._editor.getModel().uri, [], true, chatRequest.response);
-		editSession.resolve();
 
-		dddd.dispose();
-		editSession.dispose();
+			if (token.isCancellationRequested) {
+				chatRequest.response.cancel();
+				break;
+			}
+
+			chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: chunk, done: false });
+		}
+		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
+
+		if (!token.isCancellationRequested) {
+			chatRequest.response.complete();
+		}
+
+		const whenDecided = new Promise(resolve => {
+			store.add(autorun(r => {
+				if (!editSession.entries.read(r).some(e => e.state.read(r) === WorkingSetEntryState.Modified)) {
+					resolve(undefined);
+				}
+			}));
+		});
+
+		await raceCancellation(whenDecided, token);
+
+		store.dispose();
+
 		return true;
 	}
 }

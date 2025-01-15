@@ -73,8 +73,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -92,27 +92,31 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 
 		this._store.add(autorun(r => {
-			const session = this._chatEditingService.currentEditingSessionObs.read(r);
-			this._ctxRequestInProgress.set(session?.state.read(r) === ChatEditingSessionState.StreamingEdits);
+			let isStreamingEdits = false;
+			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
+				isStreamingEdits ||= session.state.read(r) === ChatEditingSessionState.StreamingEdits;
+			}
+			this._ctxRequestInProgress.set(isStreamingEdits);
 		}));
-
 
 		const entryForEditor = derived(r => {
 			const model = modelObs.read(r);
-			const session = this._chatEditingService.currentEditingSessionObs.read(r);
-			if (!session) {
-				return undefined;
+			if (!model) {
+				return;
 			}
 
-			const entries = session.entries.read(r);
-			const idx = model?.uri
-				? entries.findIndex(e => isEqual(e.modifiedURI, model.uri))
-				: -1;
+			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
+				const entries = session.entries.read(r);
+				const idx = model?.uri
+					? entries.findIndex(e => isEqual(e.modifiedURI, model.uri))
+					: -1;
 
-			if (idx < 0) {
-				return undefined;
+				if (idx >= 0) {
+					return { session, entry: entries[idx], entries, idx };
+				}
 			}
-			return { session, entry: entries[idx], entries, idx };
+
+			return undefined;
 		});
 
 
@@ -185,13 +189,17 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		// ---- readonly while streaming
 
 		const shouldBeReadOnly = derived(this, r => {
-			const value = this._chatEditingService.currentEditingSessionObs.read(r);
-			if (!value || value.state.read(r) !== ChatEditingSessionState.StreamingEdits) {
-				return false;
-			}
 
 			const model = modelObs.read(r);
-			return model ? value.readEntry(model.uri, r) : undefined;
+			if (!model) {
+				return undefined;
+			}
+			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
+				if (session.readEntry(model.uri, r) && session.state.read(r) === ChatEditingSessionState.StreamingEdits) {
+					return true;
+				}
+			}
+			return false;
 		});
 
 
@@ -570,7 +578,14 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			return;
 		}
 
-		const entry = this._chatEditingService.currentEditingSessionObs.get()?.getEntry(this._editor.getModel().uri);
+		let entry: IModifiedFileEntry | undefined;
+		for (const session of this._chatEditingService.editingSessionsObs.get()) {
+			entry = session.getEntry(this._editor.getModel().uri);
+			if (entry) {
+				break;
+			}
+		}
+
 		if (!entry) {
 			return;
 		}

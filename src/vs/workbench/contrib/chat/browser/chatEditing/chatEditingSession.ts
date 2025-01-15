@@ -163,6 +163,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	constructor(
 		public readonly chatSessionId: string,
 		private editingSessionFileLimitPromise: Promise<number>,
+		private _lookupExternalEntry: (uri: URI) => ChatEditingModifiedFileEntry | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -670,23 +671,39 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 			return existingEntry;
 		}
-		const initialContent = this._initialFileContents.get(resource);
-		// This gets manually disposed in .dispose() or in .restoreSnapshot()
-		const entry = await this._createModifiedFileEntry(resource, responseModel, false, initialContent);
-		if (!initialContent) {
-			this._initialFileContents.set(resource, entry.initialContent);
+
+		let entry: ChatEditingModifiedFileEntry;
+		const existingExternalEntry = this._lookupExternalEntry(resource);
+		if (existingExternalEntry) {
+			entry = existingExternalEntry;
+		} else {
+			const initialContent = this._initialFileContents.get(resource);
+			// This gets manually disposed in .dispose() or in .restoreSnapshot()
+			entry = await this._createModifiedFileEntry(resource, responseModel, false, initialContent);
+			if (!initialContent) {
+				this._initialFileContents.set(resource, entry.initialContent);
+			}
 		}
+
 		// If an entry is deleted e.g. reverting a created file,
 		// remove it from the entries and don't show it in the working set anymore
 		// so that it can be recreated e.g. through retry
-		this._register(entry.onDidDelete(() => {
+		const listener = entry.onDidDelete(() => {
 			const newEntries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, entry.modifiedURI));
 			this._entriesObs.set(newEntries, undefined);
 			this._workingSet.delete(entry.modifiedURI);
 			this._editorService.closeEditors(this._editorService.findEditors(entry.modifiedURI));
-			entry.dispose();
+
+			if (!existingExternalEntry) {
+				// don't dispose entries that are not yours!
+				entry.dispose();
+			}
+
+			this._store.delete(listener);
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-		}));
+		});
+		this._store.add(listener);
+
 		const entriesArr = [...this._entriesObs.get(), entry];
 		this._entriesObs.set(entriesArr, undefined);
 		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
