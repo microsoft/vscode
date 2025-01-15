@@ -53,10 +53,7 @@ const enum WidgetPositionPreference {
 }
 
 export const SimpleSuggestContext = {
-	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('suggestWidgetHasSelection', "Whether any suggestion is focused")),
-	// DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
-	// MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
-	// Visible: new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether the suggest widget is visible")),};
+	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('simpleSuggestWidgetHasFocusedSuggestion', "Whether any simple suggestion is focused")),
 };
 
 export interface IWorkbenchSuggestWidgetOptions {
