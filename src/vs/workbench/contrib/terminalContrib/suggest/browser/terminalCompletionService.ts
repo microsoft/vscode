@@ -249,7 +249,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// Handle absolute paths differently to avoid adding `./` prefixes
-		const isAbsolutePath = lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator);
+		const isAbsolutePath = isWindows
+			? /^[a-zA-Z]:\\/.test(lastWord)
+			: lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator);
 
 		// Add all direct children files or folders
 		//
