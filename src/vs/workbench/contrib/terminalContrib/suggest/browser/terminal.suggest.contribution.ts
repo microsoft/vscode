@@ -153,7 +153,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
 		}
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-		this.add(this._ctx.instance.onDidBlur(() => addon.hideSuggestWidget()));
+		this.add(this._ctx.instance.onDidBlur(() => addon.hideSuggestWidget(true)));
 		this.add(addon.onAcceptedCompletion(async text => {
 			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
@@ -261,6 +261,19 @@ registerActiveInstanceAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Slash,
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleExplainMode()
+});
+
+registerActiveInstanceAction({
+	id: 'terminalSuggestToggleSuggestionFocus',
+	title: localize2('workbench.action.terminal.suggestToggleSuggestionFocus', 'Suggest Toggle Suggestion Focus'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, ContextKeyExpr.or(TerminalContextKeys.focus, SimpleSuggestContext.DetailsFocused)),
+	keybinding: {
+		weight: KeybindingWeight.WorkbenchContrib + 50,
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
+		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleSuggestionFocus()
 });
 
 registerActiveInstanceAction({

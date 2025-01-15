@@ -230,6 +230,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.toggleExplainMode();
 	}
 
+	toggleSuggestionFocus(): void {
+		this._suggestWidget?.toggleDetailsFocus();
+	}
+
 	toggleSuggestionDetails(): void {
 		this._suggestWidget?.toggleDetails();
 	}
@@ -526,12 +530,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this.hideSuggestWidget();
 	}
 
-	hideSuggestWidget(): void {
+	hideSuggestWidget(fromTerminalBlur?: boolean): void {
 		this._cancellationTokenSource?.cancel();
 		this._cancellationTokenSource = undefined;
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
-		this._suggestWidget?.hide();
+		this._suggestWidget?.hide(fromTerminalBlur);
 	}
 }
 
