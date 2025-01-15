@@ -234,7 +234,7 @@ suite('TerminalCompletionService', () => {
 				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/usr/', 5, provider);
 
 				assertCompletions(result, [
-					{ label: '/usr/', detail: '/usr/' },
+					{ label: '/usr/', detail: '/' },
 					{ label: '/usr/../', detail: '/' }
 				], { replacementIndex: 0, replacementLength: 5 });
 			});
@@ -280,10 +280,10 @@ suite('TerminalCompletionService', () => {
 				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder', 8, provider);
 
 				assertCompletions(result, [
-					{ label: './', detail: 'test' },
+					{ label: './', detail: '/test/' },
 					{ label: './FolderA/' },
 					{ label: './foldera/' },
-					{ label: './../' }
+					{ label: './../', detail: '/' }
 				], { replacementIndex: 0, replacementLength: 8 });
 			});
 
