@@ -30,7 +30,7 @@ import { assertNoRpc } from '../utils';
 		disposables.length = 0;
 	});
 
-	function createTerminalAndWaitForShellIntegration(): Promise<{ terminal: Terminal; shellIntegration: TerminalShellIntegration }> {
+	function createTerminalAndWaitForShellIntegration(shellPath?: string): Promise<{ terminal: Terminal; shellIntegration: TerminalShellIntegration }> {
 		return new Promise<{ terminal: Terminal; shellIntegration: TerminalShellIntegration }>(resolve => {
 			disposables.push(window.onDidChangeTerminalShellIntegration(e => {
 				if (e.terminal === terminal) {
@@ -42,7 +42,7 @@ import { assertNoRpc } from '../utils';
 			}));
 			const terminal = platform() === 'win32'
 				? window.createTerminal()
-				: window.createTerminal({ shellPath: '/bin/bash' });
+				: window.createTerminal({ shellPath: shellPath ?? '/bin/bash' });
 			terminal.show();
 		});
 	}
@@ -102,7 +102,22 @@ import { assertNoRpc } from '../utils';
 			ok(shellIntegration.env.PATH);
 			ok(shellIntegration.env.PATH.length > 0, 'env.PATH should have a length greater than 0');
 		});
+
+		test.skip('Test if zsh env is set', async () => {
+			const { shellIntegration } = await createTerminalAndWaitForShellIntegration('/bin/zsh');
+			await new Promise<void>(r => {
+				disposables.push(window.onDidChangeTerminalShellIntegration(e => {
+					if (e.shellIntegration.env) {
+						r();
+					}
+				}));
+			});
+			ok(shellIntegration.env);
+			ok(shellIntegration.env.PATH);
+			ok(shellIntegration.env.PATH.length > 0, 'env.PATH should have a length greater than 0');
+		});
 	}
+
 
 	test('execution events should fire in order when a command runs', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();

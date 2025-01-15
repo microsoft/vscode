@@ -111,6 +111,17 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "${PWD}")"
 }
 
+__vsc_update_env() {
+	builtin printf '\e]633;EnvStart;%s;\a' $__vsc_nonce
+	for var in ${(k)parameters}; do
+		if printenv "$var" >/dev/null 2>&1; then
+			value=$(builtin printf '%s' "${(P)var}")
+			builtin printf '\e]633;EnvEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
+		fi
+	done
+	builtin printf '\e]633;EnvEnd;%s;\a' $__vsc_nonce
+}
+
 __vsc_command_output_start() {
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 	builtin printf '\e]633;C\a'
@@ -139,6 +150,8 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
+	# Is there stable/insider flag in zsh?
+	__vsc_update_env
 }
 
 if [[ -o NOUNSET ]]; then
@@ -173,6 +186,8 @@ __vsc_precmd() {
 		# non null
 		__vsc_update_prompt
 	fi
+	# TODO: Is there stable/insider flag in zsh?
+	__vsc_update_env
 }
 
 __vsc_preexec() {
