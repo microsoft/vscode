@@ -1912,7 +1912,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (shellType) {
 			this._shellType = shellType;
 			this._terminalShellTypeContextKey.set(shellType?.toString());
-			this._onDidChangeShellType.fire(shellType); //shellType here is string... WHY
+			this._onDidChangeShellType.fire(shellType);
 		}
 	}
 
