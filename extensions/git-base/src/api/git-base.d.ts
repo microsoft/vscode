@@ -9,7 +9,8 @@ export { ProviderResult } from 'vscode';
 export interface API {
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]>;
-	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[]>;
+	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[] | undefined>;
+	provideRemoteSourceLinks(url: string, content: string): Promise<string | undefined>;
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
 }
 
@@ -85,4 +86,5 @@ export interface RemoteSourceProvider {
 	getRemoteSourceControlHistoryItemCommands?(url: string): ProviderResult<Command[]>;
 	getRecentRemoteSources?(query?: string): ProviderResult<RecentRemoteSource[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
+	provideRemoteSourceLinks?(url: string, content: string): Promise<string | undefined>;
 }

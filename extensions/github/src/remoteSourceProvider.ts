@@ -7,7 +7,7 @@ import { Command, Uri, env, l10n, workspace } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
-import { getRepositoryFromQuery, getRepositoryFromUrl } from './util';
+import { getRepositoryFromQuery, getRepositoryFromUrl, ISSUE_EXPRESSION } from './util';
 import { getBranchLink, getVscodeDevHost } from './links';
 
 function asRemoteSource(raw: any): RemoteSource {
@@ -137,10 +137,10 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}];
 	}
 
-	async getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[]> {
+	async getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[] | undefined> {
 		const repository = getRepositoryFromUrl(url);
 		if (!repository) {
-			return [];
+			return undefined;
 		}
 
 		return [{
@@ -149,5 +149,29 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 			command: 'github.openOnGitHub',
 			arguments: [url]
 		}];
+	}
+
+	provideRemoteSourceLinks(url: string, content: string): string | undefined {
+		const repository = getRepositoryFromUrl(url);
+		if (!repository) {
+			return undefined;
+		}
+
+		return content.replace(
+			ISSUE_EXPRESSION,
+			(match, _group1, owner: string | undefined, repo: string | undefined, _group2, number: string | undefined) => {
+				if (!number || Number.isNaN(parseInt(number))) {
+					return match;
+				}
+
+				const label = owner && repo
+					? `${owner}/${repo}#${number}`
+					: `#${number}`;
+
+				owner = owner ?? repository.owner;
+				repo = repo ?? repository.repo;
+
+				return `[${label}](https://github.com/${owner}/${repo}/issues/${number})`;
+			});
 	}
 }

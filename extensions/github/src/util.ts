@@ -37,3 +37,5 @@ export function getRepositoryFromQuery(query: string): { owner: string; repo: st
 export function repositoryHasGitHubRemote(repository: Repository) {
 	return !!repository.state.remotes.find(remote => remote.fetchUrl ? getRepositoryFromUrl(remote.fetchUrl) : undefined);
 }
+
+export const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9][0-9]*)($|\b)/g;

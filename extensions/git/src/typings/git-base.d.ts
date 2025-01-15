@@ -9,8 +9,9 @@ export { ProviderResult } from 'vscode';
 export interface API {
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]>;
-	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[]>;
+	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[] | undefined>;
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
+	provideRemoteSourceLinks(url: string, content: string): Promise<string | undefined>;
 }
 
 export interface GitBaseExtension {

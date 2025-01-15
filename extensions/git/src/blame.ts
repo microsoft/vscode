@@ -12,7 +12,7 @@ import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
-import { getRemoteSourceControlHistoryItemCommands } from './remoteSource';
+import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceLinks } from './remoteSource';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -205,6 +205,7 @@ export class GitBlameController {
 
 	async getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation, includeCommitDetails = false): Promise<MarkdownString> {
 		let commitInformation: Commit | undefined;
+		let commitMessageWithLinks: string | undefined;
 		const remoteSourceCommands: Command[] = [];
 
 		const repository = this._model.getRepository(documentUri);
@@ -217,12 +218,15 @@ export class GitBlameController {
 			}
 
 			// Remote commands
-			const defaultRemote = repository.getDefaultRemote();
 			const unpublishedCommits = await repository.getUnpublishedCommits();
-
-			if (defaultRemote?.fetchUrl && !unpublishedCommits.has(blameInformation.hash)) {
-				remoteSourceCommands.push(...await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl));
+			if (!unpublishedCommits.has(blameInformation.hash)) {
+				remoteSourceCommands.push(...await getRemoteSourceControlHistoryItemCommands(repository));
 			}
+
+			// Link provider
+			commitMessageWithLinks = await provideRemoteSourceLinks(
+				repository,
+				commitInformation?.message ?? blameInformation.subject ?? '');
 		}
 
 		const markdownString = new MarkdownString();
@@ -254,7 +258,7 @@ export class GitBlameController {
 		}
 
 		// Subject | Message
-		markdownString.appendMarkdown(`${emojify(commitInformation?.message ?? blameInformation.subject ?? '')}\n\n`);
+		markdownString.appendMarkdown(`${emojify(commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '')}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
 		// Short stats
