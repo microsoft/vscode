@@ -253,6 +253,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// Handle absolute paths differently to avoid adding `./` prefixes
+		// TODO: Deal with git bash case
 		const isAbsolutePath = useForwardSlash
 			? /^[a-zA-Z]:\\/.test(lastWord)
 			: lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator);
