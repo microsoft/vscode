@@ -233,7 +233,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			}
 
 			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteSourceCommands : [];
-			const messageWithLinks = await provideRemoteSourceDocumentLinks(repo, c.message) ?? message;
+			const messageWithLinks = await provideRemoteSourceDocumentLinks(repo, message) ?? message;
 
 			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), messageWithLinks, c.shortStat, commitRemoteSourceCommands);
 

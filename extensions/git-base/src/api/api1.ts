@@ -21,7 +21,7 @@ export class ApiImpl implements API {
 		return getRemoteSourceActions(this._model, url);
 	}
 
-	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[]> {
+	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[] | undefined> {
 		return getRemoteSourceControlHistoryItemCommands(this._model, url);
 	}
 

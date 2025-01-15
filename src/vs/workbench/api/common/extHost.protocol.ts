@@ -1603,6 +1603,7 @@ export interface SCMHistoryItemRefsChangeEventDto {
 export interface SCMHistoryItemDto {
 	readonly id: string;
 	readonly parentIds: string[];
+	readonly subject: string;
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
