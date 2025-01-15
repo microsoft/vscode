@@ -35,11 +35,6 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 
 class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
-	private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
-	private readonly _interfaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
-	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
-	private readonly _fieldLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
-
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly cachedResponse: CachedResponse<Proto.NavTreeResponse>,
@@ -61,39 +56,6 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		const result: vscode.DocumentSymbol[] = [];
 		for (const item of response.body.childItems) {
 			TypeScriptDocumentSymbolProvider.convertNavTree(document.uri, result, item);
-		}
-
-		const activeTextEditor = vscode.window.activeTextEditor;
-		if (activeTextEditor) {
-			const classRanges: vscode.Range[] = [];
-			const functionRanges: vscode.Range[] = [];
-			const fieldRanges: vscode.Range[] = [];
-
-			for (const res of result) {
-				switch (res.kind) {
-					case (vscode.SymbolKind.Class): {
-						classRanges.push(new vscode.Range(res.range.start.line, 1, res.range.start.line, 1));
-						break;
-					}
-					case (vscode.SymbolKind.Interface): {
-						classRanges.push(new vscode.Range(res.range.start.line, 1, res.range.start.line, 1));
-						break;
-					}
-					case (vscode.SymbolKind.Function): {
-						functionRanges.push(new vscode.Range(res.range.start.line, 1, res.range.start.line, 1));
-						break;
-					}
-					case (vscode.SymbolKind.Field): {
-						fieldRanges.push(new vscode.Range(res.range.start.line, 1, res.range.start.line, 1));
-						break;
-					}
-				}
-			}
-			console.log('classRanges : ', classRanges);
-			activeTextEditor.setDecorations(this._classLineHeightDecorationType, classRanges);
-			activeTextEditor.setDecorations(this._interfaceLineHeightDecorationType, classRanges);
-			activeTextEditor.setDecorations(this._methodLineHeightDecorationType, functionRanges);
-			activeTextEditor.setDecorations(this._fieldLineHeightDecorationType, fieldRanges);
 		}
 		return result;
 	}

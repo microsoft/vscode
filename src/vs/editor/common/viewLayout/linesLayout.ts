@@ -399,7 +399,6 @@ export class LinesLayout {
 	 * Add special line height
 	 */
 	public addSpecialLineHeight(lineNumber: number, height: number): void {
-		console.log('addSpecialLineHeight', lineNumber, height);
 		this._specialLineHeights.set(lineNumber, height);
 	}
 
@@ -407,7 +406,6 @@ export class LinesLayout {
 	 * Remove special line height
 	 */
 	public removeSpecialLineHeight(lineNumber: number): void {
-		console.log('removeSpecialLineHeight', lineNumber);
 		this._specialLineHeights.delete(lineNumber);
 	}
 
