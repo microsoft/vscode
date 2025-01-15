@@ -531,7 +531,7 @@ export class SimpleSuggestWidget extends Disposable {
 		if (this._isDetailsVisible()) {
 			// hide details widget
 			this._pendingShowDetails.clear();
-			// this.focus.set(false);
+			// this._ctxSuggestWidgetDetailsVisible.set(false);
 
 			this._setDetailsVisible(false);
 			this._details.hide();
@@ -542,7 +542,7 @@ export class SimpleSuggestWidget extends Disposable {
 			// this._ctxSuggestWidgetDetailsVisible.set(true);
 
 			this._setDetailsVisible(true);
-			this._showDetails(false, false);
+			this._showDetails(false, focused);
 		}
 	}
 
