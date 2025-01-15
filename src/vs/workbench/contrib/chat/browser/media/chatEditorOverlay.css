@@ -91,16 +91,20 @@
 }
 
 .chat-editor-overlay-widget .action-item.auto > .action-label {
-	background: linear-gradient(90deg, var(--vscode-button-foreground) 0%, var(--vscode-editorGutter-addedBackground) 30%, var(--vscode-button-foreground) 60%);
-	background-size: 300% 100%;
+	animation: textShift 5s linear infinite alternate;
+	background: linear-gradient(90deg,
+		var(--vscode-button-foreground) 0%,
+		var(--vscode-button-foreground) 45%,
+		var(--vscode-editorGutter-addedBackground) 50%,
+		var(--vscode-button-foreground) 55%,
+		var(--vscode-button-foreground) 100%);
+	background-size: 200% 100%;
 	color: transparent;
 	-webkit-background-clip: text;
 	background-clip: text;
-	animation: gradientMove 12s linear infinite;
-	font-variant-numeric: tabular-nums;
 }
 
-@keyframes gradientMove {
+@keyframes textShift {
 	0% { background-position: 100% 50%; }
-	100% { background-position: -100% 50%; }
+	100% { background-position: 0% 50%; }
 }
