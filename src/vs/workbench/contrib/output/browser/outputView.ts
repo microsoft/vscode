@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { AbstractTextResourceEditor } from '../../../browser/parts/editor/textResourceEditor.js';
-import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, LOG_ENTRY_REGEX, parseLogEntries, ILogEntry } from '../../../services/output/common/output.js';
+import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, parseLogEntries, ILogEntry, parseLogEntryAt } from '../../../services/output/common/output.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -397,8 +397,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 	private computeLogEntries(model: ITextModel): void {
 		this.logEntries = undefined;
-		const firstLine = model.getLineContent(1);
-		if (!LOG_ENTRY_REGEX.test(firstLine)) {
+		if (!parseLogEntryAt(model, 1)) {
 			return;
 		}
 
@@ -423,7 +422,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 		const findMatchesDecorations: IModelDeltaDecoration[] = [];
 
 		if (this.logEntries) {
-			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || filters.error;
+			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error;
 			if (hasLogLevelFilter || filters.text) {
 				for (let i = from; i < this.logEntries.length; i++) {
 					const entry = this.logEntries[i];

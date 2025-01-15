@@ -10,20 +10,8 @@ import { BaseToken } from '../../../common/codecs/baseToken.js';
 import { assertDefined } from '../../../../base/common/types.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { WriteableStream } from '../../../../base/common/stream.js';
+import { randomBoolean } from '../../../../base/test/common/testUtils.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-
-/**
- * (pseudo)Random boolean generator.
- *
- * ## Examples
- *
- * ```typsecript
- * randomBoolean(); // generates either `true` or `false`
- * ```
- */
-const randomBoolean = (): boolean => {
-	return Math.random() > 0.5;
-};
 
 /**
  * A reusable test utility that asserts that the given decoder
