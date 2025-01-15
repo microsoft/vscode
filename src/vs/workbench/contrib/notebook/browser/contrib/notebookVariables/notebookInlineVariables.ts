@@ -66,18 +66,6 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 				await this.updateInlineVariables(e);
 			}
 		}));
-
-		// !not necessary, only clearing on cell content changes that have deco's
-		// this._register(this.notebookEditor.onDidChangeModel(e => {
-		// 	if (e) {
-		// 		this.notebookTextModel = e;
-		// 		this.clearNotebookInlineDecorations();
-
-		// 	} else {
-		// 		this.notebookTextModel = undefined;
-		// 		this.cellContentListener.clear();
-		// 	}
-		// }));
 	}
 
 	private async updateInlineVariables(event: ICellExecutionStateChangedEvent): Promise<void> {
@@ -343,6 +331,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 	override dispose(): void {
 		super.dispose();
+		this._clearNotebookInlineDecorations();
 	}
 }
 
