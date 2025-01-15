@@ -3,12 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from './event.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 
 /**
- * Disposable class that tracks its own {@linkcode disposed} state.
+ * Disposable object that tracks its {@linkcode disposed} state as
+ * a public attribute.
  */
 export class TrackedDisposable extends Disposable {
+	/**
+	 * Private emitter for the `onDispose` event.
+	 */
+	private readonly _onDispose = this._register(new Emitter<void>());
+
+	/**
+	 * The event is fired when this object is disposed.
+	 * @param callback The callback function to be called on updates.
+	 */
+	public onDispose(callback: () => void): void {
+		this._onDispose.event(callback);
+	}
 
 	/**
 	 * Tracks disposed state of this object.
@@ -32,6 +46,7 @@ export class TrackedDisposable extends Disposable {
 		}
 
 		this._disposed = true;
+		this._onDispose.fire();
 		super.dispose();
 	}
 }
