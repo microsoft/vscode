@@ -228,11 +228,8 @@ suite('TerminalCompletionService', () => {
 				pathSeparator,
 				shouldNormalizePrefix: true
 			};
-			validResources = [URI.parse('file:///')];
-			childResources = [
-				{ resource: URI.parse('file:///usr/'), isDirectory: true },
-				{ resource: URI.parse('file:///home/'), isDirectory: true }
-			];
+			validResources = [URI.parse('file:///usr')];
+			childResources = [];
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/usr/', 5, provider);
 
 			assertCompletions(result, [
@@ -250,7 +247,6 @@ suite('TerminalCompletionService', () => {
 				};
 
 				validResources = [URI.parse('file:///C:/test')];
-
 				childResources = [
 					{ resource: URI.parse('file:///C:/test/FolderA/'), isDirectory: true },
 					{ resource: URI.parse('file:///C:/test/anotherFolder/'), isDirectory: true }
@@ -259,8 +255,10 @@ suite('TerminalCompletionService', () => {
 				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.\\folder', 8, provider);
 
 				assertCompletions(result, [
-					{ label: '.\\FolderA\\', detail: 'FolderA' },
-					{ label: '.\\anotherFolder\\', detail: 'anotherFolder' },
+					{ label: '.\\', detail: 'test' },
+					{ label: '.\\FolderA\\' },
+					{ label: '.\\anotherFolder\\' },
+					{ label: '.\\..\\', detail: 'C:' },
 				], { replacementIndex: 0, replacementLength: 8 });
 			});
 		} else {

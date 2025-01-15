@@ -226,6 +226,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			lastWordFolder = lastWordFolder.replaceAll('/', '\\');
 		}
 
+		const lastWordFolderHasDotPrefix = lastWordFolder.match(/^\.\.?[\\\/]/);
+
 		// Add current directory. This should be shown at the top because it will be an exact match
 		// and therefore highlight the detail, plus it improves the experience when runOnEnter is
 		// used.
@@ -272,8 +274,14 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				const isDirectory = kind === TerminalCompletionItemKind.Folder;
 				const resourceName = basename(stat.resource.fsPath);
 
-				// Add a . to the start of the path if there isn't one already
-				let label = !/^\.\.?\//.test(lastWordFolder) ? `.${resourceRequestConfig.pathSeparator}${resourceName}` : `${lastWordFolder}${resourceName}`;
+				let label = `${lastWordFolder}${resourceName}`;
+
+				// Normalize suggestion to add a ./ prefix to the start of the path if there isn't
+				// one already. We may want to change this behavior in the future to go with
+				// whatever format the user has
+				if (!lastWordFolderHasDotPrefix) {
+					label = `.${resourceRequestConfig.pathSeparator}${label}`;
+				}
 
 				// Ensure directories end with a path separator
 				if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
