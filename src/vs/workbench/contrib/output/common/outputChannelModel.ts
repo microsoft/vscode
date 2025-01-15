@@ -9,11 +9,11 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { Promises, ThrottledDelayer } from '../../../../base/common/async.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageSelection } from '../../../../editor/common/languages/language.js';
-import { Disposable, toDisposable, IDisposable, MutableDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable, IDisposable, MutableDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../base/common/types.js';
 import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -21,8 +21,9 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../platform/log/common/log.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { OutputChannelUpdateMode } from '../../../services/output/common/output.js';
+import { LOG_ENTRY_REGEX, LOG_MIME, OutputChannelUpdateMode, parseLogEntryAt } from '../../../services/output/common/output.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { TextModel } from '../../../../editor/common/model/textModel.js';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDispose: Event<void>;
@@ -31,6 +32,11 @@ export interface IOutputChannelModel extends IDisposable {
 	loadModel(): Promise<ITextModel>;
 	clear(): void;
 	replace(value: string): void;
+}
+
+export interface IOutputChannelFileInfo {
+	readonly name: string;
+	readonly file: URI;
 }
 
 interface IContentProvider {
@@ -56,13 +62,18 @@ class FileContentProvider extends Disposable implements IContentProvider {
 	private startOffset: number = 0;
 	private endOffset: number = 0;
 
+	private readonly file: URI;
+	private readonly name: string;
+
 	constructor(
-		private readonly file: URI,
+		{ name, file }: IOutputChannelFileInfo,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
+		this.name = name;
+		this.file = file;
 		this.syncDelayer = new ThrottledDelayer<void>(500);
 		this._register(toDisposable(() => this.unwatch()));
 	}
@@ -120,11 +131,12 @@ class FileContentProvider extends Disposable implements IContentProvider {
 		}
 	}
 
-	async getContent(): Promise<{ readonly content: string; readonly consume: () => void }> {
+	async getContent(): Promise<{ readonly name: string; readonly content: string; readonly consume: () => void }> {
 		try {
 			const content = await this.fileService.readFile(this.file, { position: this.endOffset });
 			let consumed = false;
 			return {
+				name: this.name,
 				content: content.value.toString(),
 				consume: () => {
 					if (!consumed) {
@@ -139,6 +151,7 @@ class FileContentProvider extends Disposable implements IContentProvider {
 				throw error;
 			}
 			return {
+				name: this.name,
 				content: '',
 				consume: () => { /* No Op */ }
 			};
@@ -146,10 +159,81 @@ class FileContentProvider extends Disposable implements IContentProvider {
 	}
 }
 
+class MultiFileContentProvider extends Disposable implements IContentProvider {
+
+	readonly onDidAppend: Event<void>;
+	readonly onDidReset = Event.None;
+
+	private readonly fileOutputs: ReadonlyArray<FileContentProvider> = [];
+
+	constructor(
+		filesInfos: IOutputChannelFileInfo[],
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService,
+	) {
+		super();
+		this.fileOutputs = filesInfos.map(file => this._register(new FileContentProvider(file, fileService, logService)));
+		this.onDidAppend = Event.any(...this.fileOutputs.map(output => output.onDidAppend));
+	}
+
+	watch(): IDisposable {
+		return combinedDisposable(...this.fileOutputs.map(output => output.watch()));
+	}
+
+	reset(): void {
+		for (const output of this.fileOutputs) {
+			output.reset();
+		}
+	}
+
+	resetToEnd(): void {
+		for (const output of this.fileOutputs) {
+			output.resetToEnd();
+		}
+	}
+
+	async getContent(): Promise<{ readonly content: string; readonly consume: () => void }> {
+		const outputs = await Promise.all(this.fileOutputs.map(output => output.getContent()));
+		const content = this.combineLogEntries(outputs);
+		return {
+			content,
+			consume: () => outputs.forEach(({ consume }) => consume())
+		};
+	}
+
+	private combineLogEntries(outputs: { content: string; name: string }[]): string {
+
+		const logEntries: [number, string][] = [];
+
+		for (const { content, name } of outputs) {
+			const model = this.instantiationService.createInstance(TextModel, content, LOG_MIME, TextModel.DEFAULT_CREATION_OPTIONS, null);
+			for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
+				const logEntry = parseLogEntryAt(model, lineNumber);
+				if (!logEntry) {
+					continue;
+				}
+				lineNumber = logEntry.range.endLineNumber;
+				const content = model.getValueInRange(logEntry.range).replace(LOG_ENTRY_REGEX, `$1 [${name}] $2`);
+				logEntries.push([logEntry.timestamp, content]);
+			}
+		}
+
+		let result = '';
+		for (const [, content] of logEntries.sort((a, b) => a[0] - b[0])) {
+			result += content + '\n';
+		}
+		return result;
+	}
+
+}
+
 export abstract class AbstractFileOutputChannelModel extends Disposable implements IOutputChannelModel {
 
 	private readonly _onDispose = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
+
+	protected loadModelPromise: Promise<ITextModel> | null = null;
 
 	private readonly modelDisposable = this._register(new MutableDisposable<DisposableStore>());
 	protected model: ITextModel | null = null;
@@ -169,28 +253,28 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	}
 
 	async loadModel(): Promise<ITextModel> {
-		if (!this.model) {
-			this.modelDisposable.value = new DisposableStore();
-			this.model = this.modelService.createModel('', this.language, this.modelUri);
-			this.outputContentProvider.getContent()
-				.then(({ content, consume }) => {
-					if (!this.model || !this.modelDisposable.value) {
-						return;
-					}
-					this.doAppendContent(this.model, content);
-					consume();
-					this.modelDisposable.value.add(this.outputContentProvider.onDidReset(() => this.onDidContentChange(true, true)));
-					this.modelDisposable.value.add(this.outputContentProvider.onDidAppend(() => this.onDidContentChange(false, false)));
-					this.modelDisposable.value.add(this.outputContentProvider.watch());
-				});
-			this.modelDisposable.value.add(this.model.onWillDispose(() => {
-				this.outputContentProvider.reset();
-				this.modelDisposable.value = undefined;
-				this.cancelModelUpdate();
-				this.model = null;
-			}));
-		}
-		return this.model;
+		this.loadModelPromise = Promises.withAsyncBody<ITextModel>(async (c, e) => {
+			try {
+				this.modelDisposable.value = new DisposableStore();
+				this.model = this.modelService.createModel('', this.language, this.modelUri);
+				const { content, consume } = await this.outputContentProvider.getContent();
+				this.doAppendContent(this.model, content);
+				consume();
+				this.modelDisposable.value.add(this.outputContentProvider.onDidReset(() => this.onDidContentChange(true, true)));
+				this.modelDisposable.value.add(this.outputContentProvider.onDidAppend(() => this.onDidContentChange(false, false)));
+				this.modelDisposable.value.add(this.outputContentProvider.watch());
+				this.modelDisposable.value.add(this.model.onWillDispose(() => {
+					this.outputContentProvider.reset();
+					this.modelDisposable.value = undefined;
+					this.cancelModelUpdate();
+					this.model = null;
+				}));
+				c(this.model);
+			} catch (error) {
+				e(error);
+			}
+		});
+		return this.loadModelPromise;
 	}
 
 	private onDidContentChange(reset: boolean, appendImmediately: boolean): void {
@@ -339,13 +423,13 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 	constructor(
 		modelUri: URI,
 		language: ILanguageSelection,
-		file: URI,
+		fileInfo: IOutputChannelFileInfo,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@ILogService logService: ILogService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 	) {
-		const fileOutput = new FileContentProvider(file, fileService, logService);
+		const fileOutput = new FileContentProvider(fileInfo, fileService, logService);
 		super(modelUri, language, fileOutput, modelService, editorWorkerService);
 		this.fileOutput = this._register(fileOutput);
 	}
@@ -355,16 +439,49 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 	}
 
 	override update(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void {
-		if (mode === OutputChannelUpdateMode.Clear || mode === OutputChannelUpdateMode.Replace) {
-			if (isNumber(till)) {
-				this.fileOutput.reset(till);
-			} else {
-				this.fileOutput.resetToEnd();
+		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
+		loadModelPromise.then(() => {
+			if (mode === OutputChannelUpdateMode.Clear || mode === OutputChannelUpdateMode.Replace) {
+				if (isNumber(till)) {
+					this.fileOutput.reset(till);
+				} else {
+					this.fileOutput.resetToEnd();
+				}
 			}
-		}
-		this.doUpdate(mode, immediate);
+			this.doUpdate(mode, immediate);
+		});
 	}
 
+}
+
+export class MultiFileOutputChannelModel extends AbstractFileOutputChannelModel implements IOutputChannelModel {
+
+	private readonly multifileOutput: MultiFileContentProvider;
+
+	constructor(
+		modelUri: URI,
+		language: ILanguageSelection,
+		filesInfos: IOutputChannelFileInfo[],
+		@IFileService fileService: IFileService,
+		@IModelService modelService: IModelService,
+		@ILogService logService: ILogService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		const multifileOutput = new MultiFileContentProvider(filesInfos, instantiationService, fileService, logService);
+		super(modelUri, language, multifileOutput, modelService, editorWorkerService);
+		this.multifileOutput = this._register(multifileOutput);
+	}
+
+	override clear(): void {
+		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
+		loadModelPromise.then(() => {
+			this.multifileOutput.resetToEnd();
+			this.doUpdate(OutputChannelUpdateMode.Clear, true);
+		});
+	}
+
+	override update(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void { throw new Error('Not supported'); }
 }
 
 class OutputChannelBackedByFile extends FileOutputChannelModel implements IOutputChannelModel {
@@ -383,7 +500,7 @@ class OutputChannelBackedByFile extends FileOutputChannelModel implements IOutpu
 		@ILogService logService: ILogService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(modelUri, language, file, fileService, modelService, logService, editorWorkerService);
+		super(modelUri, language, { file, name: '' }, fileService, modelService, logService, editorWorkerService);
 
 		// Donot rotate to check for the file reset
 		this.logger = loggerService.createLogger(file, { logLevel: 'always', donotRotate: true, donotUseFormatters: true, hidden: true });

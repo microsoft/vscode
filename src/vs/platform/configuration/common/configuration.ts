@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
 import * as types from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -182,6 +183,7 @@ export interface IConfigurationModel {
 	contents: any;
 	keys: string[];
 	overrides: IOverrides[];
+	raw?: IStringDictionary<any>;
 }
 
 export interface IOverrides {
@@ -194,7 +196,8 @@ export interface IConfigurationData {
 	defaults: IConfigurationModel;
 	policy: IConfigurationModel;
 	application: IConfigurationModel;
-	user: IConfigurationModel;
+	userLocal: IConfigurationModel;
+	userRemote: IConfigurationModel;
 	workspace: IConfigurationModel;
 	folders: [UriComponents, IConfigurationModel][];
 }

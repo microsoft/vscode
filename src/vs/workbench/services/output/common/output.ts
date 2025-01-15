@@ -8,6 +8,9 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { LogLevel } from '../../../../platform/log/common/log.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 /**
  * Mime type used by the output editor.
@@ -36,6 +39,7 @@ export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 export const CONTEXT_ACTIVE_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+export const CONTEXT_ACTIVE_LOG_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput.isLog', false);
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE = new RawContextKey<boolean>('activeLogOutput.levelSettable', false);
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL = new RawContextKey<string>('activeLogOutput.level', '');
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT = new RawContextKey<boolean>('activeLogOutput.levelIsDefault', false);
@@ -47,6 +51,8 @@ export const SHOW_INFO_FILTER_CONTEXT = new RawContextKey<boolean>('output.filte
 export const SHOW_WARNING_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.warning', true);
 export const SHOW_ERROR_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.error', true);
 export const OUTPUT_FILTER_FOCUS_CONTEXT = new RawContextKey<boolean>('outputFilterFocus', false);
+
+export const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) (\[(info|trace|debug|error|warning)\])/;
 
 export interface IOutputViewFilters {
 	readonly onDidChange: Event<void>;
@@ -102,6 +108,16 @@ export interface IOutputService {
 	 * Allows to register on active output channel change.
 	 */
 	onActiveOutputChannel: Event<string>;
+
+	/**
+	 * Register a compound log channel with the given channels.
+	 */
+	registerCompoundLogChannel(channels: IFileOutputChannelDescriptor[]): string;
+
+	/**
+	 * Save the logs to a file.
+	 */
+	saveOutputAs(...channels: IFileOutputChannelDescriptor[]): Promise<void>;
 }
 
 export enum OutputChannelUpdateMode {
@@ -163,18 +179,19 @@ export interface IOutputChannelDescriptor {
 	label: string;
 	log: boolean;
 	languageId?: string;
-	file?: URI;
+	files?: URI[];
+	fileNames?: string[];
 	extensionId?: string;
 }
 
 export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {
-	file: URI;
+	files: URI[];
 }
 
 export interface IOutputChannelRegistry {
 
 	readonly onDidRegisterChannel: Event<string>;
-	readonly onDidRemoveChannel: Event<string>;
+	readonly onDidRemoveChannel: Event<IOutputChannelDescriptor>;
 
 	/**
 	 * Make an output channel known to the output world.
@@ -201,10 +218,10 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 	private channels = new Map<string, IOutputChannelDescriptor>();
 
 	private readonly _onDidRegisterChannel = new Emitter<string>();
-	readonly onDidRegisterChannel: Event<string> = this._onDidRegisterChannel.event;
+	readonly onDidRegisterChannel = this._onDidRegisterChannel.event;
 
-	private readonly _onDidRemoveChannel = new Emitter<string>();
-	readonly onDidRemoveChannel: Event<string> = this._onDidRemoveChannel.event;
+	private readonly _onDidRemoveChannel = new Emitter<IOutputChannelDescriptor>();
+	readonly onDidRemoveChannel = this._onDidRemoveChannel.event;
 
 	public registerChannel(descriptor: IOutputChannelDescriptor): void {
 		if (!this.channels.has(descriptor.id)) {
@@ -224,9 +241,90 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 	}
 
 	public removeChannel(id: string): void {
-		this.channels.delete(id);
-		this._onDidRemoveChannel.fire(id);
+		const channel = this.channels.get(id);
+		if (channel) {
+			this.channels.delete(id);
+			this._onDidRemoveChannel.fire(channel);
+		}
 	}
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
+
+export interface ILogEntry {
+	readonly timestamp: number;
+	readonly logLevel: LogLevel;
+	readonly timestampRange: Range;
+	readonly range: Range;
+}
+
+/**
+ * Parses log entries from a given text model starting from a specified line.
+ *
+ * @param model - The text model containing the log entries.
+ * @param fromLine - The line number to start parsing from (default is 1).
+ * @returns An array of log entries, each containing the log level and the range of lines it spans.
+ */
+export function parseLogEntries(model: ITextModel, fromLine: number = 1): ILogEntry[] {
+	const logEntries: ILogEntry[] = [];
+	for (let lineNumber = fromLine; lineNumber <= model.getLineCount(); lineNumber++) {
+		const logEntry = parseLogEntryAt(model, lineNumber);
+		if (logEntry) {
+			logEntries.push(logEntry);
+			lineNumber = logEntry.range.endLineNumber;
+		}
+	}
+	return logEntries;
+}
+
+
+/**
+ * Parses a log entry at the specified line number in the given text model.
+ *
+ * @param model - The text model containing the log entries.
+ * @param lineNumber - The line number at which to start parsing the log entry.
+ * @returns An object representing the parsed log entry, or `null` if no log entry is found at the specified line.
+ *
+ * The returned log entry object contains:
+ * - `timestamp`: The timestamp of the log entry as a number.
+ * - `logLevel`: The log level of the log entry.
+ * - `range`: The range of lines that the log entry spans.
+ */
+export function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | null {
+	const lineContent = model.getLineContent(lineNumber);
+	const match = LOG_ENTRY_REGEX.exec(lineContent);
+	if (match) {
+		const timestamp = new Date(match[1]).getTime();
+		const timestampRange = new Range(lineNumber, 1, lineNumber, match[1].length + 1);
+		const logLevel = parseLogLevel(match[3]);
+		const startLine = lineNumber;
+		let endLine = lineNumber;
+
+		while (endLine < model.getLineCount()) {
+			const nextLineContent = model.getLineContent(endLine + 1);
+			if (model.getLineFirstNonWhitespaceColumn(endLine + 1) === 0 || LOG_ENTRY_REGEX.test(nextLineContent)) {
+				break;
+			}
+			endLine++;
+		}
+		return { timestamp, logLevel, range: new Range(startLine, 1, endLine, model.getLineMaxColumn(endLine)), timestampRange };
+	}
+	return null;
+}
+
+function parseLogLevel(level: string): LogLevel {
+	switch (level.toLowerCase()) {
+		case 'trace':
+			return LogLevel.Trace;
+		case 'debug':
+			return LogLevel.Debug;
+		case 'info':
+			return LogLevel.Info;
+		case 'warning':
+			return LogLevel.Warning;
+		case 'error':
+			return LogLevel.Error;
+		default:
+			throw new Error(`Unknown log level: ${level}`);
+	}
+}

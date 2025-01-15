@@ -62,7 +62,7 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 		vscode.env.openExternal(vscode.Uri.parse(link));
 	}));
 
-	disposables.add(vscode.commands.registerCommand('github.openOnGitHub2', async (repository: vscode.SourceControl, historyItem: vscode.SourceControlHistoryItem) => {
+	disposables.add(vscode.commands.registerCommand('github.graph.openOnGitHub', async (repository: vscode.SourceControl, historyItem: vscode.SourceControlHistoryItem) => {
 		if (!repository || !historyItem) {
 			return;
 		}
@@ -73,7 +73,7 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 		}
 
 		// Get the unique remotes that contain the commit
-		const branches = await apiRepository.getBranches({ contains: historyItem.id });
+		const branches = await apiRepository.getBranches({ contains: historyItem.id, remote: true });
 		const remoteNames = new Set(branches.filter(b => b.type === RefType.RemoteHead && b.remote).map(b => b.remote!));
 
 		// GitHub remotes that contain the commit

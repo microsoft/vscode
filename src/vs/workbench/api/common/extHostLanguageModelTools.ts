@@ -57,8 +57,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				throw new Error(`Invalid tool invocation token`);
 			}
 
-			const tool = this._allTools.get(toolId);
-			if (tool?.tags?.includes('vscode_editing') && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+			if (toolId === 'vscode_editFile' && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
 				throw new Error(`Invalid tool: ${toolId}`);
 			}
 
@@ -87,7 +86,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return Array.from(this._allTools.values())
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool))
 			.filter(tool => {
-				if (tool.tags.includes('vscode_editing')) {
+				if (tool.name === 'vscode_editFile') {
 					return isProposedApiEnabled(extension, 'chatParticipantPrivate');
 				}
 
