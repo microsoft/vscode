@@ -558,7 +558,7 @@ export function registerChatCodeCompareBlockActions() {
 				const inlineChatController = InlineChatController.get(editorToApply);
 				if (inlineChatController) {
 					editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
-					inlineChatController.reviewEdits(firstEdit.range, textEdits, CancellationToken.None);
+					inlineChatController.reviewEdits(textEdits, CancellationToken.None);
 					response.setEditApplied(item, 1);
 					return true;
 				}

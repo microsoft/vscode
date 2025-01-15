@@ -61,14 +61,15 @@ abstract class NavigateAction extends Action2 {
 		if (!isCodeEditor(editor) || !editor.hasModel()) {
 			return;
 		}
-
-		const session = chatEditingService.currentEditingSession;
-		if (!session) {
+		const ctrl = ChatEditorController.get(editor);
+		if (!ctrl) {
 			return;
 		}
 
-		const ctrl = ChatEditorController.get(editor);
-		if (!ctrl) {
+		const session = chatEditingService.editingSessionsObs.get()
+			.find(candidate => candidate.getEntry(editor.getModel().uri));
+
+		if (!session) {
 			return;
 		}
 
@@ -167,7 +168,9 @@ abstract class AcceptDiscardAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.currentEditingSession;
+		const session = chatEditingService.editingSessionsObs.get()
+			.find(candidate => candidate.getEntry(uri));
+
 		if (!session) {
 			return;
 		}

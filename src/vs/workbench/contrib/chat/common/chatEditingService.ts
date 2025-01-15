@@ -24,11 +24,6 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	/**
-	 * emitted when a session is created, changed or disposed
-	 */
-	readonly onDidChangeEditingSession: Event<void>;
-
 	readonly currentEditingSessionObs: IObservable<IChatEditingSession | null>;
 
 	readonly currentEditingSession: IChatEditingSession | null;
@@ -38,9 +33,21 @@ export interface IChatEditingService {
 
 	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 	getOrRestoreEditingSession(): Promise<IChatEditingSession | null>;
+
+
 	hasRelatedFilesProviders(): boolean;
 	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
 	getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
+
+	/**
+	 * All editing sessions, sorted by recency, e.g the last created session comes first.
+	 */
+	readonly editingSessionsObs: IObservable<readonly IChatEditingSession[]>;
+
+	/**
+	 * Creates a new short lived editing session
+	 */
+	createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable>;
 }
 
 export interface IChatRequestDraft {
