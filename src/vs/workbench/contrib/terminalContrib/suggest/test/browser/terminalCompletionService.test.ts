@@ -235,7 +235,6 @@ suite('TerminalCompletionService', () => {
 
 				assertCompletions(result, [
 					{ label: '/usr/', detail: '/' },
-					{ label: '/usr/../', detail: '/' }
 				], { replacementIndex: 0, replacementLength: 5 });
 			});
 		}

@@ -314,7 +314,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		//
 		// On Windows, the path seprators are normalized to `\`:
 		// - `./src/|` -> `.\src\..\`
-		if (foldersRequested) {
+		if (!isAbsolutePath && foldersRequested) {
 			const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
 			resourceCompletions.push({
 				label: lastWordFolder + '..' + resourceRequestConfig.pathSeparator,
