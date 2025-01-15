@@ -363,6 +363,7 @@ export class InlineCompletionItem {
 		*/
 		readonly source: InlineCompletionList,
 	) {
+		// TODO: these statements are no-ops
 		filterText = filterText.replace(/\r\n|\r/g, '\n');
 		insertText = filterText.replace(/\r\n|\r/g, '\n');
 	}
@@ -389,9 +390,9 @@ export class InlineCompletionItem {
 		);
 	}
 
-	public withRangeAndInsertText(updatedRange: Range, updatedInsertText: string): InlineCompletionItem {
+	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {
 		return new InlineCompletionItem(
-			this.filterText,
+			updatedFilterText,
 			this.command,
 			this.shownCommand,
 			updatedRange,

@@ -57,8 +57,15 @@ export class InlineCompletionsSource extends Disposable {
 	) {
 		super();
 
-		this._register(this._textModel.onDidChangeContent(() => {
+		this._register(this._textModel.onDidChangeContent((e) => {
 			this._updateOperation.clear();
+
+			const inlineCompletions = this.inlineCompletions.get();
+			if (inlineCompletions) {
+				transaction(tx => {
+					inlineCompletions.acceptTextModelChangeEvent(e, tx);
+				});
+			}
 		}));
 	}
 
@@ -246,8 +253,6 @@ export class UpToDateInlineCompletions implements IDisposable {
 	private _refCount = 1;
 	private readonly _prependedInlineCompletionItems: InlineCompletionItem[] = [];
 
-	private _textModelListener: IDisposable;
-
 	constructor(
 		private readonly inlineCompletionProviderResult: InlineCompletionProviderResult,
 		public readonly request: UpdateRequest,
@@ -264,14 +269,12 @@ export class UpToDateInlineCompletions implements IDisposable {
 		this._inlineCompletions = inlineCompletionProviderResult.completions.map(
 			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._textModel, this._versionId, this.request)
 		);
+	}
 
-		this._textModelListener = this._textModel.onDidChangeContent((e) => {
-			transaction(tx => {
-				for (const inlineCompletion of this._inlineCompletions) {
-					inlineCompletion.acceptTextModelChangeEvent(e, tx);
-				}
-			});
-		});
+	public acceptTextModelChangeEvent(e: IModelContentChangedEvent, tx: ITransaction) {
+		for (const inlineCompletion of this._inlineCompletions) {
+			inlineCompletion.acceptTextModelChangeEvent(e, tx);
+		}
 	}
 
 	public clone(): this {
@@ -280,7 +283,6 @@ export class UpToDateInlineCompletions implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._textModelListener.dispose();
 		this._refCount--;
 		if (this._refCount === 0) {
 			setTimeout(() => {
@@ -325,14 +327,19 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	private readonly _updatedRange = derivedOpts<Range | null>({ owner: this, equalsFn: Range.equalsRange }, reader => {
-		const edit = this.toSingleTextEdit(reader);
-		if (edit.isEmpty) {
-			return null;
+		if (this._inlineEdit.read(reader)) {
+			const edit = this.toSingleTextEdit(reader);
+			return (edit.isEmpty ? null : edit.range);
+		} else {
+			this._modelVersion.read(reader);
+			return this._textModel.getDecorationRange(this.decorationId);
 		}
-		return edit.range;
 	});
 
-	private _offsetEdit: ISettableObservable<OffsetEdit>;
+	/**
+	 * This will be null for ghost text completions
+	 */
+	private _inlineEdit: ISettableObservable<OffsetEdit | null>;
 
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
@@ -341,7 +348,12 @@ export class InlineCompletionWithUpdatedRange {
 		private readonly _modelVersion: IObservable<number | null>,
 		public readonly request: UpdateRequest,
 	) {
-		this._offsetEdit = observableValue(this, this._toIndividualEdits(this.inlineCompletion.range, this.inlineCompletion.insertText));
+		const inlineCompletions = this.inlineCompletion.source.inlineCompletions.items;
+		if (inlineCompletions.length > 0 && inlineCompletions[inlineCompletions.length - 1].isInlineEdit) {
+			this._inlineEdit = observableValue(this, this._toIndividualEdits(this.inlineCompletion.range, this.inlineCompletion.insertText));
+		} else {
+			this._inlineEdit = observableValue(this, null);
+		}
 	}
 
 	private _toIndividualEdits(range: Range, _replaceText: string): OffsetEdit {
@@ -364,15 +376,18 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	public acceptTextModelChangeEvent(e: IModelContentChangedEvent, tx: ITransaction): void {
-		const offsetEdit = this._offsetEdit.get();
+		const offsetEdit = this._inlineEdit.get();
+		if (!offsetEdit) {
+			return;
+		}
 		const newEdits = offsetEdit.edits.map(edit => acceptTextModelChange(edit, e.changes));
 		const emptyEdit = newEdits.find(edit => edit.isEmpty);
 		if (emptyEdit) {
 			// A change collided with one of our edits, so we will have to drop the completion
-			this._offsetEdit.set(new OffsetEdit([emptyEdit]), tx);
+			this._inlineEdit.set(new OffsetEdit([emptyEdit]), tx);
 			return;
 		}
-		this._offsetEdit.set(new OffsetEdit(newEdits), tx);
+		this._inlineEdit.set(new OffsetEdit(newEdits), tx);
 
 		function acceptTextModelChange(edit: SingleOffsetEdit, changes: readonly IModelContentChange[]): SingleOffsetEdit {
 			let start = edit.replaceRange.start;
@@ -402,12 +417,15 @@ export class InlineCompletionWithUpdatedRange {
 
 	public toInlineCompletion(reader: IReader | undefined): InlineCompletionItem {
 		const singleTextEdit = this.toSingleTextEdit(reader);
-		return this.inlineCompletion.withRangeAndInsertText(singleTextEdit.range, singleTextEdit.text);
+		return this.inlineCompletion.withRangeInsertTextAndFilterText(singleTextEdit.range, singleTextEdit.text, singleTextEdit.text);
 	}
 
 	public toSingleTextEdit(reader: IReader | undefined): SingleTextEdit {
 		this._modelVersion.read(reader);
-		const offsetEdit = this._offsetEdit.read(reader);
+		const offsetEdit = this._inlineEdit.read(reader);
+		if (!offsetEdit) {
+			return new SingleTextEdit(this._updatedRange.read(reader) ?? emptyRange, this.inlineCompletion.insertText);
+		}
 
 		const startOffset = offsetEdit.edits[0].replaceRange.start;
 		const endOffset = offsetEdit.edits[offsetEdit.edits.length - 1].replaceRange.endExclusive;
@@ -477,7 +495,8 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	private _toFilterTextReplacement(reader: IReader | undefined): SingleTextEdit {
-		return new SingleTextEdit(this._updatedRange.read(reader) ?? emptyRange, this.inlineCompletion.filterText);
+		const inlineCompletion = this.toInlineCompletion(reader);
+		return new SingleTextEdit(inlineCompletion.range, inlineCompletion.filterText);
 	}
 }
 
