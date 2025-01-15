@@ -205,6 +205,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
 
+		const useForwardSlash = !resourceRequestConfig.shouldNormalizePrefix && isWindows;
+
 		// The last word (or argument). When the cursor is following a space it will be the empty
 		// string
 		const lastWord = cursorPrefix.endsWith(' ') ? '' : cursorPrefix.split(' ').at(-1) ?? '';
@@ -212,7 +214,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
 		// they are what triggers changes in the directory.
 		let lastSlashIndex: number;
-		if (!resourceRequestConfig.shouldNormalizePrefix || isWindows) {
+		if (useForwardSlash) {
 			lastSlashIndex = Math.max(lastWord.lastIndexOf('\\'), lastWord.lastIndexOf('/'));
 		} else {
 			lastSlashIndex = lastWord.lastIndexOf('/');
@@ -251,7 +253,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// Handle absolute paths differently to avoid adding `./` prefixes
-		const isAbsolutePath = !resourceRequestConfig.shouldNormalizePrefix && isWindows
+		const isAbsolutePath = useForwardSlash
 			? /^[a-zA-Z]:\\/.test(lastWord)
 			: lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator);
 
@@ -290,7 +292,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 				// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
 				// suggestions should all use `\`
-				if (!resourceRequestConfig.shouldNormalizePrefix && isWindows) {
+				if (useForwardSlash) {
 					label = label.replaceAll('/', '\\');
 				}
 
