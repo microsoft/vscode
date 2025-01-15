@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { ParseError } from '../../promptFileReferenceErrors.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
 /**
@@ -20,10 +21,16 @@ export interface IPromptReference extends IDisposable {
 	 * Type of the prompt reference.
 	 */
 	readonly type: PromptReferenceTypes;
+
 	/**
 	 * URI component of the associated with this reference.
 	 */
 	readonly uri: URI;
+
+	/**
+	 * Range of the prompt reference in the source text.
+	 */
+	readonly range: Range;
 
 	/**
 	 * Flag that indicates if resolving this reference failed.
