@@ -329,8 +329,8 @@ suite('TerminalCompletionService', () => {
 			assert(result);
 			// includes the 1000 folders + ./ and ./../
 			assert.strictEqual(result?.length, 1002);
-			assert.strictEqual(result[0].label, './');
-			assert.strictEqual(result.at(-1)?.label, './../');
+			assert.strictEqual(result[0].label, `.${pathSeparator}`);
+			assert.strictEqual(result.at(-1)?.label, `.${pathSeparator}..${pathSeparator}`);
 		});
 
 		test('./folder| Folders should be resolved even if the trailing / is missing', async () => {
