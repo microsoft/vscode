@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, derived } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
 import { editorHoverStatusBarBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -53,32 +53,64 @@ export class WordReplacementView extends Disposable {
 		renderLines(new LineSource([tokens]), RenderOptions.fromEditor(this._editor.editor).withSetWidth(false), [], this._line, true);
 	});
 
+	private readonly _editLocations = mapObservableArrayCached(this, constObservable(this._innerEdits), (edit, store) => {
+		const start = this._editor.observePosition(constObservable(edit.range.getStartPosition()), store);
+		const end = this._editor.observePosition(constObservable(edit.range.getEndPosition()), store);
+		return { start, end, edit };
+	}).recomputeInitiallyAndOnChange(this._store);
+
 	private readonly _layout = derived(this, reader => {
 		this._text.read(reader);
-		const start = this._start.read(reader);
-		const end = this._end.read(reader);
-		if (!start || !end) {
+		const widgetStart = this._start.read(reader);
+		const widgetEnd = this._end.read(reader);
+
+		if (!widgetStart || !widgetEnd || widgetStart.x > widgetEnd.x) {
 			return undefined;
 		}
+
 		const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
-		if (start.x > end.x) {
-			return undefined;
-		}
-		const original = Rect.fromLeftTopWidthHeight(start.x + contentLeft - this._editor.scrollLeft.read(reader), start.y, end.x - start.x, lineHeight);
+		const scrollLeft = this._editor.scrollLeft.read(reader);
 		const w = this._editor.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
-		const modified = Rect.fromLeftTopWidthHeight(original.left + 20, original.top + lineHeight + 5, this._edit.text.length * w + 5, original.height);
-		const background = Rect.hull([original, modified]).withMargin(4);
+		const modifiedLeftOffset = 20;
+		const modifiedTopOffset = 5;
+
+		const originalLine = Rect.fromLeftTopWidthHeight(widgetStart.x + contentLeft - scrollLeft, widgetStart.y, widgetEnd.x - widgetStart.x, lineHeight);
+		const modifiedLine = Rect.fromLeftTopWidthHeight(originalLine.left + modifiedLeftOffset, originalLine.top + lineHeight + modifiedTopOffset, this._edit.text.length * w + 5, originalLine.height);
+		const background = Rect.hull([originalLine, modifiedLine]).withMargin(4);
+
+		let textLengthDelta = 0;
+		const editLocations = this._editLocations.read(reader);
+		const innerEdits = [];
+		for (const editLocation of editLocations) {
+			const editStart = editLocation.start.read(reader);
+			const editEnd = editLocation.end.read(reader);
+			const edit = editLocation.edit;
+
+			if (!editStart || !editEnd || editStart.x > editEnd.x) {
+				return;
+			}
+
+			const original = Rect.fromLeftTopWidthHeight(editStart.x + contentLeft - scrollLeft, editStart.y, editEnd.x - editStart.x, lineHeight);
+			const modified = Rect.fromLeftTopWidthHeight(original.left + modifiedLeftOffset + textLengthDelta * w, original.top + lineHeight + modifiedTopOffset, edit.text.length * w + 5, original.height);
+
+			textLengthDelta += edit.text.length - (edit.range.endColumn - edit.range.startColumn);
+
+			innerEdits.push({ original, modified });
+		}
+
+		const lowerBackground = background.intersectVertical(new OffsetRange(originalLine.bottom, Number.MAX_SAFE_INTEGER));
+		const lowerText = new Rect(lowerBackground.left + modifiedLeftOffset + 6, lowerBackground.top + modifiedTopOffset, lowerBackground.right, lowerBackground.bottom); // TODO: left seems slightly off? zooming?
 
 		return {
-			original,
-			modified,
+			originalLine,
+			modifiedLine,
 			background,
-			lowerBackground: background.intersectVertical(new OffsetRange(original.bottom, Number.MAX_SAFE_INTEGER)),
+			innerEdits,
+			lowerBackground,
+			lowerText,
 		};
 	});
-
-
 
 	private readonly _div = n.div({
 		class: 'word-replacement',
@@ -89,40 +121,55 @@ export class WordReplacementView extends Disposable {
 				return [];
 			}
 
+			const edits = layout.read(reader).innerEdits;
+
 			return [
 				n.div({
 					style: {
 						position: 'absolute',
 						...rectToProps(reader => layout.read(reader).lowerBackground),
 						borderRadius: '4px',
-						background: 'var(--vscode-editor-background)'
-					}
+						background: 'var(--vscode-editor-background)',
+					},
 				}, []),
 				n.div({
 					style: {
 						position: 'absolute',
-						...rectToProps(reader => layout.read(reader).modified),
-						borderRadius: '4px',
 						padding: '0px',
-						textAlign: 'center',
-						background: 'var(--vscode-inlineEdit-modifiedChangedTextBackground)',
+						boxSizing: 'border-box',
+						...rectToProps(reader => layout.read(reader).lowerText),
 						fontFamily: this._editor.getOption(EditorOption.fontFamily),
 						fontSize: this._editor.getOption(EditorOption.fontSize),
 						fontWeight: this._editor.getOption(EditorOption.fontWeight),
+						pointerEvents: 'none',
 					}
-				}, [
-					this._line,
-				]),
-				n.div({
+				}, [this._line]),
+				...edits.map(edit => n.div({
 					style: {
 						position: 'absolute',
-						...rectToProps(reader => layout.read(reader).original),
+						top: edit.modified.top,
+						left: edit.modified.left,
+						width: edit.modified.width,
+						height: edit.modified.height,
+						borderRadius: '4px',
+
+						background: 'var(--vscode-inlineEdit-modifiedChangedTextBackground)',
+						pointerEvents: 'none',
+					}
+				}), []),
+				...edits.map(edit => n.div({
+					style: {
+						position: 'absolute',
+						top: edit.original.top,
+						left: edit.original.left,
+						width: edit.original.width,
+						height: edit.original.height,
 						borderRadius: '4px',
 						boxSizing: 'border-box',
 						background: 'var(--vscode-inlineEdit-originalChangedTextBackground)',
 						pointerEvents: 'none',
 					}
-				}, []),
+				}, [])),
 				n.div({
 					style: {
 						position: 'absolute',
@@ -143,8 +190,8 @@ export class WordReplacementView extends Disposable {
 					fill: 'none',
 					style: {
 						position: 'absolute',
-						left: derived(reader => layout.read(reader).modified.left - 15),
-						top: derived(reader => layout.read(reader).modified.top),
+						left: derived(reader => layout.read(reader).modifiedLine.left - 15),
+						top: derived(reader => layout.read(reader).modifiedLine.top),
 					}
 				}, [
 					n.svgElem('path', {
@@ -165,6 +212,7 @@ export class WordReplacementView extends Disposable {
 		private readonly _editor: ObservableCodeEditor,
 		/** Must be single-line in both sides */
 		private readonly _edit: SingleTextEdit,
+		private readonly _innerEdits: SingleTextEdit[],
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
