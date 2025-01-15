@@ -212,7 +212,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
 		// they are what triggers changes in the directory.
 		let lastSlashIndex: number;
-		if (isWindows) {
+		if (!resourceRequestConfig.shouldNormalizePrefix || isWindows) {
 			lastSlashIndex = Math.max(lastWord.lastIndexOf('\\'), lastWord.lastIndexOf('/'));
 		} else {
 			lastSlashIndex = lastWord.lastIndexOf('/');
@@ -251,7 +251,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// Handle absolute paths differently to avoid adding `./` prefixes
-		const isAbsolutePath = isWindows
+		const isAbsolutePath = !resourceRequestConfig.shouldNormalizePrefix && isWindows
 			? /^[a-zA-Z]:\\/.test(lastWord)
 			: lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator);
 
@@ -290,7 +290,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 				// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
 				// suggestions should all use `\`
-				if (isWindows) {
+				if (!resourceRequestConfig.shouldNormalizePrefix && isWindows) {
 					label = label.replaceAll('/', '\\');
 				}
 
