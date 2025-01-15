@@ -1237,7 +1237,7 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		[NotebookSetting.notebookInlineVariables]: {
-			markdownDescription: nls.localize('notebook.inlineVariables.description', "Enable the showing of inline variables within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared with the `Notebook: Clear Inline Values` command. "),
+			markdownDescription: nls.localize('notebook.inlineVariables.description', "Enable the showing of inline variables within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared via the Clear All Outputs toolbar button or the `Notebook: Clear Inline Values` command. "),
 			type: 'boolean',
 			default: false
 		},
