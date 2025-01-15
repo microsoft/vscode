@@ -339,7 +339,8 @@ export class InlineCompletionWithUpdatedRange {
 	/**
 	 * This will be null for ghost text completions
 	 */
-	private _inlineEdit: ISettableObservable<OffsetEdit | null>;
+	public _inlineEdit: ISettableObservable<OffsetEdit | null>;
+	public get inlineEdit() { return this._inlineEdit.get(); }
 
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
