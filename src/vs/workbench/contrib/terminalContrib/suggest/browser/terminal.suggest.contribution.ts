@@ -27,6 +27,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
+import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -199,7 +200,7 @@ registerActiveInstanceAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
+		when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.suggestWidgetVisible.negate(), ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions(true)
 });
@@ -260,6 +261,21 @@ registerActiveInstanceAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Slash,
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleExplainMode()
+});
+
+registerActiveInstanceAction({
+	id: 'terminalSuggestToggleDetails',
+	title: localize2('workbench.action.terminal.suggestToggleDetils', 'Suggest Toggle Details'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
+	keybinding: {
+		// HACK: Force weight to be higher than that to start terminal chat
+		weight: KeybindingWeight.ExternalExtension + 2,
+		primary: KeyMod.CtrlCmd | KeyCode.Space,
+		secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
+		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KeyI] }
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleSuggestionDetails()
 });
 
 registerActiveInstanceAction({
