@@ -539,7 +539,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._register(this.onAnyInstanceProcessIdReady(() => this._saveState()));
 		this._register(this.onAnyInstanceTitleChange(instance => this._updateTitle(instance)));
 		this._register(this.onAnyInstanceIconChange(e => this._updateIcon(e.instance, e.userInitiated)));
-		// this._register(this.onAnyInstanceShellTypeChanged(e => this._updateShellType(e))); // Do I need something like this for onAnyInstanceShellTypeChanged?
 	}
 
 	private _handleInstanceContextKeys(): void {

@@ -708,8 +708,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidExecuteText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
 	onDidSendText: Event<string>;
-	onDidChangeShellType: Event<TerminalShellType>; // how should this be used in correlation to my api which should expose shell type
-	onDidChangeVisibility: Event<boolean>;
+	onDidChangeShellType: Event<TerminalShellType>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
