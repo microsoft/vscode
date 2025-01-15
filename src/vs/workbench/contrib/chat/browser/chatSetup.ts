@@ -366,7 +366,8 @@ class ChatSetupRequests extends Disposable {
 		@IRequestService private readonly requestService: IRequestService,
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -439,13 +440,18 @@ class ChatSetupRequests extends Disposable {
 
 	private async findMatchingProviderSession(token: CancellationToken): Promise<AuthenticationSession | undefined> {
 		let sessions: ReadonlyArray<AuthenticationSession> = [];
-		for (const providerId of defaultChat.providerIds) {
-			if (token.isCancellationRequested) {
-				return undefined;
-			}
-			sessions = await this.authenticationService.getSessions(providerId);
-			if (sessions.length) {
-				break;
+		const authProviderConfigValue = this.configurationService.getValue<string | undefined>('github.copilot.advanced.authProvider');
+		if (authProviderConfigValue) {
+			sessions = await this.authenticationService.getSessions(authProviderConfigValue);
+		} else {
+			for (const providerId of defaultChat.providerIds) {
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+				sessions = await this.authenticationService.getSessions(providerId);
+				if (sessions.length) {
+					break;
+				}
 			}
 		}
 
