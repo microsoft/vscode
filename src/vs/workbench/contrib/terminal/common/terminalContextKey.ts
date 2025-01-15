@@ -90,8 +90,6 @@ export namespace TerminalContextKeys {
 	/** Whether the terminal's suggest widget is visible. */
 	export const suggestWidgetVisible = new RawContextKey<boolean>(TerminalContextKeyStrings.SuggestWidgetVisible, false, localize('terminalSuggestWidgetVisible', "Whether the terminal's suggest widget is visible."));
 
-	/** Whether the terminal's suggest widget is focused. */
-	export const suggestWidgetFocused = new RawContextKey<boolean>(TerminalContextKeyStrings.SuggestWidgetVisible, false, localize('terminalSuggestWidgetFocused', "Whether the terminal's suggest widget is focused."));
 
 	/** Whether the terminal is NOT focused. */
 	export const notFocus = focus.toNegated();
