@@ -24,7 +24,7 @@ registerActiveXtermAction({
 	category: AbstractInlineChatAction.category,
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
-		when: TerminalContextKeys.focusInAny,
+		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
 		// HACK: Force weight to be higher than the extension contributed keybinding to override it until it gets replaced
 		weight: KeybindingWeight.ExternalExtension + 1, // KeybindingWeight.WorkbenchContrib,
 	},

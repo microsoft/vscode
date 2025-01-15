@@ -527,6 +527,25 @@ export class SimpleSuggestWidget extends Disposable {
 		}
 	}
 
+	toggleDetails(focused: boolean = false): void {
+		if (this._isDetailsVisible()) {
+			// hide details widget
+			this._pendingShowDetails.clear();
+			// this.focus.set(false);
+
+			this._setDetailsVisible(false);
+			this._details.hide();
+			this.element.domNode.classList.remove('shows-details');
+
+		} else if ((canExpandCompletionItem(this._list.getFocusedElements()[0]) || this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
+			// show details widget (iff possible)
+			// this._ctxSuggestWidgetDetailsVisible.set(true);
+
+			this._setDetailsVisible(true);
+			this._showDetails(false, false);
+		}
+	}
+
 	private _showDetails(loading: boolean, focused: boolean): void {
 		this._pendingShowDetails.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.element.domNode), () => {
 			this._pendingShowDetails.clear();
@@ -561,25 +580,6 @@ export class SimpleSuggestWidget extends Disposable {
 			} else {
 				this._showDetails(false, false);
 			}
-		}
-	}
-
-	toggleDetails(focused: boolean = false): void {
-		if (this._isDetailsVisible()) {
-			// hide details widget
-			this._pendingShowDetails.clear();
-			// this.focus.set(false);
-
-			this._setDetailsVisible(false);
-			this._details.hide();
-			this.element.domNode.classList.remove('shows-details');
-
-		} else if ((canExpandCompletionItem(this._list.getFocusedElements()[0]) || this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
-			// show details widget (iff possible)
-			// this._ctxSuggestWidgetDetailsVisible.set(true);
-
-			this._setDetailsVisible(true);
-			this._showDetails(false, false);
 		}
 	}
 
