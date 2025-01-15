@@ -61,6 +61,12 @@ export class ProgressService extends Disposable implements IProgressService {
 				return this.withViewProgress(location, task, { ...options, location });
 			}
 
+			// MEMBRANE: SCM is disabled, so let's silence the error below
+			if (location === 'workbench.scm') {
+				// no-op progress that resolves immediately
+				return task({ report: () => { } });
+			}
+
 			throw new Error(`Bad progress location: ${location}`);
 		};
 
