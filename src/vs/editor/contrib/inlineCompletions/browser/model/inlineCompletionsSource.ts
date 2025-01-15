@@ -7,13 +7,15 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, derivedOpts, disposableObservableValue, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, derivedOpts, disposableObservableValue, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { OffsetEdit, SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
+import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit } from '../../../../common/core/textEdit.js';
@@ -23,6 +25,8 @@ import { ILanguageConfigurationService } from '../../../../common/languages/lang
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { IModelContentChange, IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
+import { smartDiff } from './computeGhostText.js';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
@@ -242,6 +246,8 @@ export class UpToDateInlineCompletions implements IDisposable {
 	private _refCount = 1;
 	private readonly _prependedInlineCompletionItems: InlineCompletionItem[] = [];
 
+	private _textModelListener: IDisposable;
+
 	constructor(
 		private readonly inlineCompletionProviderResult: InlineCompletionProviderResult,
 		public readonly request: UpdateRequest,
@@ -258,6 +264,14 @@ export class UpToDateInlineCompletions implements IDisposable {
 		this._inlineCompletions = inlineCompletionProviderResult.completions.map(
 			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._textModel, this._versionId, this.request)
 		);
+
+		this._textModelListener = this._textModel.onDidChangeContent((e) => {
+			transaction(tx => {
+				for (const inlineCompletion of this._inlineCompletions) {
+					inlineCompletion.acceptTextModelChangeEvent(e, tx);
+				}
+			});
+		});
 	}
 
 	public clone(): this {
@@ -266,6 +280,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 	}
 
 	public dispose(): void {
+		this._textModelListener.dispose();
 		this._refCount--;
 		if (this._refCount === 0) {
 			setTimeout(() => {
@@ -310,9 +325,14 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	private readonly _updatedRange = derivedOpts<Range | null>({ owner: this, equalsFn: Range.equalsRange }, reader => {
-		this._modelVersion.read(reader);
-		return this._textModel.getDecorationRange(this.decorationId);
+		const edit = this.toSingleTextEdit(reader);
+		if (edit.isEmpty) {
+			return null;
+		}
+		return edit.range;
 	});
+
+	private _offsetEdit: ISettableObservable<OffsetEdit>;
 
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
@@ -321,14 +341,89 @@ export class InlineCompletionWithUpdatedRange {
 		private readonly _modelVersion: IObservable<number | null>,
 		public readonly request: UpdateRequest,
 	) {
+		this._offsetEdit = observableValue(this, this._toIndividualEdits(this.inlineCompletion.range, this.inlineCompletion.insertText));
+	}
+
+	private _toIndividualEdits(range: Range, _replaceText: string): OffsetEdit {
+		const originalText = this._textModel.getValueInRange(range);
+		const replaceText = _replaceText.replace(/\r\n|\r|\n/g, this._textModel.getEOL());
+		const diffs = smartDiff(originalText, replaceText, false);
+		const startOffset = this._textModel.getOffsetAt(range.getStartPosition());
+		if (!diffs || diffs.length === 0) {
+			return new OffsetEdit(
+				[new SingleOffsetEdit(OffsetRange.ofStartAndLength(startOffset, originalText.length), replaceText)]
+			);
+		}
+		return new OffsetEdit(
+			diffs.map(diff => {
+				const originalRange = OffsetRange.ofStartAndLength(startOffset + diff.originalStart, diff.originalLength);
+				const modifiedText = replaceText.substring(diff.modifiedStart, diff.modifiedStart + diff.modifiedLength);
+				return new SingleOffsetEdit(originalRange, modifiedText);
+			})
+		);
+	}
+
+	public acceptTextModelChangeEvent(e: IModelContentChangedEvent, tx: ITransaction): void {
+		const offsetEdit = this._offsetEdit.get();
+		const newEdits = offsetEdit.edits.map(edit => acceptTextModelChange(edit, e.changes));
+		const emptyEdit = newEdits.find(edit => edit.isEmpty);
+		if (emptyEdit) {
+			// A change collided with one of our edits, so we will have to drop the completion
+			this._offsetEdit.set(new OffsetEdit([emptyEdit]), tx);
+			return;
+		}
+		this._offsetEdit.set(new OffsetEdit(newEdits), tx);
+
+		function acceptTextModelChange(edit: SingleOffsetEdit, changes: readonly IModelContentChange[]): SingleOffsetEdit {
+			let start = edit.replaceRange.start;
+			let end = edit.replaceRange.endExclusive;
+			let newText = edit.newText;
+			for (let i = changes.length - 1; i >= 0; i--) {
+				const change = changes[i];
+				if (change.rangeOffset >= end) {
+					// the change happens after the completion range
+					continue;
+				}
+				if (change.rangeOffset + change.rangeLength <= start) {
+					// the change happens before the completion range
+					start += change.text.length - change.rangeLength;
+					end += change.text.length - change.rangeLength;
+					continue;
+				}
+
+				// The change intersects the completion, so we will have to drop the completion
+				start = change.rangeOffset;
+				end = change.rangeOffset;
+				newText = '';
+			}
+			return new SingleOffsetEdit(new OffsetRange(start, end), newText);
+		}
 	}
 
 	public toInlineCompletion(reader: IReader | undefined): InlineCompletionItem {
-		return this.inlineCompletion.withRange(this._updatedRange.read(reader) ?? emptyRange);
+		const singleTextEdit = this.toSingleTextEdit(reader);
+		return this.inlineCompletion.withRangeAndInsertText(singleTextEdit.range, singleTextEdit.text);
 	}
 
 	public toSingleTextEdit(reader: IReader | undefined): SingleTextEdit {
-		return new SingleTextEdit(this._updatedRange.read(reader) ?? emptyRange, this.inlineCompletion.insertText);
+		this._modelVersion.read(reader);
+		const offsetEdit = this._offsetEdit.read(reader);
+
+		const startOffset = offsetEdit.edits[0].replaceRange.start;
+		const endOffset = offsetEdit.edits[offsetEdit.edits.length - 1].replaceRange.endExclusive;
+		const overallOffsetRange = new OffsetRange(startOffset, endOffset);
+		const overallLnColRange = Range.fromPositions(
+			this._textModel.getPositionAt(overallOffsetRange.start),
+			this._textModel.getPositionAt(overallOffsetRange.endExclusive)
+		);
+		let text = this._textModel.getValueInRange(overallLnColRange);
+		for (let i = offsetEdit.edits.length - 1; i >= 0; i--) {
+			const edit = offsetEdit.edits[i];
+			const relativeStartOffset = edit.replaceRange.start - startOffset;
+			const relativeEndOffset = edit.replaceRange.endExclusive - startOffset;
+			text = text.substring(0, relativeStartOffset) + edit.newText + text.substring(relativeEndOffset);
+		}
+		return new SingleTextEdit(overallLnColRange, text);
 	}
 
 	public isVisible(model: ITextModel, cursorPosition: Position, reader: IReader | undefined): boolean {

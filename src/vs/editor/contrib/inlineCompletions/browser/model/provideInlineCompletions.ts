@@ -389,6 +389,21 @@ export class InlineCompletionItem {
 		);
 	}
 
+	public withRangeAndInsertText(updatedRange: Range, updatedInsertText: string): InlineCompletionItem {
+		return new InlineCompletionItem(
+			this.filterText,
+			this.command,
+			this.shownCommand,
+			updatedRange,
+			updatedInsertText,
+			this.snippetInfo,
+			this.cursorShowRange,
+			this.additionalTextEdits,
+			this.sourceInlineCompletion,
+			this.source,
+		);
+	}
+
 	public hash(): string {
 		return JSON.stringify({ insertText: this.insertText, range: this.range.toString() });
 	}
