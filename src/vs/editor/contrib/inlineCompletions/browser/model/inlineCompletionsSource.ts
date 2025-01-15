@@ -342,6 +342,8 @@ export class InlineCompletionWithUpdatedRange {
 	public _inlineEdit: ISettableObservable<OffsetEdit | null>;
 	public get inlineEdit() { return this._inlineEdit.get(); }
 
+	private readonly _creationTime: number = Date.now();
+
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
 		public readonly decorationId: string,
@@ -381,6 +383,14 @@ export class InlineCompletionWithUpdatedRange {
 		if (!offsetEdit) {
 			return;
 		}
+
+		if (this._creationTime + 4000 < Date.now()) {
+			// The completion has been shown for a while and the user
+			// has been working on a different part of the document, so invalidate it
+			this._inlineEdit.set(new OffsetEdit([new SingleOffsetEdit(new OffsetRange(0, 0), '')]), tx);
+			return;
+		}
+
 		const newEdits = offsetEdit.edits.map(edit => acceptTextModelChange(edit, e.changes));
 		const emptyEdit = newEdits.find(edit => edit.isEmpty);
 		if (emptyEdit) {
