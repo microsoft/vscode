@@ -248,47 +248,52 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			});
 		}
 
+		// Handle absolute paths differently to avoid adding `./` prefixes
+		const isAbsolutePath = lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator);
+
 		// Add all direct children files or folders
 		//
 		// For example:
 		// - `cd ./src/` -> `cd ./src/folder1`, ...
-		for (const stat of fileStat.children) {
-			let kind: TerminalCompletionItemKind | undefined;
-			if (foldersRequested && stat.isDirectory) {
-				kind = TerminalCompletionItemKind.Folder;
-			}
-			if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
-				kind = TerminalCompletionItemKind.File;
-			}
-			if (kind === undefined) {
-				continue;
-			}
-			const isDirectory = kind === TerminalCompletionItemKind.Folder;
-			const resourceName = basename(stat.resource.fsPath);
+		if (!isAbsolutePath) {
+			for (const stat of fileStat.children) {
+				let kind: TerminalCompletionItemKind | undefined;
+				if (foldersRequested && stat.isDirectory) {
+					kind = TerminalCompletionItemKind.Folder;
+				}
+				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
+					kind = TerminalCompletionItemKind.File;
+				}
+				if (kind === undefined) {
+					continue;
+				}
+				const isDirectory = kind === TerminalCompletionItemKind.Folder;
+				const resourceName = basename(stat.resource.fsPath);
 
-			// Add a . to the start of the path if there isn't one already
-			let label = !/^\.\.?\//.test(lastWordFolder) ? `.${resourceRequestConfig.pathSeparator}${resourceName}` : `${lastWordFolder}${resourceName}`;
+				// Add a . to the start of the path if there isn't one already
+				let label = !/^\.\.?\//.test(lastWordFolder) ? `.${resourceRequestConfig.pathSeparator}${resourceName}` : `${lastWordFolder}${resourceName}`;
 
-			// Ensure directories end with a path separator
-			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
-				label = `${label}${resourceRequestConfig.pathSeparator}`;
+				// Ensure directories end with a path separator
+				if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
+					label = `${label}${resourceRequestConfig.pathSeparator}`;
+				}
+
+				// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
+				// suggestions should all use `\`
+				if (isWindows) {
+					label = label.replaceAll('/', '\\');
+				}
+
+				resourceCompletions.push({
+					label,
+					provider,
+					kind,
+					isDirectory,
+					isFile: kind === TerminalCompletionItemKind.File,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
 			}
-
-			// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
-			// suggestions should all use `\`
-			if (isWindows) {
-				label = label.replaceAll('/', '\\');
-			}
-
-			resourceCompletions.push({
-				label,
-				provider,
-				kind,
-				isDirectory,
-				isFile: kind === TerminalCompletionItemKind.File,
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
-			});
 		}
 
 		// Add parent directory to the bottom of the list because it's not as useful as other suggestions
