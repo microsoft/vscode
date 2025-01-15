@@ -5,7 +5,7 @@
 
 import { Command, Disposable, commands } from 'vscode';
 import { Model } from '../model';
-import { getRemoteSourceActions, getRemoteSourceControlHistoryItemCommands, pickRemoteSource } from '../remoteSource';
+import { getRemoteSourceActions, getRemoteSourceControlHistoryItemCommands, pickRemoteSource, provideRemoteSourceDocumentLinks } from '../remoteSource';
 import { GitBaseExtensionImpl } from './extension';
 import { API, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceAction, RemoteSourceProvider } from './git-base';
 
@@ -23,6 +23,10 @@ export class ApiImpl implements API {
 
 	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[]> {
 		return getRemoteSourceControlHistoryItemCommands(this._model, url);
+	}
+
+	provideRemoteSourceDocumentLinks(url: string, content: string): Promise<string> {
+		return provideRemoteSourceDocumentLinks(this._model, url, content);
 	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {

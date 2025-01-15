@@ -137,6 +137,21 @@ export async function getRemoteSourceControlHistoryItemCommands(model: Model, ur
 	return remoteSourceCommands;
 }
 
+export async function provideRemoteSourceDocumentLinks(model: Model, url: string, content: string): Promise<string> {
+	const providers = model.getRemoteProviders();
+
+	for (const provider of providers) {
+		const parsedContent = await provider.provideRemoteSourceDocumentLinks?.(url, content);
+		if (!parsedContent) {
+			continue;
+		}
+
+		content = parsedContent;
+	}
+
+	return content;
+}
+
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch: true }): Promise<PickRemoteSourceResult | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {

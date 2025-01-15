@@ -12,7 +12,7 @@ import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
-import { getRemoteSourceControlHistoryItemCommands } from './remoteSource';
+import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceDocumentLinks } from './remoteSource';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -205,6 +205,7 @@ export class GitBlameController {
 
 	async getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation, includeCommitDetails = false): Promise<MarkdownString> {
 		let commitInformation: Commit | undefined;
+		let commitMessageWithLinks: string | undefined;
 		const remoteSourceCommands: Command[] = [];
 
 		const repository = this._model.getRepository(documentUri);
@@ -222,6 +223,11 @@ export class GitBlameController {
 
 			if (defaultRemote?.fetchUrl && !unpublishedCommits.has(blameInformation.hash)) {
 				remoteSourceCommands.push(...await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl));
+			}
+
+			// Link provider
+			if (defaultRemote?.fetchUrl) {
+				commitMessageWithLinks = await provideRemoteSourceDocumentLinks(defaultRemote.fetchUrl, commitInformation?.message ?? blameInformation.subject ?? '');
 			}
 		}
 
@@ -254,7 +260,7 @@ export class GitBlameController {
 		}
 
 		// Subject | Message
-		markdownString.appendMarkdown(`${emojify(commitInformation?.message ?? blameInformation.subject ?? '')}\n\n`);
+		markdownString.appendMarkdown(`${emojify(commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '')}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
 		// Short stats

@@ -11,6 +11,7 @@ export interface API {
 	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]>;
 	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[]>;
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
+	provideRemoteSourceDocumentLinks(url: string, content: string): Promise<string | undefined>;
 }
 
 export interface GitBaseExtension {

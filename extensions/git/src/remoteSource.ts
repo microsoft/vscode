@@ -19,3 +19,7 @@ export async function getRemoteSourceActions(url: string) {
 export async function getRemoteSourceControlHistoryItemCommands(url: string) {
 	return GitBaseApi.getAPI().getRemoteSourceControlHistoryItemCommands(url);
 }
+
+export async function provideRemoteSourceDocumentLinks(url: string, content: string) {
+	return GitBaseApi.getAPI().provideRemoteSourceDocumentLinks(url, content);
+}

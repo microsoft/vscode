@@ -7,7 +7,7 @@ import { Command, Uri, env, l10n, workspace } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
-import { getRepositoryFromQuery, getRepositoryFromUrl } from './util';
+import { findAndModifyString, getRepositoryFromQuery, getRepositoryFromUrl, ISSUE_EXPRESSION, parseIssueExpression } from './util';
 import { getBranchLink, getVscodeDevHost } from './links';
 
 function asRemoteSource(raw: any): RemoteSource {
@@ -149,5 +149,28 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 			command: 'github.openOnGitHub',
 			arguments: [url]
 		}];
+	}
+
+	async provideRemoteSourceDocumentLinks(url: string, content: string): Promise<string | undefined> {
+		const repository = getRepositoryFromUrl(url);
+		if (!repository) {
+			return undefined;
+		}
+
+		return findAndModifyString(content, ISSUE_EXPRESSION, async (match: RegExpMatchArray) => {
+			const issue = parseIssueExpression(match);
+
+			if (issue) {
+				const label = issue.owner && issue.repo
+					? `${issue.owner}/${issue.repo}#${issue.number}`
+					: `#${issue.number}`;
+
+				issue.owner = issue.owner ?? repository.owner;
+				issue.repo = issue.repo ?? repository.repo;
+
+				return `[${label}](https://github.com/${issue.owner}/${issue.repo}/issues/${issue.number})`;
+			}
+			return undefined;
+		});
 	}
 }

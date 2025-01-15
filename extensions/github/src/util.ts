@@ -37,3 +37,49 @@ export function getRepositoryFromQuery(query: string): { owner: string; repo: st
 export function repositoryHasGitHubRemote(repository: Repository) {
 	return !!repository.state.remotes.find(remote => remote.fetchUrl ? getRepositoryFromUrl(remote.fetchUrl) : undefined);
 }
+
+export const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9][0-9]*)($|\b)/;
+
+export async function findAndModifyString(text: string, find: RegExp, transformer: (match: RegExpMatchArray) => Promise<string | undefined>): Promise<string> {
+	let searchResult = text.search(find);
+	let position = 0;
+	while (searchResult >= 0 && searchResult < text.length) {
+		let newBodyFirstPart: string | undefined;
+		if (searchResult === 0 || text.charAt(searchResult - 1) !== '&') {
+			const match = text.substring(searchResult).match(find)!;
+			if (match) {
+				const transformed = await transformer(match);
+				if (transformed) {
+					newBodyFirstPart = text.slice(0, searchResult) + transformed;
+					text = newBodyFirstPart + text.slice(searchResult + match[0].length);
+				}
+			}
+		}
+		position = newBodyFirstPart ? newBodyFirstPart.length : searchResult + 1;
+		const newSearchResult = text.substring(position).search(find);
+		searchResult = newSearchResult > 0 ? position + newSearchResult : newSearchResult;
+	}
+	return text;
+}
+
+export function parseIssueExpression(match: RegExpMatchArray | null): { owner?: string; repo?: string; number: number } | undefined {
+	if (!match) {
+		return undefined;
+	}
+	switch (match.length) {
+		case 7:
+			return {
+				owner: match[2],
+				repo: match[3],
+				number: parseInt(match[5]),
+			};
+		case 16:
+			return {
+				owner: match[3] || match[11],
+				repo: match[4] || match[12],
+				number: parseInt(match[7] || match[14]),
+			};
+		default:
+			return undefined;
+	}
+}
