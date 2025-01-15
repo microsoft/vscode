@@ -244,7 +244,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
-				detail: basename(cwd.fsPath),
+				detail: getFriendlyFolderPath(cwd, resourceRequestConfig.pathSeparator),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -320,7 +320,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label: lastWordFolder + '..' + resourceRequestConfig.pathSeparator,
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: basename(parentDir.path),
+				detail: getFriendlyFolderPath(parentDir, resourceRequestConfig.pathSeparator),
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: cursorPosition - lastWord.length,
@@ -330,4 +330,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
+}
+
+function getFriendlyFolderPath(uri: URI, pathSeparator: string): string {
+	let path = uri.fsPath;
+	// Ensure folders end with the path separator to differentiate presentation from files
+	if (!path.endsWith(pathSeparator)) {
+		path += pathSeparator;
+	}
+	// Ensure drive is capitalized on Windows
+	if (pathSeparator === '\\' && path.match(/^[a-zA-Z]:\\/)) {
+		path = `${path[0].toUpperCase()}:${path.slice(2)}`;
+	}
+	return path;
 }

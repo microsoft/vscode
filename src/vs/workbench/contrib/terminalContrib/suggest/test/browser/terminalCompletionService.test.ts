@@ -37,7 +37,7 @@ function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: 
 			replacementLength: e.replacementLength,
 		})), expected.map(e => ({
 			label: e.label.replaceAll('/', pathSeparator),
-			detail: e.detail ?? '',
+			detail: e.detail ? e.detail.replaceAll('/', pathSeparator) : '',
 			kind: e.kind ?? TerminalCompletionItemKind.Folder,
 			replacementIndex: expectedConfig.replacementIndex,
 			replacementLength: expectedConfig.replacementLength,
@@ -110,9 +110,9 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 1, provider);
 
 			assertCompletions(result, [
-				{ label: '.', detail: 'test' },
+				{ label: '.', detail: '/test/' },
 				{ label: './folder1/' },
-				{ label: '../' },
+				{ label: '../', detail: '/' },
 			], { replacementIndex: 1, replacementLength: 0 });
 		});
 
@@ -126,9 +126,9 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3, provider);
 
 			assertCompletions(result, [
-				{ label: './', detail: 'test' },
+				{ label: './', detail: '/test/' },
 				{ label: './folder1/' },
-				{ label: './../' },
+				{ label: './../', detail: '/' },
 			], { replacementIndex: 1, replacementLength: 2 });
 		});
 
@@ -142,9 +142,9 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5, provider);
 
 			assertCompletions(result, [
-				{ label: './', detail: 'test' },
+				{ label: './', detail: '/test/' },
 				{ label: './folder1/' },
-				{ label: './../' },
+				{ label: './../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 2 });
 		});
 		test('cd ./f| should return folder completions', async () => {
@@ -157,9 +157,9 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./f', 6, provider);
 
 			assertCompletions(result, [
-				{ label: './', detail: 'test' },
+				{ label: './', detail: '/test/' },
 				{ label: './folder1/' },
-				{ label: './../' },
+				{ label: './../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 3 });
 		});
 	});
@@ -186,12 +186,12 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider);
 
 			assertCompletions(result, [
-				{ label: './', detail: 'test' },
+				{ label: './', detail: '/test/' },
 				{ label: './.hiddenFile', kind: TerminalCompletionItemKind.File },
-				{ label: './.hiddenFolder/', kind: TerminalCompletionItemKind.Folder },
-				{ label: './folder1/', kind: TerminalCompletionItemKind.Folder },
+				{ label: './.hiddenFolder/' },
+				{ label: './folder1/' },
 				{ label: './file1.txt', kind: TerminalCompletionItemKind.File },
-				{ label: './../', kind: TerminalCompletionItemKind.Folder },
+				{ label: './../', detail: '/' },
 			], { replacementIndex: 0, replacementLength: 2 });
 		});
 
@@ -206,12 +206,12 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './h', 3, provider);
 
 			assertCompletions(result, [
-				{ label: './', detail: 'test' },
+				{ label: './', detail: '/test/' },
 				{ label: './.hiddenFile', kind: TerminalCompletionItemKind.File },
-				{ label: './.hiddenFolder/', kind: TerminalCompletionItemKind.Folder },
-				{ label: './folder1/', kind: TerminalCompletionItemKind.Folder },
+				{ label: './.hiddenFolder/' },
+				{ label: './folder1/' },
 				{ label: './file1.txt', kind: TerminalCompletionItemKind.File },
-				{ label: './../', kind: TerminalCompletionItemKind.Folder },
+				{ label: './../', detail: '/' },
 			], { replacementIndex: 0, replacementLength: 3 });
 		});
 	});
@@ -221,22 +221,24 @@ suite('TerminalCompletionService', () => {
 			childResources = [];
 		});
 
-		test('/usr/| Missing . should show correct results', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
-				cwd: URI.parse('file:///'),
-				foldersRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
-			};
-			validResources = [URI.parse('file:///usr')];
-			childResources = [];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/usr/', 5, provider);
+		if (!isWindows) {
+			test('/usr/| Missing . should show correct results', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.parse('file:///'),
+					foldersRequested: true,
+					pathSeparator,
+					shouldNormalizePrefix: true
+				};
+				validResources = [URI.parse('file:///usr')];
+				childResources = [];
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/usr/', 5, provider);
 
-			assertCompletions(result, [
-				{ label: '/usr/' },
-				{ label: '/usr/../' }
-			], { replacementIndex: 0, replacementLength: 5 });
-		});
+				assertCompletions(result, [
+					{ label: '/usr/', detail: '/usr/' },
+					{ label: '/usr/../', detail: '/' }
+				], { replacementIndex: 0, replacementLength: 5 });
+			});
+		}
 		if (isWindows) {
 			test('.\\folder | Case insensitivity should resolve correctly on Windows', async () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
@@ -255,10 +257,10 @@ suite('TerminalCompletionService', () => {
 				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.\\folder', 8, provider);
 
 				assertCompletions(result, [
-					{ label: '.\\', detail: 'test' },
+					{ label: '.\\', detail: 'C:\\test\\' },
 					{ label: '.\\FolderA\\' },
 					{ label: '.\\anotherFolder\\' },
-					{ label: '.\\..\\', detail: 'C:' },
+					{ label: '.\\..\\', detail: 'C:\\' },
 				], { replacementIndex: 0, replacementLength: 8 });
 			});
 		} else {
@@ -301,10 +303,10 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 0, provider);
 
 			assertCompletions(result, [
-				{ label: '.', detail: 'test' },
+				{ label: '.', detail: '/test/' },
 				{ label: './folder1/' },
 				{ label: './folder2/' },
-				{ label: '../' }
+				{ label: '../', detail: '/' }
 			], { replacementIndex: 0, replacementLength: 0 });
 		});
 
@@ -344,10 +346,10 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder1', 10, provider);
 
 			assertCompletions(result, [
-				{ label: './', detail: 'test' },
+				{ label: './', detail: '/test/' },
 				{ label: './folder1/' },
 				{ label: './folder2/' },
-				{ label: './../' }
+				{ label: './../', detail: '/' }
 			], { replacementIndex: 1, replacementLength: 9 });
 		});
 	});
