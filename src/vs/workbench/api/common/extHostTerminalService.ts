@@ -273,8 +273,8 @@ export class ExtHostTerminal extends Disposable {
 
 		switch (shellType) {
 			case 'sh': extHostType = 1; break;
-			case 'fish': extHostType = 2; break;
-			case 'bash': extHostType = 3; break;
+			case 'bash': extHostType = 2; break;
+			case 'fish': extHostType = 3; break;
 			case 'csh': extHostType = 4; break;
 			case 'ksh': extHostType = 5; break;
 			case 'zsh': extHostType = 6; break;
