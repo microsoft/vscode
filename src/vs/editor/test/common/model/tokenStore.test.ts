@@ -623,5 +623,35 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 41, length: 1, token: 32836 }
 		]);
 	});
+
+	test('delete removes tokens in the middle', () => {
+		const store = new TokenStore(textModel);
+		store.buildStore([
+			{ startOffsetInclusive: 0, length: 3, token: 1 },
+			{ startOffsetInclusive: 3, length: 3, token: 2 },
+			{ startOffsetInclusive: 6, length: 3, token: 3 }
+		]);
+		store.delete(3, 3); // delete 3 chars starting at offset 3
+		const tokens = store.getTokensInRange(0, 9);
+		assert.deepStrictEqual(tokens, [
+			{ startOffsetInclusive: 0, length: 3, token: 1 },
+			{ startOffsetInclusive: 3, length: 3, token: 3 }
+		]);
+	});
+
+	test('delete merges partially affected token', () => {
+		const store = new TokenStore(textModel);
+		store.buildStore([
+			{ startOffsetInclusive: 0, length: 5, token: 1 },
+			{ startOffsetInclusive: 5, length: 5, token: 2 }
+		]);
+		store.delete(3, 4); // removes 4 chars within token 1 and partially token 2
+		const tokens = store.getTokensInRange(0, 10);
+		assert.deepStrictEqual(tokens, [
+			{ startOffsetInclusive: 0, length: 4, token: 1 },
+			// token 2 is now shifted left by 4
+			{ startOffsetInclusive: 4, length: 3, token: 2 }
+		]);
+	});
 });
 

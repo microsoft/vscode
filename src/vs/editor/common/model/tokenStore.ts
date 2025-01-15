@@ -268,7 +268,7 @@ export class TokenStore {
 				continue;
 			} else if (isLeaf(node.node) && (currentOffset + node.node.length >= firstUnchangedOffsetAfterUpdate)) {
 				// we have a partial postceeding node
-				postcedingNodes.push({ length: firstUnchangedOffsetAfterUpdate - currentOffset, token: node.node.token, height: 0 });
+				postcedingNodes.push({ length: currentOffset + node.node.length - firstUnchangedOffsetAfterUpdate, token: node.node.token, height: 0 });
 				continue;
 			}
 
