@@ -7,7 +7,7 @@ import { Command, Uri, env, l10n, workspace } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
-import { findAndModifyString, getRepositoryFromQuery, getRepositoryFromUrl, ISSUE_EXPRESSION, parseIssueExpression } from './util';
+import { getRepositoryFromQuery, getRepositoryFromUrl, ISSUE_EXPRESSION } from './util';
 import { getBranchLink, getVscodeDevHost } from './links';
 
 function asRemoteSource(raw: any): RemoteSource {
@@ -151,26 +151,27 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}];
 	}
 
-	async provideRemoteSourceDocumentLinks(url: string, content: string): Promise<string | undefined> {
+	provideRemoteSourceDocumentLinks(url: string, content: string): string | undefined {
 		const repository = getRepositoryFromUrl(url);
 		if (!repository) {
 			return undefined;
 		}
 
-		return findAndModifyString(content, ISSUE_EXPRESSION, async (match: RegExpMatchArray) => {
-			const issue = parseIssueExpression(match);
+		return content.replace(
+			ISSUE_EXPRESSION,
+			(match, _group1, owner: string | undefined, repo: string | undefined, _group2, number: string | undefined) => {
+				if (!number || Number.isNaN(parseInt(number))) {
+					return match;
+				}
 
-			if (issue) {
-				const label = issue.owner && issue.repo
-					? `${issue.owner}/${issue.repo}#${issue.number}`
-					: `#${issue.number}`;
+				const label = owner && repo
+					? `${owner}/${repo}#${number}`
+					: `#${number}`;
 
-				issue.owner = issue.owner ?? repository.owner;
-				issue.repo = issue.repo ?? repository.repo;
+				owner = owner ?? repository.owner;
+				repo = repo ?? repository.repo;
 
-				return `[${label}](https://github.com/${issue.owner}/${issue.repo}/issues/${issue.number})`;
-			}
-			return undefined;
-		});
+				return `[${label}](https://github.com/${owner}/${repo}/issues/${number})`;
+			});
 	}
 }

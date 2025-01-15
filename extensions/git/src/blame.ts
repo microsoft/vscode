@@ -227,7 +227,8 @@ export class GitBlameController {
 
 			// Link provider
 			if (defaultRemote?.fetchUrl) {
-				commitMessageWithLinks = await provideRemoteSourceDocumentLinks(defaultRemote.fetchUrl, commitInformation?.message ?? blameInformation.subject ?? '');
+				commitMessageWithLinks = await provideRemoteSourceDocumentLinks(
+					defaultRemote.fetchUrl, commitInformation?.message ?? blameInformation.subject ?? '');
 			}
 		}
 
