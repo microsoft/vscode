@@ -477,8 +477,9 @@ function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOpti
 
 class HoverContextViewDelegate implements IDelegate {
 
-	// Render over all other context views
-	public readonly layer = 1;
+	// Render over all other context views and dialogs
+	// Set the layer to 26 to fix the issue https://github.com/microsoft/vscode/issues/237947
+	public readonly layer = 26;
 
 	get anchorPosition() {
 		return this._hover.anchor;
