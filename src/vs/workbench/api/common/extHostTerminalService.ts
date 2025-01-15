@@ -18,7 +18,7 @@ import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollect
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Promises } from '../../../base/common/async.js';
@@ -271,18 +271,18 @@ export class ExtHostTerminal extends Disposable {
 		let extHostType: vscode.TerminalShellType | undefined;
 
 		switch (shellType) {
-			case 'sh': extHostType = 1; break;
-			case 'bash': extHostType = 2; break;
-			case 'fish': extHostType = 3; break;
-			case 'csh': extHostType = 4; break;
-			case 'ksh': extHostType = 5; break;
-			case 'zsh': extHostType = 6; break;
-			case 'cmd': extHostType = 7; break;
-			case 'gitbash': extHostType = 8; break;
-			case 'pwsh': extHostType = 9; break;
-			case 'python': extHostType = 10; break;
-			case 'julia': extHostType = 11; break;
-			case 'nu': extHostType = 12; break;
+			case PosixShellType.Sh: extHostType = 1; break;
+			case PosixShellType.Bash: extHostType = 2; break;
+			case PosixShellType.Fish: extHostType = 3; break;
+			case PosixShellType.Csh: extHostType = 4; break;
+			case PosixShellType.Ksh: extHostType = 5; break;
+			case PosixShellType.Zsh: extHostType = 6; break;
+			case WindowsShellType.CommandPrompt: extHostType = 7; break;
+			case WindowsShellType.GitBash: extHostType = 8; break;
+			case GeneralShellType.PowerShell: extHostType = 9; break;
+			case GeneralShellType.Python: extHostType = 10; break;
+			case GeneralShellType.Julia: extHostType = 11; break;
+			case GeneralShellType.NuShell: extHostType = 12; break;
 			default: extHostType = undefined; break;
 		}
 
