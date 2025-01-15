@@ -52,8 +52,6 @@ export const SHOW_WARNING_FILTER_CONTEXT = new RawContextKey<boolean>('output.fi
 export const SHOW_ERROR_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.error', true);
 export const OUTPUT_FILTER_FOCUS_CONTEXT = new RawContextKey<boolean>('outputFilterFocus', false);
 
-export const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) (\[(info|trace|debug|error|warning)\])/;
-
 export interface IOutputViewFilters {
 	readonly onDidChange: Event<void>;
 	text: string;
@@ -250,6 +248,8 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
+
+const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(?:\[(?!info|trace|debug|error|warning).*?\]\s)?(\[(info|trace|debug|error|warning)\])/;
 
 export interface ILogEntry {
 	readonly timestamp: number;

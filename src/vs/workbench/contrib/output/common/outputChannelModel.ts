@@ -21,7 +21,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../platform/log/common/log.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { LOG_ENTRY_REGEX, LOG_MIME, OutputChannelUpdateMode, parseLogEntryAt } from '../../../services/output/common/output.js';
+import { LOG_MIME, OutputChannelUpdateMode, parseLogEntryAt } from '../../../services/output/common/output.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { TextModel } from '../../../../editor/common/model/textModel.js';
 
@@ -214,7 +214,8 @@ class MultiFileContentProvider extends Disposable implements IContentProvider {
 					continue;
 				}
 				lineNumber = logEntry.range.endLineNumber;
-				const content = model.getValueInRange(logEntry.range).replace(LOG_ENTRY_REGEX, `$1 [${name}] $2`);
+				const lineContent = model.getLineContent(lineNumber);
+				const content = `${lineContent.substring(0, logEntry.timestampRange.endColumn - 1)} [${name}]${lineContent.substring(logEntry.timestampRange.endColumn - 1)}`;
 				logEntries.push([logEntry.timestamp, content]);
 			}
 		}
