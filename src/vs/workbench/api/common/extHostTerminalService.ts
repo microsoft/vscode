@@ -283,7 +283,7 @@ export class ExtHostTerminal extends Disposable {
 			case 'python': extHostType = 10; break;
 			case 'julia': extHostType = 11; break;
 			case 'nu': extHostType = 12; break;
-			// TODO: default? as undefined?
+			default: extHostType = undefined; break;
 		}
 
 		if (this._state.shellType !== shellType) {
