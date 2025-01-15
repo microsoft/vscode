@@ -799,7 +799,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return completions;
 	}
 
-	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined | number): void {
+	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined): void {
 		const terminal = this.getTerminalById(id);
 		if (terminal?.setShellType(shellType)) {
 			this._onDidChangeTerminalState.fire(terminal.value);
