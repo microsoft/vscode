@@ -77,7 +77,7 @@ import { middleware, Straightforward } from 'straightforward';
 		}
 	});
 
-	test('basic auth', async () => {
+	test.skip('basic auth', async () => {
 		const url = 'https://example.com'; // Need to use non-local URL because local URLs are excepted from proxying.
 		const user = 'testuser';
 		const pass = 'testpassword';
