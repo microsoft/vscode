@@ -89,3 +89,18 @@
 	color: var(--vscode-button-foreground);
 	opacity: 1;
 }
+
+.chat-editor-overlay-widget .action-item.auto > .action-label {
+	background: linear-gradient(90deg, var(--vscode-button-foreground) 0%, var(--vscode-editorGutter-addedBackground) 30%, var(--vscode-button-foreground) 60%);
+	background-size: 300% 100%;
+	color: transparent;
+	-webkit-background-clip: text;
+	background-clip: text;
+	animation: gradientMove 12s linear infinite;
+	font-variant-numeric: tabular-nums;
+}
+
+@keyframes gradientMove {
+	0% { background-position: 100% 50%; }
+	100% { background-position: -100% 50%; }
+}
