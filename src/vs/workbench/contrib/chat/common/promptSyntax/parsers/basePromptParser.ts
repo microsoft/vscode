@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { extUri } from '../../../../base/common/resources.js';
-import { ChatPromptCodec } from './codecs/chatPromptCodec/chatPromptCodec.js';
-import { FileReference } from './codecs/chatPromptCodec/tokens/fileReference.js';
-import { TrackedDisposable } from '../../../../base/common/trackedDisposable.js';
-import { IPromptFileReference, IPromptContentsProvider, TPromptPart } from './basePromptTypes.js';
-import { FilePromptContentProvider } from './promptContentProviders/filePromptContentsProvider.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { MarkdownLink } from '../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError } from './promptFileReferenceErrors.js';
-
-/**
- * TODO: @legomushroom - move to the correct place
- */
+import { IPromptFileReference } from './types.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { FileReference } from '../codecs/tokens/fileReference.js';
+import { IPromptContentsProvider } from '../contentProviders/types.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { basename, extUri } from '../../../../../../base/common/resources.js';
+import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { TrackedDisposable } from '../../../../../../base/common/trackedDisposable.js';
+import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
+import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError } from '../../promptFileReferenceErrors.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -93,6 +92,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		seenReferences: string[] = [],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IConfigurationService protected readonly configService: IConfigurationService,
+		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
 
@@ -117,46 +117,95 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		// even if the file doesn't exist, we would never end up in the recursion
 		seenReferences.push(this.uri.path);
 
+		let currentStream: VSBufferReadableStream | undefined;
 		this._register(
 			this.promptContentsProvider.onContentChanged((streamOrError) => {
-				this._resolveAttempted = true;
+				// destroy previously received stream
+				currentStream?.destroy();
 
-				// dispose all existing references
-				this.disposeReferences();
-
-				// if an error received, set up the error condition and stop
-				if (streamOrError instanceof ParseError) {
-					this._errorCondition = streamOrError;
-					this._onUpdate.fire();
-
-					return;
+				if (!(streamOrError instanceof ParseError)) {
+					// save the current stream object so it can be destroyed when/if
+					// a new stream is received
+					currentStream = streamOrError;
 				}
 
-				const stream = ChatPromptCodec.decode(streamOrError);
-				stream.on('error', (error) => {
-					// TODO: @legomushroom - handle the error?
-					stream.dispose();
-				});
-
-				stream.on('end', () => {
-					stream.dispose();
-				});
-
-				stream.on('data', (token) => {
-					if (token instanceof FileReference) {
-						this.onReference(token, [...seenReferences]);
-					}
-
-					// note! the `isURL` is a simple check and needs to be improved
-					// 		 to truly handle only prompt snippet file references
-					if (token instanceof MarkdownLink && !token.isURL) {
-						this.onReference(token, [...seenReferences]);
-					}
-				});
-
-				stream.start();
+				// process the the received message
+				this.onContentsChanged(streamOrError, seenReferences);
 			}),
 		);
+	}
+
+	/**
+	 * Handler the event event that is triggered when prompt contents change.
+	 *
+	 * @param streamOrError Either a binary stream of file contents, or an error object
+	 * 						that was generated during the reference resolve attempt.
+	 * @param seenReferences List of parent references that we've have already seen
+	 * 					 	during the process of traversing the references tree. It's
+	 * 						used to prevent the tree navigation to fall into an infinite
+	 * 						references recursion.
+	 */
+	private onContentsChanged(
+		streamOrError: VSBufferReadableStream | ParseError,
+		seenReferences: string[],
+	): void {
+		// set the flag indicating that reference resolution was attempted
+		this._resolveAttempted = true;
+
+		// prefix for all log messages produced by this callback
+		const logPrefix = `[prompt parser][${basename(this.uri)}]`;
+
+		// dispose all currently existing references
+		this.disposeReferences();
+
+		// if an error received, set up the error condition and stop
+		if (streamOrError instanceof ParseError) {
+			this._errorCondition = streamOrError;
+			this._onUpdate.fire();
+
+			return;
+		}
+
+		// cleanup existing error condition (if any)
+		delete this._errorCondition;
+
+		// decode the byte stream to a stream of prompt tokens
+		const stream = ChatPromptCodec.decode(streamOrError);
+
+		// on error or stream end, dispose the stream
+		stream.on('error', (error) => {
+			stream.dispose();
+
+			this.logService.warn(
+				`${logPrefix} received an error on the chat prompt decoder stream: ${error}`,
+			);
+		});
+		stream.on('end', stream.dispose.bind(stream));
+
+		// when some tokens received, process and store the references
+		stream.on('data', (token) => {
+			if (token instanceof FileReference) {
+				this.onReference(token, [...seenReferences]);
+			}
+
+			// note! the `isURL` is a simple check and needs to be improved to truly
+			// 		 handle only file references, ignoring broken URLs or references
+			if (token instanceof MarkdownLink && !token.isURL) {
+				this.onReference(token, [...seenReferences]);
+			}
+		});
+
+		// calling `start` on a disposed stream throws, so we warn and return instead
+		if (stream.disposed) {
+			this.logService.warn(
+				`${logPrefix} cannot start stream that has been already disposed, aborting`,
+			);
+
+			return;
+		}
+
+		// start receiving data on the stream
+		stream.start();
 	}
 
 	/**
@@ -241,7 +290,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	/**
 	 * Get a list of immediate child references of the prompt.
 	 */
-	public get references(): readonly TPromptPart[] {
+	public get references(): readonly IPromptFileReference[] {
 		return [...this._references];
 	}
 
@@ -249,13 +298,13 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * Get a list of all references of the prompt, including
 	 * all possible nested references its children may contain.
 	 */
-	public get allReferences(): readonly TPromptPart[] {
-		const result: TPromptPart[] = [];
+	public get allReferences(): readonly IPromptFileReference[] {
+		const result: IPromptFileReference[] = [];
 
 		for (const reference of this.references) {
 			result.push(reference);
 
-			if (reference.type === 'file-reference') {
+			if (reference.type === 'file') {
 				result.push(...reference.allReferences);
 			}
 		}
@@ -264,42 +313,21 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get list of all valid references.
 	 */
-	public get allValidFileReferenceUris(): readonly URI[] {
-		const result: TPromptPart[] = [];
-
-		for (const fileReference of this.validFileReferences) {
-			result.push(fileReference);
-			result.push(...fileReference.validFileReferences);
-		}
-
-		return result.map(child => child.uri);
-	}
-
-	/**
-	 * Get list of all valid file references.
-	 */
-	public get validFileReferences(): readonly IPromptFileReference[] {
-		return this.references
-			// TODO: @legomushroom
-			// // skip the root reference itself (this variable)
-			// .slice(1)
+	public get allValidReferences(): readonly IPromptFileReference[] {
+		return this.allReferences
 			// filter out unresolved references
 			.filter((reference) => {
-				if (reference.resolveFailed) {
-					return false;
-				}
-
-				return reference.type === 'file-reference';
+				return !reference.resolveFailed;
 			});
 	}
 
 	/**
 	 * Get list of all valid child references as URIs.
 	 */
-	public get validFileReferenceUris(): readonly URI[] {
-		return this.validFileReferences
+	public get allValidReferencesUris(): readonly URI[] {
+		return this.allValidReferences
 			.map(child => child.uri);
 	}
 
@@ -352,7 +380,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
  * or a markdown link(`[#file:file.md](/path/to/file.md)`).
  */
 export class PromptFileReference extends BasePromptParser<FilePromptContentProvider> implements IPromptFileReference {
-	public readonly type = 'file-reference';
+	public readonly type = 'file';
 
 	public readonly range = this.token.range;
 	public readonly path: string = this.token.path;
@@ -364,11 +392,12 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 		seenReferences: string[] = [],
 		@IInstantiationService initService: IInstantiationService,
 		@IConfigurationService configService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
 		const fileUri = extUri.resolvePath(dirname, token.path);
 		const provider = initService.createInstance(FilePromptContentProvider, fileUri);
 
-		super(provider, seenReferences, initService, configService);
+		super(provider, seenReferences, initService, configService, logService);
 	}
 
 	/**

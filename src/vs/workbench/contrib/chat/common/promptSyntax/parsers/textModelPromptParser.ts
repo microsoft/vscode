@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BasePromptParser } from './basePromptParser.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { TextModelContentsProvider } from './promptContentProviders/textModelContentsProvider.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { TextModelContentsProvider } from '../contentProviders/textModelContentsProvider.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Class capable of parsing prompt syntax out of a provided text
@@ -19,9 +20,10 @@ export class TextModelPromptParser extends BasePromptParser<TextModelContentsPro
 		seenReferences: string[] = [],
 		@IInstantiationService initService: IInstantiationService,
 		@IConfigurationService configService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
 		const contentsProvider = initService.createInstance(TextModelContentsProvider, model);
-		super(contentsProvider, seenReferences, initService, configService);
+		super(contentsProvider, seenReferences, initService, configService, logService);
 	}
 
 	/**

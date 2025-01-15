@@ -3,19 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/**
- * TODO: @legomushroom - list
- *
- *  - smoke test the `prompt snippets` / `prompt instructions`
- */
-
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { assertDefined } from '../../../../../base/common/types.js';
-import { FilePromptParser } from '../../common/filePromptParser.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { FilePromptParser } from '../../common/promptSyntax/parsers/filePromptParser.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { FailedToResolveContentsStream, FileOpenFailed, NonPromptSnippetFile, ParseError, RecursiveReference } from '../../common/promptFileReferenceErrors.js';
 
@@ -83,7 +77,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 		// otherwise return `URI` for the main reference and
 		// all valid child `URI` references it may contain
 		return [
-			...reference.validFileReferenceUris,
+			...reference.allValidReferencesUris,
 			reference.uri,
 		];
 	}
@@ -163,13 +157,21 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	}
 
 	/**
-	 * Collect all failures that may have occurred during the process
-	 * of resolving references in the entire references tree.
+	 * Collect all failures that may have occurred during the process of resolving
+	 * references in the entire references tree, including the current root reference.
 	 *
 	 * @returns List of errors in the references tree.
 	 */
 	private collectErrorConditions(): ParseError[] {
-		return this.reference
+		const result: ParseError[] = [];
+
+		// add error conditions of this object
+		if (this._reference.errorCondition) {
+			result.push(this._reference.errorCondition);
+		}
+
+		// collect error conditions of all child references
+		const childErrorConditions = this.reference
 			// get entire reference tree
 			.allReferences
 			// filter out children without error conditions or
@@ -191,6 +193,9 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 
 				return errorCondition;
 			});
+		result.push(...childErrorConditions);
+
+		return result;
 	}
 
 	/**

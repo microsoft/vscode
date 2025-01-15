@@ -4,47 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { extUri } from '../../../../../base/common/resources.js';
-import { randomInt } from '../../../../../base/common/numbers.js';
-import { isWindows } from '../../../../../base/common/platform.js';
-import { TErrorCondition } from '../../common/basePromptParser.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { FilePromptParser } from '../../common/filePromptParser.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IPromptFileReference } from '../../common/basePromptTypes.js';
-import { randomBoolean } from '../../../../../base/common/randomBoolean.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
-import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { FileReference } from '../../common/codecs/chatPromptCodec/tokens/fileReference.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ConfigurationService } from '../../../../../platform/configuration/common/configurationService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NonPromptSnippetFile, RecursiveReference, FileOpenFailed } from '../../common/promptFileReferenceErrors.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-
-/**
- * Helper function that allows to await for a specified amount of time.
- * @param ms The amount of time to wait in milliseconds.
- */
-const wait = (ms: number): Promise<void> => {
-	return new Promise(resolve => setTimeout(resolve, ms));
-};
-
-/**
- * Helper function that allows to await for a random amount of time.
- * @param maxMs The `maximum` amount of time to wait, in milliseconds.
- * @param minMs [`optional`] The `minimum` amount of time to wait, in milliseconds.
- */
-const waitRandom = (maxMs: number, minMs: number = 0): Promise<void> => {
-	return wait(randomInt(maxMs, minMs));
-};
+import { URI } from '../../../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { extUri } from '../../../../../../base/common/resources.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IPromptFileReference } from '../../../common/promptSyntax/parsers/types.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
+import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
+import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
+import { wait, waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NonPromptSnippetFile, RecursiveReference, FileOpenFailed } from '../../../common/promptFileReferenceErrors.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 /**
  * Represents a file system node.

@@ -3,29 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
-import { assertDefined } from '../../../../../base/common/types.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
-import { VSBufferReadableStream } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { FileOpenFailed, NonPromptSnippetFile } from '../promptFileReferenceErrors.js';
-import { IPromptContentsProvider, PromptContentsProviderBase } from './promptContentsProviderBase.js';
-import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
+import { IPromptContentsProvider } from './types.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { assertDefined } from '../../../../../../base/common/types.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
+import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { FileOpenFailed, NonPromptSnippetFile } from '../../promptFileReferenceErrors.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
 /**
  * Prompt contents provider for a file on the disk referenced by the provided {@linkcode URI}.
  */
 export class FilePromptContentProvider extends PromptContentsProviderBase<FileChangesEvent> implements IPromptContentsProvider {
-	/**
-	 * Whether current file was deleted.
-	 */
-	private deleted = false;
-
 	constructor(
 		public readonly uri: URI,
 		@IFileService private readonly fileService: IFileService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -58,40 +52,11 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	 * @param cancellationToken - token that cancels this operation
 	 */
 	protected async getContentsStream(
-		event: FileChangesEvent | 'full',
+		_event: FileChangesEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<VSBufferReadableStream> {
 		if (cancellationToken?.isCancellationRequested) {
 			throw new CancellationError();
-		}
-
-		const addedEvent = event !== 'full' && event.contains(this.uri, FileChangeType.ADDED);
-		const deletedEvent = event !== 'full' && event.contains(this.uri, FileChangeType.DELETED);
-
-		// if file has been deleted, throw an the file open error
-		if (deletedEvent) {
-			if (this.deleted) {
-				this.logService.warn(
-					[
-						`Received 'deleted' event for file at '${this.uri.path}', but it was already previously deleted.`,
-						'This most likely indicates a bug in our logic, so please report it.',
-					].join(' '),
-				);
-			}
-
-			this.deleted = true;
-			throw new FileOpenFailed(this.uri, 'Failed to open non-existing file.');
-		}
-
-		// if we receive an `add` event, validate that the file was previously deleted, because
-		// that is the only way we could have end up in this state of the file reference object
-		if (addedEvent && !this.deleted) {
-			this.logService.warn(
-				[
-					`Received 'add' event for file at '${this.uri.path}', but it was not previously deleted.`,
-					'This most likely indicates a bug in our logic, so please report it.',
-				].join(' '),
-			);
 		}
 
 		// get the binary stream of the file contents

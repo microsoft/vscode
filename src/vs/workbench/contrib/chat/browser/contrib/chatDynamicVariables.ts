@@ -26,7 +26,7 @@ import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } fr
 import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
 import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { BasePromptParser } from '../../common/basePromptParser.js';
+import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 

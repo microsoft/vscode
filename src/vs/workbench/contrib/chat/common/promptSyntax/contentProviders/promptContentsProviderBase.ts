@@ -3,41 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { assert } from '../../../../../base/common/assert.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
-import { VSBufferReadableStream } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { TrackedDisposable } from '../../../../../base/common/trackedDisposable.js';
-import { FailedToResolveContentsStream, ParseError } from '../promptFileReferenceErrors.js';
-import { cancelPreviousCalls } from '../../../../../base/common/decorators/cancelPreviousCalls.js';
-/**
- * Interface for a prompt contents provider. Prompt contents providers are
- * responsible for providing contents of a prompt as a stream of lines and
- * allow to subscribe to the change events of the prompt contents.
- */
-export interface IPromptContentsProvider extends IDisposable {
-	/**
-	 * URI component of the prompt associated with this contents provider.
-	 */
-	readonly uri: URI;
-
-	/**
-	 * Start the contents provider to produce the underlying contents.
-	 */
-	start(): this;
-
-	/**
-	 * Event that fires when the prompt contents change. The event is either a
-	 * {@linkcode VSBufferReadableStream} stream with changed contents or
-	 * an instance of the {@linkcode ParseError} error.
-	 */
-	onContentChanged(
-		callback: (streamOrError: VSBufferReadableStream | ParseError) => void,
-	): IDisposable;
-}
+import { IPromptContentsProvider } from './types.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { assert } from '../../../../../../base/common/assert.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { TrackedDisposable } from '../../../../../../base/common/trackedDisposable.js';
+import { FailedToResolveContentsStream, ParseError } from '../../promptFileReferenceErrors.js';
+import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
 
 /**
  * File extension for the prompt snippets.

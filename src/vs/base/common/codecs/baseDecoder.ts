@@ -318,20 +318,6 @@ export abstract class BaseDecoder<
 		return asyncDecoder[Symbol.asyncIterator]();
 	}
 
-	/**
-	 * Transforms the current stream data type to the one returned by
-	 * the provided `transform` function.
-	 *
-	 * See also {@linkcode TransformDecoder}.
-	 */
-	public transform<M extends NonNullable<unknown>>(
-		transform: (data: T) => (M | null),
-	): TransformDecoder<this, M, T> {
-		// TODO: @legomushroom - throw if already used/started?
-
-		return new TransformDecoder(this, transform);
-	}
-
 	public override dispose(): void {
 		if (this.disposed) {
 			return;
@@ -342,35 +328,5 @@ export abstract class BaseDecoder<
 		this.stream.destroy();
 		this.removeAllListeners();
 		super.dispose();
-	}
-}
-
-/**
- * Transforms a provided stream data type by piping it through
- * the specified {@linkcode transformData} callback function.
- */
-class TransformDecoder<
-	I extends BaseDecoder<T, NonNullable<unknown>>,
-	M extends NonNullable<unknown>,
-	T extends NonNullable<unknown>,
-> extends BaseDecoder<M, T> {
-	constructor(
-		stream: I,
-		private readonly transformData: (data: T) => (M | null),
-	) {
-		super(stream);
-
-		// TODO: @legomushroom - fix this
-		// Object.setPrototypeOf(this.constructor.prototype, stream);
-	}
-
-	protected override onStreamData(data: T): void {
-		const newData = this.transformData(data);
-
-		if (newData === null) {
-			return;
-		}
-
-		this._onData.fire(newData);
 	}
 }

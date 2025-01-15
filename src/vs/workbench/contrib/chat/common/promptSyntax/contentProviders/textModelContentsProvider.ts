@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { newWriteableStream, ReadableStream } from '../../../../../base/common/stream.js';
-import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
+import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 
 /**
  * Prompt contents provider for a {@linkcode ITextModel} instance.
