@@ -85,10 +85,12 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 			return;
 		}
 
-		// Default remote (origin, or the first remote)
-		const defaultRemote = remotes.find(r => r.name === 'origin') ?? remotes[0];
+		// Default remote (upstream -> origin -> first)
+		const remote = remotes.find(r => r.name === 'upstream')
+			?? remotes.find(r => r.name === 'origin')
+			?? remotes[0];
 
-		const link = getCommitLink(defaultRemote.fetchUrl!, historyItem.id);
+		const link = getCommitLink(remote.fetchUrl!, historyItem.id);
 		vscode.env.openExternal(vscode.Uri.parse(link));
 	}));
 

@@ -23,15 +23,15 @@ export async function getRemoteSourceControlHistoryItemCommands(repository: Repo
 		return [];
 	}
 
-	// upstream -> origin -> first
-	return await _getRemoteSourceControlHistoryItemCommands(repository, 'upstream')
-		?? await _getRemoteSourceControlHistoryItemCommands(repository, 'origin')
-		?? await _getRemoteSourceControlHistoryItemCommands(repository, repository.remotes[0].name);
-}
+	const getCommands = async (repository: Repository, remoteName: string): Promise<Command[]> => {
+		const remote = repository.remotes.find(r => r.name === remoteName && r.fetchUrl);
+		return remote ? GitBaseApi.getAPI().getRemoteSourceControlHistoryItemCommands(remote.fetchUrl!) : [];
+	};
 
-async function _getRemoteSourceControlHistoryItemCommands(repository: Repository, remoteName: string): Promise<Command[]> {
-	const remote = repository.remotes.find(r => r.name === remoteName && r.fetchUrl);
-	return remote ? GitBaseApi.getAPI().getRemoteSourceControlHistoryItemCommands(remote.fetchUrl!) : [];
+	// upstream -> origin -> first
+	return await getCommands(repository, 'upstream')
+		?? await getCommands(repository, 'origin')
+		?? await getCommands(repository, repository.remotes[0].name);
 }
 
 export async function provideRemoteSourceDocumentLinks(repository: Repository, content: string): Promise<string | undefined> {
@@ -39,13 +39,13 @@ export async function provideRemoteSourceDocumentLinks(repository: Repository, c
 		return undefined;
 	}
 
-	// upstream -> origin -> first
-	return await _provideRemoteSourceDocumentLinks(repository, 'upstream', content)
-		?? await _provideRemoteSourceDocumentLinks(repository, 'origin', content)
-		?? await _provideRemoteSourceDocumentLinks(repository, repository.remotes[0].name, content);
-}
+	const getDocumentLinks = async (repository: Repository, remoteName: string): Promise<string | undefined> => {
+		const remote = repository.remotes.find(r => r.name === remoteName && r.fetchUrl);
+		return remote ? GitBaseApi.getAPI().provideRemoteSourceDocumentLinks(remote.fetchUrl!, content) : undefined;
+	};
 
-async function _provideRemoteSourceDocumentLinks(repository: Repository, remoteName: string, content: string): Promise<string | undefined> {
-	const remote = repository.remotes.find(r => r.name === remoteName && r.fetchUrl);
-	return remote ? GitBaseApi.getAPI().provideRemoteSourceDocumentLinks(remote.fetchUrl!, content) : undefined;
+	// upstream -> origin -> first
+	return await getDocumentLinks(repository, 'upstream')
+		?? await getDocumentLinks(repository, 'origin')
+		?? await getDocumentLinks(repository, repository.remotes[0].name);
 }
