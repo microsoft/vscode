@@ -217,7 +217,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		if (useForwardSlash) {
 			lastSlashIndex = Math.max(lastWord.lastIndexOf('\\'), lastWord.lastIndexOf('/'));
 		} else {
-			lastSlashIndex = lastWord.lastIndexOf('/');
+			lastSlashIndex = lastWord.lastIndexOf(resourceRequestConfig.pathSeparator);
 		}
 
 		// The _complete_ folder of the last word. For example if the last word is `./src/file`,
