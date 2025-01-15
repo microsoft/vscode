@@ -13,6 +13,11 @@ import { assert } from '../../../../../base/common/assert.js';
  * value reflects the position of the token in the original data.
  */
 export class MarkdownLink extends MarkdownToken {
+	/**
+	 * Check if this `markdown link` points to a valid URL address.
+	 */
+	public readonly isURL: boolean;
+
 	constructor(
 		/**
 		 * The starting line number of the link (1-based indexing).
@@ -64,6 +69,14 @@ export class MarkdownLink extends MarkdownToken {
 				columnNumber + caption.length + reference.length,
 			),
 		);
+
+		// set up the `isURL` flag based on the current
+		try {
+			new URL(this.path);
+			this.isURL = true;
+		} catch {
+			this.isURL = false;
+		}
 	}
 
 	public override get text(): string {
