@@ -120,7 +120,8 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3, provider);
 
@@ -135,7 +136,8 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5, provider);
 
@@ -149,7 +151,8 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./f', 6, provider);
 
@@ -177,7 +180,8 @@ suite('TerminalCompletionService', () => {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				filesRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider);
 
@@ -196,7 +200,8 @@ suite('TerminalCompletionService', () => {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				filesRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './h', 3, provider);
 
@@ -220,7 +225,8 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///'),
 				foldersRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			validResources = [URI.parse('file:///')];
 			childResources = [
@@ -242,7 +248,8 @@ suite('TerminalCompletionService', () => {
 					const resourceRequestConfig: TerminalResourceRequestConfig = {
 						cwd: URI.parse('file:///C:/test'),
 						foldersRequested: true,
-						pathSeparator: '\\'
+						pathSeparator: '\\',
+						shouldNormalizePrefix: true
 					};
 					validResources = [URI.parse('file:///C:/test')];
 					childResources = [
@@ -264,7 +271,8 @@ suite('TerminalCompletionService', () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
 					cwd: URI.parse('file:///test'),
 					foldersRequested: true,
-					pathSeparator: '/'
+					pathSeparator: '/',
+					shouldNormalizePrefix: true
 				};
 				validResources = [URI.parse('file:///test')];
 				childResources = [
@@ -288,7 +296,8 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			validResources = [URI.parse('file:///test')];
 			childResources = [
@@ -309,7 +318,8 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			validResources = [URI.parse('file:///test')];
 			childResources = Array.from({ length: 1000 }, (_, i) => ({
@@ -329,7 +339,8 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			validResources = [URI.parse('file:///test')];
 			childResources = [
@@ -350,7 +361,8 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test/src'),
 				foldersRequested: true,
-				pathSeparator
+				pathSeparator,
+				shouldNormalizePrefix: true
 			};
 			validResources = [URI.parse('file:///test')];
 			childResources = [
