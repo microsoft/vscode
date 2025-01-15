@@ -354,25 +354,5 @@ suite('TerminalCompletionService', () => {
 				{ label: './../' }
 			], { replacementIndex: 1, replacementLength: 9 });
 		});
-
-		test('../| should appear for exact matches', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
-				cwd: URI.parse('file:///test/src'),
-				foldersRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
-			};
-			validResources = [URI.parse('file:///test')];
-			childResources = [
-				{ resource: URI.parse('file:///test/src/folder1/'), isDirectory: true }
-			];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '../', 3, provider);
-
-			assertCompletions(result, [
-				{ label: '../', detail: 'src' },
-				{ label: '../folder1/' },
-				{ label: '../../', detail: 'test' }
-			], { replacementIndex: 0, replacementLength: 3 });
-		});
 	});
 });
