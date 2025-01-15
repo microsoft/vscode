@@ -1434,6 +1434,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean): void | model.IValidEditOperation[] {
 
 		const oldLineCount = this._buffer.getLineCount();
+		const linesWithSpecialHeightsAffectedByEdits: { startLine: number; endLine: number }[] = [];
+		for (const operation of rawOperations) {
+			const editStartOffset = this.getOffsetAt(operation.range.getStartPosition());
+			const editEndOffset = this.getOffsetAt(new Position(oldLineCount, this.getLineMaxColumn(oldLineCount)));
+			linesWithSpecialHeightsAffectedByEdits.push(...this._decorationsTree.getLinesWithSpecialHeightsInInterval(this, editStartOffset, editEndOffset, 0).map(range => ({
+				startLine: range.startLineNumber,
+				endLine: range.endLineNumber
+			})));
+		}
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
 		const newLineCount = this._buffer.getLineCount();
 
@@ -1451,6 +1460,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			}
 
 			const rawContentChanges: ModelRawChange[] = [];
+			const linesWithSpecialHeightsAfterEdits: { startLine: number; endLine: number }[] = [...linesWithSpecialHeightsAffectedByEdits];
 
 			this._increaseVersionId();
 
@@ -1480,6 +1490,17 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					0
 				);
 
+				const numberOfLinesWithSpecialHeights = linesWithSpecialHeightsAfterEdits.length;
+				for (let i = 0; i < numberOfLinesWithSpecialHeights; i++) {
+					const specialLines = linesWithSpecialHeightsAfterEdits[i];
+					// Only when the change range end is before or equal the range of the special line height, can the special line height remain the same after the edit
+					if (change.range.endLineNumber <= specialLines.startLine) {
+						linesWithSpecialHeightsAfterEdits.splice(i, 1, {
+							startLine: specialLines.startLine + changeLineCountDelta,
+							endLine: specialLines.endLine + changeLineCountDelta
+						});
+					}
+				}
 
 				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
 				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
@@ -1551,6 +1572,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					isFlush: false
 				}
 			);
+
+			const specialLineHeightChanges: ModelLineHeightChanged[] = [];
+			linesWithSpecialHeightsAffectedByEdits.forEach(range => {
+				for (let lineNumber = range.startLine; lineNumber <= range.endLine; lineNumber++) {
+					specialLineHeightChanges.push(new ModelLineHeightChanged(0, lineNumber, this._getLineHeightForLine(lineNumber)));
+				}
+			});
+			linesWithSpecialHeightsAfterEdits.forEach(range => {
+				for (let lineNumber = range.startLine; lineNumber <= range.endLine; lineNumber++) {
+					specialLineHeightChanges.push(new ModelLineHeightChanged(0, lineNumber, this._getLineHeightForLine(lineNumber)));
+				}
+			});
+			this._onDidChangeSpecialLineHeight.fire(new ModelLineHeightChangedEvent(specialLineHeightChanges));
 		}
 
 		return (result.reverseEdits === null ? undefined : result.reverseEdits);
@@ -1811,7 +1845,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const oldRange = this.getDecorationRange(decorationId);
 			this._onDidChangeDecorations.recordLineAffectedByInjectedText(oldRange!.startLineNumber);
 		}
-		if (node.options.lineHeight) {
+		if (node.options.lineHeight !== null) {
 			const oldRange = this.getDecorationRange(decorationId);
 			for (let lineNumber = oldRange!.startLineNumber; lineNumber <= oldRange!.endLineNumber; lineNumber++) {
 				this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
@@ -1833,7 +1867,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (node.options.before) {
 			this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
 		}
-		if (node.options.lineHeight) {
+		if (node.options.lineHeight !== null) {
 			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
 				this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
 			}
@@ -1860,7 +1894,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
 			this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
 		}
-		if (node.options.lineHeight) {
+		if (node.options.lineHeight !== null || options.lineHeight !== null) {
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
 			for (let lineNumber = nodeRange.startLineNumber; lineNumber <= nodeRange.endLineNumber; lineNumber++) {
 				this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
@@ -1910,7 +1944,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
 							this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
 						}
-						if (node.options.lineHeight) {
+						if (node.options.lineHeight !== null) {
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
 							for (let lineNumber = nodeRange.startLineNumber; lineNumber <= nodeRange.endLineNumber; lineNumber++) {
 								this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
@@ -1950,7 +1984,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					if (node.options.before) {
 						this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
 					}
-					if (node.options.lineHeight) {
+					if (node.options.lineHeight !== null) {
 						for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
 							this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
 						}
@@ -2125,6 +2159,13 @@ class DecorationsTrees {
 			}
 		});
 		return lineHeight;
+	}
+
+	public getLinesWithSpecialHeightsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): Range[] {
+		const versionId = host.getVersionId();
+		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
+		const affectedDecorations = this._ensureNodesHaveRanges(host, result).filter((i) => i.options.lineHeight !== null);
+		return affectedDecorations.map(decoration => decoration.range);
 	}
 
 	public getAllInjectedText(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {

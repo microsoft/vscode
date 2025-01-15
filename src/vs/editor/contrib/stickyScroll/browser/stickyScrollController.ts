@@ -205,7 +205,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}
 		this._specialLineHeightListener.value = model.onDidChangeSpecialLineHeight((e) => {
 			e.changes.forEach((change) => {
-				if (change.ownerId !== this._editor.getIdNumber()) {
+				if (change.ownerId !== this._editor.getIdNumber() && change.ownerId !== 0) {
 					return;
 				}
 				const lineNumber = change.lineNumber;
