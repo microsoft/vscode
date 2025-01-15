@@ -12,7 +12,7 @@ import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
-import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceDocumentLinks } from './remoteSource';
+import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceLinks } from './remoteSource';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -224,7 +224,7 @@ export class GitBlameController {
 			}
 
 			// Link provider
-			commitMessageWithLinks = await provideRemoteSourceDocumentLinks(
+			commitMessageWithLinks = await provideRemoteSourceLinks(
 				repository,
 				commitInformation?.message ?? blameInformation.subject ?? '');
 		}

@@ -11,7 +11,7 @@ export interface API {
 	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]>;
 	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[] | undefined>;
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
-	provideRemoteSourceDocumentLinks(url: string, content: string): ProviderResult<string>;
+	provideRemoteSourceLinks(url: string, content: string): ProviderResult<string>;
 }
 
 export interface GitBaseExtension {
@@ -86,5 +86,5 @@ export interface RemoteSourceProvider {
 	getRemoteSourceControlHistoryItemCommands?(url: string): ProviderResult<Command[]>;
 	getRecentRemoteSources?(query?: string): ProviderResult<RecentRemoteSource[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
-	provideRemoteSourceDocumentLinks?(url: string, content: string): ProviderResult<string>;
+	provideRemoteSourceLinks?(url: string, content: string): ProviderResult<string>;
 }

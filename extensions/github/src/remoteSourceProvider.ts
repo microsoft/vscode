@@ -151,7 +151,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}];
 	}
 
-	provideRemoteSourceDocumentLinks(url: string, content: string): string | undefined {
+	provideRemoteSourceLinks(url: string, content: string): string | undefined {
 		const repository = getRepositoryFromUrl(url);
 		if (!repository) {
 			return undefined;

@@ -35,14 +35,14 @@ export async function getRemoteSourceControlHistoryItemCommands(repository: Repo
 		?? [];
 }
 
-export async function provideRemoteSourceDocumentLinks(repository: Repository, content: string): Promise<string | undefined> {
+export async function provideRemoteSourceLinks(repository: Repository, content: string): Promise<string | undefined> {
 	if (repository.remotes.length === 0) {
 		return undefined;
 	}
 
 	const getDocumentLinks = async (repository: Repository, remoteName: string): Promise<string | undefined> => {
 		const remote = repository.remotes.find(r => r.name === remoteName && r.fetchUrl);
-		return remote ? GitBaseApi.getAPI().provideRemoteSourceDocumentLinks(remote.fetchUrl!, content) : undefined;
+		return remote ? GitBaseApi.getAPI().provideRemoteSourceLinks(remote.fetchUrl!, content) : undefined;
 	};
 
 	// upstream -> origin -> first

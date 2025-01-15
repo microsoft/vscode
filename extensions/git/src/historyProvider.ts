@@ -12,7 +12,7 @@ import { Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
-import { provideRemoteSourceDocumentLinks } from './remoteSource';
+import { provideRemoteSourceLinks } from './remoteSource';
 
 function toSourceControlHistoryItemRef(repository: Repository, ref: Ref): SourceControlHistoryItemRef {
 	const rootUri = Uri.file(repository.root);
@@ -268,7 +268,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			const historyItems: SourceControlHistoryItem[] = [];
 			for (const commit of commits) {
 				const message = emojify(commit.message);
-				const messageWithLinks = await provideRemoteSourceDocumentLinks(this.repository, message) ?? message;
+				const messageWithLinks = await provideRemoteSourceLinks(this.repository, message) ?? message;
 
 				const newLineIndex = message.indexOf('\n');
 				const subject = newLineIndex !== -1

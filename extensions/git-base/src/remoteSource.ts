@@ -134,11 +134,11 @@ export async function getRemoteSourceControlHistoryItemCommands(model: Model, ur
 	return remoteSourceCommands.length > 0 ? remoteSourceCommands : undefined;
 }
 
-export async function provideRemoteSourceDocumentLinks(model: Model, url: string, content: string): Promise<string> {
+export async function provideRemoteSourceLinks(model: Model, url: string, content: string): Promise<string> {
 	const providers = model.getRemoteProviders();
 
 	for (const provider of providers) {
-		const parsedContent = await provider.provideRemoteSourceDocumentLinks?.(url, content);
+		const parsedContent = await provider.provideRemoteSourceLinks?.(url, content);
 		if (!parsedContent) {
 			continue;
 		}

@@ -12,7 +12,7 @@ import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
 import { getCommitShortHash } from './util';
 import { CommitShortStat } from './git';
-import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceDocumentLinks } from './remoteSource';
+import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceLinks } from './remoteSource';
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -233,7 +233,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			}
 
 			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteSourceCommands : [];
-			const messageWithLinks = await provideRemoteSourceDocumentLinks(repo, message) ?? message;
+			const messageWithLinks = await provideRemoteSourceLinks(repo, message) ?? message;
 
 			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), messageWithLinks, c.shortStat, commitRemoteSourceCommands);
 
