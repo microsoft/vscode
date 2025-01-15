@@ -4508,6 +4508,15 @@ export class ChatResponseDetectedParticipantPart {
 	}
 }
 
+export class ChatResponseChoicesPart {
+	constructor(
+		public title: string,
+		public message: string,
+		public items: (string | vscode.ChatResponseChoice)[],
+		public disableAfterUse = false,
+	) { }
+}
+
 export class ChatResponseConfirmationPart {
 	title: string;
 	message: string;

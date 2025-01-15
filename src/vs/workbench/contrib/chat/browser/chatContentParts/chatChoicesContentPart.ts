@@ -5,23 +5,26 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
-import { IChatConfirmation, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';
+import { IChatChoices, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatChoicesWidget } from './chatChoicesWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
-export class ChatConfirmationContentPart extends Disposable implements IChatContentPart {
+export class ChatChoicesContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	private get showButtons() {
+		return this.choices.disableAfterUse ? !this.choices.isUsed : true;
+	}
+
 	constructor(
-		confirmation: IChatConfirmation,
+		private readonly choices: IChatChoices,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
@@ -30,45 +33,54 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		super();
 
 		const element = context.element;
-		const buttons = confirmation.buttons
-			? confirmation.buttons.map(button => ({
-				label: button,
-				data: confirmation.data
+		const buttonsWidget = this._register(this.instantiationService.createInstance(
+			ChatChoicesWidget<string | { title: string }>,
+			choices.title,
+			choices.message,
+			choices.items.map((choice, i) => ({
+				label: choiceLabel(choice),
+				data: choice,
+				isSecondary: i > 0,
 			}))
-			: [
-				{ label: localize('accept', "Accept"), data: confirmation.data },
-				{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
-			];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatChoicesWidget, confirmation.title, confirmation.message, buttons));
-		confirmationWidget.setShowButtons(!confirmation.isUsed);
+		));
+		buttonsWidget.setShowButtons(this.showButtons);
 
-		this._register(confirmationWidget.onDidClick(async e => {
+		this._register(buttonsWidget.onDidClick(async e => {
 			if (isResponseVM(element)) {
-				const prompt = `${e.label}: "${confirmation.title}"`;
-				const options: IChatSendRequestOptions = e.isSecondary ?
-					{ rejectedConfirmationData: [e.data] } :
-					{ acceptedConfirmationData: [e.data] };
-				options.agentId = element.agent?.id;
-				options.slashCommand = element.slashCommand?.name;
-				options.madeChoice = { title: e.label };
-				options.userSelectedModelId = chatWidgetService.getWidgetBySessionId(element.sessionId)?.input.currentLanguageModel;
+				const prompt = `${e.label}: "${choices.title}"`;
+				const options: IChatSendRequestOptions = {
+					choiceData: [e.data],
+					agentId: element.agent?.id,
+					slashCommand: element.slashCommand?.name,
+					madeChoice: {
+						title: e.label,
+						responseId: context.element.id,
+					},
+					userSelectedModelId: chatWidgetService.getWidgetBySessionId(element.sessionId)?.input.currentLanguageModel,
+				};
+
+				const wasShowingButtons = this.showButtons;
 				if (await this.chatService.sendRequest(element.sessionId, prompt, options)) {
-					confirmation.isUsed = true;
-					confirmationWidget.setShowButtons(false);
-					this._onDidChangeHeight.fire();
+					choices.isUsed = true;
+					if (this.showButtons !== wasShowingButtons) {
+						buttonsWidget.setShowButtons(this.showButtons);
+						this._onDidChangeHeight.fire();
+					}
 				}
 			}
 		}));
 
-		this.domNode = confirmationWidget.domNode;
+		this.domNode = buttonsWidget.domNode;
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
 		// No other change allowed for this content type
-		return other.kind === 'confirmation';
+		return other.kind === 'choices';
 	}
 
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
 	}
 }
+
+const choiceLabel = (choice: string | { title: string }) => typeof choice === 'string' ? choice : choice.title;

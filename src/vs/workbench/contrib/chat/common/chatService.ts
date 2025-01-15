@@ -16,7 +16,7 @@ import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, IMadeChoice, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
@@ -196,6 +196,15 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatChoices {
+	kind: 'choices';
+	title: string;
+	message: string;
+	disableAfterUse: boolean;
+	items: (string | { title: string })[];
+	isUsed?: boolean;
+}
+
 export interface IChatToolInvocation {
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
@@ -238,7 +247,8 @@ export type IChatProgress =
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
 	| IChatToolInvocation
-	| IChatToolInvocationSerialized;
+	| IChatToolInvocationSerialized
+	| IChatChoices;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -420,6 +430,7 @@ export interface IChatSendRequestOptions {
 	noCommandDetection?: boolean;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
+	choiceData?: (string | { title: string })[];
 	attachedContext?: IChatRequestVariableEntry[];
 	workingSet?: URI[];
 
@@ -428,9 +439,9 @@ export interface IChatSendRequestOptions {
 	slashCommand?: string;
 
 	/**
-	 * The label of the confirmation action that was selected.
+	 * Information about the confirmation or choice that was selected.
 	 */
-	confirmation?: string;
+	madeChoice?: IMadeChoice;
 
 	/**
 	 * Flag to indicate whether a prompt instructions attachment is present.

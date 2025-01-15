@@ -1774,6 +1774,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseWarningPart: extHostTypes.ChatResponseWarningPart,
 			ChatResponseTextEditPart: extHostTypes.ChatResponseTextEditPart,
 			ChatResponseMarkdownWithVulnerabilitiesPart: extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart,
+			ChatResponseChoicesPart: extHostTypes.ChatResponseChoicesPart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatResponseDetectedParticipantPart: extHostTypes.ChatResponseDetectedParticipantPart,
 			ChatResponseConfirmationPart: extHostTypes.ChatResponseConfirmationPart,

@@ -629,7 +629,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): Promise<IChatAgentRequest> => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, options?.workingSet);
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.madeChoice, options?.locationData, options?.attachedContext, options?.workingSet);
 
 						let variableData: IChatRequestVariableData;
 						let message: string;
@@ -664,7 +664,8 @@ export class ChatService extends Disposable implements IChatService {
 							locationData: request.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
-							userSelectedModelId: options?.userSelectedModelId
+							userSelectedModelId: options?.userSelectedModelId,
+							choiceData: options?.choiceData,
 						} satisfies IChatAgentRequest;
 					};
 

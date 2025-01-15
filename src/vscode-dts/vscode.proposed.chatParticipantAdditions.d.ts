@@ -77,7 +77,15 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
+	export class ChatResponseChoicesPart {
+		title: string;
+		message: string;
+		items: Array<string | ChatResponseChoice>;
+		disableAfterUse: boolean;
+		constructor(title: string, message: string, items: Array<string | ChatResponseChoice>, disableAfterUse?: boolean);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseChoicesPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -157,6 +165,33 @@ declare module 'vscode' {
 		resolve?(token: CancellationToken): Thenable<void>;
 	}
 
+	/**
+	 * Represents an action shown in {@link ChatResponseStream.choices}.
+	 */
+	export interface ChatResponseChoice {
+		/**
+		 * A short title for the choice, like 'Accept'.
+		 */
+		title: string;
+	}
+
+	export interface ChatChoicesOptions {
+		/**
+		 * The title of the choices show in the UI.
+		 */
+		title: string;
+
+		/**
+		 * The message to show in the UI.
+		 */
+		message: string;
+
+		/**
+		 * If set to true, the choices buttons will be disabled once any of them are actioned.
+		 */
+		disableAfterUse?: boolean;
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -189,6 +224,29 @@ declare module 'vscode' {
 		 * TODO@API should actually be a more generic function that takes an array of buttons
 		 */
 		confirmation(title: string, message: string, data: any, buttons?: string[]): void;
+
+		/**
+		 * Show a message with choices to the user. Items will be presented as clickable buttons.
+		 * A choice will result in another chat request being made {@link ChatRequest.choiceData}.
+		 * Additional JSON-stringifiable data can be provided on each item when given as an object,
+		 * and will be included in the `choiceData`.
+		 *
+		 * @param title Title to show.
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 */
+		choices<T extends string | ChatResponseChoice>(title: string, message: string, ...items: T[]): void;
+
+		/**
+		 * Show a message with choices to the user. Items will be presented as clickable buttons.
+		 * A choice will result in another chat request being made {@link ChatRequest.choiceData}.
+		 * Additional JSON-stringifiable data can be provided on each item when given as an object,
+		 * and will be included in the `choiceData`.
+		 *
+		 * @param options Configuration for the choices.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 */
+		choices<T extends string | ChatResponseChoice>(options: ChatChoicesOptions, ...items: T[]): void;
 
 		/**
 		 * Push a warning to this stream. Short-hand for
@@ -228,6 +286,13 @@ declare module 'vscode' {
 		 * The `data` for any confirmations that were rejected
 		 */
 		rejectedConfirmationData?: any[];
+
+		/**
+		 * The data for any choices that were made. The data is the item passed
+		 * to the original {@link ChatResponseStream.choices} call: either a string
+		 * or a JSON-deserialized {@link ChatResponseChoice} object.
+		 */
+		choiceData?: Array<string | ChatResponseChoice>;
 	}
 
 	// TODO@API fit this into the stream

@@ -50,6 +50,7 @@ import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChat
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
+import { ChatWidgetFilter, IChatWidgetFilterDelegate } from './chatListFilter.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import './media/chat.css';
@@ -623,7 +624,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
 			onDidScroll: this.onDidScroll,
-			container: listContainer
+			container: listContainer,
+			getElementAt: i => this.tree.getNode(null).children?.[i]?.element,
+		};
+
+		const filterDelegate: IChatWidgetFilterDelegate = {
+			getPrevElement: (element) => {
+				const root = this.tree.getNode(null);
+				let index = root.children.findIndex(candidate => candidate.element === element);
+				if (index === -1) { index = root.children.length; }
+				return index > 0 ? root.children[index - 1].element : null;
+			},
 		};
 
 		// Create a dom element to hold UI from editor widgets embedded in chat messages
@@ -672,7 +683,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: ChatTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
-				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions), } : undefined,
+				filter: this.instantiationService.createInstance(ChatWidgetFilter, filterDelegate, this.viewOptions.filter?.bind(this.viewOptions)),
 				overrideStyles: {
 					listFocusBackground: this.styles.listBackground,
 					listInactiveFocusBackground: this.styles.listBackground,

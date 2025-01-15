@@ -162,6 +162,7 @@ export interface IChatAgentRequest {
 	locationData?: IChatLocationData;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
+	choiceData?: (string | { title: string })[];
 	userSelectedModelId?: string;
 }
 

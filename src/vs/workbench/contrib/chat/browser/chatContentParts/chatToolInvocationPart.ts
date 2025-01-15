@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
-import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
+import { ChatChoicesWidget } from './chatChoicesWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatProgressContentPart } from './chatProgressContentPart.js';
 
@@ -78,7 +78,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			const title = toolInvocation.confirmationMessages.title;
 			const message = toolInvocation.confirmationMessages.message;
 			const confirmWidget = this._register(instantiationService.createInstance(
-				ChatConfirmationWidget,
+				ChatChoicesWidget<any>,
 				title,
 				message,
 				[{ label: localize('continue', "Continue"), data: true }, { label: localize('cancel', "Cancel"), data: false, isSecondary: true }]));

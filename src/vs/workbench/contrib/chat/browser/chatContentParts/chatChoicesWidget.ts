@@ -13,15 +13,15 @@ import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownR
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 
-export interface IChatConfirmationButton {
+export interface IChatConfirmationButton<T> {
 	label: string;
 	isSecondary?: boolean;
-	data: any;
+	data: T;
 }
 
-export class ChatConfirmationWidget extends Disposable {
-	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
-	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
+export class ChatChoicesWidget<T> extends Disposable {
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
+	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
 
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
@@ -35,7 +35,7 @@ export class ChatConfirmationWidget extends Disposable {
 	constructor(
 		title: string,
 		message: string | IMarkdownString,
-		buttons: IChatConfirmationButton[],
+		buttons: IChatConfirmationButton<T>[],
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();

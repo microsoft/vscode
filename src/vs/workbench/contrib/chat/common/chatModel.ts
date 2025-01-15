@@ -22,7 +22,7 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent, reviveSerializedAgent } from './chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatChoices, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 
 export interface IBaseChatRequestVariableEntry {
@@ -118,6 +118,13 @@ export interface IChatRequestVariableData {
 	variables: IChatRequestVariableEntry[];
 }
 
+export interface IMadeChoice {
+	/** Choice title, as in "Selected X" */
+	title: string;
+	/** Response ID where the choice selection was presented. */
+	responseId?: string;
+}
+
 export interface IChatRequestModel {
 	readonly id: string;
 	readonly timestamp: number;
@@ -127,7 +134,7 @@ export interface IChatRequestModel {
 	readonly message: IParsedChatRequest;
 	readonly attempt: number;
 	readonly variableData: IChatRequestVariableData;
-	readonly confirmation?: string;
+	readonly madeChoice?: IMadeChoice;
 	readonly locationData?: IChatLocationData;
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly workingSet?: URI[];
@@ -164,7 +171,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatWarningMessage
 	| IChatTask
 	| IChatTextEditGroup
-	| IChatConfirmation;
+	| IChatConfirmation
+	| IChatChoices;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -210,6 +218,7 @@ export interface IChatResponseModel {
 	readonly isCanceled: boolean;
 	readonly shouldBeRemovedOnSend: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly isChoiceAfterResponse?: string;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
@@ -253,8 +262,8 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._variableData = v;
 	}
 
-	public get confirmation(): string | undefined {
-		return this._confirmation;
+	public get madeChoice(): IMadeChoice | undefined {
+		return this._madeChoice;
 	}
 
 	public get locationData(): IChatLocationData | undefined {
@@ -275,7 +284,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		private _variableData: IChatRequestVariableData,
 		public readonly timestamp: number,
 		private _attempt: number = 0,
-		private _confirmation?: string,
+		private _madeChoice?: IMadeChoice,
 		private _locationData?: IChatLocationData,
 		private _attachedContext?: IChatRequestVariableEntry[],
 		private _workingSet?: URI[],
@@ -455,6 +464,7 @@ export class Response extends Disposable implements IResponse {
 					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
 					break;
 				case 'confirmation':
+				case 'choices':
 					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
 					break;
 				default:
@@ -609,7 +619,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		followups?: ReadonlyArray<IChatFollowup>,
 		public readonly isCompleteAddedRequest = false,
 		private _shouldBeRemovedOnSend: boolean = false,
-		restoredId?: string
+		restoredId?: string,
+		public readonly isChoiceAfterResponse?: string
 	) {
 		super();
 
@@ -1098,7 +1109,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					const result = 'responseErrorDetails' in raw ?
 						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
-					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.voteDownReason, result, raw.followups, undefined, undefined, raw.responseId);
+					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.voteDownReason, result, raw.followups, undefined, undefined, raw.responseId, request.madeChoice?.responseId);
 					request.response.shouldBeRemovedOnSend = !!raw.isHidden;
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.applyReference(revive(raw.usedContext));
@@ -1215,9 +1226,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], workingSet?: URI[], isCompleteAddedRequest?: boolean): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData, Date.now(), attempt, confirmation, locationData, attachments, workingSet, isCompleteAddedRequest);
-		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id, undefined, undefined, undefined, undefined, undefined, undefined, isCompleteAddedRequest);
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, choice?: IMadeChoice, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], workingSet?: URI[], isCompleteAddedRequest?: boolean): ChatRequestModel {
+		const request = new ChatRequestModel(this, message, variableData, Date.now(), attempt, choice, locationData, attachments, workingSet, isCompleteAddedRequest);
+		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id, undefined, undefined, undefined, undefined, undefined, undefined, isCompleteAddedRequest, undefined, undefined, request.madeChoice?.responseId);
 
 		this._requests.push(request);
 		this._lastMessageDate = Date.now();
@@ -1273,6 +1284,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			progress.kind === 'warning' ||
 			progress.kind === 'progressTask' ||
 			progress.kind === 'confirmation' ||
+			progress.kind === 'choices' ||
 			progress.kind === 'toolInvocation'
 		) {
 			request.response.updateContent(progress, quiet);

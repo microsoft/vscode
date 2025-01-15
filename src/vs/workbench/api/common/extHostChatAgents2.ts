@@ -242,6 +242,17 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				choices(titleOrOpts: string | vscode.ChatChoicesOptions, ...items: (string | vscode.ChatResponseChoice)[]) {
+					throwIfDone(this.choices);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const part = typeof titleOrOpts === 'string'
+						? new extHostTypes.ChatResponseChoicesPart(titleOrOpts, items[0] as string, items.slice(1))
+						: new extHostTypes.ChatResponseChoicesPart(titleOrOpts.title, titleOrOpts.message, items, titleOrOpts.disableAfterUse);
+
+					const dto = typeConvert.ChatResponseChoicesPart.from(part);
+					_report(dto);
+				},
 				push(part) {
 					throwIfDone(this.push);
 
@@ -253,7 +264,8 @@ class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseConfirmationPart ||
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
-						part instanceof extHostTypes.ChatResponseProgressPart2
+						part instanceof extHostTypes.ChatResponseProgressPart2 ||
+						part instanceof extHostTypes.ChatResponseChoicesPart
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					}

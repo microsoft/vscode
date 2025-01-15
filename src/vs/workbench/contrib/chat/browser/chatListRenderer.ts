@@ -31,7 +31,6 @@ import { IMenuEntryActionViewItemOptions, createActionViewItem } from '../../../
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -46,7 +45,7 @@ import { ChatAgentLocation, IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChoices, IChatConfirmation, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData } from '../common/chatService.js';
 import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -55,6 +54,7 @@ import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRende
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
+import { ChatChoicesContentPart } from './chatContentParts/chatChoicesContentPart.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
@@ -85,6 +85,7 @@ interface IChatListItemTemplate {
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly value: HTMLElement;
+	readonly header: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly instantiationService: IInstantiationService;
 	readonly templateDisposables: IDisposable;
@@ -104,6 +105,7 @@ const forceVerboseLayoutTracing = false
 export interface IChatRendererDelegate {
 	container: HTMLElement;
 	getListLength(): number;
+	getElementAt(index: number): ChatTreeItem | undefined | null;
 
 	readonly onDidScroll?: Event<void>;
 }
@@ -147,7 +149,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -335,7 +336,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { avatarContainer, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar };
+		const template: IChatListItemTemplate = { avatarContainer, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, header };
 		return template;
 	}
 
@@ -388,7 +389,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length);
 		templateData.username.textContent = element.username;
-		if (!this.rendererOptions.noHeader) {
+
+		const renderHeader = this._shouldRenderHeaderFor(element, index);
+		templateData.header.classList.toggle('hidden', !renderHeader);
+		if (renderHeader) {
 			this.renderAvatar(element, templateData);
 		}
 
@@ -399,7 +403,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
 
-		if (isRequestVM(element) && element.confirmation) {
+		if (isRequestVM(element) && element.madeChoice) {
 			this.renderConfirmationAction(element, templateData);
 		}
 
@@ -434,6 +438,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	private _shouldRenderHeaderFor(element: ChatTreeItem, index: number) {
+		if (this.rendererOptions.noHeader) {
+			return false;
+		}
+
+		// if this response follows up a choice (hidden by the tree filter) to a
+		// previous request (N-1) avoid rendering the header for a more contiguous display.
+		if (isResponseVM(element) && element.isChoiceAfterResponse) {
+			const last = this.delegate.getElementAt(index - 1);
+			if (isResponseVM(last) && last.id === element.isChoiceAfterResponse) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
 		templateData.elementDisposables.add(autorun(reader => {
 			this._renderDetail(element, templateData);
@@ -464,8 +485,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderConfirmationAction(element: IChatRequestViewModel, templateData: IChatListItemTemplate) {
 		dom.clearNode(templateData.detail);
-		if (element.confirmation) {
-			templateData.detail.textContent = localize('chatConfirmationAction', 'selected "{0}"', element.confirmation);
+		if (element.madeChoice) {
+			templateData.detail.textContent = localize('chatConfirmationAction', 'selected "{0}"', element.madeChoice.title);
 		}
 	}
 
@@ -499,7 +520,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', isResponseVM(element) && !element.isComplete);
 
 		let value: IChatRendererContent[] = [];
-		if (isRequestVM(element) && !element.confirmation) {
+		if (isRequestVM(element) && !element.madeChoice) {
 			const markdown = 'message' in element.message ?
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message);
@@ -822,6 +843,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderTextEdit(context, content, templateData);
 		} else if (content.kind === 'confirmation') {
 			return this.renderConfirmation(context, content, templateData);
+		} else if (content.kind === 'choices') {
+			return this.renderChoices(context, content, templateData);
 		} else if (content.kind === 'warning') {
 			return this.instantiationService.createInstance(ChatWarningContentPart, 'warning', content.content, this.renderer);
 		} else if (content.kind === 'markdownContent') {
@@ -905,6 +928,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderConfirmation(context: IChatContentPartRenderContext, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatConfirmationContentPart, confirmation, context);
+		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+		return part;
+	}
+
+	private renderChoices(context: IChatContentPartRenderContext, choices: IChatChoices, templateData: IChatListItemTemplate): IChatContentPart {
+		const part = this.instantiationService.createInstance(ChatChoicesContentPart, choices, context);
 		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
 	}

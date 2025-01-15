@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { annotateVulnerabilitiesInText } from './annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from './chatAgents.js';
-import { ChatModelInitState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
+import { ChatModelInitState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IMadeChoice, IResponse } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
@@ -73,7 +73,7 @@ export interface IChatRequestViewModel {
 	currentRenderedHeight: number | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly workingSet?: ReadonlyArray<URI>;
-	readonly confirmation?: string;
+	readonly madeChoice?: IMadeChoice;
 	readonly shouldBeRemovedOnSend: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
@@ -182,6 +182,7 @@ export interface IChatResponseViewModel {
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	readonly shouldBeRemovedOnSend: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly isChoiceAfterResponse?: string;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
@@ -371,8 +372,8 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.workingSet;
 	}
 
-	get confirmation() {
-		return this._model.confirmation;
+	get madeChoice() {
+		return this._model.madeChoice;
 	}
 
 	get isComplete() {
@@ -490,6 +491,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get isCompleteAddedRequest() {
 		return this._model.isCompleteAddedRequest;
+	}
+
+	get isChoiceAfterResponse() {
+		return this._model.isChoiceAfterResponse;
 	}
 
 	get replyFollowups() {
