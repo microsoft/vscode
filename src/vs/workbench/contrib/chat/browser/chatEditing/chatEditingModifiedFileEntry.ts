@@ -302,7 +302,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 					return;
 				}
 
-				const remain = Math.round(future - Date.now()) / 1000;
+				const remain = Math.round((future - Date.now()) / 1000);
 				if (remain <= 0) {
 					this.accept(undefined);
 					this._autoAcceptCountdown.set(undefined, undefined);
