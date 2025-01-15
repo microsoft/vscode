@@ -21,9 +21,10 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../platform/log/common/log.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { LOG_MIME, OutputChannelUpdateMode, parseLogEntryAt } from '../../../services/output/common/output.js';
+import { ILogEntry, LOG_MIME, logEntryIterator, OutputChannelUpdateMode } from '../../../services/output/common/output.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { TextModel } from '../../../../editor/common/model/textModel.js';
+import { binarySearch } from '../../../../base/common/arrays.js';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDispose: Event<void>;
@@ -204,27 +205,81 @@ class MultiFileContentProvider extends Disposable implements IContentProvider {
 
 	private combineLogEntries(outputs: { content: string; name: string }[]): string {
 
-		const logEntries: [number, string][] = [];
+		outputs = outputs.filter(output => !!output.content);
 
-		for (const { content, name } of outputs) {
+		if (outputs.length === 0) {
+			return '';
+		}
+
+		const timestamps: number[] = [];
+		const contents: string[] = [];
+		const process = (model: ITextModel, logEntry: ILogEntry, name: string): [number, string] => {
+			const lineContent = model.getLineContent(logEntry.range.endLineNumber);
+			const content = `${lineContent.substring(0, logEntry.timestampRange.endColumn - 1)} [${name}]${lineContent.substring(logEntry.timestampRange.endColumn - 1)}`;
+			return [logEntry.timestamp, content];
+		};
+
+		const model = this.instantiationService.createInstance(TextModel, outputs[0].content, LOG_MIME, TextModel.DEFAULT_CREATION_OPTIONS, null);
+		try {
+			for (const [timestamp, content] of logEntryIterator(model, (e) => process(model, e, outputs[0].name))) {
+				timestamps.push(timestamp);
+				contents.push(content);
+			}
+		} finally {
+			model.dispose();
+		}
+
+		for (let index = 1; index < outputs.length; index++) {
+			const { content, name } = outputs[index];
 			const model = this.instantiationService.createInstance(TextModel, content, LOG_MIME, TextModel.DEFAULT_CREATION_OPTIONS, null);
-			for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
-				const logEntry = parseLogEntryAt(model, lineNumber);
-				if (!logEntry) {
-					continue;
+			try {
+				const iterator = logEntryIterator(model, (e) => process(model, e, name));
+				let next = iterator.next();
+				while (!next.done) {
+					const [timestamp, content] = next.value;
+					const timestampsToAdd = [timestamp];
+					const contentsToAdd = [content];
+
+					let insertionIndex;
+
+					// If the timestamp is greater than or equal to the last timestamp,
+					// we can just append all the entries at the end
+					if (timestamp >= timestamps[timestamps.length - 1]) {
+						insertionIndex = timestamps.length;
+						for (next = iterator.next(); !next.done; next = iterator.next()) {
+							timestampsToAdd.push(next.value[0]);
+							contentsToAdd.push(next.value[1]);
+						}
+					}
+					else {
+						if (timestamp <= timestamps[0]) {
+							// If the timestamp is less than or equal to the first timestamp
+							// then insert at the beginning
+							insertionIndex = 0;
+						} else {
+							// Otherwise, find the insertion index
+							const idx = binarySearch(timestamps, timestamp, (a, b) => a - b);
+							insertionIndex = idx < 0 ? ~idx : idx;
+						}
+
+						// Collect all entries that have a timestamp less than or equal to the timestamp at the insertion index
+						for (next = iterator.next(); !next.done && next.value[0] <= timestamps[insertionIndex]; next = iterator.next()) {
+							timestampsToAdd.push(next.value[0]);
+							contentsToAdd.push(next.value[1]);
+						}
+					}
+
+					contents.splice(insertionIndex, 0, ...contentsToAdd);
+					timestamps.splice(insertionIndex, 0, ...timestampsToAdd);
 				}
-				lineNumber = logEntry.range.endLineNumber;
-				const lineContent = model.getLineContent(lineNumber);
-				const content = `${lineContent.substring(0, logEntry.timestampRange.endColumn - 1)} [${name}]${lineContent.substring(logEntry.timestampRange.endColumn - 1)}`;
-				logEntries.push([logEntry.timestamp, content]);
+			} finally {
+				model.dispose();
 			}
 		}
 
-		let result = '';
-		for (const [, content] of logEntries.sort((a, b) => a[0] - b[0])) {
-			result += content + '\n';
-		}
-		return result;
+		// Add a newline at the end
+		contents.push('');
+		return contents.join('\n');
 	}
 
 }
