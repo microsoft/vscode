@@ -218,18 +218,15 @@ export class GitBlameController {
 			}
 
 			// Remote commands
-			const defaultRemote = repository.getDefaultRemote();
 			const unpublishedCommits = await repository.getUnpublishedCommits();
-
-			if (defaultRemote?.fetchUrl && !unpublishedCommits.has(blameInformation.hash)) {
-				remoteSourceCommands.push(...await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl));
+			if (!unpublishedCommits.has(blameInformation.hash)) {
+				remoteSourceCommands.push(...await getRemoteSourceControlHistoryItemCommands(repository));
 			}
 
 			// Link provider
-			if (defaultRemote?.fetchUrl) {
-				commitMessageWithLinks = await provideRemoteSourceDocumentLinks(
-					defaultRemote.fetchUrl, commitInformation?.message ?? blameInformation.subject ?? '');
-			}
+			commitMessageWithLinks = await provideRemoteSourceDocumentLinks(
+				repository,
+				commitInformation?.message ?? blameInformation.subject ?? '');
 		}
 
 		const markdownString = new MarkdownString();

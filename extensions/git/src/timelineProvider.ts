@@ -215,11 +215,8 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const openComparison = l10n.t('Open Comparison');
 
-		const defaultRemote = repo.getDefaultRemote();
 		const unpublishedCommits = await repo.getUnpublishedCommits();
-		const remoteSourceCommands: Command[] = defaultRemote?.fetchUrl
-			? await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl)
-			: [];
+		const remoteSourceCommands = await getRemoteSourceControlHistoryItemCommands(repo);
 
 		const items: GitTimelineItem[] = [];
 		for (let index = 0; index < commits.length; index++) {
@@ -236,9 +233,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			}
 
 			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteSourceCommands : [];
-			const messageWithLinks = defaultRemote?.fetchUrl
-				? await provideRemoteSourceDocumentLinks(defaultRemote.fetchUrl, c.message) ?? message
-				: message;
+			const messageWithLinks = await provideRemoteSourceDocumentLinks(repo, c.message) ?? message;
 
 			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), messageWithLinks, c.shortStat, commitRemoteSourceCommands);
 
