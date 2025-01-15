@@ -23,15 +23,16 @@ export async function getRemoteSourceControlHistoryItemCommands(repository: Repo
 		return [];
 	}
 
-	const getCommands = async (repository: Repository, remoteName: string): Promise<Command[]> => {
+	const getCommands = async (repository: Repository, remoteName: string): Promise<Command[] | undefined> => {
 		const remote = repository.remotes.find(r => r.name === remoteName && r.fetchUrl);
-		return remote ? GitBaseApi.getAPI().getRemoteSourceControlHistoryItemCommands(remote.fetchUrl!) : [];
+		return remote ? GitBaseApi.getAPI().getRemoteSourceControlHistoryItemCommands(remote.fetchUrl!) : undefined;
 	};
 
 	// upstream -> origin -> first
 	return await getCommands(repository, 'upstream')
 		?? await getCommands(repository, 'origin')
-		?? await getCommands(repository, repository.remotes[0].name);
+		?? await getCommands(repository, repository.remotes[0].name)
+		?? [];
 }
 
 export async function provideRemoteSourceDocumentLinks(repository: Repository, content: string): Promise<string | undefined> {

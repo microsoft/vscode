@@ -137,10 +137,10 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}];
 	}
 
-	async getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[]> {
+	async getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[] | undefined> {
 		const repository = getRepositoryFromUrl(url);
 		if (!repository) {
-			return [];
+			return undefined;
 		}
 
 		return [{

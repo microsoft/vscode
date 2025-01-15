@@ -123,18 +123,15 @@ export async function getRemoteSourceActions(model: Model, url: string): Promise
 	return remoteSourceActions;
 }
 
-export async function getRemoteSourceControlHistoryItemCommands(model: Model, url: string): Promise<Command[]> {
+export async function getRemoteSourceControlHistoryItemCommands(model: Model, url: string): Promise<Command[] | undefined> {
 	const providers = model.getRemoteProviders();
 
 	const remoteSourceCommands = [];
 	for (const provider of providers) {
-		const providerCommands = await provider.getRemoteSourceControlHistoryItemCommands?.(url);
-		if (providerCommands?.length) {
-			remoteSourceCommands.push(...providerCommands);
-		}
+		remoteSourceCommands.push(...(await provider.getRemoteSourceControlHistoryItemCommands?.(url) ?? []));
 	}
 
-	return remoteSourceCommands;
+	return remoteSourceCommands.length > 0 ? remoteSourceCommands : undefined;
 }
 
 export async function provideRemoteSourceDocumentLinks(model: Model, url: string, content: string): Promise<string> {
