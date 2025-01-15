@@ -5,12 +5,12 @@
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter, RangeChange } from '../treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter, RangeChange, TreeUpdateEvent, TreeParseUpdateEvent } from '../treeSitterParserService.js';
 import { IModelService } from '../model.js';
 import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../model.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IModelContentChange } from '../../textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent } from '../../textModelEvents.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -33,8 +33,8 @@ function getModuleLocation(environmentService: IEnvironmentService): AppResource
 }
 
 export class TextModelTreeSitter extends Disposable implements ITextModelTreeSitter {
-	private _onDidChangeParseResult: Emitter<RangeChange[]> = this._register(new Emitter<RangeChange[]>());
-	public readonly onDidChangeParseResult: Event<RangeChange[]> = this._onDidChangeParseResult.event;
+	private _onDidChangeParseResult: Emitter<TreeParseUpdateEvent> = this._register(new Emitter<TreeParseUpdateEvent>());
+	public readonly onDidChangeParseResult: Event<TreeParseUpdateEvent> = this._onDidChangeParseResult.event;
 	private _parseResult: TreeSitterParseResult | undefined;
 
 	get parseResult(): ITreeSitterParseResult | undefined { return this._parseResult; }
@@ -84,8 +84,8 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 
 		const treeSitterTree = this._languageSessionDisposables.add(new TreeSitterParseResult(new Parser(), language, this._logService, this._telemetryService));
 		this._parseResult = treeSitterTree;
-		this._languageSessionDisposables.add(this.model.onDidChangeContent(e => this._onDidChangeContent(treeSitterTree, e.changes)));
-		await this._onDidChangeContent(treeSitterTree, []);
+		this._languageSessionDisposables.add(this.model.onDidChangeContent(e => this._onDidChangeContent(treeSitterTree, e)));
+		await this._onDidChangeContent(treeSitterTree, undefined);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -114,11 +114,11 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		});
 	}
 
-	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, changes: IModelContentChange[]) {
-		const changedNodes = await treeSitterTree.onDidChangeContent(this.model, changes);
+	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, change: IModelContentChangedEvent | undefined) {
+		const changedNodes = await treeSitterTree.onDidChangeContent(this.model, change?.changes ?? []);
 		// Tree sitter is 0 based, text model is 1 based
 		const ranges: RangeChange[] = changedNodes ?? [{ newRange: this.model.getFullModelRange(), oldRangeLength: this.model.getValueLength() }];
-		this._onDidChangeParseResult.fire(ranges);
+		this._onDidChangeParseResult.fire({ ranges, versionId: change?.versionId ?? this.model.getVersionId() });
 	}
 }
 
@@ -206,9 +206,11 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				const newEndPosition = new Position(newCursor.currentNode.endPosition.row + 1, newCursor.currentNode.endPosition.column + 1);
 				const oldEndIndex = oldCursor.currentNode.endIndex;
 				// Fill holes between nodes.
-				const previousSibling = newCursor.currentNode.previousSibling;
-				const newStartPosition = new Position(previousSibling ? previousSibling.endPosition.row + 1 : 1, previousSibling ? previousSibling.endPosition.column + 1 : 1);
-				const oldStartIndex = previousSibling ? previousSibling.endIndex : 0;
+				const prevNewSibling = newCursor.currentNode.previousSibling;
+				const newStartPosition = new Position(prevNewSibling ? prevNewSibling.endPosition.row + 1 : 1, prevNewSibling ? prevNewSibling.endPosition.column + 1 : 1);
+
+				const prevOldSibling = oldCursor.currentNode.previousSibling;
+				const oldStartIndex = prevOldSibling ? prevOldSibling.endIndex : 0;
 
 				changedRanges.push({ newStartPosition, newEndPosition, oldStartIndex, oldEndIndex, newNodeId: newCursor.currentNode.id });
 				canGoChild = false;
@@ -455,8 +457,8 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	private readonly _treeSitterLanguages: TreeSitterLanguages;
 
 	public readonly onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
-	private _onDidUpdateTree: Emitter<{ textModel: ITextModel; ranges: RangeChange[] }> = this._register(new Emitter());
-	public readonly onDidUpdateTree: Event<{ textModel: ITextModel; ranges: RangeChange[] }> = this._onDidUpdateTree.event;
+	private _onDidUpdateTree: Emitter<TreeUpdateEvent> = this._register(new Emitter());
+	public readonly onDidUpdateTree: Event<TreeUpdateEvent> = this._onDidUpdateTree.event;
 
 	public isTest: boolean = false;
 
@@ -593,7 +595,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		const textModelTreeSitter = new TextModelTreeSitter(model, this._treeSitterLanguages, this._treeSitterImporter, this._logService, this._telemetryService, parseImmediately);
 		const disposables = new DisposableStore();
 		disposables.add(textModelTreeSitter);
-		disposables.add(textModelTreeSitter.onDidChangeParseResult((ranges) => this._onDidUpdateTree.fire({ textModel: model, ranges })));
+		disposables.add(textModelTreeSitter.onDidChangeParseResult(change => this._onDidUpdateTree.fire({ textModel: model, ranges: change.ranges, versionId: change.versionId })));
 		this._textModelTreeSitters.set(model, {
 			textModelTreeSitter,
 			disposables,

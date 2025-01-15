@@ -86,9 +86,9 @@ interface LeafNode {
 }
 
 export interface TokenUpdate {
-	startOffsetInclusive: number;
-	length: number;
-	token: number;
+	readonly startOffsetInclusive: number;
+	readonly length: number;
+	readonly token: number;
 }
 
 function isLeaf(node: Node): node is LeafNode {
@@ -222,7 +222,21 @@ export class TokenStore {
 	 * @param tokens tokens are in sequence in the document.
 	 */
 	update(length: number, tokens: TokenUpdate[]) {
-		const updateOffsetStart = tokens[0].startOffsetInclusive;
+		if (tokens.length === 0) {
+			return;
+		}
+		this.replace(length, tokens[0].startOffsetInclusive, tokens);
+	}
+
+	delete(length: number, startOffset: number) {
+		this.replace(length, startOffset, []);
+	}
+
+	/**
+	 *
+	 * @param tokens tokens are in sequence in the document.
+	 */
+	private replace(length: number, updateOffsetStart: number, tokens: TokenUpdate[]) {
 		const firstUnchangedOffsetAfterUpdate = updateOffsetStart + length;
 		// Find the last unchanged node preceding the update
 		const precedingNodes: Node[] = [];
@@ -268,7 +282,12 @@ export class TokenStore {
 			}
 		}
 
-		const allNodes = precedingNodes.concat(this.createFromUpdates(tokens), postcedingNodes);
+		let allNodes: Node[];
+		if (tokens.length > 0) {
+			allNodes = precedingNodes.concat(this.createFromUpdates(tokens), postcedingNodes);
+		} else {
+			allNodes = precedingNodes.concat(postcedingNodes);
+		}
 		let newRoot: Node = allNodes[0];
 		for (let i = 1; i < allNodes.length; i++) {
 			newRoot = concat(newRoot, allNodes[i]);
@@ -277,7 +296,14 @@ export class TokenStore {
 		this._root = newRoot;
 	}
 
-	private traverseInRange(startOffsetInclusive: number, endOffsetExclusive: number, visitor: (node: Node, offset: number) => void): void {
+	/**
+	 *
+	 * @param startOffsetInclusive
+	 * @param endOffsetExclusive
+	 * @param visitor Return true from visitor to exit early
+	 * @returns
+	 */
+	private traverseInRange(startOffsetInclusive: number, endOffsetExclusive: number, visitor: (node: Node, offset: number) => boolean): void {
 		const stack: { node: Node; offset: number }[] = [{ node: this._root, offset: 0 }];
 
 		while (stack.length > 0) {
@@ -289,7 +315,9 @@ export class TokenStore {
 				continue;
 			}
 
-			visitor(node, offset);
+			if (visitor(node, offset)) {
+				return;
+			}
 
 			if (!isLeaf(node)) {
 				// Push children in reverse order to process them left-to-right when popping
@@ -302,7 +330,19 @@ export class TokenStore {
 		}
 	}
 
-	getTokensInRange(startOffsetInclusive: number, endOffsetExclusive: number): { token: number; startOffsetInclusive: number; length: number }[] {
+	getTokenAt(offset: number): TokenUpdate | undefined {
+		let result: TokenUpdate | undefined;
+		this.traverseInRange(offset, this._root.length, (node, offset) => {
+			if (isLeaf(node)) {
+				result = { token: node.token, startOffsetInclusive: offset, length: node.length };
+				return true;
+			}
+			return false;
+		});
+		return result;
+	}
+
+	getTokensInRange(startOffsetInclusive: number, endOffsetExclusive: number): TokenUpdate[] {
 		const result: { token: number; startOffsetInclusive: number; length: number }[] = [];
 		this.traverseInRange(startOffsetInclusive, endOffsetExclusive, (node, offset) => {
 			if (isLeaf(node)) {
@@ -316,6 +356,7 @@ export class TokenStore {
 				}
 				result.push({ token: node.token, startOffsetInclusive: clippedOffset, length: clippedLength });
 			}
+			return false;
 		});
 		return result;
 	}
@@ -325,6 +366,7 @@ export class TokenStore {
 			if (isLeaf(node)) {
 				node.needsRefresh = true;
 			}
+			return false;
 		});
 	}
 
@@ -334,8 +376,39 @@ export class TokenStore {
 			if (isLeaf(node) && node.needsRefresh) {
 				needsRefresh = true;
 			}
+			return false;
 		});
 		return needsRefresh;
+	}
+
+	public deepCopy(): TokenStore {
+		const newStore = new TokenStore(this._textModel);
+		newStore._root = this._copyNodeIterative(this._root);
+		return newStore;
+	}
+
+	private _copyNodeIterative(root: Node): Node {
+		const newRoot = isLeaf(root)
+			? { length: root.length, token: root.token, needsRefresh: root.needsRefresh, height: root.height }
+			: new ListNode(root.height);
+
+		const stack: Array<[Node, Node]> = [[root, newRoot]];
+
+		while (stack.length > 0) {
+			const [oldNode, clonedNode] = stack.pop()!;
+			if (!isLeaf(oldNode)) {
+				for (const child of oldNode.children) {
+					const childCopy = isLeaf(child)
+						? { length: child.length, token: child.token, needsRefresh: child.needsRefresh, height: child.height }
+						: new ListNode(child.height);
+
+					(clonedNode as ListNode).appendChild(childCopy);
+					stack.push([child, childCopy]);
+				}
+			}
+		}
+
+		return newRoot;
 	}
 
 	/**

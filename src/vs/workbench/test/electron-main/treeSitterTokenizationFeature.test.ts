@@ -73,7 +73,7 @@ class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
 	getTokens(model: ITextModel, line: number): Uint32Array | undefined {
 		return undefined;
 	}
-	updateTokens(model: ITextModel, oldRangeLength: number, newTokens: TokenUpdate[]): void {
+	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void {
 	}
 	markForRefresh(model: ITextModel, range: Range): void {
 	}
@@ -181,7 +181,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 	test('File single line file', async () => {
 		const content = `console.log('x');`;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 1, 17);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 1, 17);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 7);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -193,7 +193,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 console.log('x');
 `;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 3, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 3, 0);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 9);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -203,7 +203,7 @@ console.log('x');
 	test('File with new lines at beginning and end \\r\\n', async () => {
 		const content = '\r\nconsole.log(\'x\');\r\n';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 3, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 3, 0);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 9);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -217,7 +217,7 @@ console.log('x');
 console.log('7');
 `;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 5, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 5, 0);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 18);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -227,7 +227,7 @@ console.log('7');
 	test('File with empty lines in the middle \\r\\n', async () => {
 		const content = '\r\nconsole.log(\'x\');\r\n\r\nconsole.log(\'7\');\r\n';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 5, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 5, 0);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 18);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -241,7 +241,7 @@ console.log('7');
 }
 `;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 5, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 5, 0);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -251,7 +251,7 @@ console.log('7');
 	test('File with non-empty lines that match no scopes \\r\\n', async () => {
 		const content = 'console.log(\'x\');\r\n;\r\n{\r\n}\r\n';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 5, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 5, 0);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -266,7 +266,7 @@ console.log('x');
 
 `;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 6, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 6, 0);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 13);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -276,7 +276,7 @@ console.log('x');
 	test('File with tree-sitter token that spans multiple lines \\r\\n', async () => {
 		const content = '/**\r\n**/\r\n\r\nconsole.log(\'x\');\r\n\r\n';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 6, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 6, 0);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 13);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -292,7 +292,7 @@ class Y {
 	private z = false;
 }`;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 7, 1);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 7, 1);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 27);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -302,7 +302,7 @@ class Y {
 	test('File with tabs \\r\\n', async () => {
 		const content = 'function x() {\r\n\treturn true;\r\n}\r\n\r\nclass Y {\r\n\tprivate z = false;\r\n}';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 7, 1);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 7, 1);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 27);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);

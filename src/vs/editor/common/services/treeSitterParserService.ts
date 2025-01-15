@@ -18,13 +18,24 @@ export interface RangeChange {
 	oldRangeLength: number;
 }
 
+export interface TreeParseUpdateEvent {
+	ranges: RangeChange[];
+	versionId: number;
+}
+
+export interface TreeUpdateEvent {
+	textModel: ITextModel;
+	ranges: RangeChange[];
+	versionId: number;
+}
+
 export interface ITreeSitterParserService {
 	readonly _serviceBrand: undefined;
 	onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
 	getOrInitLanguage(languageId: string): Parser.Language | undefined;
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined;
 	getTree(content: string, languageId: string): Promise<Parser.Tree | undefined>;
-	onDidUpdateTree: Event<{ textModel: ITextModel; ranges: RangeChange[] }>;
+	onDidUpdateTree: Event<TreeUpdateEvent>;
 	/**
 	 * For testing purposes so that the time to parse can be measured.
 	*/

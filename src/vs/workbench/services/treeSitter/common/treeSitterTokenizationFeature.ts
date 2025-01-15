@@ -119,7 +119,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				const lastLineStartOffset = e.textModel.getOffsetAt({ lineNumber: maxLine, column: 1 });
 				const lineEndOffset = e.textModel.getValueLength();
 				const lineLength = lineEndOffset - lastLineStartOffset;
-				const tokens = this.getTokensInRange(e.textModel, 1, maxLine, lineLength);
+				const tokens = this.getTokensInRange(e.textModel, 1, 0, maxLine, lineLength);
 				if (tokens) {
 					this._tokenizationStoreService.setTokens(e.textModel, tokens);
 
@@ -139,13 +139,15 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 				// Don't block
 				new Promise<void>(resolve => {
-					// TODO: Do we need to apply these it reverse order?
-					e.ranges.map(range => {
-						const updates = this.getTokensInRange(e.textModel, range.newRange.startLineNumber, range.newRange.endLineNumber, range.newRange.endColumn - 1);
+					// TODO: Do we need to apply these in reverse order?
+					const tokenUpdates = e.ranges.map(range => {
+						const updates = this.getTokensInRange(e.textModel, range.newRange.startLineNumber, range.newRange.startColumn - 1, range.newRange.endLineNumber, range.newRange.endColumn - 1);
 						if (updates) {
-							this._tokenizationStoreService.updateTokens(e.textModel, range.oldRangeLength, updates);
+							return { oldRangeLength: range.oldRangeLength, newTokens: updates };
 						}
+						return { oldRangeLength: range.oldRangeLength, newTokens: [] };
 					});
+					this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, tokenUpdates);
 					this._onDidChangeTokens.fire({
 						textModel: e.textModel,
 						changes: {
@@ -159,30 +161,37 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		}));
 	}
 
-	private _pushLineTokensAsUpdates(lineOffset: number, lineTokens: { endOffset: number; metadata: number }[], arrayToPush: TokenUpdate[]) {
+	private _pushLineTokensAsUpdates(lineOffset: number, offsetInLine: number, lineTokens: { endOffset: number; metadata: number }[], arrayToPush: TokenUpdate[]) {
 		let lastEnd = 0;
 		for (const token of lineTokens) {
 			if (token.endOffset <= lastEnd) {
 				continue;
 			}
-			arrayToPush.push({ startOffsetInclusive: lineOffset + lastEnd, length: token.endOffset - lastEnd, token: token.metadata });
+			arrayToPush.push({ startOffsetInclusive: lineOffset + lastEnd, length: token.endOffset - (lastEnd + offsetInLine), token: token.metadata });
 			lastEnd = token.endOffset;
 		}
 	}
 
-	public getTokensInRange(textModel: ITextModel, startLine: number, endLine: number, endOffsetInLine: number): TokenUpdate[] | undefined {
+	public getTokensInRange(textModel: ITextModel, startLine: number, startOffsetInLine: number, endLine: number, endOffsetInLine: number): TokenUpdate[] | undefined {
 		const tokens: TokenUpdate[] = [];
 		const maxLine = textModel.getLineCount();
 		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 		for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
-			const lineOffset = textModel.getOffsetAt({ lineNumber, column: 1 });
-			const lineEndOffset = (lineNumber + 1 <= maxLine) ? textModel.getOffsetAt({ lineNumber: lineNumber + 1, column: 1 }) : textModel.getValueLength();
-			const lineLength = lineEndOffset - lineOffset;
-			const lineTokens = this._tokenize(languageId, lineNumber, lineNumber < endLine ? lineLength : endOffsetInLine, lineOffset, textModel);
+			const startOffsetInCurrentLine = lineNumber === startLine ? startOffsetInLine : 0;
+			let endOffsetInCurrentLine: number;
+			if (lineNumber === endLine) {
+				endOffsetInCurrentLine = endOffsetInLine;
+			} else {
+				const lineEndOffset = (lineNumber + 1 <= maxLine) ? textModel.getOffsetAt({ lineNumber: lineNumber + 1, column: 1 }) : textModel.getValueLength();
+				const lineStartOffset = textModel.getOffsetAt({ lineNumber, column: 1 });
+				endOffsetInCurrentLine = lineEndOffset - lineStartOffset;
+			}
+			const lineOffset = textModel.getOffsetAt({ lineNumber, column: startOffsetInCurrentLine + 1 });
+			const lineTokens = this._tokenize(languageId, lineNumber, startOffsetInCurrentLine, endOffsetInCurrentLine, lineOffset, textModel);
 			if (!lineTokens) {
 				return undefined;
 			}
-			this._pushLineTokensAsUpdates(lineOffset, lineTokens.endOffsetsAndMetadata, tokens);
+			this._pushLineTokensAsUpdates(lineOffset, startOffsetInCurrentLine, lineTokens.endOffsetsAndMetadata, tokens);
 		}
 		return tokens;
 	}
@@ -247,11 +256,12 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._tokenizeEncoded(lineNumber, textModel);
 	}
 
-	private _tokenize(encodedLanguageId: LanguageId, lineNumber: number, endOffsetInLine: number, lineStartOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
+	private _tokenize(encodedLanguageId: LanguageId, lineNumber: number, startOffsetInLine: number, endOffsetInLine: number, lineStartOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
 		const stopwatch = StopWatch.create();
 		const lineLength = endOffsetInLine;
 		const tree = this._getTree(textModel);
-		const captures = this._captureAtRange(lineNumber, { startColumn: 1, endColumnExclusive: endOffsetInLine }, tree?.tree);
+		const captures = this._captureAtRange(lineNumber, { startColumn: startOffsetInLine + 1, endColumnExclusive: endOffsetInLine }, tree?.tree);
+		const sectionStartOffset = lineStartOffset + startOffsetInLine;
 
 		if (captures.length === 0) {
 			if (tree) {
@@ -273,10 +283,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
-			const tokenEndIndex = capture.node.endIndex < lineStartOffset + lineLength ? capture.node.endIndex : lineStartOffset + lineLength;
-			const tokenStartIndex = capture.node.startIndex < lineStartOffset ? lineStartOffset : capture.node.startIndex;
+			const tokenEndIndex = capture.node.endIndex < sectionStartOffset + lineLength ? capture.node.endIndex : sectionStartOffset + lineLength;
+			const tokenStartIndex = capture.node.startIndex < sectionStartOffset ? sectionStartOffset : capture.node.startIndex;
 
-			const lineRelativeOffset = tokenEndIndex - lineStartOffset;
+			const lineRelativeOffset = tokenEndIndex - sectionStartOffset;
 			// Not every character will get captured, so we need to make sure that our current capture doesn't bleed toward the start of the line and cover characters that it doesn't apply to.
 			// We do this by creating a new token in the array if the previous token ends before the current token starts.
 			let previousTokenEnd: number;
@@ -284,7 +294,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			if (captureIndex > 0) {
 				previousTokenEnd = endOffsetsAndScopes[(tokenIndex - 1)].endOffset;
 			} else {
-				previousTokenEnd = tokenStartIndex - lineStartOffset - 1;
+				previousTokenEnd = tokenStartIndex - sectionStartOffset - 1;
 			}
 			const intermediateTokenOffset = lineRelativeOffset - currentTokenLength;
 			if ((previousTokenEnd >= 0) && (previousTokenEnd < intermediateTokenOffset)) {
@@ -368,7 +378,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		const lineEndOffset = (lineNumber + 1 <= maxLine) ? textModel.getOffsetAt({ lineNumber: lineNumber + 1, column: 1 }) : textModel.getValueLength();
 		const lineLength = lineEndOffset - lineOffset;
 
-		const result = this._tokenize(encodedLanguageId, lineNumber, lineLength, lineOffset, textModel);
+		const result = this._tokenize(encodedLanguageId, lineNumber, 0, lineLength, lineOffset, textModel);
 		if (!result) {
 			return undefined;
 		}
