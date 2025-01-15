@@ -22,6 +22,7 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { PromiseResult } from '../../../../base/common/observable.js';
 import { Range } from '../../core/range.js';
+import { Position } from '../../core/position.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -126,10 +127,12 @@ const enum TelemetryParseType {
 	Incremental = 'incrementalParse'
 }
 
-interface ChangedNode {
-	new: Parser.SyntaxNode;
-	old: Parser.SyntaxNode;
-	isContiguousWithPrevious: boolean | undefined;
+interface ChangedRange {
+	newNodeId: number;
+	newStartPosition: Position;
+	newEndPosition: Position;
+	oldStartIndex: number;
+	oldEndIndex: number;
 }
 
 export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResult {
@@ -154,7 +157,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	}
 	get isDisposed() { return this._isDisposed; }
 
-	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree) {
+	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree): ChangedRange[] {
 		const newCursor = newTree.walk();
 		const oldCursor = oldTree.walk();
 		const gotoNextSibling = () => {
@@ -182,7 +185,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			return n && o;
 		};
 
-		const changedNodes: ChangedNode[] = [];
+		const changedRanges: ChangedRange[] = [];
 		let next = true;
 		const nextSiblingOrParentSibling = () => {
 			do {
@@ -196,34 +199,31 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			return false;
 		};
 
-		let previousNode: Parser.SyntaxNode | undefined;
 		do {
 			let canGoChild = newCursor.currentNode.childCount > 0;
 
 			if (newCursor.currentNode.hasChanges && newCursor.currentNode.id !== newTree.rootNode.id) {
-				const isContiguousWithPrevious = changedNodes.length > 0 && previousNode?.id === changedNodes[changedNodes.length - 1].new.id;
-				changedNodes.push({ new: newCursor.currentNode, old: oldCursor.currentNode, isContiguousWithPrevious });
+				const newEndPosition = new Position(newCursor.currentNode.endPosition.row + 1, newCursor.currentNode.endPosition.column + 1);
+				const oldEndIndex = oldCursor.currentNode.endIndex;
+				// Fill holes between nodes.
+				const previousSibling = newCursor.currentNode.previousSibling;
+				const newStartPosition = new Position(previousSibling ? previousSibling.endPosition.row + 1 : 1, previousSibling ? previousSibling.endPosition.column + 1 : 1);
+				const oldStartIndex = previousSibling ? previousSibling.endIndex : 0;
+
+				changedRanges.push({ newStartPosition, newEndPosition, oldStartIndex, oldEndIndex, newNodeId: newCursor.currentNode.id });
 				canGoChild = false;
 			}
-			previousNode = newCursor.currentNode;
 			next = canGoChild ? gotoFirstChild() : nextSiblingOrParentSibling();
 		} while (next);
 
-		if (this.hasRootChanged(oldTree, changedNodes)) {
-			return [{ new: newTree.rootNode, old: oldTree.rootNode, isContiguousWithPrevious: undefined }];
+		if (changedRanges.length === 0 && newTree.rootNode.hasChanges) {
+			return [{ newStartPosition: new Position(newTree.rootNode.startPosition.row + 1, newTree.rootNode.startPosition.column + 1), newEndPosition: new Position(newTree.rootNode.endPosition.row + 1, newTree.rootNode.endPosition.column + 1), oldStartIndex: oldTree.rootNode.startIndex, oldEndIndex: oldTree.rootNode.endIndex, newNodeId: newTree.rootNode.id }];
 		} else {
-			return changedNodes;
+			return changedRanges;
 		}
 	}
 
-	private hasRootChanged(oldTree: Parser.Tree, changedNodes: { new: Parser.SyntaxNode; old: Parser.SyntaxNode }[] | undefined) {
-		if (changedNodes?.length === oldTree.rootNode.childCount) {
-			return changedNodes.every(node => node.old.parent?.id === oldTree.rootNode.id);
-		}
-		return false;
-	}
-
-	private calculateRangeChange(changedNodes: { new: Parser.SyntaxNode; old: Parser.SyntaxNode; isContiguousWithPrevious: boolean | undefined }[] | undefined): RangeChange[] | undefined {
+	private calculateRangeChange(changedNodes: ChangedRange[] | undefined): RangeChange[] | undefined {
 		if (!changedNodes) {
 			return undefined;
 		}
@@ -233,15 +233,14 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		for (let i = 0; i < changedNodes.length; i++) {
 			const node = changedNodes[i];
 
-			const newRange = new Range(node.new.startPosition.row + 1, node.new.startPosition.column + 1, node.new.endPosition.row + 1, node.new.endPosition.column + 1);
-			if (node.isContiguousWithPrevious) {
-				const prevNode = changedNodes[i - 1];
+			// Check if contigous with previous
+			const prevNode = changedNodes[i - 1];
+			if ((i > 0) && prevNode.newEndPosition.equals(node.newStartPosition)) {
 				const prevRangeChange = ranges[ranges.length - 1];
-				prevRangeChange.newRange = new Range(prevRangeChange.newRange.startLineNumber, prevRangeChange.newRange.startColumn, newRange.startLineNumber, newRange.startColumn);
-				prevRangeChange.oldRangeLength += node.old.endIndex - prevNode.old.startIndex;
+				prevRangeChange.newRange = new Range(prevRangeChange.newRange.startLineNumber, prevRangeChange.newRange.startColumn, node.newEndPosition.lineNumber, node.newEndPosition.column);
+				prevRangeChange.oldRangeLength = node.oldEndIndex - prevNode.oldStartIndex;
 			} else {
-				const oldRangeLength = node.old.endIndex - node.old.startIndex;
-				ranges.push({ newRange, oldRangeLength });
+				ranges.push({ newRange: Range.fromPositions(node.newStartPosition, node.newEndPosition), oldRangeLength: node.oldEndIndex - node.oldStartIndex });
 			}
 		}
 		return ranges;
