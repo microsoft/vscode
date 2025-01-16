@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ITextModel } from '../model.js';
 
-class ListNode {
+class ListNode implements IDisposable {
 	parent?: ListNode;
 	private readonly _children: Node[] = [];
 	get children(): ReadonlyArray<Node> { return this._children; }
@@ -72,6 +73,10 @@ class ListNode {
 
 	lastChild(): Node {
 		return this._children[this._children.length - 1];
+	}
+
+	dispose() {
+		this._children.splice(0, this._children.length);
 	}
 }
 
@@ -183,7 +188,7 @@ function concat(node1: Node, node2: Node): Node {
 	}
 }
 
-export class TokenStore {
+export class TokenStore implements IDisposable {
 	private _root: Node;
 	get root(): Node {
 		return this._root;
@@ -303,7 +308,7 @@ export class TokenStore {
 	 * @param visitor Return true from visitor to exit early
 	 * @returns
 	 */
-	private traverseInRange(startOffsetInclusive: number, endOffsetExclusive: number, visitor: (node: Node, offset: number) => boolean): void {
+	private traverseInOrderInRange(startOffsetInclusive: number, endOffsetExclusive: number, visitor: (node: Node, offset: number) => boolean): void {
 		const stack: { node: Node; offset: number }[] = [{ node: this._root, offset: 0 }];
 
 		while (stack.length > 0) {
@@ -332,7 +337,7 @@ export class TokenStore {
 
 	getTokenAt(offset: number): TokenUpdate | undefined {
 		let result: TokenUpdate | undefined;
-		this.traverseInRange(offset, this._root.length, (node, offset) => {
+		this.traverseInOrderInRange(offset, this._root.length, (node, offset) => {
 			if (isLeaf(node)) {
 				result = { token: node.token, startOffsetInclusive: offset, length: node.length };
 				return true;
@@ -344,7 +349,7 @@ export class TokenStore {
 
 	getTokensInRange(startOffsetInclusive: number, endOffsetExclusive: number): TokenUpdate[] {
 		const result: { token: number; startOffsetInclusive: number; length: number }[] = [];
-		this.traverseInRange(startOffsetInclusive, endOffsetExclusive, (node, offset) => {
+		this.traverseInOrderInRange(startOffsetInclusive, endOffsetExclusive, (node, offset) => {
 			if (isLeaf(node)) {
 				let clippedLength = node.length;
 				let clippedOffset = offset;
@@ -362,7 +367,7 @@ export class TokenStore {
 	}
 
 	markForRefresh(startOffsetInclusive: number, endOffsetExclusive: number): void {
-		this.traverseInRange(startOffsetInclusive, endOffsetExclusive, (node) => {
+		this.traverseInOrderInRange(startOffsetInclusive, endOffsetExclusive, (node) => {
 			if (isLeaf(node)) {
 				node.needsRefresh = true;
 			}
@@ -372,7 +377,7 @@ export class TokenStore {
 
 	rangeNeedsRefresh(startOffsetInclusive: number, endOffsetExclusive: number): boolean {
 		let needsRefresh = false;
-		this.traverseInRange(startOffsetInclusive, endOffsetExclusive, (node) => {
+		this.traverseInOrderInRange(startOffsetInclusive, endOffsetExclusive, (node) => {
 			if (isLeaf(node) && node.needsRefresh) {
 				needsRefresh = true;
 			}
@@ -434,5 +439,24 @@ export class TokenStore {
 		}
 
 		return result.join('');
+	}
+
+	dispose(): void {
+		const stack: Array<[Node, boolean]> = [[this._root, false]];
+		while (stack.length > 0) {
+			const [node, visited] = stack.pop()!;
+			if (isLeaf(node)) {
+				node.parent = undefined;
+			} else if (!visited) {
+				stack.push([node, true]);
+				for (let i = node.children.length - 1; i >= 0; i--) {
+					stack.push([node.children[i], false]);
+				}
+			} else {
+				node.dispose();
+				node.parent = undefined;
+			}
+		}
+		this._root = undefined!;
 	}
 }

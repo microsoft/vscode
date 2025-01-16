@@ -8,7 +8,7 @@ import { ITextModel } from '../model.js';
 import { TokenStore, TokenUpdate } from './tokenStore.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 
 export interface ITreeSitterTokenizationStoreService {
 	readonly _serviceBrand: undefined;
@@ -26,26 +26,26 @@ export interface TokenInformation {
 	needsRefresh?: boolean;
 }
 
-class TreeSitterTokenizationStoreService extends Disposable implements ITreeSitterTokenizationStoreService {
+class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStoreService, IDisposable {
 	readonly _serviceBrand: undefined;
 
-	private readonly tokens = new Map<ITextModel, { accurateStore: TokenStore; guessStore?: TokenStore; accurateVersion: number; guessVersion?: number }>();
+	private readonly tokens = new Map<ITextModel, { accurateStore: TokenStore; guessStore?: TokenStore; accurateVersion: number; guessVersion?: number; readonly disposables: DisposableStore }>();
 
-	constructor() {
-		super();
-	}
+	constructor() { }
 
 	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
-		const store = new TokenStore(model);
-		this.tokens.set(model, { accurateStore: store, accurateVersion: model.getVersionId() });
+		const disposables = new DisposableStore();
+		const store = disposables.add(new TokenStore(model));
+		this.tokens.set(model, { accurateStore: store, accurateVersion: model.getVersionId(), disposables });
+
 		store.buildStore(tokens);
-		this._register(model.onDidChangeContent(e => {
+		disposables.add(model.onDidChangeContent(e => {
 			const storeInfo = this.tokens.get(model);
 			if (!storeInfo) {
 				return;
 			}
 			if (!storeInfo.guessStore) {
-				storeInfo.guessStore = storeInfo.accurateStore.deepCopy();
+				storeInfo.guessStore = disposables.add(storeInfo.accurateStore.deepCopy());
 			}
 			storeInfo.guessVersion = e.versionId;
 			for (const change of e.changes) {
@@ -60,6 +60,13 @@ class TreeSitterTokenizationStoreService extends Disposable implements ITreeSitt
 					const deletedCharCount = change.rangeLength - change.text.length;
 					storeInfo.guessStore.delete(deletedCharCount, change.rangeOffset);
 				}
+			}
+		}));
+		disposables.add(model.onWillDispose(() => {
+			const storeInfo = this.tokens.get(model);
+			if (storeInfo) {
+				storeInfo.disposables.dispose();
+				this.tokens.delete(model);
 			}
 		}));
 	}
@@ -108,6 +115,7 @@ class TreeSitterTokenizationStoreService extends Disposable implements ITreeSitt
 
 		existingTokens.accurateVersion = version;
 		if (existingTokens.guessStore && existingTokens.guessVersion === version) {
+			existingTokens.guessStore.dispose();
 			existingTokens.guessStore = undefined;
 			existingTokens.guessVersion = undefined;
 		}
@@ -123,6 +131,12 @@ class TreeSitterTokenizationStoreService extends Disposable implements ITreeSitt
 		}
 
 		tree.markForRefresh(model.getOffsetAt(range.getStartPosition()), model.getOffsetAt(range.getEndPosition()));
+	}
+
+	dispose(): void {
+		for (const [, value] of this.tokens) {
+			value.disposables.dispose();
+		}
 	}
 }
 
