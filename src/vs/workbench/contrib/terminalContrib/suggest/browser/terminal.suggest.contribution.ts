@@ -269,15 +269,15 @@ registerActiveInstanceAction({
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'terminalSuggestToggleSuggestionFocus',
-			title: localize2('workbench.action.terminal.suggestToggleSuggestionFocus', 'Suggest Toggle Suggestion Focus'),
+			id: TerminalSuggestCommandId.ToggleDetailsFocus,
+			title: localize2('workbench.action.terminal.suggestToggleDetailsFocus', 'Suggest Toggle Suggestion Focus'),
 			f1: false,
 			// when the terminal blurs, the suggest widget is hidden, so we don't need to check for terminal focus here given we
 			// check for the suggest widget being visible
 			// TODO: why doesn't the terminal focus context key work
-			precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, SimpleSuggestContext.DetailsVisible),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 			keybinding: {
-				weight: KeybindingWeight.ExternalExtension + 50,
+				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space },
 				when: TerminalContextKeys.suggestWidgetVisible
@@ -291,14 +291,13 @@ registerAction2(class extends Action2 {
 		const instance = terminalService.activeInstance ?? terminalService.instances.find(i => i.hasFocus);
 		console.log(instance?.hasFocus);
 		if (!instance) {
-			console.log('no last focused instance');
 			return;
 		}
-		if (!TerminalSuggestContribution.get(instance)?.addon) {
-			console.log('no addon');
+		const addon = TerminalSuggestContribution.get(instance)?.addon;
+		if (!addon) {
 			return;
 		}
-		TerminalSuggestContribution.get(instance)?.addon?.toggleSuggestionFocus();
+		addon.toggleSuggestionFocus();
 	}
 });
 
