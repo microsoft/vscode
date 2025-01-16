@@ -307,6 +307,7 @@ export class ExtHostTerminal extends Disposable {
 				...this._state,
 				shellType: extHostType
 			};
+			return true;
 		}
 
 		return false;
