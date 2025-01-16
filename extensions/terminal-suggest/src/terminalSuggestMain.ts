@@ -13,8 +13,8 @@ import cdSpec from './completions/cd';
 import codeInsidersCompletionSpec from './completions/code-insiders';
 
 let cachedAvailableCommandsPath: string | undefined;
-let cachedAvailableCommands: Set<string> | undefined;
-const cachedBuiltinCommands: Map<string, string[] | undefined> = new Map();
+let cachedAvailableCommands: Set<ICompletionResource> | undefined;
+const cachedBuiltinCommands: Map<string, ICompletionResource[] | undefined> = new Map();
 
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
@@ -25,7 +25,7 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
-function getBuiltinCommands(shell: string): string[] | undefined {
+function getBuiltinCommands(shell: string): ICompletionResource[] | undefined {
 	try {
 		const shellType = path.basename(shell, path.extname(shell));
 		const cachedCommands = cachedBuiltinCommands.get(shellType);
@@ -66,8 +66,10 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 				break;
 			}
 		}
-		cachedBuiltinCommands.set(shellType, commands);
-		return commands;
+
+		const commandResources = commands?.map(command => ({ label: command }));
+		cachedBuiltinCommands.set(shellType, commandResources);
+		return commandResources;
 
 	} catch (error) {
 		console.error('Error fetching builtin commands:', error);
@@ -167,12 +169,12 @@ function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] 
 	return spec.name;
 }
 
-function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
+function createCompletionItem(cursorPosition: number, prefix: string, commandResource: ICompletionResource, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
 	const endsWithSpace = prefix.endsWith(' ');
 	const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
 	return {
-		label,
-		detail: description ?? '',
+		label: commandResource.label,
+		detail: description ?? commandResource.path ?? '',
 		replacementIndex: cursorPosition - lastWord.length,
 		replacementLength: lastWord.length,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
@@ -197,7 +199,11 @@ async function isExecutable(filePath: string): Promise<boolean> {
 	}
 }
 
-async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<Set<string> | undefined> {
+interface ICompletionResource {
+	label: string;
+	path?: string;
+}
+async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<Set<ICompletionResource> | undefined> {
 	// Get PATH value
 	let pathValue: string | undefined;
 	if (osIsWindows()) {
@@ -221,7 +227,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 	const isWindows = osIsWindows();
 	const paths = pathValue.split(isWindows ? ';' : ':');
 	const pathSeparator = isWindows ? '\\' : '/';
-	const executables = new Set<string>();
+	const executables = new Set<ICompletionResource>();
 	for (const path of paths) {
 		try {
 			const dirExists = await fs.stat(path).then(stat => stat.isDirectory()).catch(() => false);
@@ -232,7 +238,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 
 			for (const [file, fileType] of files) {
 				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file)) {
-					executables.add(file);
+					executables.add({ label: file, path });
 				}
 			}
 		} catch (e) {
@@ -274,7 +280,7 @@ export function asArray<T>(x: T | T[]): T[] {
 export async function getCompletionItemsFromSpecs(
 	specs: Fig.Spec[],
 	terminalContext: { commandLine: string; cursorPosition: number },
-	availableCommands: string[],
+	availableCommands: ICompletionResource[],
 	prefix: string,
 	shellIntegrationCwd?: vscode.Uri,
 	token?: vscode.CancellationToken
@@ -294,7 +300,7 @@ export async function getCompletionItemsFromSpecs(
 		}
 
 		for (const specLabel of specLabels) {
-			if (!availableCommands.includes(specLabel) || (token && token.isCancellationRequested)) {
+			if (!availableCommands.find(command => command.label === specLabel) || (token && token.isCancellationRequested)) {
 				continue;
 			}
 
@@ -305,7 +311,7 @@ export async function getCompletionItemsFromSpecs(
 				|| !!firstCommand && specLabel.startsWith(firstCommand)
 			) {
 				// push it to the completion items
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, specLabel));
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }));
 			}
 
 			if (!terminalContext.commandLine.startsWith(specLabel)) {
@@ -340,7 +346,7 @@ export async function getCompletionItemsFromSpecs(
 		// Include builitin/available commands in the results
 		const labels = new Set(items.map((i) => i.label));
 		for (const command of availableCommands) {
-			if (!labels.has(command)) {
+			if (!labels.has(command.label)) {
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
 			}
 		}
@@ -410,7 +416,7 @@ function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { com
 				createCompletionItem(
 					terminalContext.cursorPosition,
 					prefix,
-					optionLabel,
+					{ label: optionLabel },
 					option.description,
 					vscode.TerminalCompletionItemKind.Flag
 				)
@@ -472,7 +478,7 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 					}
 					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const description = typeof suggestion !== 'string' ? suggestion.description : '';
-						items.push(createCompletionItem(terminalContext.cursorPosition, wordBefore ?? '', suggestionLabel, description, vscode.TerminalCompletionItemKind.Argument));
+						items.push(createCompletionItem(terminalContext.cursorPosition, wordBefore ?? '', { label: suggestionLabel }, description, vscode.TerminalCompletionItemKind.Argument));
 					}
 				}
 			}
