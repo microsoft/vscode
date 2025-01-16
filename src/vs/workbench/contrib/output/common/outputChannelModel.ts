@@ -13,7 +13,7 @@ import { Promises, ThrottledDelayer } from '../../../../base/common/async.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageSelection } from '../../../../editor/common/languages/language.js';
-import { Disposable, toDisposable, IDisposable, MutableDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable, IDisposable, MutableDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../base/common/types.js';
 import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -21,30 +21,28 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../platform/log/common/log.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { ILogEntry, LOG_MIME, logEntryIterator, OutputChannelUpdateMode } from '../../../services/output/common/output.js';
+import { ILogEntry, IOutputContentSource, LOG_MIME, logEntryIterator, OutputChannelUpdateMode } from '../../../services/output/common/output.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { TextModel } from '../../../../editor/common/model/textModel.js';
-import { binarySearch } from '../../../../base/common/arrays.js';
+import { binarySearch, sortedDiff } from '../../../../base/common/arrays.js';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDispose: Event<void>;
+	readonly source: IOutputContentSource | ReadonlyArray<IOutputContentSource>;
 	append(output: string): void;
 	update(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void;
+	updateChannelSources(sources: ReadonlyArray<IOutputContentSource>): void;
 	loadModel(): Promise<ITextModel>;
 	clear(): void;
 	replace(value: string): void;
-}
-
-export interface IOutputChannelFileInfo {
-	readonly name: string;
-	readonly file: URI;
 }
 
 interface IContentProvider {
 	readonly onDidAppend: Event<void>;
 	readonly onDidReset: Event<void>;
 	reset(): void;
-	watch(): IDisposable;
+	watch(): void;
+	unwatch(): void;
 	getContent(): Promise<{ readonly content: string; readonly consume: () => void }>;
 }
 
@@ -63,18 +61,18 @@ class FileContentProvider extends Disposable implements IContentProvider {
 	private startOffset: number = 0;
 	private endOffset: number = 0;
 
-	private readonly file: URI;
-	private readonly name: string;
+	readonly resource: URI;
+	readonly name: string;
 
 	constructor(
-		{ name, file }: IOutputChannelFileInfo,
+		{ name, resource }: IOutputContentSource,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
-		this.name = name;
-		this.file = file;
+		this.name = name ?? '';
+		this.resource = resource;
 		this.syncDelayer = new ThrottledDelayer<void>(500);
 		this._register(toDisposable(() => this.unwatch()));
 	}
@@ -87,20 +85,19 @@ class FileContentProvider extends Disposable implements IContentProvider {
 		this.startOffset = this.endOffset;
 	}
 
-	watch(): IDisposable {
+	watch(): void {
 		if (!this.watching) {
-			this.logService.trace('Started polling', this.file.toString());
+			this.logService.trace('Started polling', this.resource.toString());
 			this.poll();
 			this.watching = true;
 		}
-		return toDisposable(() => this.unwatch());
 	}
 
-	private unwatch(): void {
+	unwatch(): void {
 		if (this.watching) {
 			this.syncDelayer.cancel();
 			this.watching = false;
-			this.logService.trace('Stopped polling', this.file.toString());
+			this.logService.trace('Stopped polling', this.resource.toString());
 		}
 	}
 
@@ -115,7 +112,10 @@ class FileContentProvider extends Disposable implements IContentProvider {
 
 	private async doWatch(): Promise<void> {
 		try {
-			const stat = await this.fileService.stat(this.file);
+			if (!this.fileService.hasProvider(this.resource)) {
+				return;
+			}
+			const stat = await this.fileService.stat(this.resource);
 			if (stat.etag !== this.etag) {
 				this.etag = stat.etag;
 				if (isNumber(stat.size) && this.endOffset > stat.size) {
@@ -134,7 +134,14 @@ class FileContentProvider extends Disposable implements IContentProvider {
 
 	async getContent(): Promise<{ readonly name: string; readonly content: string; readonly consume: () => void }> {
 		try {
-			const content = await this.fileService.readFile(this.file, { position: this.endOffset });
+			if (!this.fileService.hasProvider(this.resource)) {
+				return {
+					name: this.name,
+					content: '',
+					consume: () => { /* No Op */ }
+				};
+			}
+			const content = await this.fileService.readFile(this.resource, { position: this.endOffset });
 			let consumed = false;
 			return {
 				name: this.name,
@@ -162,40 +169,90 @@ class FileContentProvider extends Disposable implements IContentProvider {
 
 class MultiFileContentProvider extends Disposable implements IContentProvider {
 
-	readonly onDidAppend: Event<void>;
+	private readonly _onDidAppend = this._register(new Emitter<void>());
+	readonly onDidAppend = this._onDidAppend.event;
 	readonly onDidReset = Event.None;
 
-	private readonly fileOutputs: ReadonlyArray<FileContentProvider> = [];
+	private readonly fileContentProviderItems: [FileContentProvider, DisposableStore][] = [];
+
+	private watching: boolean = false;
 
 	constructor(
-		filesInfos: IOutputChannelFileInfo[],
+		filesInfos: IOutputContentSource[],
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService fileService: IFileService,
-		@ILogService logService: ILogService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.fileOutputs = filesInfos.map(file => this._register(new FileContentProvider(file, fileService, logService)));
-		this.onDidAppend = Event.any(...this.fileOutputs.map(output => output.onDidAppend));
+		for (const file of filesInfos) {
+			this.fileContentProviderItems.push(this.createFileContentProvider(file));
+		}
+		this._register(toDisposable(() => {
+			for (const [, disposables] of this.fileContentProviderItems) {
+				disposables.dispose();
+			}
+		}));
 	}
 
-	watch(): IDisposable {
-		return combinedDisposable(...this.fileOutputs.map(output => output.watch()));
+	private createFileContentProvider(file: IOutputContentSource): [FileContentProvider, DisposableStore] {
+		const disposables = new DisposableStore();
+		const fileOutput = disposables.add(new FileContentProvider(file, this.fileService, this.logService));
+		disposables.add(fileOutput.onDidAppend(() => this._onDidAppend.fire()));
+		return [fileOutput, disposables];
+	}
+
+	watch(): void {
+		if (!this.watching) {
+			this.watching = true;
+			for (const [output] of this.fileContentProviderItems) {
+				output.watch();
+			}
+		}
+	}
+
+	unwatch(): void {
+		if (this.watching) {
+			this.watching = false;
+			for (const [output] of this.fileContentProviderItems) {
+				output.unwatch();
+			}
+		}
+	}
+
+	updateFiles(files: IOutputContentSource[]): void {
+		const wasWatching = this.watching;
+		if (wasWatching) {
+			this.unwatch();
+		}
+
+		const result = sortedDiff(this.fileContentProviderItems.map(([output]) => output), files, (a, b) => resources.extUri.compare(a.resource, b.resource));
+		for (const { start, deleteCount, toInsert } of result) {
+			const outputs = toInsert.map(file => this.createFileContentProvider(file));
+			const outputsToRemove = this.fileContentProviderItems.splice(start, deleteCount, ...outputs);
+			for (const [, disposables] of outputsToRemove) {
+				disposables.dispose();
+			}
+		}
+
+		if (wasWatching) {
+			this.watch();
+		}
 	}
 
 	reset(): void {
-		for (const output of this.fileOutputs) {
+		for (const [output] of this.fileContentProviderItems) {
 			output.reset();
 		}
 	}
 
 	resetToEnd(): void {
-		for (const output of this.fileOutputs) {
+		for (const [output] of this.fileContentProviderItems) {
 			output.resetToEnd();
 		}
 	}
 
 	async getContent(): Promise<{ readonly content: string; readonly consume: () => void }> {
-		const outputs = await Promise.all(this.fileOutputs.map(output => output.getContent()));
+		const outputs = await Promise.all(this.fileContentProviderItems.map(([output]) => output.getContent()));
 		const content = this.combineLogEntries(outputs);
 		return {
 			content,
@@ -298,6 +355,8 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	private readonly appendThrottler = this._register(new ThrottledDelayer(300));
 	private replacePromise: Promise<void> | undefined;
 
+	abstract readonly source: IOutputContentSource | ReadonlyArray<IOutputContentSource>;
+
 	constructor(
 		private readonly modelUri: URI,
 		private readonly language: ILanguageSelection,
@@ -318,7 +377,8 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 				consume();
 				this.modelDisposable.value.add(this.outputContentProvider.onDidReset(() => this.onDidContentChange(true, true)));
 				this.modelDisposable.value.add(this.outputContentProvider.onDidAppend(() => this.onDidContentChange(false, false)));
-				this.modelDisposable.value.add(this.outputContentProvider.watch());
+				this.outputContentProvider.watch();
+				this.modelDisposable.value.add(toDisposable(() => this.outputContentProvider.unwatch()));
 				this.modelDisposable.value.add(this.model.onWillDispose(() => {
 					this.outputContentProvider.reset();
 					this.modelDisposable.value = undefined;
@@ -470,6 +530,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 
 	abstract clear(): void;
 	abstract update(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void;
+	abstract updateChannelSources(files: IOutputContentSource[]): void;
 }
 
 export class FileOutputChannelModel extends AbstractFileOutputChannelModel implements IOutputChannelModel {
@@ -479,13 +540,13 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 	constructor(
 		modelUri: URI,
 		language: ILanguageSelection,
-		fileInfo: IOutputChannelFileInfo,
+		readonly source: IOutputContentSource,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@ILogService logService: ILogService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 	) {
-		const fileOutput = new FileContentProvider(fileInfo, fileService, logService);
+		const fileOutput = new FileContentProvider(source, fileService, logService);
 		super(modelUri, language, fileOutput, modelService, editorWorkerService);
 		this.fileOutput = this._register(fileOutput);
 	}
@@ -508,6 +569,7 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 		});
 	}
 
+	override updateChannelSources(files: IOutputContentSource[]): void { throw new Error('Not supported'); }
 }
 
 export class MultiFileOutputChannelModel extends AbstractFileOutputChannelModel implements IOutputChannelModel {
@@ -517,16 +579,26 @@ export class MultiFileOutputChannelModel extends AbstractFileOutputChannelModel 
 	constructor(
 		modelUri: URI,
 		language: ILanguageSelection,
-		filesInfos: IOutputChannelFileInfo[],
+		readonly source: IOutputContentSource[],
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@ILogService logService: ILogService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const multifileOutput = new MultiFileContentProvider(filesInfos, instantiationService, fileService, logService);
+		const multifileOutput = new MultiFileContentProvider(source, instantiationService, fileService, logService);
 		super(modelUri, language, multifileOutput, modelService, editorWorkerService);
 		this.multifileOutput = this._register(multifileOutput);
+	}
+
+	override updateChannelSources(files: IOutputContentSource[]): void {
+		this.multifileOutput.unwatch();
+		this.multifileOutput.updateFiles(files);
+		this.multifileOutput.reset();
+		this.doUpdate(OutputChannelUpdateMode.Replace, true);
+		if (this.isVisible()) {
+			this.multifileOutput.watch();
+		}
 	}
 
 	override clear(): void {
@@ -556,7 +628,7 @@ class OutputChannelBackedByFile extends FileOutputChannelModel implements IOutpu
 		@ILogService logService: ILogService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(modelUri, language, { file, name: '' }, fileService, modelService, logService, editorWorkerService);
+		super(modelUri, language, { resource: file, name: '' }, fileService, modelService, logService, editorWorkerService);
 
 		// Donot rotate to check for the file reset
 		this.logger = loggerService.createLogger(file, { logLevel: 'always', donotRotate: true, donotUseFormatters: true, hidden: true });
@@ -590,21 +662,25 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private readonly outputChannelModel: Promise<IOutputChannelModel>;
+	readonly source: IOutputContentSource;
 
 	constructor(
 		id: string,
 		modelUri: URI,
 		language: ILanguageSelection,
-		outputDir: Promise<URI>,
+		outputDir: URI,
+		outputDirCreationPromise: Promise<void>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
-		this.outputChannelModel = this.createOutputChannelModel(id, modelUri, language, outputDir);
+		this.outputChannelModel = this.createOutputChannelModel(id, modelUri, language, outputDir, outputDirCreationPromise);
+		const resource = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
+		this.source = { resource };
 	}
 
-	private async createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, outputDirPromise: Promise<URI>): Promise<IOutputChannelModel> {
-		const outputDir = await outputDirPromise;
+	private async createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, outputDir: URI, outputDirPromise: Promise<void>): Promise<IOutputChannelModel> {
+		await outputDirPromise;
 		const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		await this.fileService.createFile(file);
 		const outputChannelModel = this._register(this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, language, file));
@@ -630,5 +706,9 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 
 	replace(value: string): void {
 		this.outputChannelModel.then(outputChannelModel => outputChannelModel.replace(value));
+	}
+
+	updateChannelSources(files: IOutputContentSource[]): void {
+		this.outputChannelModel.then(outputChannelModel => outputChannelModel.updateChannelSources(files));
 	}
 }
