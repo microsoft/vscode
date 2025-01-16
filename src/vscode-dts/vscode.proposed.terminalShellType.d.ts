@@ -25,13 +25,13 @@ declare module 'vscode' {
 		NuShell
 	}
 
-	// NOTE: State since this the shellType can change multiple times and this comes with an event.
+	// Part of TerminalState since the shellType can change multiple times and this comes with an event.
 	export interface TerminalState {
 		/**
 		 * The current detected shell type of the terminal. New shell types may be added in the
 		 * future in which case they will be returned as a number that is not part of
 		 * {@link TerminalShellType}.
-		 * Type number is to prevent the breaking change when new enum members are added?
+		 * Includes number type to prevent the breaking change when new enum members are added?
 		 */
 		readonly shellType?: TerminalShellType | number | undefined;
 	}
