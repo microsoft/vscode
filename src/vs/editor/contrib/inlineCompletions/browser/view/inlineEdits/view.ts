@@ -17,6 +17,7 @@ import { TextLength } from '../../../../../common/core/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
+import { InlineEditsDeletionView } from './deletionView.js';
 import { InlineEditsGutterIndicator } from './gutterIndicatorView.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './indicatorView.js';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
@@ -111,6 +112,16 @@ export class InlineEditsView extends Disposable {
 		}) : undefined),
 	));
 
+	protected readonly _deletion = this._register(this._instantiationService.createInstance(InlineEditsDeletionView,
+		this._editor,
+		this._edit,
+		this._uiState.map(s => s && s.state.kind === 'deletion' ? ({
+			edit: s.edit,
+			originalDisplayRange: s.originalDisplayRange,
+			widgetStartColumn: s.state.widgetStartColumn,
+		}) : undefined),
+	));
+
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 		const e = this._uiState.read(reader);
 		if (!e) { return undefined; }
@@ -120,7 +131,7 @@ export class InlineEditsView extends Disposable {
 		return {
 			modifiedText: new StringText(e.newText),
 			diff: e.diff,
-			mode: e.state.kind === 'collapsed' ? 'sideBySide' : e.state.kind,
+			mode: e.state.kind === 'collapsed' || e.state.kind === 'deletion' ? 'sideBySide' : e.state.kind,
 			modifiedCodeEditor: this._sideBySide.previewEditor,
 		};
 	});
@@ -171,16 +182,26 @@ export class InlineEditsView extends Disposable {
 			return { kind: 'collapsed' as const };
 		}
 
+		const inner = diff.flatMap(d => d.innerChanges ?? []);
+		const isSingleInnerEdit = inner.length === 1;
+
 		if (
-			this._useMixedLinesDiff.read(reader) === 'forStableInsertions'
-			&& isSingleLineInsertionAfterPosition(diff, edit.cursorPosition)
-			|| isSingleLineDeletion(diff)
+			isSingleInnerEdit && (
+				this._useMixedLinesDiff.read(reader) === 'forStableInsertions'
+				&& isSingleLineInsertionAfterPosition(diff, edit.cursorPosition)
+				|| isSingleLineDeletion(diff)
+			)
 		) {
 			return { kind: 'ghostText' as const };
 		}
 
+		if (inner.every(m => newText.getValueOfRange(m.modifiedRange).trim() === '')) {
+			const trimLength = getPrefixTrimLength(edit.originalText.getLineAt(edit.originalLineRange.startLineNumber), newText.getLineAt(edit.modifiedLineRange.startLineNumber));
+			const widgetStartColumn = Math.min(trimLength, ...inner.map(m => m.originalRange.startLineNumber !== m.originalRange.endLineNumber ? 0 : m.originalRange.startColumn - 1));
+			return { kind: 'deletion' as const, widgetStartColumn };
+		}
+
 		if (diff.length === 1 && diff[0].original.length === 1 && diff[0].modified.length === 1) {
-			const inner = diff.flatMap(d => d.innerChanges!);
 			const canUseWordReplacementView = inner.every(m => (
 				m.originalRange.isEmpty() && this._useWordInsertionView.read(reader) === 'whenPossible' ||
 				!m.originalRange.isEmpty() && this._useWordReplacementView.read(reader) === 'whenPossible'
@@ -190,9 +211,9 @@ export class InlineEditsView extends Disposable {
 				const allInnerModifiedTexts = inner.map(m => newText.getValueOfRange(m.modifiedRange));
 				const allInnerOriginalTexts = inner.map(m => edit.originalText.getValueOfRange(m.originalRange));
 				const allInnerEditsAreTheSame = allInnerModifiedTexts.every(text => text === allInnerModifiedTexts[0]) && allInnerOriginalTexts.every(text => text === allInnerOriginalTexts[0]);
-				const allInnerChangesNotToLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
+				const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
 
-				if (allInnerEditsAreTheSame && allInnerChangesNotToLong) {
+				if (allInnerChangesNotTooLong && isSingleInnerEdit && allInnerEditsAreTheSame) {
 					return {
 						kind: 'wordReplacements' as const,
 						replacements: inner.map(i =>
@@ -200,14 +221,6 @@ export class InlineEditsView extends Disposable {
 						)
 					};
 				} else {
-					function getPrefixTrimLength(originalLine: string, editedLine: string) {
-						let startTrim = 0;
-						while (originalLine[startTrim] === editedLine[startTrim] && originalLine[startTrim] === ' ') {
-							startTrim++;
-						}
-						return startTrim;
-					}
-
 					const replacements = inner.map((m, i) => new SingleTextEdit(m.originalRange, allInnerModifiedTexts[i]));
 
 					const originalLine = edit.originalText.getLineAt(edit.originalLineRange.startLineNumber);
@@ -284,4 +297,12 @@ function isSingleLineDeletion(diff: DetailedLineRangeMapping[]): boolean {
 		}
 		return true;
 	}
+}
+
+function getPrefixTrimLength(originalLine: string, editedLine: string) {
+	let startTrim = 0;
+	while (originalLine[startTrim] === editedLine[startTrim] && (originalLine[startTrim] === ' ' || originalLine[startTrim] === '\t')) {
+		startTrim++;
+	}
+	return startTrim;
 }

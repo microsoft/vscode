@@ -138,6 +138,10 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
+
+	reviewMode: IObservable<boolean>;
+	autoAcceptController: IObservable<{ remaining: number; cancel(): void } | undefined>;
+	enableReviewModeUntilSettled(): void;
 }
 
 export interface IChatEditingSessionStream {

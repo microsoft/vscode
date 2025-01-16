@@ -1314,7 +1314,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress) {
-			this._chatEditsProgress ??= new ProgressBar(innerContainer);
+			// this._chatEditsProgress ??= new ProgressBar(innerContainer);
 			this._chatEditsProgress?.infinite().show(500);
 		}
 

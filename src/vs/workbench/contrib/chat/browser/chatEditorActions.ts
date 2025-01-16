@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { ChatEditorController, ctxHasEditorModification, ctxHasRequestInProgress } from './chatEditorController.js';
+import { ChatEditorController, ctxHasEditorModification, ctxReviewModeEnabled } from './chatEditorController.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
@@ -45,6 +45,7 @@ abstract class NavigateAction extends Action2 {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'navigate',
 				order: !next ? 2 : 3,
+				when: ctxReviewModeEnabled
 			}
 		});
 	}
@@ -130,7 +131,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasRequestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -146,6 +147,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: accept ? 0 : 1,
+				when: !accept ? ctxReviewModeEnabled : undefined
 			}
 		});
 	}
@@ -272,6 +274,7 @@ class OpenDiffAction extends EditorAction2 {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: 2,
+				when: ctxReviewModeEnabled
 			}]
 		});
 	}
@@ -281,12 +284,55 @@ class OpenDiffAction extends EditorAction2 {
 	}
 }
 
+export class ReviewChangesAction extends EditorAction2 {
+
+	constructor() {
+		super({
+			id: 'chatEditor.action.reviewChanges',
+			title: localize2('review', "Review"),
+			menu: [{
+				id: MenuId.ChatEditingEditorContent,
+				group: 'a_resolve',
+				order: 3,
+				when: ctxReviewModeEnabled.negate(),
+			}]
+		});
+	}
+
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+		const chatEditingService = accessor.get(IChatEditingService);
+
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const session = chatEditingService.editingSessionsObs.get().find(session => session.getEntry(editor.getModel().uri));
+		const entry = session?.getEntry(editor.getModel().uri);
+		entry?.enableReviewModeUntilSettled();
+	}
+}
+
 export function registerChatEditorActions() {
 	registerAction2(class NextAction extends NavigateAction { constructor() { super(true); } });
 	registerAction2(class PrevAction extends NavigateAction { constructor() { super(false); } });
+	registerAction2(ReviewChangesAction);
 	registerAction2(AcceptAction);
 	registerAction2(AcceptHunkAction);
 	registerAction2(RejectAction);
 	registerAction2(RejectHunkAction);
 	registerAction2(OpenDiffAction);
+
 }
+
+export const navigationBearingFakeActionId = 'chatEditor.navigation.bearings';
+
+MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
+	command: {
+		id: navigationBearingFakeActionId,
+		title: localize('label', "Navigation Status"),
+		precondition: ContextKeyExpr.false(),
+	},
+	group: 'navigate',
+	order: -1,
+	when: ctxReviewModeEnabled,
+});

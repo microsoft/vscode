@@ -26,7 +26,7 @@ export class NativeRequestService extends AbstractRequestService implements IReq
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		if (!options.proxyAuthorization) {
-			options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
+			options.proxyAuthorization = this.configurationService.inspect<string>('http.proxyAuthorization').userLocalValue;
 		}
 		return this.logAndRequest(options, () => request(options, token, () => navigator.onLine));
 	}
