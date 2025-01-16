@@ -13,7 +13,7 @@ import { MenuId, MenuItemAction } from '../../../../../../platform/actions/commo
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { darken, lighten, registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
+import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -96,6 +96,18 @@ export const modifiedBorder = registerColor(
 	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
 );
 
+export const acceptedDecorationBackgroundColor = registerColor(
+	'inlineEdit.acceptedBackground',
+	{
+		light: transparent(modifiedChangedTextOverlayColor, 0.75),
+		dark: transparent(modifiedChangedTextOverlayColor, 0.75),
+		hcDark: modifiedChangedTextOverlayColor,
+		hcLight: modifiedChangedTextOverlayColor
+	},
+	localize('inlineEdit.acceptedBackground', 'Background color for the accepted text after applying an inline edit.'),
+	true
+);
+
 export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
@@ -147,9 +159,11 @@ export class InlineEditsSideBySideDiff extends Disposable {
 				return;
 			}
 
-			this.previewEditor.layout({ height: layoutInfo.editHeight, width: layoutInfo.previewEditorWidth });
-
 			const topEdit = layoutInfo.edit1;
+			const bottomEdit = layoutInfo.edit2;
+
+			this.previewEditor.layout({ height: bottomEdit.y - topEdit.y, width: layoutInfo.previewEditorWidth });
+			this.previewEditor.updateOptions({ padding: { top: layoutInfo.padding, bottom: layoutInfo.padding } });
 			this._editorContainer.element.style.top = `${topEdit.y}px`;
 			this._editorContainer.element.style.left = `${topEdit.x}px`;
 		}));
@@ -261,6 +275,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			overviewRulerLanes: 0,
 			lineDecorationsWidth: 0,
 			lineNumbersMinChars: 0,
+			revealHorizontalRightPadding: 0,
 			bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
 			scrollBeyondLastLine: false,
 			scrollbar: {
@@ -385,8 +400,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
 		const editorBoundingClientRect = this._editor.getContainerDomNode().getBoundingClientRect();
 		const clientContentAreaRight = editorLayout.contentLeft + editorLayout.contentWidth + editorBoundingClientRect.left;
-		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).outerWidth - clientContentAreaRight;
-		const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).outerWidth - editorBoundingClientRect.right;
+		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).innerWidth - clientContentAreaRight;
+		const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).innerWidth - editorBoundingClientRect.right;
 		const desiredMinimumWidth = Math.min(editorLayout.contentWidth * 0.3, previewContentWidth, 100);
 		const IN_EDITOR_DISPLACEMENT = 0;
 		const maximumAvailableWidth = IN_EDITOR_DISPLACEMENT + remainingWidthRightOfContent;
@@ -440,8 +455,10 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 		const previewEditorWidth = Math.min(previewContentWidth, remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist);
 
+		const PADDING = 4;
+
 		const edit1 = new Point(left + codeEditDist, selectionTop);
-		const edit2 = new Point(left + codeEditDist, selectionTop + editHeight);
+		const edit2 = new Point(left + codeEditDist, selectionTop + editHeight + PADDING * 2);
 
 		return {
 			code1,
@@ -456,7 +473,9 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			maxContentWidth,
 			shouldShowShadow: clipped,
 			desiredPreviewEditorScrollLeft,
-			previewEditorWidth
+			previewEditorWidth,
+			padding: PADDING,
+			borderRadius: PADDING
 		};
 	});
 
@@ -484,13 +503,28 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _extendedModifiedPath = derived(reader => {
 		const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 		if (!layoutInfo) { return undefined; }
-		const width = layoutInfo.previewEditorWidth;
+		const width = layoutInfo.previewEditorWidth + layoutInfo.padding;
+
+
+		const topLeft = layoutInfo.edit1;
+		const topRight = layoutInfo.edit1.deltaX(width);
+		const topRightBefore = topRight.deltaX(-layoutInfo.borderRadius);
+		const topRightAfter = topRight.deltaY(layoutInfo.borderRadius);
+
+		const bottomLeft = layoutInfo.edit2;
+		const bottomRight = bottomLeft.deltaX(width);
+		const bottomRightBefore = bottomRight.deltaY(-layoutInfo.borderRadius);
+		const bottomRightAfter = bottomRight.deltaX(-layoutInfo.borderRadius);
+
 		const extendedModifiedPathBuilder = new PathBuilder()
 			.moveTo(layoutInfo.code1)
-			.lineTo(layoutInfo.edit1)
-			.lineTo(layoutInfo.edit1.deltaX(width))
-			.lineTo(layoutInfo.edit2.deltaX(width))
-			.lineTo(layoutInfo.edit2);
+			.lineTo(topLeft)
+			.lineTo(topRightBefore)
+			.curveTo(topRight, topRightAfter)
+			.lineTo(bottomRightBefore)
+			.curveTo(bottomRight, bottomRightAfter)
+			.lineTo(bottomLeft);
+
 		if (layoutInfo.edit2.y !== layoutInfo.code2.y) {
 			extendedModifiedPathBuilder.curveTo2(layoutInfo.edit2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
 		}
@@ -545,6 +579,19 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		}),
 	]).keepUpdated(this._store);
 
+	private readonly _middleBorderWithShadow = n.div({
+		class: ['middleBorderWithShadow'],
+		style: {
+			position: 'absolute',
+			display: this._previewEditorLayoutInfo.map(i => i?.shouldShowShadow ? 'block' : 'none'),
+			width: '6px',
+			boxShadow: 'var(--vscode-scrollbar-shadow) -6px 0 6px -6px inset',
+			left: this._previewEditorLayoutInfo.map(i => i ? i.code1.x - 6 : 0),
+			top: this._previewEditorLayoutInfo.map(i => i ? i.code1.y : 0),
+			height: this._previewEditorLayoutInfo.map(i => i ? i.code2.y - i.code1.y : 0),
+		},
+	}, []).keepUpdated(this._store);
+
 	private readonly _foregroundSvg = n.svg({
 		transform: 'translate(-0.5 -0.5)',
 		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
@@ -552,7 +599,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 		if (!layoutInfoObs) { return undefined; }
 
-		const shadowWidth = 6;
 		return [
 			n.svgElem('path', {
 				class: 'originalOverlay',
@@ -579,46 +625,19 @@ export class InlineEditsSideBySideDiff extends Disposable {
 					strokeWidth: '1px',
 				}
 			}),
-
-			...(!layoutInfoObs.map(i => i.shouldShowShadow).read(reader)
-				? [
-					n.svgElem('path', {
-						class: 'middleBorder',
-						d: layoutInfoObs.map(layoutInfo => new PathBuilder()
-							.moveTo(layoutInfo.code1)
-							.lineTo(layoutInfo.code2)
-							.build()
-						),
-						style: {
-							stroke: 'var(--vscode-inlineEdit-modifiedBorder)',
-							strokeWidth: '1px'
-						}
-					})
-				]
-				: [
-					n.svgElem('defs', {}, [
-						n.svgElem('linearGradient', { id: 'gradient', x1: '0%', x2: '100%', }, [
-							n.svgElem('stop', {
-								offset: '0%',
-								style: { stopColor: 'var(--vscode-inlineEdit-modifiedBorder)', stopOpacity: '0', }
-							}),
-							n.svgElem('stop', {
-								offset: '100%',
-								style: { stopColor: 'var(--vscode-inlineEdit-modifiedBorder)', stopOpacity: '1', }
-							})
-						])
-					]),
-					n.svgElem('rect', {
-						class: 'middleBorderWithShadow',
-						x: layoutInfoObs.map(layoutInfo => layoutInfo.code1.x - shadowWidth),
-						y: layoutInfoObs.map(layoutInfo => layoutInfo.code1.y),
-						width: shadowWidth,
-						height: layoutInfoObs.map(layoutInfo => layoutInfo.code2.y - layoutInfo.code1.y),
-						fill: 'url(#gradient)',
-						style: { strokeWidth: '0', stroke: 'transparent', }
-					})
-				]
-			)
+			n.svgElem('path', {
+				class: 'middleBorder',
+				d: layoutInfoObs.map(layoutInfo => new PathBuilder()
+					.moveTo(layoutInfo.code1)
+					.lineTo(layoutInfo.code2)
+					.build()
+				),
+				style: {
+					display: layoutInfoObs.map(i => i.shouldShowShadow ? 'none' : 'block'),
+					stroke: 'var(--vscode-inlineEdit-modifiedBorder)',
+					strokeWidth: '1px'
+				}
+			})
 		];
 	})).keepUpdated(this._store);
 
@@ -634,7 +653,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		},
 	}, [
 		this._backgroundSvg,
-		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg]),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg, this._middleBorderWithShadow]),
 	]).keepUpdated(this._store);
 
 	private readonly _overflowView = n.div({
@@ -645,6 +664,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			display: this._display,
 		},
 	}, [
-		derived(this, reader => this._shouldOverflow.read(reader) ? [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg] : []),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg, this._middleBorderWithShadow] : []),
 	]).keepUpdated(this._store);
 }

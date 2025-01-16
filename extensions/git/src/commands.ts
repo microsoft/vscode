@@ -14,11 +14,11 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath, truncate } from './util';
+import { dispose, getCommitShortHash, grep, isDefined, isDescendant, pathEquals, relativePath, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
-import { RemoteSourceAction } from './api/git-base';
+import { RemoteSourceAction } from './typings/git-base';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -2539,23 +2539,38 @@ export class CommandCenter {
 		return this._checkout(repository, { treeish });
 	}
 
+	@command('git.graph.checkout', { repository: true })
+	async checkout2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
+
+		// Branch, tag
+		if (historyItemRef.id.startsWith('refs/heads/') || historyItemRef.id.startsWith('refs/tags/')) {
+			await repository.checkout(historyItemRef.name, { pullBeforeCheckout });
+			return;
+		}
+
+		// Remote branch
+		const branches = await repository.findTrackingBranches(historyItemRef.name);
+		if (branches.length > 0) {
+			await repository.checkout(branches[0].name!, { pullBeforeCheckout });
+		} else {
+			await repository.checkoutTracking(historyItemRef.name);
+		}
+	}
+
 	@command('git.checkoutDetached', { repository: true })
 	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
 		return this._checkout(repository, { detached: true, treeish });
 	}
 
-	@command('git.checkoutRef', { repository: true })
-	async checkoutRef(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<boolean> {
-		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
-		if (!historyItemRef) {
-			return false;
-		}
-
-		return this._checkout(repository, { treeish: historyItemRefId });
-	}
-
-	@command('git.checkoutRefDetached', { repository: true })
-	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
+	@command('git.graph.checkoutDetached', { repository: true })
+	async checkoutDetached2(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
 		if (!historyItem) {
 			return false;
 		}
@@ -2860,10 +2875,24 @@ export class CommandCenter {
 	}
 
 	@command('git.deleteBranch', { repository: true })
-	async deleteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
+	async deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
+		await this._deleteBranch(repository, name, force);
+	}
+
+	@command('git.graph.deleteBranch', { repository: true })
+	async deleteBranch2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return;
+		}
+
+		await this._deleteBranch(repository, historyItemRef.name);
+	}
+
+	private async _deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 		if (typeof name === 'string') {
-			run = force => repository.deleteBranch(name, force);
+			run = force => repository.deleteBranch(name!, force);
 		} else {
 			const getBranchPicks = async () => {
 				const refs = await repository.getRefs({ pattern: 'refs/heads' });
@@ -2999,10 +3028,19 @@ export class CommandCenter {
 		const placeHolder = l10n.t('Select a tag to delete');
 		const choice = await this.pickRef<TagDeleteItem | QuickPickItem>(tagPicks(), placeHolder);
 
-
 		if (choice instanceof TagDeleteItem) {
 			await choice.run(repository);
 		}
+	}
+
+	@command('git.graph.deleteTag', { repository: true })
+	async deleteTag2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return;
+		}
+
+		await repository.deleteTag(historyItemRef.name);
 	}
 
 	@command('git.deleteRemoteTag', { repository: true })
@@ -3363,11 +3401,12 @@ export class CommandCenter {
 		await repository.cherryPick(hash);
 	}
 
-	@command('git.cherryPickRef', { repository: true })
-	async cherryPickRef(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+	@command('git.graph.cherryPick', { repository: true })
+	async cherryPick2(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
 		if (!historyItem) {
 			return;
 		}
+
 		await repository.cherryPick(historyItem.id);
 	}
 
@@ -4271,61 +4310,6 @@ export class CommandCenter {
 		});
 	}
 
-	@command('git.viewCommit', { repository: true })
-	async viewCommit(repository: Repository, historyItem1: SourceControlHistoryItem, historyItem2?: SourceControlHistoryItem): Promise<void> {
-		if (!repository || !historyItem1) {
-			return;
-		}
-
-		if (historyItem2) {
-			const mergeBase = await repository.getMergeBase(historyItem1.id, historyItem2.id);
-			if (!mergeBase || (mergeBase !== historyItem1.id && mergeBase !== historyItem2.id)) {
-				return;
-			}
-		}
-
-		let title: string | undefined;
-		let historyItemParentId: string | undefined;
-
-		// If historyItem2 is not provided, we are viewing a single commit. If historyItem2 is
-		// provided, we are viewing a range and we have to include both start and end commits.
-		// TODO@lszomoru - handle the case when historyItem2 is the first commit in the repository
-		if (!historyItem2) {
-			const commit = await repository.getCommit(historyItem1.id);
-			title = `${historyItem1.id.substring(0, 8)} - ${truncate(commit.message)}`;
-			historyItemParentId = historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItem1.id}^`;
-		} else {
-			title = l10n.t('All Changes ({0} ↔ {1})', historyItem2.id.substring(0, 8), historyItem1.id.substring(0, 8));
-			historyItemParentId = historyItem2.parentIds.length > 0 ? historyItem2.parentIds[0] : `${historyItem2.id}^`;
-		}
-
-		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItem1.id}` });
-
-		await this._viewChanges(repository, historyItem1.id, historyItemParentId, multiDiffSourceUri, title);
-	}
-
-	@command('git.viewAllChanges', { repository: true })
-	async viewAllChanges(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
-		if (!repository || !historyItem) {
-			return;
-		}
-
-		const modifiedShortRef = historyItem.id.substring(0, 8);
-		const originalShortRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0].substring(0, 8) : `${modifiedShortRef}^`;
-		const title = l10n.t('All Changes ({0} ↔ {1})', originalShortRef, modifiedShortRef);
-
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-changes' });
-
-		await this._viewChanges(repository, modifiedShortRef, originalShortRef, multiDiffSourceUri, title);
-	}
-
-	async _viewChanges(repository: Repository, historyItemId: string, historyItemParentId: string, multiDiffSourceUri: Uri, title: string): Promise<void> {
-		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
-		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
-
-		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
-	}
-
 	@command('git.copyCommitId', { repository: true })
 	async copyCommitId(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
 		if (!repository || !historyItem) {
@@ -4344,14 +4328,15 @@ export class CommandCenter {
 		env.clipboard.writeText(historyItem.message);
 	}
 
-	@command('git.blameStatusBarItem.viewCommit', { repository: true })
-	async viewStatusBarCommit(repository: Repository, historyItemId: string): Promise<void> {
+	@command('git.viewCommit', { repository: true })
+	async viewCommit(repository: Repository, historyItemId: string): Promise<void> {
 		if (!repository || !historyItemId) {
 			return;
 		}
 
+		const rootUri = Uri.file(repository.root);
 		const commit = await repository.getCommit(historyItemId);
-		const title = `${historyItemId.substring(0, 8)} - ${truncate(commit.message)}`;
+		const title = `${getCommitShortHash(rootUri, historyItemId)} - ${truncate(commit.message)}`;
 		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
@@ -4362,8 +4347,8 @@ export class CommandCenter {
 		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
-	@command('git.blameStatusBarItem.copyContent')
-	async blameStatusBarCopyContent(content: string): Promise<void> {
+	@command('git.copyContentToClipboard')
+	async copyContentToClipboard(content: string): Promise<void> {
 		if (typeof content !== 'string') {
 			return;
 		}

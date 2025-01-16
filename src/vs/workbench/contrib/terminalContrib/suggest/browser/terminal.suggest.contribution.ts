@@ -27,6 +27,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
+import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -91,11 +92,20 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}));
 	}
 
-	private _loadPwshCompletionAddon(xterm: RawXtermTerminal): void {
+	private async _loadPwshCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
+		// Disable when shell type is not powershell
 		if (this._ctx.instance.shellType !== GeneralShellType.PowerShell) {
 			this._pwshAddon.clear();
 			return;
 		}
+
+		// Disable the addon on old backends (not conpty or Windows 11)
+		await this._ctx.instance.processReady;
+		const processTraits = this._ctx.processManager.processTraits;
+		if (processTraits?.windowsPty && (processTraits.windowsPty.backend !== 'conpty' || processTraits?.windowsPty.buildNumber <= 19045)) {
+			return;
+		}
+
 		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
@@ -103,7 +113,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
 		}));
-		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon));
+		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', pwshCompletionProviderAddon.id, pwshCompletionProviderAddon));
 		// If completions are requested, pause and queue input events until completions are
 		// received. This fixing some problems in PowerShell, particularly enter not executing
 		// when typing quickly and some characters being printed twice. On Windows this isn't
@@ -169,6 +179,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		addon.shellType = this._ctx.instance.shellType;
+		if (!this._ctx.instance.xterm?.raw) {
+			return;
+		}
+		// Relies on shell type being set
+		this._loadPwshCompletionAddon(this._ctx.instance.xterm.raw);
 	}
 }
 
@@ -185,7 +200,7 @@ registerActiveInstanceAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
+		when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.suggestWidgetVisible.negate(), ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions(true)
 });
@@ -233,6 +248,34 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.selectNextSuggestion()
+});
+
+registerActiveInstanceAction({
+	id: 'terminalSuggestToggleExplainMode',
+	title: localize2('workbench.action.terminal.suggestToggleExplainMode', 'Suggest Toggle Explain Modes'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	keybinding: {
+		// Down is bound to other workbench keybindings that this needs to beat
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		primary: KeyMod.CtrlCmd | KeyCode.Slash,
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleExplainMode()
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ToggleDetails,
+	title: localize2('workbench.action.terminal.suggestToggleDetails', 'Suggest Toggle Details'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
+	keybinding: {
+		// HACK: Force weight to be higher than that to start terminal chat
+		weight: KeybindingWeight.ExternalExtension + 2,
+		primary: KeyMod.CtrlCmd | KeyCode.Space,
+		secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
+		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KeyI] }
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleSuggestionDetails()
 });
 
 registerActiveInstanceAction({

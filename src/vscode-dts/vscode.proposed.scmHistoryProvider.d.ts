@@ -48,9 +48,11 @@ declare module 'vscode' {
 	export interface SourceControlHistoryItem {
 		readonly id: string;
 		readonly parentIds: string[];
+		readonly subject: string;
 		readonly message: string;
 		readonly displayId?: string;
 		readonly author?: string;
+		readonly authorEmail?: string;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
 		readonly references?: SourceControlHistoryItemRef[];

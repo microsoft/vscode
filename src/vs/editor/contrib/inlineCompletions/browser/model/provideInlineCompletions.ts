@@ -330,6 +330,7 @@ export class InlineCompletionItem {
 			range,
 			insertText,
 			snippetInfo,
+			Range.lift(inlineCompletion.showRange) ?? undefined,
 			inlineCompletion.additionalTextEdits || getReadonlyEmptyArray(),
 			inlineCompletion,
 			source,
@@ -345,6 +346,7 @@ export class InlineCompletionItem {
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
+		readonly cursorShowRange: Range | undefined,
 
 		readonly additionalTextEdits: readonly ISingleEditOperation[],
 
@@ -361,6 +363,7 @@ export class InlineCompletionItem {
 		*/
 		readonly source: InlineCompletionList,
 	) {
+		// TODO: these statements are no-ops
 		filterText = filterText.replace(/\r\n|\r/g, '\n');
 		insertText = filterText.replace(/\r\n|\r/g, '\n');
 	}
@@ -380,6 +383,22 @@ export class InlineCompletionItem {
 			updatedRange,
 			this.insertText,
 			this.snippetInfo,
+			this.cursorShowRange,
+			this.additionalTextEdits,
+			this.sourceInlineCompletion,
+			this.source,
+		);
+	}
+
+	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {
+		return new InlineCompletionItem(
+			updatedFilterText,
+			this.command,
+			this.shownCommand,
+			updatedRange,
+			updatedInsertText,
+			this.snippetInfo,
+			this.cursorShowRange,
 			this.additionalTextEdits,
 			this.sourceInlineCompletion,
 			this.source,

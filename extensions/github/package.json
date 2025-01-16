@@ -27,33 +27,40 @@
     }
   },
   "enabledApiProposals": [
-    "contribShareMenu",
-    "contribEditSessions",
     "canonicalUriProvider",
+    "contribEditSessions",
+    "contribShareMenu",
+    "contribSourceControlHistoryItemMenu",
+    "scmHistoryProvider",
     "shareProvider"
   ],
   "contributes": {
     "commands": [
       {
         "command": "github.publish",
-        "title": "Publish to GitHub"
+        "title": "%command.publish%"
       },
       {
         "command": "github.copyVscodeDevLink",
-        "title": "Copy vscode.dev Link"
+        "title": "%command.copyVscodeDevLink%"
       },
       {
         "command": "github.copyVscodeDevLinkFile",
-        "title": "Copy vscode.dev Link"
+        "title": "%command.copyVscodeDevLink%"
       },
       {
         "command": "github.copyVscodeDevLinkWithoutRange",
-        "title": "Copy vscode.dev Link"
+        "title": "%command.copyVscodeDevLink%"
       },
       {
         "command": "github.openOnVscodeDev",
-        "title": "Open in vscode.dev",
+        "title": "%command.openOnVscodeDev%",
         "icon": "$(globe)"
+      },
+      {
+        "command": "github.graph.openOnGitHub",
+        "title": "%command.openOnGitHub%",
+        "icon": "$(github)"
       }
     ],
     "continueEditSession": [
@@ -70,6 +77,10 @@
         {
           "command": "github.publish",
           "when": "git-base.gitEnabled && workspaceFolderCount != 0 && remoteName != 'codespaces'"
+        },
+        {
+          "command": "github.graph.openOnGitHub",
+          "when": "false"
         },
         {
           "command": "github.copyVscodeDevLink",
@@ -126,6 +137,20 @@
           "command": "github.copyVscodeDevLinkWithoutRange",
           "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
           "group": "0_vscode@0"
+        }
+      ],
+      "scm/historyItem/context": [
+        {
+          "command": "github.graph.openOnGitHub",
+          "when": "github.hasGitHubRepo",
+          "group": "0_view@2"
+        }
+      ],
+      "scm/historyItem/hover": [
+        {
+          "command": "github.graph.openOnGitHub",
+          "when": "github.hasGitHubRepo",
+          "group": "1_open@1"
         }
       ]
     },

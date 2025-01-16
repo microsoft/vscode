@@ -139,7 +139,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	}
 
 	private async _scanBuiltinExtensions(language: string): Promise<IExtensionDescription[]> {
-		const scannedExtensions = await this._extensionsScannerService.scanSystemExtensions({ language, useCache: true });
+		const scannedExtensions = await this._extensionsScannerService.scanSystemExtensions({ language });
 		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}
 

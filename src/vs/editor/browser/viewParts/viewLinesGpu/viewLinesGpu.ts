@@ -5,7 +5,7 @@
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { autorun, observableValue, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, runOnChange } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -60,8 +60,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	private _initialized = false;
 
 	private _renderStrategy!: IGpuRenderStrategy;
-
-	private _contentLeftObs = observableValue('contentLeft', 0);
 
 	constructor(
 		context: ViewContext,
@@ -160,7 +158,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			this._register(runOnChange(this._viewGpuContext.canvasDevicePixelDimensions, ({ width, height }) => {
 				this._device.queue.writeBuffer(layoutInfoUniformBuffer, 0, updateBufferValues(width, height));
 			}));
-			this._register(runOnChange(this._contentLeftObs, () => {
+			this._register(runOnChange(this._viewGpuContext.contentLeft, () => {
 				this._device.queue.writeBuffer(layoutInfoUniformBuffer, 0, updateBufferValues());
 			}));
 		}
@@ -381,6 +379,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	// from that side. Luckily rendering is cheap, it's only when uploaded data changes does it
 	// start to cost.
 
+	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean { return true; }
 	override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean { return true; }
 	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
 	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
@@ -393,11 +392,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean { return true; }
 	override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean { return true; }
 	override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean { return true; }
-
-	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		this._contentLeftObs.set(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft, undefined);
-		return true;
-	}
 
 	// #endregion
 
@@ -427,7 +421,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		pass.setVertexBuffer(0, this._vertexBuffer);
 
 		// Only draw the content area
-		const contentLeft = Math.ceil(this._contentLeftObs.get() * this._viewGpuContext.devicePixelRatio.get());
+		const contentLeft = Math.ceil(this._viewGpuContext.contentLeft.get() * this._viewGpuContext.devicePixelRatio.get());
 		pass.setScissorRect(contentLeft, 0, this.canvas.width - contentLeft, this.canvas.height);
 
 		pass.setBindGroup(0, this._bindGroup);

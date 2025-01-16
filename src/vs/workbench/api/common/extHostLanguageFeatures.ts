@@ -31,7 +31,7 @@ import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from './extHostTelemetry.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { CodeActionKind, CompletionList, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
+import { CodeAction, CodeActionKind, CompletionList, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import type * as vscode from 'vscode';
 import { Cache } from './cache.js';
@@ -501,7 +501,8 @@ class CodeActionAdapter {
 			if (!candidate) {
 				continue;
 			}
-			if (CodeActionAdapter._isCommand(candidate)) {
+
+			if (CodeActionAdapter._isCommand(candidate) && !(candidate instanceof CodeAction)) {
 				// old school: synthetic code action
 				this._apiDeprecation.report('CodeActionProvider.provideCodeActions - return commands', this._extension,
 					`Return 'CodeAction' instances instead.`);
@@ -512,29 +513,31 @@ class CodeActionAdapter {
 					command: this._commands.toInternal(candidate, disposables),
 				});
 			} else {
+				const toConvert = candidate as vscode.CodeAction;
+
+				// new school: convert code action
 				if (codeActionContext.only) {
-					if (!candidate.kind) {
+					if (!toConvert.kind) {
 						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value}' requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
-					} else if (!codeActionContext.only.contains(candidate.kind)) {
-						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value}' requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+					} else if (!codeActionContext.only.contains(toConvert.kind)) {
+						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value}' requested but returned code action is of kind '${toConvert.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 					}
 				}
 
 				// Ensures that this is either a Range[] or an empty array so we don't get Array<Range | undefined>
-				const range = candidate.ranges ?? [];
+				const range = toConvert.ranges ?? [];
 
-				// new school: convert code action
 				actions.push({
 					cacheId: [cacheId, i],
-					title: candidate.title,
-					command: candidate.command && this._commands.toInternal(candidate.command, disposables),
-					diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
-					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined),
-					kind: candidate.kind && candidate.kind.value,
-					isPreferred: candidate.isPreferred,
-					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
+					title: toConvert.title,
+					command: toConvert.command && this._commands.toInternal(toConvert.command, disposables),
+					diagnostics: toConvert.diagnostics && toConvert.diagnostics.map(typeConvert.Diagnostic.from),
+					edit: toConvert.edit && typeConvert.WorkspaceEdit.from(toConvert.edit, undefined),
+					kind: toConvert.kind && toConvert.kind.value,
+					isPreferred: toConvert.isPreferred,
+					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? toConvert.isAI : false,
 					ranges: isProposedApiEnabled(this._extension, 'codeActionRanges') ? coalesce(range.map(typeConvert.Range.from)) : undefined,
-					disabled: candidate.disabled?.reason
+					disabled: toConvert.disabled?.reason
 				});
 			}
 		}
@@ -1526,7 +1529,8 @@ class InlineEditAdapter {
 	async provideInlineEdits(uri: URI, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const result = await this._provider.provideInlineEdit(doc, {
-			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind]
+			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
+			requestUuid: context.requestUuid,
 		}, token);
 
 		if (!result) {
@@ -1577,6 +1581,7 @@ class InlineEditAdapter {
 			pid,
 			text: result.text,
 			range: typeConvert.Range.from(result.range),
+			showRange: typeConvert.Range.from(result.showRange),
 			accepted: acceptCommand,
 			rejected: rejectCommand,
 			shown: shownCommand,
@@ -2727,7 +2732,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerInlineEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineEditProvider): vscode.Disposable {
 		const adapter = new InlineEditAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
-		this._proxy.$registerInlineEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier);
+		this._proxy.$registerInlineEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier, provider.displayName || extension.name);
 		return this._createDisposable(handle);
 	}
 
@@ -2914,7 +2919,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
 
-		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), isProposedApiEnabled(extension, 'documentPaste') && metadata ? {
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), metadata ? {
 			supportsResolve: !!provider.resolveDocumentDropEdit,
 			dropMimeTypes: metadata.dropMimeTypes,
 			providedDropKinds: metadata.providedDropEditKinds?.map(x => x.value),

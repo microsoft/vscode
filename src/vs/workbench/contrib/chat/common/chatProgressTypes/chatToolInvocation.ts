@@ -48,10 +48,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this._confirmDeferred.p.then(confirmed => {
 			this._isConfirmed = confirmed;
 			this._confirmationMessages = undefined;
-			if (!confirmed) {
-				// Spinner -> check
-				this._isCompleteDeferred.complete();
-			}
 		});
 
 		this._isCompleteDeferred.p.then(() => {
