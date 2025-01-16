@@ -130,7 +130,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.editing.automaticallyAcceptChanges': {
 			type: 'boolean',
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: nls.localize('chat.editing.automaticallyAcceptChanges', "Whether changes made by chat are automatically accepted without prior review."),
 			default: false,
 		},
