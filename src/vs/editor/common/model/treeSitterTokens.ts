@@ -7,11 +7,11 @@ import { ILanguageIdCodec, ITreeSitterTokenizationSupport, TreeSitterTokenizatio
 import { LineTokens } from '../tokens/lineTokens.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 import { TextModel } from './textModel.js';
-import { ITreeSitterParserService } from '../services/treeSitterParserService.js';
 import { IModelContentChangedEvent } from '../textModelEvents.js';
 import { AbstractTokens } from './tokens.js';
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ITreeSitterTokenizationStoreService } from './treeSitterTokenStoreService.js';
+import { Range } from '../core/range.js';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;
@@ -21,7 +21,6 @@ export class TreeSitterTokens extends AbstractTokens {
 	constructor(languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
 		languageId: () => string,
-		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 		@ITreeSitterTokenizationStoreService private readonly _tokenStore: ITreeSitterTokenizationStoreService) {
 		super(languageIdCodec, textModel, languageId);
 
@@ -42,9 +41,9 @@ export class TreeSitterTokens extends AbstractTokens {
 	}
 
 	public getLineTokens(lineNumber: number): LineTokens {
-		const rawTokens = this._tokenStore.getTokens(this._textModel, lineNumber);
 		const content = this._textModel.getLineContent(lineNumber);
 		if (this._tokenizationSupport) {
+			const rawTokens = this._tokenStore.getTokens(this._textModel, lineNumber);
 			if (rawTokens) {
 				return new LineTokens(rawTokens, content, this._languageIdCodec);
 			}
@@ -85,12 +84,11 @@ export class TreeSitterTokens extends AbstractTokens {
 	}
 
 	public override hasAccurateTokensForLine(lineNumber: number): boolean {
-		// TODO @alexr00 update for background tokenization
-		return true;
+		return this._tokenStore.hasTokens(this._textModel, new Range(lineNumber, 1, lineNumber, this._textModel.getLineMaxColumn(lineNumber)));
 	}
 
 	public override isCheapToTokenize(lineNumber: number): boolean {
-		// TODO @alexr00 update for background tokenization
+		// TODO @alexr00 determine what makes it cheap to tokenize?
 		return true;
 	}
 
@@ -103,8 +101,6 @@ export class TreeSitterTokens extends AbstractTokens {
 		return null;
 	}
 	public override get hasTokens(): boolean {
-		// TODO @alexr00 once we have a token store, implement properly
-		const hasTree = this._treeSitterService.getParseResult(this._textModel) !== undefined;
-		return hasTree;
+		return this._tokenStore.hasTokens(this._textModel);
 	}
 }

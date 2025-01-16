@@ -134,7 +134,6 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 				// Don't block
 				new Promise<void>(resolve => {
-					// TODO: Do we need to apply these in reverse order?
 					const tokenUpdates = e.ranges.map(range => {
 						const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset);
 						if (updates) {

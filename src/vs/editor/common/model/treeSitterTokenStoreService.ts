@@ -49,6 +49,7 @@ class TreeSitterTokenizationStoreService extends Disposable implements ITreeSitt
 			}
 			storeInfo.guessVersion = e.versionId;
 			for (const change of e.changes) {
+				storeInfo.accurateStore.markForRefresh(change.rangeOffset, change.rangeOffset + change.rangeLength);
 				if (change.text.length > change.rangeLength) {
 					const oldToken = storeInfo.accurateStore.getTokenAt(change.rangeOffset)!;
 					// Insert. Just grow the token at this position to include the insert.
@@ -73,7 +74,7 @@ class TreeSitterTokenizationStoreService extends Disposable implements ITreeSitt
 	}
 
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean {
-		const tokens = this.getStore(model);
+		const tokens = accurateForRange ? this.tokens.get(model)?.accurateStore : this.getStore(model);
 		if (!tokens) {
 			return false;
 		}
@@ -126,4 +127,3 @@ class TreeSitterTokenizationStoreService extends Disposable implements ITreeSitt
 }
 
 registerSingleton(ITreeSitterTokenizationStoreService, TreeSitterTokenizationStoreService, InstantiationType.Delayed);
-
