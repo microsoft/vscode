@@ -327,6 +327,7 @@ export interface BranchProtectionProvider {
 }
 
 export interface SourceControlHistoryItemDetailsProvider {
+	provideAvatar(repository: Repository, commit: string, authorName?: string, authorEmail?: string): ProviderResult<string>;
 	provideHoverCommands(repository: Repository): ProviderResult<Command[]>;
 	provideMessageLinks(repository: Repository, message: string): ProviderResult<string>;
 }
