@@ -63,6 +63,11 @@ suite('MarkdownRenderer', () => {
 			assertNodeEquals(result, `<div><p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
+		test('image width, height and border-radius from title params', () => {
+			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100,border-radius=10 'caption')` })).element;
+			assertNodeEquals(result, `<div><p><img height="200" width="100" style="border-radius:10px;" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
+		});
+
 		test('image with file uri should render as same origin uri', () => {
 			if (isWeb) {
 				return;
