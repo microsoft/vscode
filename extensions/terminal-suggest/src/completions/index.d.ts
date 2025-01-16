@@ -666,7 +666,7 @@ declare namespace Fig {
      *  },
      * ```
      */
-    generateSpec?: (tokens: string[], executeCommand: ExecuteCommandFunction) => Promise<Spec>;
+    generateSpec?: (tokens: string[], executeCommand: ExecuteCommandFunction) => Promise<Spec | undefined>;
 
     /**
      * Generating a spec can be expensive, but due to current guarantees they are not cached.

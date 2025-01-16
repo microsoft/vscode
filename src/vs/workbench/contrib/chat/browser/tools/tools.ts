@@ -17,6 +17,8 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -49,14 +51,11 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 { changed code }
 // ...existing code...
 
-Here is an example of how you should format an edit to an existing Person class:
-class Person {
-	// ...existing code...
-	age: number;
-	// ...existing code...
-	getAge() {
-		return this.age;
-	}
+Here is an example of how you should use vscode_editFile to edit an existing Person class:
+{
+	"explanation": "Add an age property to the Person class",
+	"filePath": "/folder/person.ts",
+	"code": "// ...existing code...\\n class Person {\\n // ...existing code...\\n age: number;\\n // ...existing code...\\n getAge() {\\n return this.age;\\n }\n // ...existing code...\n }"
 }
 `;
 
@@ -64,31 +63,33 @@ class EditTool implements IToolData, IToolImpl {
 	readonly id = 'vscode_editFile';
 	readonly tags = ['vscode_editing'];
 	readonly displayName = localize('chat.tools.editFile', "Edit File");
-	readonly modelDescription = `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. ${codeInstructions}`;
+	readonly modelDescription = `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`;
 	readonly inputSchema: IJSONSchema;
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@ICodeMapperService private readonly codeMapperService: ICodeMapperService
+		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService
 	) {
 		this.inputSchema = {
 			type: 'object',
 			properties: {
-				filePath: {
-					type: 'string',
-					description: 'An absolute path to the file to edit',
-				},
 				explanation: {
 					type: 'string',
 					description: 'A short explanation of the edit being made. Can be the same as the explanation you showed to the user.',
+				},
+				filePath: {
+					type: 'string',
+					description: 'An absolute path to the file to edit',
 				},
 				code: {
 					type: 'string',
 					description: 'The code change to apply to the file. ' + codeInstructions
 				}
 			},
-			required: ['filePath', 'explanation', 'code']
+			required: ['explanation', 'filePath', 'code']
 		};
 	}
 
@@ -97,16 +98,23 @@ class EditTool implements IToolData, IToolImpl {
 			throw new Error('toolInvocationToken is required for this tool');
 		}
 
-
 		const parameters = invocation.parameters as EditToolParams;
 		if (!parameters.filePath || !parameters.explanation || !parameters.code) {
 			throw new Error(`Invalid tool input: ${JSON.stringify(parameters)}`);
 		}
 
+		const uri = URI.file(parameters.filePath);
+		if (!this.workspaceContextService.isInsideWorkspace(uri)) {
+			return { content: [{ kind: 'text', value: `Error: file ${parameters.filePath} can't be edited because it's not inside the current workspace` }] };
+		}
+
+		if (await this.ignoredFilesService.fileIsIgnored(uri, token)) {
+			return { content: [{ kind: 'text', value: `Error: file ${parameters.filePath} can't be edited because it is configured to be ignored by Copilot` }] };
+		}
+
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
 
-		const uri = URI.file(parameters.filePath);
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString('\n````\n')

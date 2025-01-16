@@ -208,6 +208,10 @@ export class SimpleCompletionModel {
 				// Then by file extension length ascending
 				score = a.fileExtLow.length - b.fileExtLow.length;
 			}
+			if (score === 0 || fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0) {
+				// both files or directories, sort alphabetically
+				score = a.completion.label.localeCompare(b.completion.label);
+			}
 			return score;
 		});
 		this._refilterKind = Refilter.Nothing;

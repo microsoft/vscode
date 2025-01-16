@@ -49,11 +49,7 @@ function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
 		...r, icon: getIconFromIconDto(r.icon)
 	}));
 
-	const newLineIndex = historyItemDto.message.indexOf('\n');
-	const subject = newLineIndex === -1 ?
-		historyItemDto.message : `${historyItemDto.message.substring(0, newLineIndex)}\u2026`;
-
-	return { ...historyItemDto, subject, references };
+	return { ...historyItemDto, references };
 }
 
 function toISCMHistoryItemRef(historyItemRefDto?: SCMHistoryItemRefDto, color?: ColorIdentifier): ISCMHistoryItemRef | undefined {

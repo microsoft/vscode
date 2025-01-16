@@ -923,7 +923,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Proxy
 		if (!e || e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.noProxy')) {
-			let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+			const inspect = this.configurationService.inspect<string>('http.proxy');
+			let newHttpProxy = (inspect.userLocalValue || '').trim()
 				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
 				|| undefined;
 

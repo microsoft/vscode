@@ -7324,6 +7324,7 @@ declare namespace monaco.languages {
 		 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
 		 */
 		yieldsToGroupIds?: InlineCompletionProviderGroupId[];
+		displayName?: string;
 		toString?(): string;
 	}
 
@@ -8185,6 +8186,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+		displayName?: string;
 		provideInlineEdit(model: editor.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
 		freeInlineEdit(edit: T): void;
 	}

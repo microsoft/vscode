@@ -12,7 +12,7 @@ import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
 import { getCommitShortHash } from './util';
 import { CommitShortStat } from './git';
-import { getRemoteSourceControlHistoryItemCommands } from './remoteSource';
+import { provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -69,25 +69,26 @@ export class GitTimelineItem extends TimelineItem {
 		if (shortStat) {
 			this.tooltip.appendMarkdown(`---\n\n`);
 
+			const labels: string[] = [];
 			if (shortStat.insertions) {
-				this.tooltip.appendMarkdown(`<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${shortStat.insertions === 1 ?
+				labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${shortStat.insertions === 1 ?
 					l10n.t('{0} insertion{1}', shortStat.insertions, '(+)') :
 					l10n.t('{0} insertions{1}', shortStat.insertions, '(+)')}</span>`);
 			}
 
 			if (shortStat.deletions) {
-				this.tooltip.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${shortStat.deletions === 1 ?
+				labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${shortStat.deletions === 1 ?
 					l10n.t('{0} deletion{1}', shortStat.deletions, '(-)') :
 					l10n.t('{0} deletions{1}', shortStat.deletions, '(-)')}</span>`);
 			}
 
-			this.tooltip.appendMarkdown(`\n\n`);
+			this.tooltip.appendMarkdown(`${labels.join(', ')}\n\n`);
 		}
 
 		if (hash) {
 			this.tooltip.appendMarkdown(`---\n\n`);
 
-			this.tooltip.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(uri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash]))} "${l10n.t('View Commit')}")`);
+			this.tooltip.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(uri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash]))} "${l10n.t('Open Commit')}")`);
 			this.tooltip.appendMarkdown('&nbsp;');
 			this.tooltip.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
 
@@ -214,25 +215,27 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const openComparison = l10n.t('Open Comparison');
 
-		const defaultRemote = repo.getDefaultRemote();
 		const unpublishedCommits = await repo.getUnpublishedCommits();
-		const remoteSourceCommands: Command[] = defaultRemote?.fetchUrl
-			? await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl)
-			: [];
+		const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(this.model, repo);
 
-		const items = commits.map<GitTimelineItem>((c, i) => {
+		const items: GitTimelineItem[] = [];
+		for (let index = 0; index < commits.length; index++) {
+			const c = commits[index];
+
 			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
 
 			const message = emojify(c.message);
 
-			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
+			const item = new GitTimelineItem(c.hash, commits[index + 1]?.hash ?? `${c.hash}^`, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new ThemeIcon('git-commit');
 			if (showAuthor) {
 				item.description = c.authorName;
 			}
 
-			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteSourceCommands : [];
-			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), message, c.shortStat, commitRemoteSourceCommands);
+			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteHoverCommands : [];
+			const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(this.model, repo, message) ?? message;
+
+			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), messageWithLinks, c.shortStat, commitRemoteSourceCommands);
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -243,8 +246,8 @@ export class GitTimelineProvider implements TimelineProvider {
 				};
 			}
 
-			return item;
-		});
+			items.push(item);
+		}
 
 		if (options.cursor === undefined) {
 			const you = l10n.t('You');

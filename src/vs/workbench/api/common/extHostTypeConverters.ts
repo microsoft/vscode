@@ -2799,7 +2799,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, hasReadonlyProposal: boolean): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.isTool);
 		const variableReferences = request.variables.variables.filter(v => !v.isTool);
 		return {
@@ -2808,7 +2808,7 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
-			references: variableReferences.map(ChatPromptReference.to),
+			references: variableReferences.map(v => ChatPromptReference.to(v, hasReadonlyProposal)),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
@@ -2852,7 +2852,7 @@ export namespace ChatLocation {
 }
 
 export namespace ChatPromptReference {
-	export function to(variable: IChatRequestVariableEntry): vscode.ChatPromptReference {
+	export function to(variable: IChatRequestVariableEntry, hasReadonlyProposal: boolean): vscode.ChatPromptReference {
 		const value = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
@@ -2865,7 +2865,8 @@ export namespace ChatPromptReference {
 			value: isUriComponents(value) ? URI.revive(value) :
 				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
 					Location.to(revive(value)) : variable.isImage ? new types.ChatReferenceBinaryData(variable.mimeType ?? 'image/png', () => Promise.resolve(new Uint8Array(Object.values(value)))) : value,
-			modelDescription: variable.modelDescription
+			modelDescription: variable.modelDescription,
+			isReadonly: hasReadonlyProposal ? variable.isMarkedReadonly : undefined,
 		};
 	}
 }

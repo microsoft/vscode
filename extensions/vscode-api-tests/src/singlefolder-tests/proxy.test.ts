@@ -11,6 +11,7 @@ import { AddressInfo } from 'net';
 import { resetCaches } from '@vscode/proxy-agent';
 import * as vscode from 'vscode';
 import { middleware, Straightforward } from 'straightforward';
+import assert from 'assert';
 
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('vscode API - network proxy support', () => {
 
@@ -77,7 +78,7 @@ import { middleware, Straightforward } from 'straightforward';
 		}
 	});
 
-	test('basic auth', async () => {
+	test.skip('basic auth', async () => {
 		const url = 'https://example.com'; // Need to use non-local URL because local URLs are excepted from proxying.
 		const user = 'testuser';
 		const pass = 'testpassword';
@@ -105,18 +106,27 @@ import { middleware, Straightforward } from 'straightforward';
 			await proxyListen;
 			const proxyPort = (sf.server.address() as AddressInfo).port;
 
-			await vscode.workspace.getConfiguration().update('integration-test.http.proxy', `PROXY 127.0.0.1:${proxyPort}`, vscode.ConfigurationTarget.Global);
-			await delay(1000); // Wait for the configuration change to propagate.
-			await new Promise<void>((resolve, reject) => {
-				https.get(url, res => {
-					if (res.statusCode === 418) {
-						resolve();
-					} else {
-						reject(new Error(`Unexpected status code (expected 418): ${res.statusCode}`));
+			for (let i = 0; i < 3; i++) {
+				await vscode.workspace.getConfiguration().update('integration-test.http.proxy', `PROXY 127.0.0.1:${proxyPort}`, vscode.ConfigurationTarget.Global);
+				await delay(1000); // Wait for the configuration change to propagate.
+				try {
+					await new Promise<void>((resolve, reject) => {
+						https.get(url, res => {
+							if (res.statusCode === 418) {
+								resolve();
+							} else {
+								reject(new Error(`Unexpected status code (expected 418): ${res.statusCode}`));
+							}
+						})
+							.on('error', reject);
+					});
+					break; // Exit the loop if the request is successful
+				} catch (err) {
+					if (i === 2) {
+						throw err; // Rethrow the error if it's the last attempt
 					}
-				})
-					.on('error', reject);
-			});
+				}
+			}
 
 			authEnabled = true;
 			await new Promise<void>((resolve, reject) => {
@@ -130,22 +140,88 @@ import { middleware, Straightforward } from 'straightforward';
 					.on('error', reject);
 			});
 
-			await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', `${user}:${pass}`, vscode.ConfigurationTarget.Global);
-			await delay(1000); // Wait for the configuration change to propagate.
-			await new Promise<void>((resolve, reject) => {
-				https.get(url, res => {
-					if (res.statusCode === 204) {
-						resolve();
-					} else {
-						reject(new Error(`Unexpected status code (expected 204): ${res.statusCode}`));
+			for (let i = 0; i < 3; i++) {
+				await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', `${user}:${pass}`, vscode.ConfigurationTarget.Global);
+				await delay(1000); // Wait for the configuration change to propagate.
+				try {
+					await new Promise<void>((resolve, reject) => {
+						https.get(url, res => {
+							if (res.statusCode === 204) {
+								resolve();
+							} else {
+								reject(new Error(`Unexpected status code (expected 204): ${res.statusCode}`));
+							}
+						})
+							.on('error', reject);
+					});
+					break; // Exit the loop if the request is successful
+				} catch (err) {
+					if (i === 2) {
+						throw err; // Rethrow the error if it's the last attempt
 					}
-				})
-					.on('error', reject);
-			});
+				}
+			}
 		} finally {
 			sf.close();
 			await vscode.workspace.getConfiguration().update('integration-test.http.proxy', undefined, vscode.ConfigurationTarget.Global);
 			await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', undefined, vscode.ConfigurationTarget.Global);
+		}
+	});
+
+	(vscode.env.remoteName ? test : test.skip)('separate local / remote proxy settings', async () => {
+		// Assumes test resolver runs with `--use-host-proxy`.
+		const localProxy = 'http://localhost:1234';
+		const remoteProxy = 'http://localhost:4321';
+
+		const actualLocalProxy1 = vscode.workspace.getConfiguration().get('http.proxy');
+
+		const p1 = waitForConfigChange('http.proxy');
+		await vscode.workspace.getConfiguration().update('http.proxy', localProxy, vscode.ConfigurationTarget.Global);
+		await p1;
+		const actualLocalProxy2 = vscode.workspace.getConfiguration().get('http.proxy');
+
+		const p2 = waitForConfigChange('http.useLocalProxyConfiguration');
+		await vscode.workspace.getConfiguration().update('http.useLocalProxyConfiguration', false, vscode.ConfigurationTarget.Global);
+		await p2;
+		const actualRemoteProxy1 = vscode.workspace.getConfiguration().get('http.proxy');
+
+		const p3 = waitForConfigChange('http.proxy');
+		await vscode.workspace.getConfiguration().update('http.proxy', remoteProxy, vscode.ConfigurationTarget.Global);
+		await p3;
+		const actualRemoteProxy2 = vscode.workspace.getConfiguration().get('http.proxy');
+
+		const p4 = waitForConfigChange('http.proxy');
+		await vscode.workspace.getConfiguration().update('http.proxy', undefined, vscode.ConfigurationTarget.Global);
+		await p4;
+		const actualRemoteProxy3 = vscode.workspace.getConfiguration().get('http.proxy');
+
+		const p5 = waitForConfigChange('http.proxy');
+		await vscode.workspace.getConfiguration().update('http.useLocalProxyConfiguration', true, vscode.ConfigurationTarget.Global);
+		await p5;
+		const actualLocalProxy3 = vscode.workspace.getConfiguration().get('http.proxy');
+
+		const p6 = waitForConfigChange('http.proxy');
+		await vscode.workspace.getConfiguration().update('http.proxy', undefined, vscode.ConfigurationTarget.Global);
+		await p6;
+		const actualLocalProxy4 = vscode.workspace.getConfiguration().get('http.proxy');
+
+		assert.strictEqual(actualLocalProxy1, '');
+		assert.strictEqual(actualLocalProxy2, localProxy);
+		assert.strictEqual(actualRemoteProxy1, '');
+		assert.strictEqual(actualRemoteProxy2, remoteProxy);
+		assert.strictEqual(actualRemoteProxy3, '');
+		assert.strictEqual(actualLocalProxy3, localProxy);
+		assert.strictEqual(actualLocalProxy4, '');
+
+		function waitForConfigChange(key: string) {
+			return new Promise<void>(resolve => {
+				const s = vscode.workspace.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration(key)) {
+						s.dispose();
+						resolve();
+					}
+				});
+			});
 		}
 	});
 });

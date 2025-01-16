@@ -7,14 +7,23 @@ import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ExecOptionsWithStringEncoding, execSync } from 'child_process';
-import codeInsidersCompletionSpec from './completions/code-insiders';
+import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
+import codeInsidersCompletionSpec from './completions/code-insiders';
 
+let cachedAvailableCommandsPath: string | undefined;
 let cachedAvailableCommands: Set<string> | undefined;
 const cachedBuiltinCommands: Map<string, string[] | undefined> = new Map();
 
-export const availableSpecs = [codeCompletionSpec, codeInsidersCompletionSpec, cdSpec];
+export const availableSpecs: Fig.Spec[] = [
+	cdSpec,
+	codeInsidersCompletionSpec,
+	codeCompletionSpec,
+];
+for (const spec of upstreamSpecs) {
+	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
+}
 
 function getBuiltinCommands(shell: string): string[] | undefined {
 	try {
@@ -80,7 +89,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const commandsInPath = await getCommandsInPath();
+			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
 			const builtinCommands = getBuiltinCommands(shellPath);
 			if (!commandsInPath || !builtinCommands) {
 				return;
@@ -129,6 +138,7 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 
 		// Resolve the absolute path of the prefix
 		const resolvedPath = path.resolve(currentCwd?.fsPath, relativeFolder);
+
 		const stat = await fs.stat(resolvedPath);
 
 		// Check if the resolved path exists and is a directory
@@ -187,15 +197,30 @@ async function isExecutable(filePath: string): Promise<boolean> {
 	}
 }
 
-async function getCommandsInPath(): Promise<Set<string> | undefined> {
-	if (cachedAvailableCommands) {
-		return cachedAvailableCommands;
+async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<Set<string> | undefined> {
+	// Get PATH value
+	let pathValue: string | undefined;
+	if (osIsWindows()) {
+		const caseSensitivePathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
+		if (caseSensitivePathKey) {
+			pathValue = env[caseSensitivePathKey];
+		}
+	} else {
+		pathValue = env.PATH;
 	}
-	const paths = osIsWindows() ? process.env.PATH?.split(';') : process.env.PATH?.split(':');
-	if (!paths) {
+	if (pathValue === undefined) {
 		return;
 	}
-	const pathSeparator = osIsWindows() ? '\\' : '/';
+
+	// Check cache
+	if (cachedAvailableCommands && cachedAvailableCommandsPath === pathValue) {
+		return cachedAvailableCommands;
+	}
+
+	// Extract executables from PATH
+	const isWindows = osIsWindows();
+	const paths = pathValue.split(isWindows ? ';' : ':');
+	const pathSeparator = isWindows ? '\\' : '/';
 	const executables = new Set<string>();
 	for (const path of paths) {
 		try {

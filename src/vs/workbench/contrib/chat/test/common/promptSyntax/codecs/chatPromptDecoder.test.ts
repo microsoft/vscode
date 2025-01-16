@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Range } from '../../../../../../editor/common/core/range.js';
-import { newWriteableStream } from '../../../../../../base/common/stream.js';
-import { TestDecoder } from '../../../../../../editor/test/common/utils/testDecoder.js';
-import { FileReference } from '../../../common/codecs/chatPromptCodec/tokens/fileReference.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatPromptDecoder, TChatPromptToken } from '../../../common/codecs/chatPromptCodec/chatPromptDecoder.js';
+import { VSBuffer } from '../../../../../../../base/common/buffer.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { newWriteableStream } from '../../../../../../../base/common/stream.js';
+import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
+import { FileReference } from '../../../../common/promptSyntax/codecs/tokens/fileReference.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { MarkdownLink } from '../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
+import { ChatPromptDecoder, TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
 
 /**
  * A reusable test utility that asserts that a `ChatPromptDecoder` instance
@@ -50,23 +51,39 @@ suite('ChatPromptDecoder', () => {
 			new TestChatPromptDecoder(),
 		);
 
+		const contents = [
+			'',
+			'haalo!',
+			' message 👾 message #file:./path/to/file1.md',
+			'',
+			'## Heading Title',
+			' \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md',
+			' [#file:reference.md](./reference.md)some text #file:/some/file/with/absolute/path.md',
+		];
+
 		await test.run(
-			'\nhaalo!\n message 👾 message #file:./path/to/file1.md \n\n \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md\nsome text #file:/some/file/with/absolute/path.md\t',
+			contents,
 			[
 				new FileReference(
 					new Range(3, 21, 3, 21 + 24),
 					'./path/to/file1.md',
 				),
 				new FileReference(
-					new Range(5, 3, 5, 3 + 24),
+					new Range(6, 3, 6, 3 + 24),
 					'a/b/c/filename2.md',
 				),
 				new FileReference(
-					new Range(5, 31, 5, 31 + 19),
+					new Range(6, 31, 6, 31 + 19),
 					'other-file.md',
 				),
+				new MarkdownLink(
+					7,
+					2,
+					'[#file:reference.md]',
+					'(./reference.md)',
+				),
 				new FileReference(
-					new Range(6, 11, 6, 11 + 38),
+					new Range(7, 48, 7, 48 + 38),
 					'/some/file/with/absolute/path.md',
 				),
 			],

@@ -31,6 +31,7 @@ import type { ICurrentPartialCommand } from '../../../../platform/terminal/commo
 import type { IXtermCore } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { Barrier } from '../../../../base/common/async.js';
+import type { IProgressState } from '@xterm/addon-progress';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -610,6 +611,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly processName: string;
 	readonly sequence?: string;
 	readonly staticTitle?: string;
+	readonly progressState?: IProgressState;
 	readonly workspaceFolder?: IWorkspaceFolder;
 	readonly cwd?: string;
 	readonly initialCwd?: string;

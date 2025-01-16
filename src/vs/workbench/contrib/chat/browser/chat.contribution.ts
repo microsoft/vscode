@@ -78,7 +78,6 @@ import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { ChatEditorOverlayController } from './chatEditorOverlay.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from './chatQuotasService.js';
 import { BuiltinToolsContribution } from './tools/tools.js';
@@ -127,6 +126,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: nls.localize('chat.editing.alwaysSaveWithGeneratedChanges', "Whether files that have changes made by chat can be saved without confirmation."),
+			default: false,
+		},
+		'chat.editing.automaticallyAcceptChanges': {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: nls.localize('chat.editing.automaticallyAcceptChanges', "Whether changes made by chat are automatically accepted without prior review."),
 			default: false,
 		},
 		'chat.editing.confirmEditRequestRemoval': {
@@ -340,7 +345,6 @@ registerChatEditorActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
 registerEditorContribution(ChatEditorController.ID, ChatEditorController, EditorContributionInstantiation.Eventually);
-registerEditorContribution(ChatEditorOverlayController.ID, ChatEditorOverlayController, EditorContributionInstantiation.Eventually);
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
