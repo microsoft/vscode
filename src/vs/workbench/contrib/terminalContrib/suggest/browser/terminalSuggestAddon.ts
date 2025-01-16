@@ -377,6 +377,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		suggestWidget.setCompletionModel(model);
+		this._register(suggestWidget.onDidFocus(() => this._terminal?.focus()));
 		if (!this._promptInputModel || !explicitlyInvoked && model.items.length === 0) {
 			return;
 		}
