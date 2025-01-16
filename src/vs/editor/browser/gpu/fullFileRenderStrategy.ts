@@ -23,7 +23,7 @@ import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
 import { ViewGpuContext } from './viewGpuContext.js';
 import { Color } from '../../../base/common/color.js';
-import type { IntlWordSegmentData } from '../../common/core/wordCharacterClassifier.js';
+import { createContentSegmenter, type IContentSegmenter } from './contentSegmenter.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -52,6 +52,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private readonly _glyphRasterizer: MandatoryMutableDisposable<GlyphRasterizer>;
+	get glyphRasterizer() { return this._glyphRasterizer.value; }
 
 	private _cellBindBuffer!: GPUBuffer;
 
@@ -263,16 +264,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
-		let content: string = '';
 		let fillStartIndex = 0;
 		let fillEndIndex = 0;
 
 		let tokens: IViewLineTokens;
 
 		const dpr = getActiveWindow().devicePixelRatio;
-		const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-		let segmenterIndex = 0;
-		let segmentedContent: Intl.SegmentData[];
+		let contentSegmenter: IContentSegmenter;
 
 		if (!this._scrollInitialized) {
 			this.onScrollChanged();
@@ -345,13 +343,9 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
 			lineData = viewportData.getViewLineRenderingData(y);
-			content = lineData.content;
 			xOffset = 0;
 
-			// Don't need to use the segmenter for non-ASCII content
-			if (!lineData.isBasicASCII) {
-				segmentedContent = Array.from(segmenter.segment(content));
-			}
+			contentSegmenter = createContentSegmenter(lineData);
 
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;
@@ -365,28 +359,17 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 				tokenMetadata = tokens.getMetadata(tokenIndex);
 
-				segmenterIndex = 0;
+				// segmenterIndex = 0;
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
 					// TODO: This needs to move to a dynamic long line rendering strategy
 					if (x > this._viewGpuContext.maxGpuCols) {
 						break;
 					}
-
-					if (lineData.isBasicASCII) {
-						chars = content.charAt(x);
-					} else {
-						const segment = segmentedContent![segmenterIndex];
-
-						// No more segments in the string (eg. an emoji is the last segment)
-						if (!segment) {
-							break;
-						}
-						if (segment.index !== x) {
-							continue;
-						}
-						segmenterIndex++;
-						chars = segment.segment;
+					const s = contentSegmenter.getSegmentAtIndex(x);
+					if (s === undefined) {
+						continue;
 					}
+					chars = s;
 
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
