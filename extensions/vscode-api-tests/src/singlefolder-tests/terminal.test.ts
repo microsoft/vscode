@@ -231,7 +231,7 @@ import { assertNoRpc, poll } from '../utils';
 			});
 		});
 
-		test('onDidChangeTerminalState should fire after writing to a terminal', async () => {
+		test('onDidChangeTerminalState should fire with isInteractedWith after writing to a terminal', async () => {
 			const terminal = window.createTerminal();
 			// It seems like shell type is undefined when terminal is first created
 			strictEqual(terminal.state.isInteractedWith, false);
