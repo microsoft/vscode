@@ -51,11 +51,14 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 { changed code }
 // ...existing code...
 
-Here is an example of how you should use vscode_editFile to edit an existing Person class:
-{
-	"explanation": "Add an age property to the Person class",
-	"filePath": "/folder/person.ts",
-	"code": "// ...existing code...\\n class Person {\\n // ...existing code...\\n age: number;\\n // ...existing code...\\n getAge() {\\n return this.age;\\n }\n // ...existing code...\n }"
+Here is an example of how you should use format an edit to an existing Person class:
+class Person {
+	// ...existing code...
+	age: number;
+	// ...existing code...
+	getAge() {
+		return this.age;
+	}
 }
 `;
 
