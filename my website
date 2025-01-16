@@ -1,0 +1,26 @@
+import java.io.IOException;
+import java.io.PrintWriter;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+@WebServlet("/products")
+public class ProductServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+        out.println("<html><body>");
+        out.println("<h1>Welcome to OrganicWorld.com</h1>");
+        out.println("<h2>Our Products</h2>");
+        out.println("<ul>");
+        out.println("<li><strong>Organic Food:</strong> Fresh, healthy, and natural food products grown without synthetic pesticides and fertilizers.</li>");
+        out.println("<li><strong>Organic Plants:</strong> Beautiful and robust plants nurtured with organic methods.</li>");
+        out.println("<li><strong>Organic Medicine:</strong> Safe and effective herbal remedies to support your health and wellbeing.</li>");
+        out.println("</ul>");
+        out.println("</body></html>");
+    }
+}
