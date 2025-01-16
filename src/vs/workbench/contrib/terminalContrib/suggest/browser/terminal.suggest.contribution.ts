@@ -29,6 +29,7 @@ import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.
 import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
 import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { SuggestDetailsClassName } from '../../../../services/suggest/browser/simpleSuggestWidgetDetails.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -277,7 +278,7 @@ registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.ToggleDetailsFocus,
 	title: localize2('workbench.action.terminal.suggestToggleDetailsFocus', 'Suggest Toggle Suggestion Focus'),
 	f1: false,
-	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, ContextKeyExpr.or(ContextKeyExpr.and(SimpleSuggestContext.DetailsVisible, TerminalContextKeys.focus), SimpleSuggestContext.DetailsFocused)),
+	precondition: EditorContextKeys.textInputFocus.negate(),
 	keybinding: {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
