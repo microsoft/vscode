@@ -60,7 +60,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._pwshAddon?.dispose();
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
-
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSuggestSettingId.EnableExtensionCompletions) || e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
 				const extensionCompletionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
