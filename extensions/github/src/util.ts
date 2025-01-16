@@ -58,5 +58,3 @@ export function getRepositoryDefaultRemote(repository: Repository): { owner: str
 	const fetchUrl = getRepositoryDefaultRemoteUrl(repository);
 	return fetchUrl ? getRepositoryFromUrl(fetchUrl) : undefined;
 }
-
-export const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9][0-9]*)($|\b)/g;

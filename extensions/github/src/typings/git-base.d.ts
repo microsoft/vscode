@@ -10,7 +10,6 @@ export interface API {
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]>;
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
-	provideRemoteSourceLinks(url: string, content: string): ProviderResult<string>;
 }
 
 export interface GitBaseExtension {
@@ -84,5 +83,4 @@ export interface RemoteSourceProvider {
 	getRemoteSourceActions?(url: string): ProviderResult<RemoteSourceAction[]>;
 	getRecentRemoteSources?(query?: string): ProviderResult<RecentRemoteSource[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
-	provideRemoteSourceLinks?(url: string, content: string): ProviderResult<string>;
 }

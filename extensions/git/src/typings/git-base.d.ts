@@ -10,7 +10,6 @@ export interface API {
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]>;
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
-	provideRemoteSourceLinks(url: string, content: string): Promise<string | undefined>;
 }
 
 export interface GitBaseExtension {

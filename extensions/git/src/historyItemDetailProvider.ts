@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, Disposable, SourceControlHistoryItem } from 'vscode';
+import { Command, Disposable } from 'vscode';
 import { SourceControlHistoryItemDetailProvider } from './api/git';
 import { Repository } from './repository';
 import { ApiRepository } from './api/api1';
@@ -14,10 +14,10 @@ export interface ISourceControlHistoryItemDetailProviderRegistry {
 }
 
 export async function provideSourceControlHistoryItemHoverCommands(
-	providers: SourceControlHistoryItemDetailProvider[],
+	registry: ISourceControlHistoryItemDetailProviderRegistry,
 	repository: Repository
 ): Promise<Command[] | undefined> {
-	for (const provider of providers) {
+	for (const provider of registry.getSourceControlHistoryItemDetailProviders()) {
 		const result = await provider.provideHoverCommands(new ApiRepository(repository));
 
 		if (result) {
@@ -29,13 +29,13 @@ export async function provideSourceControlHistoryItemHoverCommands(
 }
 
 export async function provideSourceControlHistoryItemMessageLinks(
-	providers: SourceControlHistoryItemDetailProvider[],
+	registry: ISourceControlHistoryItemDetailProviderRegistry,
 	repository: Repository,
-	historyItem: SourceControlHistoryItem
+	message: string
 ): Promise<string | undefined> {
-	for (const provider of providers) {
+	for (const provider of registry.getSourceControlHistoryItemDetailProviders()) {
 		const result = await provider.provideMessageLinks(
-			new ApiRepository(repository), historyItem);
+			new ApiRepository(repository), message);
 
 		if (result) {
 			return result;

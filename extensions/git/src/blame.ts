@@ -12,8 +12,7 @@ import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
-import { provideRemoteSourceLinks } from './remoteSource';
-import { provideSourceControlHistoryItemHoverCommands } from './historyItemDetailProvider';
+import { provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailProvider';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -221,14 +220,12 @@ export class GitBlameController {
 			// Remote hover commands
 			const unpublishedCommits = await repository.getUnpublishedCommits();
 			if (!unpublishedCommits.has(blameInformation.hash)) {
-				remoteHoverCommands.push(...await provideSourceControlHistoryItemHoverCommands(
-					this._model.getSourceControlHistoryItemDetailProviders(), repository) ?? []);
+				remoteHoverCommands.push(...await provideSourceControlHistoryItemHoverCommands(this._model, repository) ?? []);
 			}
 
-			// Link provider
-			commitMessageWithLinks = await provideRemoteSourceLinks(
-				repository,
-				commitInformation?.message ?? blameInformation.subject ?? '');
+			// Message links
+			commitMessageWithLinks = await provideSourceControlHistoryItemMessageLinks(
+				this._model, repository, commitInformation?.message ?? blameInformation.subject ?? '');
 		}
 
 		const markdownString = new MarkdownString();

@@ -328,7 +328,7 @@ export interface BranchProtectionProvider {
 
 export interface SourceControlHistoryItemDetailProvider {
 	provideHoverCommands(repository: Repository): ProviderResult<Command[]>;
-	provideMessageLinks(repository: Repository, historyItem: SourceControlHistoryItem): ProviderResult<string>;
+	provideMessageLinks(repository: Repository, message: string): ProviderResult<string>;
 }
 
 export type APIState = 'uninitialized' | 'initialized';

@@ -9,7 +9,6 @@ export { ProviderResult } from 'vscode';
 export interface API {
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]>;
-	provideRemoteSourceLinks(url: string, content: string): Promise<string | undefined>;
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
 }
 
@@ -84,5 +83,4 @@ export interface RemoteSourceProvider {
 	getRemoteSourceActions?(url: string): ProviderResult<RemoteSourceAction[]>;
 	getRecentRemoteSources?(query?: string): ProviderResult<RecentRemoteSource[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
-	provideRemoteSourceLinks?(url: string, content: string): Promise<string | undefined>;
 }

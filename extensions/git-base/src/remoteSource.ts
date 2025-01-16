@@ -123,21 +123,6 @@ export async function getRemoteSourceActions(model: Model, url: string): Promise
 	return remoteSourceActions;
 }
 
-export async function provideRemoteSourceLinks(model: Model, url: string, content: string): Promise<string> {
-	const providers = model.getRemoteProviders();
-
-	for (const provider of providers) {
-		const parsedContent = await provider.provideRemoteSourceLinks?.(url, content);
-		if (!parsedContent) {
-			continue;
-		}
-
-		content = parsedContent;
-	}
-
-	return content;
-}
-
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch: true }): Promise<PickRemoteSourceResult | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {

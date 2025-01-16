@@ -291,7 +291,7 @@ export interface BranchProtectionProvider {
 
 export interface SourceControlHistoryItemDetailProvider {
 	provideHoverCommands(repository: Repository): Promise<Command[] | undefined>;
-	provideMessageLinks(repository: Repository, historyItem: SourceControlHistoryItem): Promise<string | undefined>;
+	provideMessageLinks(repository: Repository, message: string): Promise<string | undefined>;
 }
 
 export type APIState = 'uninitialized' | 'initialized';
