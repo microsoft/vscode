@@ -230,7 +230,7 @@ import { assertNoRpc, poll } from '../utils';
 				terminal.dispose();
 			});
 		});
-
+		// TODO how could we test TerminalState's shelltype.
 		test('onDidChangeTerminalState should fire after writing to a terminal', async () => {
 			const terminal = window.createTerminal();
 			deepStrictEqual(terminal.state, { isInteractedWith: false });

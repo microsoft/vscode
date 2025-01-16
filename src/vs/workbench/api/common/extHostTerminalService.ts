@@ -268,21 +268,37 @@ export class ExtHostTerminal extends Disposable {
 	}
 
 	public setShellType(shellType: TerminalShellType | undefined): boolean {
-		let extHostType: vscode.TerminalShellType | undefined;
+		// IMPORTANT: This must stay in sync with the extension host API type.
+		enum VSCodeTerminalShellType {
+			Sh = 1,
+			Bash,
+			Fish,
+			Csh,
+			Ksh,
+			Zsh,
+			CommandPrompt,
+			GitBash,
+			PowerShell,
+			Python,
+			Julia,
+			NuShell
+		}
+
+		let extHostType: VSCodeTerminalShellType | undefined;
 
 		switch (shellType) {
-			case PosixShellType.Sh: extHostType = 1; break;
-			case PosixShellType.Bash: extHostType = 2; break;
-			case PosixShellType.Fish: extHostType = 3; break;
-			case PosixShellType.Csh: extHostType = 4; break;
-			case PosixShellType.Ksh: extHostType = 5; break;
-			case PosixShellType.Zsh: extHostType = 6; break;
-			case WindowsShellType.CommandPrompt: extHostType = 7; break;
-			case WindowsShellType.GitBash: extHostType = 8; break;
-			case GeneralShellType.PowerShell: extHostType = 9; break;
-			case GeneralShellType.Python: extHostType = 10; break;
-			case GeneralShellType.Julia: extHostType = 11; break;
-			case GeneralShellType.NuShell: extHostType = 12; break;
+			case PosixShellType.Sh: extHostType = VSCodeTerminalShellType.Sh; break;
+			case PosixShellType.Bash: extHostType = VSCodeTerminalShellType.Bash; break;
+			case PosixShellType.Fish: extHostType = VSCodeTerminalShellType.Fish; break;
+			case PosixShellType.Csh: extHostType = VSCodeTerminalShellType.Csh; break;
+			case PosixShellType.Ksh: extHostType = VSCodeTerminalShellType.Ksh; break;
+			case PosixShellType.Zsh: extHostType = VSCodeTerminalShellType.Zsh; break;
+			case WindowsShellType.CommandPrompt: extHostType = VSCodeTerminalShellType.CommandPrompt; break;
+			case WindowsShellType.GitBash: extHostType = VSCodeTerminalShellType.GitBash; break;
+			case GeneralShellType.PowerShell: extHostType = VSCodeTerminalShellType.PowerShell; break;
+			case GeneralShellType.Python: extHostType = VSCodeTerminalShellType.Python; break;
+			case GeneralShellType.Julia: extHostType = VSCodeTerminalShellType.Julia; break;
+			case GeneralShellType.NuShell: extHostType = VSCodeTerminalShellType.NuShell; break;
 			default: extHostType = undefined; break;
 		}
 
