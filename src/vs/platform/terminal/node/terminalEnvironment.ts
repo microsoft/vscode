@@ -224,6 +224,7 @@ export function getShellIntegrationInjection(
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh'),
 				dest: path.join(zdotdir, '.zlogin')
 			});
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { newArgs, envMixin, filesToCopy };
 		}
 	}

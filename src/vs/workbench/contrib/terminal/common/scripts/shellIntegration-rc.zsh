@@ -99,6 +99,10 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
+# Some features should only work in Insiders
+__vsc_stable="$VSCODE_STABLE"
+unset VSCODE_STABLE
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -150,8 +154,10 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
-	# Is there stable/insider flag in zsh?
-	__vsc_update_env
+
+	if [[ "$__vsc_stable" == "0" ]]; then
+		__vsc_update_env
+	fi
 }
 
 if [[ -o NOUNSET ]]; then
@@ -186,8 +192,10 @@ __vsc_precmd() {
 		# non null
 		__vsc_update_prompt
 	fi
-	# TODO: Is there stable/insider flag in zsh?
-	__vsc_update_env
+
+	if [[ "$__vsc_stable" == "0" ]]; then
+		__vsc_update_env
+	fi
 }
 
 __vsc_preexec() {
