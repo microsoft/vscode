@@ -444,6 +444,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	private isVisionCapable() {
+		if (this.currentLanguageModel) {
+			const model = this.languageModelsService.lookupLanguageModel(this.currentLanguageModel);
+			return model?.supportsVision;
+		}
+
+		return false;
+	}
+
 	private setCurrentLanguageModelToDefault() {
 		const defaultLanguageModel = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
 		const hasUserSelectableLanguageModels = this.languageModelsService.getLanguageModelIds().find(id => {
@@ -796,6 +805,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
 							setModel: (modelId: string) => {
 								this.setCurrentLanguageModelByUser(modelId);
+								this.renderAttachedContext();
 							}
 						};
 						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate, { hoverDelegate: options.hoverDelegate, keybinding: options.keybinding ?? undefined });
@@ -934,38 +944,49 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
-
 				const hoverElement = dom.$('div.chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
-				// Custom label
-				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
-				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
-				widget.appendChild(pillIcon);
-				widget.appendChild(textLabel);
+				if (!this.isVisionCapable()) {
+					widget.classList.add('warning');
+					const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-warning'));
+					const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
+					widget.appendChild(pillIcon);
+					widget.appendChild(textLabel);
+					textLabel.style.textDecoration = 'line-through';
+					hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", this.currentLanguageModel);
+					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
+					this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+				} else {
+					// Custom label
+					const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
+					const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
+					widget.appendChild(pillIcon);
+					widget.appendChild(textLabel);
 
-				attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
-					let buffer: Uint8Array;
-					try {
-						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
-						if (attachment.value instanceof URI) {
-							const readFile = await this.fileService.readFile(attachment.value);
-							if (store.isDisposed) {
-								return;
+					attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
+						let buffer: Uint8Array;
+						try {
+							this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+							if (attachment.value instanceof URI) {
+								const readFile = await this.fileService.readFile(attachment.value);
+								if (store.isDisposed) {
+									return;
+								}
+								buffer = readFile.value.buffer;
+							} else {
+								buffer = attachment.value as Uint8Array;
 							}
-							buffer = readFile.value.buffer;
-						} else {
-							buffer = attachment.value as Uint8Array;
+							this.createImageElements(buffer, widget, hoverElement);
+						} catch (error) {
+							console.error('Error processing attachment:', error);
 						}
-						this.createImageElements(buffer, widget, hoverElement);
-					} catch (error) {
-						console.error('Error processing attachment:', error);
-					}
 
-					widget.style.position = 'relative';
-					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
-					resolve();
-				}));
+						widget.style.position = 'relative';
+						store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
+						resolve();
+					}));
+				}
 			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
