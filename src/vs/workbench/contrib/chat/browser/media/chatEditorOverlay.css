@@ -90,21 +90,27 @@
 	opacity: 1;
 }
 
-.chat-editor-overlay-widget .action-item.auto > .action-label {
-	animation: textShift 5s linear infinite alternate;
-	background: linear-gradient(90deg,
-		var(--vscode-button-foreground) 0%,
-		var(--vscode-button-foreground) 45%,
-		var(--vscode-editorGutter-addedBackground) 50%,
-		var(--vscode-button-foreground) 55%,
-		var(--vscode-button-foreground) 100%);
-	background-size: 200% 100%;
-	color: transparent;
-	-webkit-background-clip: text;
-	background-clip: text;
+.chat-editor-overlay-widget .action-item.auto {
+	position: relative;
+	overflow: hidden;
 }
 
-@keyframes textShift {
-	0% { background-position: 100% 50%; }
-	100% { background-position: 0% 50%; }
+.chat-editor-overlay-widget .action-item.auto::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: -100%;
+	width: 100%;
+	height: 100%;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	animation: slideRight var(--vscode-action-item-auto-timeout) linear forwards;
+}
+
+@keyframes slideRight {
+	0% {
+		left: -100%;
+	}
+	100% {
+		left: 0%;
+	}
 }

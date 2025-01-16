@@ -128,10 +128,10 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.editing.alwaysSaveWithGeneratedChanges', "Whether files that have changes made by chat can be saved without confirmation."),
 			default: false,
 		},
-		'chat.editing.automaticallyAcceptChanges': {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.editing.automaticallyAcceptChanges', "Whether changes made by chat are automatically accepted without prior review."),
-			default: false,
+		'chat.editing.autoAcceptDelay': {
+			type: 'number',
+			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `0` means disabled and `100` seconds is the maximum."),
+			default: 0,
 		},
 		'chat.editing.confirmEditRequestRemoval': {
 			type: 'boolean',
