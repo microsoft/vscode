@@ -100,8 +100,8 @@ __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
 # Some features should only work in Insiders
-__vsc_stable="$VSCODE_STABLE"
-unset VSCODE_STABLE
+# __vsc_stable="$VSCODE_STABLE"
+# unset VSCODE_STABLE
 
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
