@@ -38,4 +38,25 @@ export function repositoryHasGitHubRemote(repository: Repository) {
 	return !!repository.state.remotes.find(remote => remote.fetchUrl ? getRepositoryFromUrl(remote.fetchUrl) : undefined);
 }
 
+export function getRepositoryDefaultRemoteUrl(repository: Repository): string | undefined {
+	const remotes = repository.state.remotes
+		.filter(remote => remote.fetchUrl && getRepositoryFromUrl(remote.fetchUrl));
+
+	if (remotes.length === 0) {
+		return undefined;
+	}
+
+	// upstream -> origin -> first
+	const remote = remotes.find(remote => remote.name === 'upstream')
+		?? remotes.find(remote => remote.name === 'origin')
+		?? remotes[0];
+
+	return remote.fetchUrl;
+}
+
+export function getRepositoryDefaultRemote(repository: Repository): { owner: string; repo: string } | undefined {
+	const fetchUrl = getRepositoryDefaultRemoteUrl(repository);
+	return fetchUrl ? getRepositoryFromUrl(fetchUrl) : undefined;
+}
+
 export const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9][0-9]*)($|\b)/g;

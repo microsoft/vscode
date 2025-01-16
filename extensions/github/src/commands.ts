@@ -85,7 +85,6 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 			return;
 		}
 
-		// Default remote (upstream -> origin -> first)
 		const remote = remotes.find(r => r.name === 'upstream')
 			?? remotes.find(r => r.name === 'origin')
 			?? remotes[0];

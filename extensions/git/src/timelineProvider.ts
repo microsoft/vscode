@@ -13,6 +13,7 @@ import { OperationKind, OperationResult } from './operation';
 import { getCommitShortHash } from './util';
 import { CommitShortStat } from './git';
 import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceLinks } from './remoteSource';
+import { provideSourceControlHistoryItemHoverCommands } from './historyItemDetailProvider';
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -216,7 +217,8 @@ export class GitTimelineProvider implements TimelineProvider {
 		const openComparison = l10n.t('Open Comparison');
 
 		const unpublishedCommits = await repo.getUnpublishedCommits();
-		const remoteSourceCommands = await getRemoteSourceControlHistoryItemCommands(repo);
+		const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(
+			this.model.getSourceControlHistoryItemDetailProviders(), repo);
 
 		const items: GitTimelineItem[] = [];
 		for (let index = 0; index < commits.length; index++) {
@@ -232,7 +234,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				item.description = c.authorName;
 			}
 
-			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteSourceCommands : [];
+			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteHoverCommands : [];
 			const messageWithLinks = await provideRemoteSourceLinks(repo, message) ?? message;
 
 			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), messageWithLinks, c.shortStat, commitRemoteSourceCommands);
