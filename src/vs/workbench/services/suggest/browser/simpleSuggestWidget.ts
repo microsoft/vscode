@@ -546,7 +546,7 @@ export class SimpleSuggestWidget extends Disposable {
 
 		} else if ((canExpandCompletionItem(this._list.getFocusedElements()[0]) || this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
 			// show details widget (iff possible)
-
+			this._ctxSuggestWidgetDetailsVisible.set(true);
 			this._setDetailsVisible(true);
 			this._showDetails(false, focused);
 		}

@@ -268,9 +268,9 @@ registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.ToggleDetailsFocus,
 	title: localize2('workbench.action.terminal.suggestToggleDetailsFocus', 'Suggest Toggle Suggestion Focus'),
 	f1: false,
-	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, ContextKeyExpr.or(TerminalContextKeys.focus, SimpleSuggestContext.DetailsFocused)),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, ContextKeyExpr.or(ContextKeyExpr.and(SimpleSuggestContext.DetailsVisible, TerminalContextKeys.focus), SimpleSuggestContext.DetailsFocused)),
 	keybinding: {
-		weight: KeybindingWeight.WorkbenchContrib + 50,
+		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
 	},
