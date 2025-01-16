@@ -155,9 +155,9 @@ __vsc_command_complete() {
 	fi
 	__vsc_update_cwd
 
-	if [[ "$__vsc_stable" == "0" ]]; then
-		__vsc_update_env
-	fi
+	# if [[ "$__vsc_stable" == "0" ]]; then
+	__vsc_update_env
+	# fi
 }
 
 if [[ -o NOUNSET ]]; then
@@ -193,9 +193,9 @@ __vsc_precmd() {
 		__vsc_update_prompt
 	fi
 
-	if [[ "$__vsc_stable" == "0" ]]; then
-		__vsc_update_env
-	fi
+	# if [[ "$__vsc_stable" == "0" ]]; then
+	__vsc_update_env
+	# fi
 }
 
 __vsc_preexec() {
