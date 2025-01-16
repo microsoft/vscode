@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, Disposable } from 'vscode';
-import { SourceControlHistoryItemDetailProvider } from './api/git';
+import { SourceControlHistoryItemDetailsProvider } from './api/git';
 import { Repository } from './repository';
 import { ApiRepository } from './api/api1';
 
-export interface ISourceControlHistoryItemDetailProviderRegistry {
-	registerSourceControlHistoryItemDetailProvider(provider: SourceControlHistoryItemDetailProvider): Disposable;
-	getSourceControlHistoryItemDetailProviders(): SourceControlHistoryItemDetailProvider[];
+export interface ISourceControlHistoryItemDetailsProviderRegistry {
+	registerSourceControlHistoryItemDetailsProvider(provider: SourceControlHistoryItemDetailsProvider): Disposable;
+	getSourceControlHistoryItemDetailsProviders(): SourceControlHistoryItemDetailsProvider[];
 }
 
 export async function provideSourceControlHistoryItemHoverCommands(
-	registry: ISourceControlHistoryItemDetailProviderRegistry,
+	registry: ISourceControlHistoryItemDetailsProviderRegistry,
 	repository: Repository
 ): Promise<Command[] | undefined> {
-	for (const provider of registry.getSourceControlHistoryItemDetailProviders()) {
+	for (const provider of registry.getSourceControlHistoryItemDetailsProviders()) {
 		const result = await provider.provideHoverCommands(new ApiRepository(repository));
 
 		if (result) {
@@ -29,11 +29,11 @@ export async function provideSourceControlHistoryItemHoverCommands(
 }
 
 export async function provideSourceControlHistoryItemMessageLinks(
-	registry: ISourceControlHistoryItemDetailProviderRegistry,
+	registry: ISourceControlHistoryItemDetailsProviderRegistry,
 	repository: Repository,
 	message: string
 ): Promise<string | undefined> {
-	for (const provider of registry.getSourceControlHistoryItemDetailProviders()) {
+	for (const provider of registry.getSourceControlHistoryItemDetailsProviders()) {
 		const result = await provider.provideMessageLinks(
 			new ApiRepository(repository), message);
 

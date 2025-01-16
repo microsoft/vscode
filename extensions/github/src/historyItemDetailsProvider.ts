@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, l10n } from 'vscode';
-import { Repository, SourceControlHistoryItemDetailProvider } from './typings/git';
+import { Repository, SourceControlHistoryItemDetailsProvider } from './typings/git';
 import { getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl } from './util';
 
 const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9][0-9]*)($|\b)/g;
 
-export class GitHubSourceControlHistoryItemDetailProvider implements SourceControlHistoryItemDetailProvider {
+export class GitHubSourceControlHistoryItemDetailsProvider implements SourceControlHistoryItemDetailsProvider {
 	async provideHoverCommands(repository: Repository): Promise<Command[] | undefined> {
 		const url = getRepositoryDefaultRemoteUrl(repository);
 		if (!url) {

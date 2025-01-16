@@ -12,7 +12,7 @@ import { Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
-import { ISourceControlHistoryItemDetailProviderRegistry, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailProvider';
+import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 
 function toSourceControlHistoryItemRef(repository: Repository, ref: Ref): SourceControlHistoryItemRef {
 	const rootUri = Uri.file(repository.root);
@@ -98,7 +98,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private disposables: Disposable[] = [];
 
 	constructor(
-		private historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailProviderRegistry,
+		private historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
 		private readonly repository: Repository,
 		private readonly logger: LogOutputChannel
 	) {
