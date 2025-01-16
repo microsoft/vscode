@@ -9,7 +9,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatEditingSession, IModifiedFileEntry } from '../common/chatEditingService.js';
-import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -20,8 +20,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { AcceptAction, RejectAction } from './chatEditorActions.js';
+import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
 import './media/chatEditorOverlay.css';
 import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
@@ -123,6 +122,25 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 						constructor() {
 							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
 						}
+
+						override render(container: HTMLElement): void {
+							super.render(container);
+
+							if (action.id === AcceptAction.ID) {
+								assertType(this.label);
+								assertType(this.element);
+
+								this._store.add(autorun(r => {
+									const value = that._entry.read(r)?.entry.autoAcceptCountdown.read(r);
+									this.label!.innerText = value === undefined
+										? this.action.label
+										: localize('pattern', "{0} ({1})", this.action.label, value);
+
+									this.element?.classList.toggle('auto', !!value);
+								}));
+							}
+						}
+
 						override set actionRunner(actionRunner: IActionRunner) {
 							super.actionRunner = actionRunner;
 
@@ -258,15 +276,3 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 		}
 	}
 }
-
-export const navigationBearingFakeActionId = 'chatEditor.navigation.bearings';
-
-MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
-	command: {
-		id: navigationBearingFakeActionId,
-		title: localize('label', "Navigation Status"),
-		precondition: ContextKeyExpr.false(),
-	},
-	group: 'navigate',
-	order: -1
-});
