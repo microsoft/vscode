@@ -270,23 +270,8 @@ export class ExtHostTerminal extends Disposable {
 	public setShellType(shellType: TerminalShellType | undefined): boolean {
 		let extHostType: vscode.TerminalShellType | undefined;
 
-		// enum TerminalShellType {
-		// 	Sh = 1,
-		// 	Bash,
-		// 	Fish,
-		// 	Csh,
-		// 	Ksh,
-		// 	Zsh,
-		// 	CommandPrompt,
-		// 	GitBash,
-		// 	PowerShell,
-		// 	Python,
-		// 	Julia,
-		// 	NuShell
-		// }
-		// Note: Important that the extHostType number matches with what is in proposed.terminalShellType.d.ts
 		switch (shellType) {
-			case PosixShellType.Sh: extHostType = vscode.TerminalShellType.Sh; break; //'vscode' cannot be used as a value because it was imported using 'import type'.
+			case PosixShellType.Sh: extHostType = 1; break;
 			case PosixShellType.Bash: extHostType = 2; break;
 			case PosixShellType.Fish: extHostType = 3; break;
 			case PosixShellType.Csh: extHostType = 4; break;
