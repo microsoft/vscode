@@ -529,12 +529,15 @@ export class SimpleSuggestWidget extends Disposable {
 		if (this._state === State.Details) {
 			// Should return the focus to the list item.
 			this._list.setFocus(this._list.getFocus());
+			console.log('setting list focused');
 			this._setState(State.Open);
 		} else if (this._state === State.Open) {
 			this._setState(State.Details);
 			if (!this._isDetailsVisible()) {
+				console.log('details visible');
 				this.toggleDetails(true);
 			} else {
+				console.log('focusing details');
 				this._details.widget.focus();
 			}
 		}

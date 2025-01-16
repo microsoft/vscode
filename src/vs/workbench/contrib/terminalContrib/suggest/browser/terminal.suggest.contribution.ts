@@ -13,10 +13,10 @@ import { isWindows } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { GeneralShellType, TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -28,6 +28,7 @@ import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
 import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -60,6 +61,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._pwshAddon?.dispose();
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
+
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSuggestSettingId.EnableExtensionCompletions) || e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
 				const extensionCompletionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
@@ -263,24 +265,48 @@ registerActiveInstanceAction({
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleExplainMode()
 });
 
-registerActiveInstanceAction({
-	id: 'terminalSuggestToggleSuggestionFocus',
-	title: localize2('workbench.action.terminal.suggestToggleSuggestionFocus', 'Suggest Toggle Suggestion Focus'),
-	f1: false,
-	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, ContextKeyExpr.or(TerminalContextKeys.focus, SimpleSuggestContext.DetailsFocused)),
-	keybinding: {
-		weight: KeybindingWeight.WorkbenchContrib + 50,
-		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
-		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
-	},
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleSuggestionFocus()
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'terminalSuggestToggleSuggestionFocus',
+			title: localize2('workbench.action.terminal.suggestToggleSuggestionFocus', 'Suggest Toggle Suggestion Focus'),
+			f1: false,
+			// when the terminal blurs, the suggest widget is hidden, so we don't need to check for terminal focus here given we
+			// check for the suggest widget being visible
+			// TODO: why doesn't the terminal focus context key work
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, SimpleSuggestContext.DetailsVisible),
+			keybinding: {
+				weight: KeybindingWeight.ExternalExtension + 50,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space },
+				when: TerminalContextKeys.suggestWidgetVisible
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const terminalService = accessor.get(ITerminalService);
+
+		// If the suggest widget details are focused, the instance itself will not have focus
+		const instance = terminalService.activeInstance ?? terminalService.instances.find(i => i.hasFocus);
+		console.log(instance?.hasFocus);
+		if (!instance) {
+			console.log('no last focused instance');
+			return;
+		}
+		if (!TerminalSuggestContribution.get(instance)?.addon) {
+			console.log('no addon');
+			return;
+		}
+		TerminalSuggestContribution.get(instance)?.addon?.toggleSuggestionFocus();
+	}
 });
 
 registerActiveInstanceAction({
 	id: 'terminalSuggestToggleDetails',
 	title: localize2('workbench.action.terminal.suggestToggleDetils', 'Suggest Toggle Details'),
 	f1: false,
-	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
 	keybinding: {
 		// HACK: Force weight to be higher than that to start terminal chat
 		weight: KeybindingWeight.ExternalExtension + 2,
