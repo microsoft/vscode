@@ -2899,7 +2899,7 @@ declare namespace monaco.editor {
 
 	export interface IModelContentChange {
 		/**
-		 * The range that got replaced.
+		 * The old range that got replaced.
 		 */
 		readonly range: IRange;
 		/**
@@ -2911,7 +2911,7 @@ declare namespace monaco.editor {
 		 */
 		readonly rangeLength: number;
 		/**
-		 * The end position of the range that got replaced.
+		 * The new end position of the range that got replaced.
 		 */
 		readonly rangeEndPosition: Position;
 		/**
