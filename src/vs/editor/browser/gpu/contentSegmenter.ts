@@ -13,6 +13,7 @@ export interface IContentSegmenter {
 	 * @param index The index within the line data's content string.
 	 */
 	getSegmentAtIndex(index: number): string | undefined;
+	getSegmentData(index: number): Intl.SegmentData | undefined;
 }
 
 export function createContentSegmenter(lineData: ViewLineRenderingData): IContentSegmenter {
@@ -29,13 +30,17 @@ class AsciiContentSegmenter implements IContentSegmenter {
 		this._content = lineData.content;
 	}
 
-	getSegmentAtIndex(column: number): string {
-		return this._content[column];
+	getSegmentAtIndex(index: number): string {
+		return this._content[index];
+	}
+
+	getSegmentData(index: number): Intl.SegmentData | undefined {
+		return undefined;
 	}
 }
 
 class GraphemeContentSegmenter implements IContentSegmenter {
-	private readonly _segments: (string | undefined)[] = [];
+	private readonly _segments: (Intl.SegmentData | undefined)[] = [];
 
 	constructor(lineData: ViewLineRenderingData) {
 		const content = lineData.content;
@@ -58,11 +63,15 @@ class GraphemeContentSegmenter implements IContentSegmenter {
 			}
 
 			segmenterIndex++;
-			this._segments.push(segment.segment);
+			this._segments.push(segment);
 		}
 	}
 
 	getSegmentAtIndex(index: number): string | undefined {
-		return this._segments.length > index ? this._segments[index] : '';
+		return this._segments[index]?.segment;
+	}
+
+	getSegmentData(index: number): Intl.SegmentData | undefined {
+		return this._segments[index];
 	}
 }
