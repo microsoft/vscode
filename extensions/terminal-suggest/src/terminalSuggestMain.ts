@@ -93,10 +93,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
 			const builtinCommands = getBuiltinCommands(shellPath, commandsInPath?.labels) ?? [];
-			if (!commandsInPath?.result) {
+			if (!commandsInPath?.completionResources) {
 				return;
 			}
-			const commands = [...commandsInPath.result, ...builtinCommands];
+			const commands = [...commandsInPath.completionResources, ...builtinCommands];
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 
@@ -203,7 +203,7 @@ interface ICompletionResource {
 	label: string;
 	path?: string;
 }
-async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ result: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
+async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 	// Get PATH value
 	let pathValue: string | undefined;
 	const labels: Set<string> = new Set<string>();
@@ -221,7 +221,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 
 	// Check cache
 	if (cachedAvailableCommands && cachedAvailableCommandsPath === pathValue) {
-		return { result: cachedAvailableCommands, labels };
+		return { completionResources: cachedAvailableCommands, labels };
 	}
 
 	// Extract executables from PATH
@@ -249,7 +249,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 		}
 	}
 	cachedAvailableCommands = executables;
-	return { result: executables, labels };
+	return { completionResources: executables, labels };
 }
 
 function getPrefix(commandLine: string, cursorPosition: number): string {
