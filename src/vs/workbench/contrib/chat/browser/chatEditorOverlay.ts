@@ -9,19 +9,18 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatEditingSession, IModifiedFileEntry } from '../common/chatEditingService.js';
-import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
-import { $, append, EventLike, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseMoveListener, append, EventLike, reset } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { AcceptAction, RejectAction } from './chatEditorActions.js';
+import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
 import './media/chatEditorOverlay.css';
 import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
@@ -123,6 +122,38 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 						constructor() {
 							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
 						}
+
+						override render(container: HTMLElement): void {
+							super.render(container);
+
+							if (action.id === AcceptAction.ID) {
+
+								const listener = this._store.add(new MutableDisposable());
+
+								let timeIsSet = false;
+								this._store.add(autorun(r => {
+
+									assertType(this.label);
+									assertType(this.element);
+
+									const ctrl = that._entry.read(r)?.entry.autoAcceptController.read(r);
+									if (ctrl) {
+
+										if (!timeIsSet) {
+											this.element.style.setProperty('--vscode-action-item-auto-timeout', `${ctrl.remaining}s`);
+											timeIsSet = true;
+										}
+
+										this.element.classList.toggle('auto', true);
+										listener.value = addDisposableGenericMouseMoveListener(this.element, () => ctrl.cancel());
+									} else {
+										this.element.classList.toggle('auto', false);
+										listener.clear();
+									}
+								}));
+							}
+						}
+
 						override set actionRunner(actionRunner: IActionRunner) {
 							super.actionRunner = actionRunner;
 
@@ -258,15 +289,3 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 		}
 	}
 }
-
-export const navigationBearingFakeActionId = 'chatEditor.navigation.bearings';
-
-MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
-	command: {
-		id: navigationBearingFakeActionId,
-		title: localize('label', "Navigation Status"),
-		precondition: ContextKeyExpr.false(),
-	},
-	group: 'navigate',
-	order: -1
-});

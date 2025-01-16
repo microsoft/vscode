@@ -12,7 +12,7 @@ import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
-import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceLinks } from './remoteSource';
+import { provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -204,9 +204,9 @@ export class GitBlameController {
 	}
 
 	async getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation, includeCommitDetails = false): Promise<MarkdownString> {
+		const remoteHoverCommands: Command[] = [];
 		let commitInformation: Commit | undefined;
 		let commitMessageWithLinks: string | undefined;
-		const remoteSourceCommands: Command[] = [];
 
 		const repository = this._model.getRepository(documentUri);
 		if (repository) {
@@ -217,16 +217,15 @@ export class GitBlameController {
 				} catch { }
 			}
 
-			// Remote commands
+			// Remote hover commands
 			const unpublishedCommits = await repository.getUnpublishedCommits();
 			if (!unpublishedCommits.has(blameInformation.hash)) {
-				remoteSourceCommands.push(...await getRemoteSourceControlHistoryItemCommands(repository));
+				remoteHoverCommands.push(...await provideSourceControlHistoryItemHoverCommands(this._model, repository) ?? []);
 			}
 
-			// Link provider
-			commitMessageWithLinks = await provideRemoteSourceLinks(
-				repository,
-				commitInformation?.message ?? blameInformation.subject ?? '');
+			// Message links
+			commitMessageWithLinks = await provideSourceControlHistoryItemMessageLinks(
+				this._model, repository, commitInformation?.message ?? blameInformation.subject ?? '');
 		}
 
 		const markdownString = new MarkdownString();
@@ -289,11 +288,11 @@ export class GitBlameController {
 		markdownString.appendMarkdown('&nbsp;');
 		markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
 
-		// Remote commands
-		if (remoteSourceCommands.length > 0) {
+		// Remote hover commands
+		if (remoteHoverCommands.length > 0) {
 			markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
 
-			const remoteCommandsMarkdown = remoteSourceCommands
+			const remoteCommandsMarkdown = remoteHoverCommands
 				.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], hash]))} "${command.tooltip}")`);
 			markdownString.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
 		}

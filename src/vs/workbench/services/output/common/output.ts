@@ -312,6 +312,23 @@ export function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntr
 	return null;
 }
 
+/**
+ * Iterator for log entries from a model with a processing function.
+ *
+ * @param model - The text model containing the log entries.
+ * @param process - A function to process each log entry.
+ * @returns An iterable iterator for processed log entries.
+ */
+export function* logEntryIterator<T>(model: ITextModel, process: (logEntry: ILogEntry) => T): IterableIterator<T> {
+	for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
+		const logEntry = parseLogEntryAt(model, lineNumber);
+		if (logEntry) {
+			yield process(logEntry);
+			lineNumber = logEntry.range.endLineNumber;
+		}
+	}
+}
+
 function parseLogLevel(level: string): LogLevel {
 	switch (level.toLowerCase()) {
 		case 'trace':

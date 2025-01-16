@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OutputService } from './outputServices.js';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT } from '../../../services/output/common/output.js';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT } from '../../../services/output/common/output.js';
 import { OutputViewPane } from './outputView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -99,7 +99,6 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IOutputService private readonly outputService: IOutputService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IFilesConfigurationService private readonly fileConfigurationService: IFilesConfigurationService,
 	) {
 		super();
 		this.registerActions();
@@ -368,11 +367,10 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						isHiddenByDefault: true
 					}],
 					icon: Codicon.goToFile,
-					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
 			async run(): Promise<void> {
-				that.openActiveOutputFile();
+				that.openActiveOutput();
 			}
 		}));
 	}
@@ -392,11 +390,10 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						isHiddenByDefault: true
 					}],
 					icon: Codicon.emptyWindow,
-					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
 			async run(): Promise<void> {
-				that.openActiveOutputFile(AUX_WINDOW_GROUP);
+				that.openActiveOutput(AUX_WINDOW_GROUP);
 			}
 		}));
 	}
@@ -426,12 +423,11 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		}));
 	}
 
-	private async openActiveOutputFile(group?: AUX_WINDOW_GROUP_TYPE): Promise<void> {
-		const fileOutputChannelDescriptor = this.getFileOutputChannelDescriptor();
-		if (fileOutputChannelDescriptor) {
-			await this.fileConfigurationService.updateReadonly(fileOutputChannelDescriptor.files[0], true);
+	private async openActiveOutput(group?: AUX_WINDOW_GROUP_TYPE): Promise<void> {
+		const channel = this.outputService.getActiveChannel();
+		if (channel) {
 			await this.editorService.openEditor({
-				resource: fileOutputChannelDescriptor.files[0],
+				resource: channel.uri,
 				options: {
 					pinned: true,
 				},
