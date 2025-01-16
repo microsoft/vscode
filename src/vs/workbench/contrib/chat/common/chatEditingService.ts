@@ -140,7 +140,7 @@ export interface IModifiedFileEntry {
 	reject(transaction: ITransaction | undefined): Promise<void>;
 
 	reviewMode: IObservable<boolean>;
-	autoAcceptCountdown: IObservable<number | undefined>;
+	autoAcceptController: IObservable<{ remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
 }
 

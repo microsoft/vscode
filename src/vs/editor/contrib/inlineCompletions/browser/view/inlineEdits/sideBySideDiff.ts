@@ -505,7 +505,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		if (!layoutInfo) { return undefined; }
 		const width = layoutInfo.previewEditorWidth + layoutInfo.padding;
 
-
 		const topLeft = layoutInfo.edit1;
 		const topRight = layoutInfo.edit1.deltaX(width);
 		const topRightBefore = topRight.deltaX(-layoutInfo.borderRadius);

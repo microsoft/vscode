@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -37,6 +39,13 @@ import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+
+class AutoAcceptControl {
+	constructor(
+		readonly remaining: number,
+		readonly cancel: () => void
+	) { }
+}
 
 export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
@@ -94,8 +103,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	private readonly _reviewModeTempObs = observableValue<true | undefined>(this, undefined);
 	readonly reviewMode: IObservable<boolean>;
 
-	private readonly _autoAcceptCountdown = observableValue<number | undefined>(this, undefined);
-	readonly autoAcceptCountdown: IObservable<number | undefined> = this._autoAcceptCountdown;
+	private readonly _autoAcceptCtrl = observableValue<AutoAcceptControl | undefined>(this, undefined);
+	readonly autoAcceptController: IObservable<{ remaining: number; cancel(): void } | undefined> = this._autoAcceptCtrl;
 
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
@@ -141,6 +150,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	private readonly _diffTrimWhitespace: IObservable<boolean>;
 
 	private _refCounter: number = 1;
+
+	private readonly _autoAcceptTimeout: IObservable<number>;
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
@@ -207,11 +218,15 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}));
 
 		// review mode depends on setting and temporary override
-		const autoAccept = observableConfigValue('chat.editing.automaticallyAcceptChanges', false, configService);
+		const autoAcceptRaw = observableConfigValue('chat.editing.autoAcceptDelay', 0, configService);
+		this._autoAcceptTimeout = derived(r => {
+			const value = autoAcceptRaw.read(r);
+			return clamp(value, 0, 100);
+		});
 		this.reviewMode = derived(r => {
-			const configuredValue = !autoAccept.read(r);
+			const configuredValue = this._autoAcceptTimeout.read(r);
 			const tempValue = this._reviewModeTempObs.read(r);
-			return tempValue || configuredValue;
+			return tempValue ?? configuredValue === 0;
 		});
 	}
 
@@ -292,23 +307,28 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		// AUTO accept mode
 		if (!this.reviewMode.get()) {
 
-			const future = Date.now() + 10000; // 10secs
+			const future = Date.now() + (this._autoAcceptTimeout.get() * 1000);
+			const cts = new CancellationTokenSource();
 			const update = () => {
 
 				const reviewMode = this.reviewMode.get();
 				if (reviewMode) {
 					// switched back to review mode
-					this._autoAcceptCountdown.set(undefined, undefined);
+					this._autoAcceptCtrl.set(undefined, undefined);
+					return;
+				}
+
+				if (cts.token.isCancellationRequested) {
+					this._autoAcceptCtrl.set(undefined, undefined);
 					return;
 				}
 
 				const remain = Math.round((future - Date.now()) / 1000);
 				if (remain <= 0) {
 					this.accept(undefined);
-					this._autoAcceptCountdown.set(undefined, undefined);
 				} else {
-					this._autoAcceptCountdown.set(remain, undefined);
-					setTimeout(update, 1000);
+					this._autoAcceptCtrl.set(new AutoAcceptControl(remain, () => cts.cancel()), undefined);
+					setTimeout(update, 100);
 				}
 			};
 			update();
@@ -523,6 +543,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._diffInfo.set(nullDocumentDiff, transaction);
 		this._edit = OffsetEdit.empty;
 		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
+		this._autoAcceptCtrl.set(undefined, transaction);
 		await this.collapse(transaction);
 		this._notifyAction('accepted');
 	}
@@ -547,6 +568,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			await this.collapse(transaction);
 		}
 		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
+		this._autoAcceptCtrl.set(undefined, transaction);
 		this._notifyAction('rejected');
 	}
 
