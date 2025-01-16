@@ -246,11 +246,12 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		// dropped frames.
 
 		let chars = '';
+		let charWidth = 0;
 		let y = 0;
 		let x = 0;
 		let absoluteOffsetX = 0;
 		let absoluteOffsetY = 0;
-		let xOffset = 0;
+		let tabXOffset = 0;
 		let glyph: Readonly<ITextureAtlasPageGlyph>;
 		let cellIndex = 0;
 
@@ -343,9 +344,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
 			lineData = viewportData.getViewLineRenderingData(y);
-			xOffset = 0;
+			tabXOffset = 0;
 
 			contentSegmenter = createContentSegmenter(lineData);
+			charWidth = viewLineOptions.spaceWidth * dpr;
+			absoluteOffsetX = 0;
 
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;
@@ -359,7 +362,6 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 				tokenMetadata = tokens.getMetadata(tokenIndex);
 
-				// segmenterIndex = 0;
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
 					// TODO: This needs to move to a dynamic long line rendering strategy
 					if (x > this._viewGpuContext.maxGpuCols) {
@@ -370,6 +372,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 					chars = s;
+
+					if (!lineData.isBasicASCII) {
+						charWidth = this._glyphRasterizer.value.getTextMetrics(chars).width;
+					}
 
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
@@ -430,7 +436,14 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
 						// Adjust xOffset for tab stops
 						if (chars === '\t') {
-							xOffset = CursorColumns.nextRenderTabStop(x + xOffset, lineData.tabSize) - x - 1;
+							// Find the pixel offset between the current position and the next tab stop
+							const offsetBefore = x + tabXOffset;
+							tabXOffset = CursorColumns.nextRenderTabStop(x + tabXOffset, lineData.tabSize);
+							absoluteOffsetX += charWidth * (tabXOffset - offsetBefore);
+							// Convert back to offset excluding x and the current character
+							tabXOffset -= x + 1;
+						} else {
+							absoluteOffsetX += charWidth;
 						}
 						continue;
 					}
@@ -438,8 +451,6 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
 					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
 
-					// TODO: Support non-standard character widths
-					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)
 						viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] * dpr +
@@ -454,10 +465,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					);
 
 					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = absoluteOffsetX;
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
 					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
+
+					// Adjust the x pixel offset for the next character
+					absoluteOffsetX += charWidth;
 				}
 
 				tokenStartIndex = tokenEndIndex;

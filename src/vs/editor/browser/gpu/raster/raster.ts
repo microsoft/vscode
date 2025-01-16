@@ -32,6 +32,8 @@ export interface IGlyphRasterizer {
 		decorationStyleSetId: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph>;
+
+	getTextMetrics(text: string): TextMetrics;
 }
 
 /**
