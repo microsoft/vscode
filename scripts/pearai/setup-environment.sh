@@ -95,4 +95,4 @@ execute "cd '$app_dir'" "Failed to change directory to application root"
 echo -e "\nSetting up root application..."
 pwd
 
-execute "yarn install" "Failed to install dependencies with yarn"
+execute "npm install" "Failed to install dependencies with npm"
