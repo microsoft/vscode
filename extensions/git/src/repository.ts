@@ -26,7 +26,7 @@ import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { detectEncoding } from './encoding';
-import { ISourceControlHistoryItemDetailProviderRegistry } from './historyItemDetailProvider';
+import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -856,7 +856,7 @@ export class Repository implements Disposable {
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
-		historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailProviderRegistry,
+		historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter

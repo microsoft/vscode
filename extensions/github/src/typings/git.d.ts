@@ -289,7 +289,7 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
-export interface SourceControlHistoryItemDetailProvider {
+export interface SourceControlHistoryItemDetailsProvider {
 	provideHoverCommands(repository: Repository): Promise<Command[] | undefined>;
 	provideMessageLinks(repository: Repository, message: string): Promise<string | undefined>;
 }
@@ -321,7 +321,7 @@ export interface API {
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
-	registerSourceControlHistoryItemDetailProvider(provider: SourceControlHistoryItemDetailProvider): Disposable;
+	registerSourceControlHistoryItemDetailsProvider(provider: SourceControlHistoryItemDetailsProvider): Disposable;
 }
 
 export interface GitExtension {

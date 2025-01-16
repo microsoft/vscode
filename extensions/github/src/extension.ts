@@ -16,7 +16,7 @@ import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
 import { GithubBranchProtectionProviderManager } from './branchProtection';
 import { GitHubCanonicalUriProvider } from './canonicalUriProvider';
 import { VscodeDevShareProvider } from './shareProviders';
-import { GitHubSourceControlHistoryItemDetailProvider } from './historyItemDetailProvider';
+import { GitHubSourceControlHistoryItemDetailsProvider } from './historyItemDetailsProvider';
 
 export function activate(context: ExtensionContext): void {
 	const disposables: Disposable[] = [];
@@ -101,7 +101,7 @@ function initializeGitExtension(context: ExtensionContext, telemetryReporter: Te
 						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState, logger, telemetryReporter));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler(telemetryReporter)));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
-						disposables.add(gitAPI.registerSourceControlHistoryItemDetailProvider(new GitHubSourceControlHistoryItemDetailProvider()));
+						disposables.add(gitAPI.registerSourceControlHistoryItemDetailsProvider(new GitHubSourceControlHistoryItemDetailsProvider()));
 						disposables.add(new GitHubCanonicalUriProvider(gitAPI));
 						disposables.add(new VscodeDevShareProvider(gitAPI));
 						setGitHubContext(gitAPI, disposables);
