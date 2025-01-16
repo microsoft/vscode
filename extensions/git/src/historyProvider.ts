@@ -12,7 +12,7 @@ import { Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
-import { provideRemoteSourceLinks } from './remoteSource';
+import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 
 function toSourceControlHistoryItemRef(repository: Repository, ref: Ref): SourceControlHistoryItemRef {
 	const rootUri = Uri.file(repository.root);
@@ -97,7 +97,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	private disposables: Disposable[] = [];
 
-	constructor(protected readonly repository: Repository, private readonly logger: LogOutputChannel) {
+	constructor(
+		private historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
+		private readonly repository: Repository,
+		private readonly logger: LogOutputChannel
+	) {
 		const onDidRunWriteOperation = filterEvent(repository.onDidRunOperation, e => !e.operation.readOnly);
 		this.disposables.push(onDidRunWriteOperation(this.onDidRunWriteOperation, this));
 
@@ -268,7 +272,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			const historyItems: SourceControlHistoryItem[] = [];
 			for (const commit of commits) {
 				const message = emojify(commit.message);
-				const messageWithLinks = await provideRemoteSourceLinks(this.repository, message) ?? message;
+				const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(
+					this.historyItemDetailProviderRegistry, this.repository, message) ?? message;
 
 				const newLineIndex = message.indexOf('\n');
 				const subject = newLineIndex !== -1

@@ -290,6 +290,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _updateEditContext(): void {
 		const editContextState = this._getNewEditContextState();
+		if (!editContextState) {
+			return;
+		}
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._textStartPositionWithinEditor = editContextState.textStartPositionWithinEditor;
@@ -348,8 +351,11 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _getNewEditContextState(): { text: string; selectionStartOffset: number; selectionEndOffset: number; textStartPositionWithinEditor: Position } {
+	private _getNewEditContextState(): { text: string; selectionStartOffset: number; selectionEndOffset: number; textStartPositionWithinEditor: Position } | undefined {
 		const model = this._context.viewModel.model;
+		if (!model.isValidRange(this._primarySelection)) {
+			return;
+		}
 		const primarySelectionStartLine = this._primarySelection.startLineNumber;
 		const primarySelectionEndLine = this._primarySelection.endLineNumber;
 		const endColumnOfEndLineNumber = model.getLineMaxColumn(primarySelectionEndLine);
