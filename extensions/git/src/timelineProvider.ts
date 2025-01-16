@@ -12,7 +12,7 @@ import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
 import { getCommitShortHash } from './util';
 import { CommitShortStat } from './git';
-import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceLinks } from './remoteSource';
+import { provideRemoteSourceLinks } from './remoteSource';
 import { provideSourceControlHistoryItemHoverCommands } from './historyItemDetailProvider';
 
 export class GitTimelineItem extends TimelineItem {

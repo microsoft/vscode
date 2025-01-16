@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from 'vscode';
 import { PickRemoteSourceOptions, PickRemoteSourceResult } from './typings/git-base';
 import { GitBaseApi } from './git-base';
 import { Repository } from './repository';
@@ -16,23 +15,6 @@ export async function pickRemoteSource(options: PickRemoteSourceOptions = {}): P
 
 export async function getRemoteSourceActions(url: string) {
 	return GitBaseApi.getAPI().getRemoteSourceActions(url);
-}
-
-export async function getRemoteSourceControlHistoryItemCommands(repository: Repository): Promise<Command[]> {
-	if (repository.remotes.length === 0) {
-		return [];
-	}
-
-	const getCommands = async (repository: Repository, remoteName: string): Promise<Command[] | undefined> => {
-		const remote = repository.remotes.find(r => r.name === remoteName && r.fetchUrl);
-		return remote ? GitBaseApi.getAPI().getRemoteSourceControlHistoryItemCommands(remote.fetchUrl!) : undefined;
-	};
-
-	// upstream -> origin -> first
-	return await getCommands(repository, 'upstream')
-		?? await getCommands(repository, 'origin')
-		?? await getCommands(repository, repository.remotes[0].name)
-		?? [];
 }
 
 export async function provideRemoteSourceLinks(repository: Repository, content: string): Promise<string | undefined> {

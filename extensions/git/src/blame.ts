@@ -12,7 +12,7 @@ import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
-import { getRemoteSourceControlHistoryItemCommands, provideRemoteSourceLinks } from './remoteSource';
+import { provideRemoteSourceLinks } from './remoteSource';
 import { provideSourceControlHistoryItemHoverCommands } from './historyItemDetailProvider';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
