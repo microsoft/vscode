@@ -23,6 +23,7 @@ import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
 import { ViewGpuContext } from './viewGpuContext.js';
 import { Color } from '../../../base/common/color.js';
+import type { IntlWordSegmentData } from '../../common/core/wordCharacterClassifier.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -269,6 +270,9 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		let tokens: IViewLineTokens;
 
 		const dpr = getActiveWindow().devicePixelRatio;
+		const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+		let segmenterIndex = 0;
+		let segmentedContent: Intl.SegmentData[];
 
 		if (!this._scrollInitialized) {
 			this.onScrollChanged();
@@ -344,6 +348,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			content = lineData.content;
 			xOffset = 0;
 
+			// Don't need to use the segmenter for non-ASCII content
+			if (!lineData.isBasicASCII) {
+				segmentedContent = Array.from(segmenter.segment(content));
+			}
+
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;
 			tokenEndIndex = 0;
@@ -356,12 +365,29 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 				tokenMetadata = tokens.getMetadata(tokenIndex);
 
+				segmenterIndex = 0;
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
 					// TODO: This needs to move to a dynamic long line rendering strategy
 					if (x > this._viewGpuContext.maxGpuCols) {
 						break;
 					}
-					chars = content.charAt(x);
+
+					if (lineData.isBasicASCII) {
+						chars = content.charAt(x);
+					} else {
+						const segment = segmentedContent![segmenterIndex];
+
+						// No more segments in the string (eg. an emoji is the last segment)
+						if (!segment) {
+							break;
+						}
+						if (segment.index !== x) {
+							continue;
+						}
+						segmenterIndex++;
+						chars = segment.segment;
+					}
+
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
 					decorationStyleSetOpacity = undefined;
