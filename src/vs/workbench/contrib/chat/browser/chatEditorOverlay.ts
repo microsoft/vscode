@@ -14,7 +14,7 @@ import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionView
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
-import { $, append, EventLike, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseMoveListener, append, EventLike, reset } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -127,16 +127,29 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 							super.render(container);
 
 							if (action.id === AcceptAction.ID) {
-								assertType(this.label);
-								assertType(this.element);
 
+								const listener = this._store.add(new MutableDisposable());
+
+								let timeIsSet = false;
 								this._store.add(autorun(r => {
-									const value = that._entry.read(r)?.entry.autoAcceptCountdown.read(r);
-									this.label!.innerText = value === undefined
-										? this.action.label
-										: localize('pattern', "{0} ({1})", this.action.label, value);
 
-									this.element?.classList.toggle('auto', !!value);
+									assertType(this.label);
+									assertType(this.element);
+
+									const ctrl = that._entry.read(r)?.entry.autoAcceptController.read(r);
+									if (ctrl) {
+
+										if (!timeIsSet) {
+											this.element.style.setProperty('--vscode-action-item-auto-timeout', `${ctrl.remaining}s`);
+											timeIsSet = true;
+										}
+
+										this.element.classList.toggle('auto', true);
+										listener.value = addDisposableGenericMouseMoveListener(this.element, () => ctrl.cancel());
+									} else {
+										this.element.classList.toggle('auto', false);
+										listener.clear();
+									}
 								}));
 							}
 						}

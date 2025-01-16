@@ -13,6 +13,24 @@ export interface ISourceControlHistoryItemDetailsProviderRegistry {
 	getSourceControlHistoryItemDetailsProviders(): SourceControlHistoryItemDetailsProvider[];
 }
 
+export async function provideSourceControlHistoryItemAvatar(
+	registry: ISourceControlHistoryItemDetailsProviderRegistry,
+	repository: Repository,
+	commit: string,
+	authorName?: string,
+	authorEmail?: string
+): Promise<string | undefined> {
+	for (const provider of registry.getSourceControlHistoryItemDetailsProviders()) {
+		const result = await provider.provideAvatar(new ApiRepository(repository), commit, authorName, authorEmail);
+
+		if (result) {
+			return result;
+		}
+	}
+
+	return undefined;
+}
+
 export async function provideSourceControlHistoryItemHoverCommands(
 	registry: ISourceControlHistoryItemDetailsProviderRegistry,
 	repository: Repository

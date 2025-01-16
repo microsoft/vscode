@@ -23,6 +23,40 @@ export class DisposableStore {
 	}
 }
 
+function decorate(decorator: (fn: Function, key: string) => Function): Function {
+	return (_target: any, key: string, descriptor: any) => {
+		let fnKey: string | null = null;
+		let fn: Function | null = null;
+
+		if (typeof descriptor.value === 'function') {
+			fnKey = 'value';
+			fn = descriptor.value;
+		} else if (typeof descriptor.get === 'function') {
+			fnKey = 'get';
+			fn = descriptor.get;
+		}
+
+		if (!fn || !fnKey) {
+			throw new Error('not supported');
+		}
+
+		descriptor[fnKey] = decorator(fn, key);
+	};
+}
+
+function _sequentialize(fn: Function, key: string): Function {
+	const currentKey = `__$sequence$${key}`;
+
+	return function (this: any, ...args: any[]) {
+		const currentPromise = this[currentKey] as Promise<any> || Promise.resolve(null);
+		const run = async () => await fn.apply(this, args);
+		this[currentKey] = currentPromise.then(run, run);
+		return this[currentKey];
+	};
+}
+
+export const sequentialize = decorate(_sequentialize);
+
 export function getRepositoryFromUrl(url: string): { owner: string; repo: string } | undefined {
 	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url)
 		|| /^git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);

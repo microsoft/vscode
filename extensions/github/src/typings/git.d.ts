@@ -290,6 +290,7 @@ export interface BranchProtectionProvider {
 }
 
 export interface SourceControlHistoryItemDetailsProvider {
+	provideAvatar(repository: Repository, commit: string, authorName?: string, authorEmail?: string): Promise<string | undefined>;
 	provideHoverCommands(repository: Repository): Promise<Command[] | undefined>;
 	provideMessageLinks(repository: Repository, message: string): Promise<string | undefined>;
 }
