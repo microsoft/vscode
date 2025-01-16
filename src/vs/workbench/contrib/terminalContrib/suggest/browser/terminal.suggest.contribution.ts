@@ -278,6 +278,7 @@ registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.ToggleDetailsFocus,
 	title: localize2('workbench.action.terminal.suggestToggleDetailsFocus', 'Suggest Toggle Suggestion Focus'),
 	f1: false,
+	// HACK: This does not work with a precondition of `TerminalContextKeys.suggestWidgetVisible`, so make sure to not override the editor's keybinding
 	precondition: EditorContextKeys.textInputFocus.negate(),
 	keybinding: {
 		weight: KeybindingWeight.WorkbenchContrib,
