@@ -154,7 +154,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
 		}
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-		this.add(dom.addDisposableListener(this._ctx.instance.domElement, 'focusout', (e) => {
+		this.add(dom.addDisposableListener(this._ctx.instance.domElement, 'blur', (e) => {
 			const relatedTarget = e.relatedTarget as HTMLElement;
 			if (relatedTarget.className !== 'suggest-details') {
 				addon.hideSuggestWidget();
