@@ -23,6 +23,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { UpdateBannerContribution } from './updateBanner.js';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -233,3 +234,7 @@ if (isWindows) {
 
 	registerAction2(DeveloperApplyUpdateAction);
 }
+
+// Register Update Banner Contribution
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(UpdateBannerContribution, LifecyclePhase.Restored);
