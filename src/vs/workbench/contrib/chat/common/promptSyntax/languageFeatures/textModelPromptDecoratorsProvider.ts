@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel } from '../../../../editor/common/model.js';
-import { IEditorModel } from '../../../../editor/common/editorCommon.js';
+import { BasePromptParser } from '../parsers/basePromptParser.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
 import { TextModelPromptDecorator } from './textModelPromptDecorator.js';
-import { BasePromptParser } from './promptSyntax/parsers/basePromptParser.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorModel } from '../../../../../../editor/common/editorCommon.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { Disposable, DisposableMap } from '../../../../../../base/common/lifecycle.js';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
 
 /**
- * TODO: @legomushroom
- *
- * 	- move to the correct place
- * 	- add unit tests
+ * TODO: @legomushroom - add unit tests
  */
 
 /**
@@ -61,7 +61,8 @@ export class TextModelPromptDecoratorsProvider extends Disposable {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Initialize the decorators provider for the given editor model,
+	 * if the model drives a prompt file.
 	 */
 	private handleModel(editorModel: IEditorModel): this {
 		// we support only `text editors` for now so filter out `diff` ones
@@ -75,12 +76,13 @@ export class TextModelPromptDecoratorsProvider extends Disposable {
 		}
 
 		let decorator = this.decorators.get(editorModel);
+
 		// if a valid prompt editor exists, nothing to do
 		if (decorator && !decorator.disposed) {
 			return this;
 		}
 
-		// Note! TODO: @legomushroom - add description on why we check if disposed
+		// if the decorator instance is already disposed, delete it
 		if (decorator?.disposed) {
 			this.deleteDecorator(editorModel);
 		}
@@ -89,7 +91,7 @@ export class TextModelPromptDecoratorsProvider extends Disposable {
 		decorator = this.instantiationService.createInstance(TextModelPromptDecorator, editorModel);
 		this.decorators.set(editorModel, decorator);
 
-		// automatically delete a disposed prompt editor
+		// automatically delete a decorator reference when it is disposed
 		decorator.onDispose(this.deleteDecorator.bind(this, editorModel));
 
 		return this;
@@ -104,3 +106,7 @@ export class TextModelPromptDecoratorsProvider extends Disposable {
 		return this;
 	}
 }
+
+// register the text model prompt decorators provider as a workbench contribution
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(TextModelPromptDecoratorsProvider, LifecyclePhase.Eventually);

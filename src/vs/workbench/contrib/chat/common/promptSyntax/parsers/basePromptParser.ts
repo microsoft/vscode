@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptFileReference } from './types.js';
+import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { IPromptFileReference, IResolveError } from './types.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
+import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
+import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { basename, extUri } from '../../../../../../base/common/resources.js';
@@ -17,7 +20,17 @@ import { FilePromptContentProvider } from '../contentProviders/filePromptContent
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError } from '../../promptFileReferenceErrors.js';
+import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
+
+/**
+ * Well-known localized error messages.
+ */
+const errorMessages = {
+	recursion: localize('chatPromptInstructionsRecursiveReference', 'Recursive reference found'),
+	fileOpenFailed: localize('chatPromptInstructionsFileOpenFailed', 'Failed to open file'),
+	streamOpenFailed: localize('chatPromptInstructionsStreamOpenFailed', 'Failed to open contents stream'),
+	brokenChild: localize('chatPromptInstructionsBrokenReference', 'Contains a broken reference that will be ignored'),
+};
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -152,9 +165,6 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		// set the flag indicating that reference resolution was attempted
 		this._resolveAttempted = true;
 
-		// prefix for all log messages produced by this callback
-		const logPrefix = `[prompt parser][${basename(this.uri)}]`;
-
 		// dispose all currently existing references
 		this.disposeReferences();
 
@@ -172,15 +182,9 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		// decode the byte stream to a stream of prompt tokens
 		const stream = ChatPromptCodec.decode(streamOrError);
 
-		// on error or stream end, dispose the stream
-		stream.on('error', (error) => {
-			stream.dispose();
-
-			this.logService.warn(
-				`${logPrefix} received an error on the chat prompt decoder stream: ${error}`,
-			);
-		});
-		stream.on('end', stream.dispose.bind(stream));
+		// on error or stream end, dispose the stream and fire the update event
+		stream.on('error', this.onStreamEnd.bind(this, stream));
+		stream.on('end', this.onStreamEnd.bind(this, stream));
 
 		// when some tokens received, process and store the references
 		stream.on('data', (token) => {
@@ -198,7 +202,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		// calling `start` on a disposed stream throws, so we warn and return instead
 		if (stream.disposed) {
 			this.logService.warn(
-				`${logPrefix} cannot start stream that has been already disposed, aborting`,
+				`[prompt parser][${basename(this.uri)}] cannot start stream that has been already disposed, aborting`,
 			);
 
 			return;
@@ -222,6 +226,27 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 
 		fileReference.onUpdate(this._onUpdate.fire);
 		fileReference.start();
+
+		this._onUpdate.fire();
+
+		return this;
+	}
+
+	/**
+	 * Handle the `stream` end event.
+	 *
+	 * @param stream The stream that has ended.
+	 * @param error Optional error object if stream ended with an error.
+	 */
+	private onStreamEnd(
+		stream: ChatPromptDecoder,
+		error?: Error,
+	): this {
+		stream.dispose();
+
+		this.logService.warn(
+			`[prompt parser][${basename(this.uri)}]} received an error on the chat prompt decoder stream: ${error}`,
+		);
 
 		this._onUpdate.fire();
 
@@ -296,7 +321,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 
 	/**
 	 * Get a list of all references of the prompt, including
-	 * all possible nested references its children may contain.
+	 * all possible nested references its children may have.
 	 */
 	public get allReferences(): readonly IPromptFileReference[] {
 		const result: IPromptFileReference[] = [];
@@ -329,6 +354,111 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	public get allValidReferencesUris(): readonly URI[] {
 		return this.allValidReferences
 			.map(child => child.uri);
+	}
+
+	/**
+	 * List of all errors that occurred while resolving the current
+	 * reference including all possible errors of nested children.
+	 */
+	public get allErrors(): ParseError[] {
+		const result: ParseError[] = [];
+
+		// collect error conditions of all child references
+		const childErrorConditions = this
+			// get entire reference tree
+			.allReferences
+			// filter out children without error conditions or
+			// the ones that are non-prompt snippet files
+			.filter((childReference) => {
+				const { errorCondition } = childReference;
+
+				return errorCondition && !(errorCondition instanceof NonPromptSnippetFile);
+			})
+			// map to error condition objects
+			.map((childReference): ParseError => {
+				const { errorCondition } = childReference;
+
+				// `must` always be `true` because of the `filter` call above
+				assertDefined(
+					errorCondition,
+					`Error condition must be present for '${childReference.uri.path}'.`,
+				);
+
+				return errorCondition;
+			});
+		result.push(...childErrorConditions);
+
+		return result;
+	}
+
+	/**
+	 * The top most error of the current reference or any of its
+	 * possible child reference errors.
+	 */
+	public get topError(): IResolveError | undefined {
+		// get all errors, including error of this object
+		const errors = [];
+		if (this.errorCondition) {
+			errors.push(this.errorCondition);
+		}
+		errors.push(...this.allErrors);
+
+		// if no errors, nothing to do
+		if (errors.length === 0) {
+			return undefined;
+		}
+
+
+		// if the first error is the error of the root reference,
+		// then return it as an `error` otherwise use `warning`
+		const [firstError, ...restErrors] = errors;
+		const isRootError = (firstError === this.errorCondition);
+
+		// if a child error - the error is somewhere in the nested references tree,
+		// then use message prefix to highlight that this is not a root error
+		const prefix = (!isRootError)
+			? `${errorMessages.brokenChild}: `
+			: '';
+
+		const moreSuffix = restErrors.length > 0
+			? `\n-\n +${restErrors.length} more error${restErrors.length > 1 ? 's' : ''}`
+			: '';
+
+		const errorMessage = this.getErrorMessage(firstError);
+		return {
+			isRootError,
+			message: `${prefix}${errorMessage}${moreSuffix}`,
+		};
+	}
+
+	/**
+	 * Get message for the provided error condition object.
+	 *
+	 * @param error Error object.
+	 * @returns Error message.
+	 */
+	protected getErrorMessage(error: ParseError): string {
+		// if failed to resolve prompt contents stream, return
+		// the approprivate message and the prompt path
+		if (error instanceof FailedToResolveContentsStream) {
+			return `${errorMessages.streamOpenFailed} '${error.uri.path}'.`;
+		}
+
+		// if a recursion, provide the entire recursion path so users
+		// can use it for the debugging purposes
+		if (error instanceof RecursiveReference) {
+			const { recursivePath } = error;
+
+			const recursivePathString = recursivePath
+				.map((path) => {
+					return basename(URI.file(path));
+				})
+				.join(' -> ');
+
+			return `${errorMessages.recursion}:\n${recursivePathString}`;
+		}
+
+		return error.message;
 	}
 
 	/**
@@ -409,5 +539,17 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 			: 'md-link:';
 
 		return `${prefix}${this.uri.path}`;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	protected override getErrorMessage(error: ParseError): string {
+		// if failed to open a file, return approprivate message and the file path
+		if (error instanceof FileOpenFailed) {
+			return `${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
+		}
+
+		return super.getErrorMessage(error);
 	}
 }

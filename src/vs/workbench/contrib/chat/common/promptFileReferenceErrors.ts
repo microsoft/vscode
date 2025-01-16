@@ -49,10 +49,9 @@ export class FailedToResolveContentsStream extends ParseError {
 	constructor(
 		public readonly uri: URI,
 		public readonly originalError: unknown,
+		message: string = `Failed to resolve prompt contents stream for '${uri.toString()}': ${originalError}.`,
 	) {
-		super(
-			`Failed to resolve prompt contents stream for '${uri.toString()}': ${originalError}.`,
-		);
+		super(message);
 	}
 }
 
@@ -75,15 +74,16 @@ export abstract class ResolveError extends ParseError {
 /**
  * Error that reflects the case when attempt to open target file fails.
  */
-export class FileOpenFailed extends ResolveError {
+export class FileOpenFailed extends FailedToResolveContentsStream {
 	public override errorType = 'FileOpenError';
 
 	constructor(
 		uri: URI,
-		public readonly originalError: unknown,
+		originalError: unknown,
 	) {
 		super(
 			uri,
+			originalError,
 			`Failed to open file '${uri.toString()}': ${originalError}.`,
 		);
 	}

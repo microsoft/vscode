@@ -97,7 +97,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this.renderDisposables.clear();
 		this.domNode.classList.remove('warning', 'error', 'disabled');
 
-		const { enabled, resolveIssue: errorCondition } = this.model;
+		const { enabled, topError } = this.model;
 		if (!enabled) {
 			this.domNode.classList.add('disabled');
 		}
@@ -120,11 +120,15 @@ export class InstructionsAttachmentWidget extends Disposable {
 		// if there are some errors/warning during the process of resolving
 		// attachment references (including all the nested child references),
 		// add the issue details in the hover title for the attachment
-		if (errorCondition) {
-			const { type, message: details } = errorCondition;
-			this.domNode.classList.add(type);
+		if (topError) {
+			const { isRootError, message: details } = topError;
+			const isWarning = !isRootError;
 
-			const errorCaption = type === 'warning'
+			this.domNode.classList.add(
+				(isWarning) ? 'error' : 'warning',
+			);
+
+			const errorCaption = (isWarning)
 				? localize('warning', "Warning")
 				: localize('error', "Error");
 
