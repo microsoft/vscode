@@ -32,7 +32,7 @@ function getBuiltinCommands(shell: string, existingCommands?: Set<string>): ICom
 		if (cachedCommands) {
 			return cachedCommands;
 		}
-		const filter = (cmd: string) => cmd;
+		const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
 		let commands: string[] | undefined;
 		switch (shellType) {
@@ -67,7 +67,7 @@ function getBuiltinCommands(shell: string, existingCommands?: Set<string>): ICom
 			}
 		}
 
-		const commandResources = commands?.filter(c => !existingCommands?.has(c)).map(command => ({ label: command }));
+		const commandResources = commands?.map(command => ({ label: command }));
 		cachedBuiltinCommands.set(shellType, commandResources);
 		return commandResources;
 
