@@ -246,6 +246,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		// dropped frames.
 
 		let chars = '';
+		let segment: string | undefined;
 		let charWidth = 0;
 		let y = 0;
 		let x = 0;
@@ -367,11 +368,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					if (x > this._viewGpuContext.maxGpuCols) {
 						break;
 					}
-					const s = contentSegmenter.getSegmentAtIndex(x);
-					if (s === undefined) {
+					segment = contentSegmenter.getSegmentAtIndex(x);
+					if (segment === undefined) {
 						continue;
 					}
-					chars = s;
+					chars = segment;
 
 					if (!lineData.isBasicASCII) {
 						charWidth = this._glyphRasterizer.value.getTextMetrics(chars).width;
