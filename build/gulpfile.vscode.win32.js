@@ -19,7 +19,7 @@ const rcedit = require('rcedit');
 
 const repoPath = path.dirname(__dirname);
 const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
-const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
+const setupDir = (/** @type {string} */ arch) => path.join(repoPath, '.build', `win32-${arch}`, "setup");
 const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
 const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32');
@@ -61,25 +61,16 @@ function packageInnoSetup(iss, options, cb) {
 
 /**
  * @param {string} arch
- * @param {string} target
  */
-function buildWin32Setup(arch, target) {
-	if (target !== 'system' && target !== 'user') {
-		throw new Error('Invalid setup target');
-	}
-
+function buildWin32Setup(arch) {
 	return cb => {
-		const x64AppId = target === 'system' ? product.win32x64AppId : product.win32x64UserAppId;
-		const arm64AppId = target === 'system' ? product.win32arm64AppId : product.win32arm64UserAppId;
-
 		const sourcePath = buildPath(arch);
-		const outputPath = setupDir(arch, target);
+		const outputPath = setupDir(arch);
 		fs.mkdirSync(outputPath, { recursive: true });
 
 		const originalProductJsonPath = path.join(sourcePath, 'resources/app/product.json');
 		const productJsonPath = path.join(outputPath, 'product.json');
 		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
-		productJson['target'] = target;
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
 		const quality = product.quality || 'dev';
@@ -89,7 +80,7 @@ function buildWin32Setup(arch, target) {
 			DirName: product.win32DirName,
 			Version: pkg.version,
 			RawVersion: pkg.version.replace(/-\w+$/, ''),
-			NameVersion: product.win32NameVersion + (target === 'user' ? ' (User)' : ''),
+			NameVersion: product.win32NameVersion, // todo: + ' (User)'
 			ExeBasename: product.nameShort,
 			RegValueName: product.win32RegValueName,
 			ShellNameShort: product.win32ShellNameShort,
@@ -99,15 +90,14 @@ function buildWin32Setup(arch, target) {
 			TunnelApplicationName: product.tunnelApplicationName,
 			ApplicationName: product.applicationName,
 			Arch: arch,
-			AppId: { 'x64': x64AppId, 'arm64': arm64AppId }[arch],
-			IncompatibleTargetAppId: { 'x64': product.win32x64AppId, 'arm64': product.win32arm64AppId }[arch],
+			SystemTargetAppId: { 'x64': product.win32x64AppId, 'arm64': product.win32arm64AppId }[arch],
+			UserTargetAppId: { 'x64': product.win32x64UserAppId, 'arm64': product.win32arm64UserAppId }[arch],
 			AppUserId: product.win32AppUserModelId,
 			ArchitecturesAllowed: { 'x64': 'x64', 'arm64': 'arm64' }[arch],
 			ArchitecturesInstallIn64BitMode: { 'x64': 'x64', 'arm64': 'arm64' }[arch],
 			SourceDir: sourcePath,
 			RepoDir: repoPath,
 			OutputDir: outputPath,
-			InstallTarget: target,
 			ProductJsonPath: productJsonPath,
 			Quality: quality
 		};
@@ -123,17 +113,14 @@ function buildWin32Setup(arch, target) {
 
 /**
  * @param {string} arch
- * @param {string} target
  */
-function defineWin32SetupTasks(arch, target) {
-	const cleanTask = util.rimraf(setupDir(arch, target));
-	gulp.task(task.define(`vscode-win32-${arch}-${target}-setup`, task.series(cleanTask, buildWin32Setup(arch, target))));
+function defineWin32SetupTasks(arch) {
+	const cleanTask = util.rimraf(setupDir(arch));
+	gulp.task(task.define(`vscode-win32-${arch}-setup`, task.series(cleanTask, buildWin32Setup(arch))));
 }
 
-defineWin32SetupTasks('x64', 'system');
-defineWin32SetupTasks('arm64', 'system');
-defineWin32SetupTasks('x64', 'user');
-defineWin32SetupTasks('arm64', 'user');
+defineWin32SetupTasks('x64');
+defineWin32SetupTasks('arm64');
 
 /**
  * @param {string} arch

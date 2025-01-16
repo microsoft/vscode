@@ -5,7 +5,9 @@
       : '; LicenseFile: "' + RepoDir + '\' + RootLicenseFileName + '"'
 
 [Setup]
-AppId={#AppId}
+UsePreviousLanguage=no
+UsePreviousPrivileges=no
+AppId={code:GetAppId}
 AppName={#NameLong}
 AppVerName={#NameVersion}
 AppPublisher=Microsoft Corporation
@@ -1288,6 +1290,15 @@ Root: HKA; Subkey: "Software\Classes\Drive\shell\{#RegValueName}\command"; Value
 Root: HKA; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; ValueName: "Path"; ValueData: "{code:AddToPath|{app}\bin}"; Tasks: addtopath; Check: NeedsAddToPath(ExpandConstant('{app}\bin'))
 
 [Code]
+function GetAppId(const Value: string): string;
+begin
+  if IsAdminInstallMode() then
+    Result := '{#SystemTargetAppId}'
+  else
+    Result := '{#UserTargetAppId}';
+end;
+
+
 function IsBackgroundUpdate(): Boolean;
 begin
   Result := ExpandConstant('{param:update|false}') <> 'false';
@@ -1321,7 +1332,7 @@ begin
     #endif
 
     if Result and not WizardSilent() then begin
-      RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleTargetAppId}', 2, 38) + '_is1';
+      RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#SystemTargetAppId}', 2, 38) + '_is1';
 
       if RegKeyExists({#IncompatibleArchRootKey}, RegKey) then begin
         if MsgBox('{#NameShort} is already installed on this system for all users. We recommend first uninstalling that version before installing this one. Are you sure you want to continue the installation?', mbConfirmation, MB_YESNO) = IDNO then begin
