@@ -155,11 +155,12 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, 'focusout', (e) => {
-			const relatedTarget = e.relatedTarget as HTMLElement;
-			if (relatedTarget.className !== SuggestDetailsClassName) {
-				// If the focus is not on the suggest details, hide the suggest widget
-				addon.hideSuggestWidget();
+			const focusedElement = e.relatedTarget as HTMLElement;
+			if (focusedElement.className === SuggestDetailsClassName) {
+				// Don't hide the suggest widget if the focus is moving to the details
+				return;
 			}
+			addon.hideSuggestWidget();
 		}));
 		this.add(addon.onAcceptedCompletion(async text => {
 			this._ctx.instance.focus();
