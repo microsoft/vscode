@@ -54,8 +54,6 @@ const enum WidgetPositionPreference {
 
 export const SimpleSuggestContext = {
 	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('simpleSuggestWidgetHasFocusedSuggestion', "Whether any simple suggestion is focused")),
-	DetailsVisible: new RawContextKey<boolean>('simpleSuggestWidgetDetailsVisible', false, localize('simpleSuggestWidgetDetailsVisible', "Whether the details of a simple suggestion are visible")),
-	DetailsFocused: new RawContextKey<boolean>('simpleSuggestWidgetDetailsFocused', false, localize('simpleSuggestWidgetDetailsFocused', "Whether the details of a simple suggestion are focused")),
 };
 
 export interface IWorkbenchSuggestWidgetOptions {
@@ -104,8 +102,6 @@ export class SimpleSuggestWidget extends Disposable {
 	get list(): List<SimpleCompletionItem> { return this._list; }
 
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
-	private readonly _ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
-	private readonly _ctxSuggestWidgetDetailsFocused: IContextKey<boolean>;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -124,8 +120,6 @@ export class SimpleSuggestWidget extends Disposable {
 		this._container.appendChild(this.element.domNode);
 
 		this._ctxSuggestWidgetHasFocusedSuggestion = SimpleSuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
-		this._ctxSuggestWidgetDetailsVisible = SimpleSuggestContext.DetailsVisible.bindTo(_contextKeyService);
-		this._ctxSuggestWidgetDetailsFocused = SimpleSuggestContext.DetailsFocused.bindTo(_contextKeyService);
 
 		class ResizeState {
 			constructor(
@@ -229,8 +223,7 @@ export class SimpleSuggestWidget extends Disposable {
 		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget));
 		this._register(details.onDidClose(() => this.toggleDetails()));
 		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
-		dom.addDisposableListener(this._details.widget.domNode, 'focus', () => this._ctxSuggestWidgetDetailsFocused.set(true));
-		dom.addDisposableListener(this._details.widget.domNode, 'blur', () => this._ctxSuggestWidgetDetailsFocused.reset());
+
 		if (options.statusBarMenuId) {
 			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
@@ -538,7 +531,7 @@ export class SimpleSuggestWidget extends Disposable {
 		if (this._isDetailsVisible()) {
 			// hide details widget
 			this._pendingShowDetails.clear();
-			this._ctxSuggestWidgetDetailsVisible.set(false);
+			// this._ctxSuggestWidgetDetailsVisible.set(false);
 
 			this._setDetailsVisible(false);
 			this._details.hide();
@@ -546,7 +539,8 @@ export class SimpleSuggestWidget extends Disposable {
 
 		} else if ((canExpandCompletionItem(this._list.getFocusedElements()[0]) || this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
 			// show details widget (iff possible)
-			this._ctxSuggestWidgetDetailsVisible.set(true);
+			// this._ctxSuggestWidgetDetailsVisible.set(true);
+
 			this._setDetailsVisible(true);
 			this._showDetails(false, focused);
 		}
