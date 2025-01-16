@@ -25,7 +25,7 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
-function getBuiltinCommands(shell: string): ICompletionResource[] | undefined {
+function getBuiltinCommands(shell: string, existingCommands?: Set<string>): ICompletionResource[] | undefined {
 	try {
 		const shellType = path.basename(shell, path.extname(shell));
 		const cachedCommands = cachedBuiltinCommands.get(shellType);
@@ -67,7 +67,7 @@ function getBuiltinCommands(shell: string): ICompletionResource[] | undefined {
 			}
 		}
 
-		const commandResources = commands?.map(command => ({ label: command }));
+		const commandResources = commands?.filter(c => !existingCommands?.has(c)).map(command => ({ label: command }));
 		cachedBuiltinCommands.set(shellType, commandResources);
 		return commandResources;
 
@@ -92,11 +92,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
-			const builtinCommands = getBuiltinCommands(shellPath);
-			if (!commandsInPath || !builtinCommands) {
+			const builtinCommands = getBuiltinCommands(shellPath, commandsInPath?.labels) ?? [];
+			if (!commandsInPath?.result) {
 				return;
 			}
-			const commands = [...commandsInPath, ...builtinCommands];
+			const commands = [...commandsInPath.result, ...builtinCommands];
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 
@@ -203,9 +203,10 @@ interface ICompletionResource {
 	label: string;
 	path?: string;
 }
-async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<Set<ICompletionResource> | undefined> {
+async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ result: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 	// Get PATH value
 	let pathValue: string | undefined;
+	const labels: Set<string> = new Set<string>();
 	if (osIsWindows()) {
 		const caseSensitivePathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
 		if (caseSensitivePathKey) {
@@ -220,7 +221,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 
 	// Check cache
 	if (cachedAvailableCommands && cachedAvailableCommandsPath === pathValue) {
-		return cachedAvailableCommands;
+		return { result: cachedAvailableCommands, labels };
 	}
 
 	// Extract executables from PATH
@@ -237,8 +238,9 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 
 			for (const [file, fileType] of files) {
-				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file)) {
+				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file)) {
 					executables.add({ label: file, path });
+					labels.add(file);
 				}
 			}
 		} catch (e) {
@@ -247,7 +249,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 		}
 	}
 	cachedAvailableCommands = executables;
-	return executables;
+	return { result: executables, labels };
 }
 
 function getPrefix(commandLine: string, cursorPosition: number): string {
