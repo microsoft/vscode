@@ -418,14 +418,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				listInactiveFocusOutline: activeContrastBorder
 			}));
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
-			this._register(this._suggestWidget.onDidHide(() => {
-				this._terminalSuggestWidgetVisibleContextKey.set(false);
-				console.log('hide');
-			}));
-			this._register(this._suggestWidget.onDidShow(() => {
-				this._terminalSuggestWidgetVisibleContextKey.set(true);
-				console.log('show');
-			}));
+			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
+			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
 			this._terminalSuggestWidgetVisibleContextKey.set(false);
 		}
 		return this._suggestWidget;
