@@ -229,14 +229,8 @@ export class SimpleSuggestWidget extends Disposable {
 		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget));
 		this._register(details.onDidClose(() => this.toggleDetails()));
 		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
-		dom.addDisposableListener(this._details.widget.domNode, 'focus', () => {
-			this._ctxSuggestWidgetDetailsFocused.set(true);
-			console.log('focus');
-		});
-		dom.addDisposableListener(this._details.widget.domNode, 'blur', () => {
-			this._ctxSuggestWidgetDetailsFocused.reset();
-			console.log('blur');
-		});
+		dom.addDisposableListener(this._details.widget.domNode, 'focus', () => this._ctxSuggestWidgetDetailsFocused.set(true));
+		dom.addDisposableListener(this._details.widget.domNode, 'blur', () => this._ctxSuggestWidgetDetailsFocused.reset());
 		if (options.statusBarMenuId) {
 			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
@@ -529,15 +523,12 @@ export class SimpleSuggestWidget extends Disposable {
 		if (this._state === State.Details) {
 			// Should return the focus to the list item.
 			this._list.setFocus(this._list.getFocus());
-			console.log('setting list focused');
 			this._setState(State.Open);
 		} else if (this._state === State.Open) {
 			this._setState(State.Details);
 			if (!this._isDetailsVisible()) {
-				console.log('details visible');
 				this.toggleDetails(true);
 			} else {
-				console.log('focusing details');
 				this._details.widget.focus();
 			}
 		}
