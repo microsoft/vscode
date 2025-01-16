@@ -589,12 +589,7 @@ export class SimpleSuggestWidget extends Disposable {
 		}
 	}
 
-	hide(fromContainerBlurEvent?: boolean): void {
-		if (fromContainerBlurEvent && this._state === State.Details) {
-			// The container might try to hide the widget when it loses focus.
-			// It should not do that when the details widget is focused.
-			return;
-		}
+	hide(): void {
 		this._pendingLayout.clear();
 		this._pendingShowDetails.clear();
 		// this._loadingTimeout?.dispose();
