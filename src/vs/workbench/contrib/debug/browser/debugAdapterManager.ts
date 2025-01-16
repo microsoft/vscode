@@ -25,7 +25,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { Breakpoints } from '../common/breakpoints.js';
-import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from '../common/debug.js';
+import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IConfigurationManager, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, IGuessedDebugger, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from '../common/debug.js';
 import { Debugger } from '../common/debugger.js';
 import { breakpointsExtPoint, debuggersExtPoint, launchSchema, presentationSchema } from '../common/debugSchemas.js';
 import { TaskDefinitionRegistry } from '../../tasks/common/taskDefinitionRegistry.js';
@@ -39,6 +39,7 @@ const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONC
 
 export interface IAdapterManagerDelegate {
 	onDidNewSession: Event<IDebugSession>;
+	configurationManager(): IConfigurationManager;
 }
 
 export class AdapterManager extends Disposable implements IAdapterManager {
@@ -60,7 +61,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private usedDebugTypes = new Set<string>();
 
 	constructor(
-		delegate: IAdapterManagerDelegate,
+		private readonly delegate: IAdapterManagerDelegate,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -340,7 +341,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			.find(a => a.interestedInLanguage(languageId));
 	}
 
-	async guessDebugger(gettingConfigurations: boolean): Promise<Debugger | undefined> {
+	async guessDebugger(gettingConfigurations: boolean): Promise<IGuessedDebugger | undefined> {
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let candidates: Debugger[] = [];
 		let languageLabel: string | null = null;
@@ -355,7 +356,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				.filter(a => a.enabled)
 				.filter(a => language && a.interestedInLanguage(language));
 			if (adapters.length === 1) {
-				return adapters[0];
+				return { debugger: adapters[0] };
 			}
 			if (adapters.length > 1) {
 				candidates = adapters;
@@ -407,11 +408,12 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			}
 		});
 
-		const picks: ({ label: string; debugger?: Debugger; type?: string } | MenuItemAction)[] = [];
+		const picks: ({ label: string; pick?: () => IGuessedDebugger | Promise<IGuessedDebugger | undefined>; type?: string } | MenuItemAction)[] = [];
+		const dynamic = await this.delegate.configurationManager().getDynamicProviders();
 		if (suggestedCandidates.length > 0) {
 			picks.push(
 				{ type: 'separator', label: nls.localize('suggestedDebuggers', "Suggested") },
-				...suggestedCandidates.map(c => ({ label: c.label, debugger: c })));
+				...suggestedCandidates.map(c => ({ label: c.label, pick: () => ({ debugger: c }) })));
 		}
 
 		if (otherCandidates.length > 0) {
@@ -419,12 +421,30 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				picks.push({ type: 'separator', label: '' });
 			}
 
-			picks.push(...otherCandidates.map(c => ({ label: c.label, debugger: c })));
+			picks.push(...otherCandidates.map(c => ({ label: c.label, pick: () => ({ debugger: c }) })));
+		}
+
+		if (dynamic.length) {
+			if (picks.length) {
+				picks.push({ type: 'separator', label: '' });
+			}
+
+			for (const d of dynamic) {
+				picks.push({
+					label: nls.localize('moreOptionsForDebugType', "More {0} options...", d.label),
+					pick: async (): Promise<IGuessedDebugger | undefined> => {
+						const cfg = await d.pick();
+						if (!cfg) { return undefined; }
+						return cfg && { debugger: this.getDebugger(d.type)!, withConfig: cfg };
+					},
+				});
+			}
 		}
 
 		picks.push(
 			{ type: 'separator', label: '' },
-			{ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
+			{ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") }
+		);
 
 		const contributed = this.menuService.getMenuActions(MenuId.DebugCreateConfiguration, this.contextKeyService);
 		for (const [, action] of contributed) {
@@ -432,20 +452,24 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				picks.push(item);
 			}
 		}
+
 		const placeHolder = nls.localize('selectDebug', "Select debugger");
-		return this.quickInputService.pick<{ label: string; debugger?: Debugger } | IQuickPickItem>(picks, { activeItem: picks[0], placeHolder })
-			.then(async picked => {
-				if (picked && 'debugger' in picked && picked.debugger) {
-					return picked.debugger;
-				} else if (picked instanceof MenuItemAction) {
-					picked.run();
-					return;
-				}
-				if (picked) {
-					this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
-				}
-				return undefined;
-			});
+		return this.quickInputService.pick<{ label: string; debugger?: Debugger } | IQuickPickItem>(picks, { activeItem: picks[0], placeHolder }).then(async picked => {
+			if (picked && 'pick' in picked && typeof picked.pick === 'function') {
+				return await picked.pick();
+			}
+
+			if (picked instanceof MenuItemAction) {
+				picked.run();
+				return;
+			}
+
+			if (picked) {
+				this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
+			}
+
+			return undefined;
+		});
 	}
 
 	private initExtensionActivationsIfNeeded(): void {

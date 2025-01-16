@@ -12,7 +12,7 @@ import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart.js'
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { distinct, firstOrDefault } from '../../../../base/common/arrays.js';
+import { distinct } from '../../../../base/common/arrays.js';
 import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
 import { MultiWindowParts } from '../../part.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -250,7 +250,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			}
 		}
 
-		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+		const mostRecentActivePart = this.mostRecentActiveParts.at(0);
 		mostRecentActivePart?.activeGroup.focus();
 
 		this._isReady = true;
@@ -427,7 +427,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 		// Restore Focus unless instructed otherwise
 		if (!options?.preserveFocus) {
-			const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+			const mostRecentActivePart = this.mostRecentActiveParts.at(0);
 			if (mostRecentActivePart) {
 				await mostRecentActivePart.whenReady;
 				mostRecentActivePart.activeGroup.focus();

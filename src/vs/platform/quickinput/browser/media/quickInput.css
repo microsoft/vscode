@@ -8,12 +8,12 @@
 	width: 600px;
 	z-index: 2550;
 	left: 50%;
-	margin-left: -300px;
 	-webkit-app-region: no-drag;
 	border-radius: 6px;
 }
 
 .quick-input-titlebar {
+	cursor: grab;
 	display: flex;
 	align-items: center;
 	border-top-right-radius: 5px;
@@ -26,11 +26,18 @@
 	flex: 1;
 }
 
-.quick-input-inline-action-bar {
-	margin: 2px 0 0 5px;
+/* give some space between input and action bar */
+.quick-input-inline-action-bar > .actions-container > .action-item:first-child {
+	margin-left: 5px;
+}
+
+/* center horizontally */
+.quick-input-inline-action-bar > .actions-container > .action-item {
+	margin-top: 2px;
 }
 
 .quick-input-title {
+	cursor: grab;
 	padding: 3px 0px;
 	text-align: center;
 	text-overflow: ellipsis;
@@ -63,6 +70,7 @@
 }
 
 .quick-input-header {
+	cursor: grab;
 	display: flex;
 	padding: 8px 6px 2px 6px;
 }
@@ -355,4 +363,28 @@
 /* Hide the twistie containers so that there isn't blank indent */
 .quick-input-list .monaco-tl-twistie {
 	display: none !important;
+}
+
+/* Quick input snap lines visible while DnD */
+.quick-input-widget-snapline {
+	position: absolute;
+	z-index: 2549;
+}
+
+.quick-input-widget-snapline.hidden {
+	display: none;
+}
+
+.quick-input-widget-snapline.horizontal {
+	border-top: 1px dashed var(--vscode-editorRuler-foreground);
+	height: 0;
+	width: 100%;
+	left: 0;
+}
+
+.quick-input-widget-snapline.vertical {
+	border-left: 1px dashed var(--vscode-editorRuler-foreground);
+	height: 100%;
+	width: 0;
+	top: 0;
 }

@@ -20,7 +20,7 @@ import { IDownloadService } from '../../platform/download/common/download.js';
 import { DownloadServiceChannelClient } from '../../platform/download/common/downloadIpc.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../platform/environment/common/environment.js';
 import { ExtensionGalleryServiceWithNoStorageService } from '../../platform/extensionManagement/common/extensionGalleryService.js';
-import { IExtensionGalleryService } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { IAllowedExtensionsService, IExtensionGalleryService } from '../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { ExtensionManagementChannel } from '../../platform/extensionManagement/common/extensionManagementIpc.js';
@@ -78,6 +78,7 @@ import { RemoteExtensionsScannerChannelName } from '../../platform/remote/common
 import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -148,7 +149,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
 
 	// Request
-	const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+	const requestService = new RequestService(configurationService, environmentService, logService);
 	services.set(IRequestService, requestService);
 
 	let oneDsAppender: ITelemetryAppender = NullAppender;
@@ -189,6 +190,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 	services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 	services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService));
+	services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService));
 	services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
@@ -221,7 +223,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI, logService), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService);
 		socketServer.registerChannel(RemoteExtensionsScannerChannelName, new RemoteExtensionsScannerChannel(remoteExtensionsScanner, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
-		const remoteFileSystemChannel = disposables.add(new RemoteAgentFileSystemProviderChannel(logService, environmentService));
+		const remoteFileSystemChannel = disposables.add(new RemoteAgentFileSystemProviderChannel(logService, environmentService, configurationService));
 		socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
 
 		socketServer.registerChannel('request', new RequestChannel(accessor.get(IRequestService)));
@@ -276,7 +278,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Trace)) {
+		if (this.canLog(LogLevel.Trace)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -286,7 +288,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Debug)) {
+		if (this.canLog(LogLevel.Debug)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -296,7 +298,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Info)) {
+		if (this.canLog(LogLevel.Info)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -306,7 +308,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Warning)) {
+		if (this.canLog(LogLevel.Warning)) {
 			if (this.useColors) {
 				console.warn(`\x1b[93m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -316,7 +318,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	error(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Error)) {
+		if (this.canLog(LogLevel.Error)) {
 			if (this.useColors) {
 				console.error(`\x1b[91m[${now()}]\x1b[0m`, message, ...args);
 			} else {

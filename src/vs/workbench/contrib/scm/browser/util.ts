@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { ISCMHistoryItem, ISCMHistoryItemRef, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from '../common/scm.js';
 import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
-import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getActionBarActions, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -48,7 +48,7 @@ export function isSCMResourceNode(element: any): element is IResourceNode<ISCMRe
 }
 
 export function isSCMHistoryItemViewModelTreeElement(element: any): element is SCMHistoryItemViewModelTreeElement {
-	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItem2';
+	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItemViewModel';
 }
 
 export function isSCMHistoryItemLoadMoreTreeElement(element: any): element is SCMHistoryItemLoadMoreTreeElement {
@@ -68,10 +68,7 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 	let cachedSecondary: IAction[] = [];
 
 	const updateActions = () => {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, primaryGroup);
+		const { primary, secondary } = getActionBarActions(menu.getActions({ shouldForwardArgs: true }), primaryGroup);
 
 		if (equals(cachedPrimary, primary, compareActions) && equals(cachedSecondary, secondary, compareActions)) {
 			return;
@@ -88,18 +85,8 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 	return menu.onDidChange(updateActions);
 }
 
-export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
-	return connectPrimaryMenu(menu, (primary) => {
-		actionBar.clear();
-		actionBar.push(primary, { icon: true, label: false });
-	}, 'inline');
-}
-
 export function collectContextMenuActions(menu: IMenu): IAction[] {
-	const primary: IAction[] = [];
-	const actions: IAction[] = [];
-	createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, 'inline');
-	return actions;
+	return getContextMenuActions(menu.getActions({ shouldForwardArgs: true }), 'inline').secondary;
 }
 
 export class StatusBarAction extends Action {
@@ -146,4 +133,39 @@ export function getProviderKey(provider: ISCMProvider): string {
 
 export function getRepositoryResourceCount(provider: ISCMProvider): number {
 	return provider.groups.reduce<number>((r, g) => r + g.resources.length, 0);
+}
+
+export function getHistoryItemEditorTitle(historyItem: ISCMHistoryItem, maxLength = 20): string {
+	const title = historyItem.subject.length <= maxLength ?
+		historyItem.subject : `${historyItem.subject.substring(0, maxLength)}\u2026`;
+
+	return `${historyItem.displayId ?? historyItem.id} - ${title}`;
+}
+
+export function compareHistoryItemRefs(
+	ref1: ISCMHistoryItemRef,
+	ref2: ISCMHistoryItemRef,
+	currentHistoryItemRef?: ISCMHistoryItemRef,
+	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
+	currentHistoryItemBaseRef?: ISCMHistoryItemRef
+): number {
+	const getHistoryItemRefOrder = (ref: ISCMHistoryItemRef) => {
+		if (ref.id === currentHistoryItemRef?.id) {
+			return 1;
+		} else if (ref.id === currentHistoryItemRemoteRef?.id) {
+			return 2;
+		} else if (ref.id === currentHistoryItemBaseRef?.id) {
+			return 3;
+		} else if (ref.color !== undefined) {
+			return 4;
+		}
+
+		return 99;
+	};
+
+	// Assign order (current > remote > base > color)
+	const ref1Order = getHistoryItemRefOrder(ref1);
+	const ref2Order = getHistoryItemRefOrder(ref2);
+
+	return ref1Order - ref2Order;
 }

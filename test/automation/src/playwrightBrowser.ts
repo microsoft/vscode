@@ -6,7 +6,7 @@
 import * as playwright from '@playwright/test';
 import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
-import * as mkdirp from 'mkdirp';
+import * as fs from 'fs';
 import { URI } from 'vscode-uri';
 import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
@@ -35,7 +35,7 @@ async function launchServer(options: LaunchOptions) {
 	const serverLogsPath = join(logsPath, 'server');
 	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
-	await measureAndLog(() => mkdirp(agentFolder), `mkdirp(${agentFolder})`, logger);
+	await measureAndLog(() => fs.promises.mkdir(agentFolder, { recursive: true }), `mkdirp(${agentFolder})`, logger);
 
 	const env = {
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,

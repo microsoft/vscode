@@ -46,7 +46,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose.add(debugService.onDidNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
 			const store = sessionListeners.get(session);
-			store!.add(session.onDidChangeName(name => {
+			store?.add(session.onDidChangeName(name => {
 				this._proxy.$acceptDebugSessionNameChanged(this.getSessionDto(session), name);
 			}));
 		}));
@@ -397,7 +397,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $acceptDAExit(handle: number, code: number, signal: string) {
-		this.getDebugAdapter(handle).fireExit(handle, code, signal);
+		// don't use getDebugAdapter since an error can be expected on a post-close
+		this._debugAdapters.get(handle)?.fireExit(handle, code, signal);
 	}
 
 	private getDebugAdapter(handle: number): ExtensionHostDebugAdapter {

@@ -179,7 +179,7 @@ function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFa
 	disposables.dispose();
 }
 
-export function createCodeEditorServices(disposables: DisposableStore, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
+export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add'>, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
 	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
 	const define = <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
 		if (!services.has(id)) {

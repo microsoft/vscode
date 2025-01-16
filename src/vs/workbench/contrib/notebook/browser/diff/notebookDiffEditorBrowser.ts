@@ -38,7 +38,7 @@ export interface INotebookTextDiffEditor {
 	getLayoutInfo(): NotebookLayoutInfo;
 	getScrollTop(): number;
 	getScrollHeight(): number;
-	layoutNotebookCell(cell: DiffElementCellViewModelBase, height: number): void;
+	layoutNotebookCell(cell: IDiffElementViewModelBase, height: number): void;
 	createOutput(cellDiffViewModel: DiffElementCellViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void;
 	showInset(cellDiffViewModel: DiffElementCellViewModelBase, cellViewModel: IDiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide): void;
 	removeInset(cellDiffViewModel: DiffElementCellViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: ICellOutputViewModel, diffSide: DiffSide): void;
@@ -89,6 +89,20 @@ export interface CellDiffSingleSideRenderTemplate extends CellDiffCommonRenderTe
 	readonly metadataInfoContainer: HTMLElement;
 	readonly outputHeaderContainer: HTMLElement;
 	readonly outputInfoContainer: HTMLElement;
+}
+
+
+export interface NotebookDocumentDiffElementRenderTemplate extends CellDiffCommonRenderTemplate {
+	readonly container: HTMLElement;
+	readonly body: HTMLElement;
+	readonly diffEditorContainer: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly cellHeaderContainer: HTMLElement;
+	readonly sourceEditor: DiffEditorWidget;
+	readonly editorContainer: HTMLElement;
+	readonly inputToolbarContainer: HTMLElement;
+	readonly toolbar: WorkbenchToolBar;
+	readonly marginOverlay: IDiffCellMarginOverlay;
 }
 
 export interface IDiffCellMarginOverlay extends IDisposable {
@@ -142,6 +156,7 @@ export interface CellDiffViewModelLayoutChangeEvent extends IDiffElementSelfLayo
 
 export const DIFF_CELL_MARGIN = 16;
 export const NOTEBOOK_DIFF_CELL_INPUT = new RawContextKey<boolean>('notebook.diffEditor.cell.inputChanged', false);
+export const NOTEBOOK_DIFF_METADATA = new RawContextKey<boolean>('notebook.diffEditor.metadataChanged', false);
 export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY = 'notebook.diffEditor.cell.ignoreWhitespace';
 export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE = new RawContextKey<boolean>(NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, false);
 export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebook.diffEditor.cell.property.changed', false);
@@ -156,16 +171,19 @@ export interface INotebookDiffViewModelUpdateEvent {
 	readonly start: number;
 	readonly deleteCount: number;
 	readonly elements: readonly IDiffElementViewModelBase[];
+	readonly firstChangeIndex?: number;
 }
 
 export interface INotebookDiffViewModel extends IDisposable {
 	readonly items: readonly IDiffElementViewModelBase[];
+	/**
+	 * Triggered when ever there's a change in the view model items.
+	 */
 	onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
 	/**
 	 * Computes the differences and generates the viewmodel.
-	 * If view models are generated, then the onDidChangeItems is triggered and will have a return value.
-	 * Else returns `undefined`
+	 * If view models are generated, then the onDidChangeItems is triggered.
 	 * @param token
 	 */
-	computeDiff(token: CancellationToken): Promise<{ firstChangeIndex: number } | undefined>;
+	computeDiff(token: CancellationToken): Promise<void>;
 }

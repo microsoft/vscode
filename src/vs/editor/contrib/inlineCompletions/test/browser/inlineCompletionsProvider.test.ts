@@ -22,7 +22,7 @@ import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { computeGhostText } from '../../browser/model/singleTextEdit.js';
+import { computeGhostText } from '../../browser/model/computeGhostText.js';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

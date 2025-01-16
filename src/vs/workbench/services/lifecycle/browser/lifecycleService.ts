@@ -13,7 +13,6 @@ import { addDisposableListener, EventType } from '../../../../base/browser/dom.j
 import { IStorageService, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -173,6 +172,9 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			joiners: () => [], 				// Unsupported in web
 			token: CancellationToken.None, 	// Unsupported in web
 			join(promise, joiner) {
+				if (typeof promise === 'function') {
+					promise();
+				}
 				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${joiner.id})`);
 			},
 			force: () => { /* No-Op in web */ },
@@ -205,7 +207,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	protected override doResolveStartupKind(): StartupKind | undefined {
 		let startupKind = super.doResolveStartupKind();
 		if (typeof startupKind !== 'number') {
-			const timing = firstOrDefault(performance.getEntriesByType('navigation')) as PerformanceNavigationTiming | undefined;
+			const timing = performance.getEntriesByType('navigation').at(0) as PerformanceNavigationTiming | undefined;
 			if (timing?.type === 'reload') {
 				// MDN: https://developer.mozilla.org/en-US/docs/Web/API/PerformanceNavigationTiming/type#value
 				startupKind = StartupKind.ReloadedWindow;

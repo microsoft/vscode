@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isIterable } from './types.js';
+
 export namespace Iterable {
 
 	export function is<T = any>(thing: any): thing is Iterable<T> {
@@ -90,9 +92,13 @@ export namespace Iterable {
 		}
 	}
 
-	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
-		for (const iterable of iterables) {
-			yield* iterable;
+	export function* concat<T>(...iterables: (Iterable<T> | T)[]): Iterable<T> {
+		for (const item of iterables) {
+			if (isIterable(item)) {
+				yield* item;
+			} else {
+				yield item;
+			}
 		}
 	}
 
@@ -108,6 +114,9 @@ export namespace Iterable {
 	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
 	 */
 	export function* slice<T>(arr: ReadonlyArray<T>, from: number, to = arr.length): Iterable<T> {
+		if (from < -arr.length) {
+			from = 0;
+		}
 		if (from < 0) {
 			from += arr.length;
 		}

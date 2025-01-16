@@ -58,7 +58,7 @@ export class EmergencyAlert implements IWorkbenchContribution {
 	}
 
 	private async doFetchAlerts(url: string): Promise<void> {
-		const requestResult = await this.requestService.request({ type: 'GET', url }, CancellationToken.None);
+		const requestResult = await this.requestService.request({ type: 'GET', url, disableCache: true }, CancellationToken.None);
 
 		if (requestResult.res.statusCode !== 200) {
 			throw new Error(`Failed to fetch emergency alerts: HTTP ${requestResult.res.statusCode}`);
@@ -75,7 +75,7 @@ export class EmergencyAlert implements IWorkbenchContribution {
 				(emergencyAlert.platform && emergencyAlert.platform !== platform) ||	// platform mismatch
 				(emergencyAlert.arch && emergencyAlert.arch !== arch)					// arch mismatch
 			) {
-				return; // skip versions we are not on
+				return;
 			}
 
 			this.bannerService.show({

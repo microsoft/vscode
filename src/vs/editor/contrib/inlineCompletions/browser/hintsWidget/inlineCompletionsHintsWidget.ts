@@ -11,20 +11,11 @@ import { equals } from '../../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, observableFromEvent } from '../../../../../base/common/observable.js';
-import { derivedWithStore } from '../../../../../base/common/observableInternal/derived.js';
+import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import './inlineCompletionsHintsWidget.css';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../browser/editorBrowser.js';
-import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { Position } from '../../../../common/core/position.js';
-import { Command, InlineCompletionTriggerKind } from '../../../../common/languages.js';
-import { PositionAffinity } from '../../../../common/model.js';
-import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from '../controller/commandIds.js';
-import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { localize } from '../../../../../nls.js';
-import { MenuEntryActionViewItem, createAndFillInActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -34,6 +25,14 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { Position } from '../../../../common/core/position.js';
+import { Command, InlineCompletionTriggerKind } from '../../../../common/languages.js';
+import { PositionAffinity } from '../../../../common/model.js';
+import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from '../controller/commandIds.js';
+import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
+import './inlineCompletionsHintsWidget.css';
 
 export class InlineCompletionsHintsWidget extends Disposable {
 	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
@@ -297,7 +296,7 @@ class ActionViewItemWithClassName extends ActionViewItem {
 
 class StatusBarViewItem extends MenuEntryActionViewItem {
 	protected override updateLabel() {
-		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
+		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService, true);
 		if (!kb) {
 			return super.updateLabel();
 		}
@@ -321,6 +320,7 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 	private readonly menu = this._store.add(this.menuService.createMenu(this.menuId, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
 	private additionalActions: IAction[] = [];
 	private prependedPrimaryActions: IAction[] = [];
+	private additionalPrimaryActions: IAction[] = [];
 
 	constructor(
 		container: HTMLElement,
@@ -340,17 +340,14 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 	}
 
 	private updateToolbar(): void {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		createAndFillInActionBarActions(
-			this.menu,
-			this.options2?.menuOptions,
-			{ primary, secondary },
+		const { primary, secondary } = getActionBarActions(
+			this.menu.getActions(this.options2?.menuOptions),
 			this.options2?.toolbarOptions?.primaryGroup, this.options2?.toolbarOptions?.shouldInlineSubmenu, this.options2?.toolbarOptions?.useSeparatorsInPrimaryActions
 		);
 
 		secondary.push(...this.additionalActions);
 		primary.unshift(...this.prependedPrimaryActions);
+		primary.push(...this.additionalPrimaryActions);
 		this.setActions(primary, secondary);
 	}
 
@@ -360,6 +357,15 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		}
 
 		this.prependedPrimaryActions = actions;
+		this.updateToolbar();
+	}
+
+	setAdditionalPrimaryActions(actions: IAction[]): void {
+		if (equals(this.additionalPrimaryActions, actions, (a, b) => a === b)) {
+			return;
+		}
+
+		this.additionalPrimaryActions = actions;
 		this.updateToolbar();
 	}
 

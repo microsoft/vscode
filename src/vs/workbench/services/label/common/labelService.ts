@@ -26,7 +26,6 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -209,19 +208,23 @@ export class LabelService extends Disposable implements ILabelService {
 		return bestResult ? bestResult.formatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' } = {}): string {
+	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean } = {}): string {
 		let formatting = this.findFormatting(resource);
 		if (formatting && options.separator) {
 			// mixin separator if defined from the outside
 			formatting = { ...formatting, separator: options.separator };
 		}
 
-		const label = this.doGetUriLabel(resource, formatting, options);
+		let label = this.doGetUriLabel(resource, formatting, options);
 
 		// Without formatting we still need to support the separator
 		// as provided in options (https://github.com/microsoft/vscode/issues/130019)
 		if (!formatting && options.separator) {
-			return label.replace(sepRegexp, options.separator);
+			label = label.replace(sepRegexp, options.separator);
+		}
+
+		if (options.appendWorkspaceSuffix && formatting?.workspaceSuffix) {
+			label = this.appendWorkspaceSuffix(label, resource);
 		}
 
 		return label;
@@ -252,7 +255,7 @@ export class LabelService extends Disposable implements ILabelService {
 				// scheme that is workspace contained.
 
 				const workspace = this.contextService.getWorkspace();
-				const firstFolder = firstOrDefault(workspace.folders);
+				const firstFolder = workspace.folders.at(0);
 				if (firstFolder && resource.scheme !== firstFolder.uri.scheme && resource.path.startsWith(posix.sep)) {
 					folder = this.contextService.getWorkspaceFolder(firstFolder.uri.with({ path: resource.path }));
 				}

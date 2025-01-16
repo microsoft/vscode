@@ -32,12 +32,11 @@ import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } 
 import { Schemas } from '../../../../../base/common/network.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ITreeSitterParserService } from '../../../../../editor/common/services/treeSitterParserService.js';
-// eslint-disable-next-line local/code-import-patterns
 import type { Parser } from '@vscode/tree-sitter-wasm';
 
 const $ = dom.$;
 
-class InspectEditorTokensController extends Disposable implements IEditorContribution {
+export class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.inspectEditorTokens';
 
@@ -121,8 +120,7 @@ class InspectEditorTokens extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inspectTMScopes',
-			label: nls.localize('inspectEditorTokens', "Developer: Inspect Editor Tokens and Scopes"),
-			alias: 'Developer: Inspect Editor Tokens and Scopes',
+			label: nls.localize2('inspectEditorTokens', "Developer: Inspect Editor Tokens and Scopes"),
 			precondition: undefined
 		});
 	}
@@ -407,7 +405,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			const tbody = dom.append(table, $('tbody'));
 
 			dom.append(tbody, $('tr', undefined,
-				$('td.tiw-metadata-key', undefined, 'tree-sitter token' as string),
+				$('td.tiw-metadata-key', undefined, `tree-sitter token ${treeSitterTokenInfo.id}` as string),
 				$('td.tiw-metadata-value', undefined, `${treeSitterTokenInfo.text}`)
 			));
 			const scopes = new Array<HTMLElement | string>();
@@ -430,7 +428,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'foreground'),
-					$('td.tiw-metadata-value', undefined, captures[0].name),
+					$('td.tiw-metadata-value', undefined, captures[captures.length - 1].name),
 				));
 			}
 		}

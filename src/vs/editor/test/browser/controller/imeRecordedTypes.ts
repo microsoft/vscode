@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from '../../../../base/common/platform.js';
-import { IBrowser } from '../../../browser/controller/textAreaInput.js';
+import { IBrowser } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
 
 export interface IRecordedTextareaState {
 	selectionDirection: 'forward' | 'backward' | 'none';

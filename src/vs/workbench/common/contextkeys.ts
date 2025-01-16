@@ -16,6 +16,7 @@ import { EditorInput } from './editor/editorInput.js';
 import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from './editor.js';
 import { isLinux } from '../../base/common/platform.js';
+import product from '../../platform/product/common/product.js';
 
 //#region < --- Workbench --- >
 
@@ -110,7 +111,7 @@ export const StatusBarFocused = new RawContextKey<boolean>('statusBarFocused', f
 
 //#region < --- Title Bar --- >
 
-export const TitleBarStyleContext = new RawContextKey<string>('titleBarStyle', isLinux ? 'native' : 'custom', localize('titleBarStyle', "Style of the window title bar"));
+export const TitleBarStyleContext = new RawContextKey<string>('titleBarStyle', isLinux && product.quality === 'stable' ? 'native' : 'custom', localize('titleBarStyle', "Style of the window title bar"));
 export const TitleBarVisibleContext = new RawContextKey<boolean>('titleBarVisible', false, localize('titleBarVisible', "Whether the title bar is visible"));
 
 //#endregion

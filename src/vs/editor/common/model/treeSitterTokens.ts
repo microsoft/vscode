@@ -10,16 +10,17 @@ import { TextModel } from './textModel.js';
 import { ITreeSitterParserService } from '../services/treeSitterParserService.js';
 import { IModelContentChangedEvent } from '../textModelEvents.js';
 import { AbstractTokens } from './tokens.js';
-import { IPosition } from '../core/position.js';
+import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;
 	private _lastLanguageId: string | undefined;
+	private readonly _tokensChangedListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
-	constructor(private readonly _treeSitterService: ITreeSitterParserService,
-		languageIdCodec: ILanguageIdCodec,
+	constructor(languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
-		languageId: () => string) {
+		languageId: () => string,
+		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService) {
 		super(languageIdCodec, textModel, languageId);
 
 		this._initialize();
@@ -30,6 +31,11 @@ export class TreeSitterTokens extends AbstractTokens {
 		if (!this._tokenizationSupport || this._lastLanguageId !== newLanguage) {
 			this._lastLanguageId = newLanguage;
 			this._tokenizationSupport = TreeSitterTokenizationRegistry.get(newLanguage);
+			this._tokensChangedListener.value = this._tokenizationSupport?.onDidChangeTokens((e) => {
+				if (e.textModel === this._textModel) {
+					this._onDidChangeTokens.fire(e.changes);
+				}
+			});
 		}
 	}
 
@@ -88,7 +94,7 @@ export class TreeSitterTokens extends AbstractTokens {
 		// TODO @alexr00 implement once we have custom parsing and don't just feed in the whole text model value
 		return StandardTokenType.Other;
 	}
-	public override tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
+	public override tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
 		// TODO @alexr00 understand what this is for and implement
 		return null;
 	}

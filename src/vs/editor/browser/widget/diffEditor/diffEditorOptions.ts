@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, ISettableObservable, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { derivedConstOnceDefined } from '../../../../base/common/observableInternal/utils.js';
+import { IObservable, IObservableWithChange, ISettableObservable, derived, derivedConstOnceDefined, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Constants } from '../../../../base/common/uint.js';
-import { allowsTrueInlineDiffRendering } from './components/diffEditorViewZones/diffEditorViewZones.js';
-import { DiffEditorViewModel, DiffState } from './diffEditorViewModel.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { diffEditorDefaultOptions } from '../../../common/config/diffEditor.js';
 import { IDiffEditorBaseOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from '../../../common/config/editorOptions.js';
 import { LineRangeMapping } from '../../../common/diff/rangeMapping.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { allowsTrueInlineDiffRendering } from './components/diffEditorViewZones/diffEditorViewZones.js';
+import { DiffEditorViewModel, DiffState } from './diffEditorViewModel.js';
 
 export class DiffEditorOptions {
 	private readonly _options: ISettableObservable<IEditorOptions & Required<IDiffEditorBaseOptions>, { changedOptions: IDiffEditorOptions }>;
 
-	public get editorOptions(): IObservable<IEditorOptions, { changedOptions: IEditorOptions }> { return this._options; }
+	public get editorOptions(): IObservableWithChange<IEditorOptions, { changedOptions: IEditorOptions }> { return this._options; }
 
 	private readonly _diffEditorWidth = observableValue<number>(this, 0);
 

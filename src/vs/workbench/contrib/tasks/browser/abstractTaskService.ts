@@ -83,6 +83,7 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -236,6 +237,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public get isReconnected(): boolean { return this._tasksReconnected; }
 	private _onDidChangeTaskProviders = this._register(new Emitter<void>());
 	public onDidChangeTaskProviders = this._onDidChangeTaskProviders.event;
+
+	private _activatedTaskProviders: Set<string> = new Set();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -617,12 +620,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		this._log('Activating task providers ' + (type ?? 'all'));
-		await raceTimeout(
+		const hasLoggedActivation = this._activatedTaskProviders.has(type ?? 'all');
+		if (!hasLoggedActivation) {
+			this._log('Activating task providers ' + (type ?? 'all'));
+		}
+		const result = await raceTimeout(
 			Promise.all(this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))),
 			5000,
 			() => console.warn('Timed out activating extensions for task providers')
 		);
+		if (result) {
+			this._activatedTaskProviders.add(type ?? 'all');
+		}
 	}
 
 	private _updateSetup(setup?: [IWorkspaceFolder[], IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion, IWorkspace | undefined]): void {
@@ -2047,12 +2056,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			const error = (error: any) => {
 				try {
-					if (error && Types.isString(error.message)) {
-						this._log(`Error: ${error.message}\n`);
-						this._showOutput();
-					} else {
-						this._log('Unknown error received while collecting tasks from providers.');
-						this._showOutput();
+					if (!isCancellationError(error)) {
+						if (error && Types.isString(error.message)) {
+							this._log(`Error: ${error.message}\n`);
+							this._showOutput();
+						} else {
+							this._log('Unknown error received while collecting tasks from providers.');
+							this._showOutput();
+						}
 					}
 				} finally {
 					if (--counter === 0) {

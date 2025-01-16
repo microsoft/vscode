@@ -13,6 +13,10 @@ export interface ISimpleCompletion {
 	 */
 	label: string;
 	/**
+	 * The ID of the provider the completion item came from
+	 */
+	provider: string;
+	/**
 	 * The completion's icon to show on the left of the suggest widget.
 	 */
 	icon?: ThemeIcon;
@@ -33,6 +37,16 @@ export interface ISimpleCompletion {
 	 * Whether the completion is a keyword.
 	 */
 	isKeyword?: boolean;
+
+	/**
+	 * The start of the replacement.
+	 */
+	replacementIndex: number;
+
+	/**
+	 * The length of the replacement.
+	 */
+	replacementLength: number;
 }
 
 export class SimpleCompletionItem {

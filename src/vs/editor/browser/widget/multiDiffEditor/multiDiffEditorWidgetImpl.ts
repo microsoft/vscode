@@ -9,29 +9,28 @@ import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
 import { findFirstMax } from '../../../../base/common/arraysFind.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, autorunWithStore, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { ITransaction, disposableObservableValue, globalTransaction, transaction } from '../../../../base/common/observableInternal/base.js';
+import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, disposableObservableValue, globalTransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
-import './style.css';
-import { ICodeEditor } from '../../editorBrowser.js';
-import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
-import { RevealOptions } from './multiDiffEditorWidget.js';
-import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
+import { localize } from '../../../../nls.js';
+import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { OffsetRange } from '../../../common/core/offsetRange.js';
 import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
-import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ICodeEditor } from '../../editorBrowser.js';
+import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate.js';
-import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
-import { ObjectPool } from './objectPool.js';
-import { localize } from '../../../../nls.js';
 import { IDocumentDiffItem } from './model.js';
+import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
+import { RevealOptions } from './multiDiffEditorWidget.js';
+import { ObjectPool } from './objectPool.js';
+import './style.css';
+import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _scrollableElements = h('div.scrollContent', [
@@ -58,7 +57,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', {}, [
 		h('div', {}, [this._scrollableElement.getDomNode()]),
-		h('div.placeholder@placeholder', {}, [h('div', [localize('noChangedFiles', 'No Changed Files') as any])]),
+		h('div.placeholder@placeholder', {}, [h('div')]),
 	]);
 
 	private readonly _sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
@@ -155,10 +154,20 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._sizeObserver.observe(dimension);
 		}));
 
-		this._register(autorun((reader) => {
-			/** @description Update widget dimension */
+		const placeholderMessage = derived(reader => {
 			const items = this._viewItems.read(reader);
-			this._elements.placeholder.classList.toggle('visible', items.length === 0);
+			if (items.length > 0) { return undefined; }
+
+			const vm = this._viewModel.read(reader);
+			return (!vm || vm.isLoading.read(reader))
+				? localize('loading', 'Loading...')
+				: localize('noChangedFiles', 'No Changed Files');
+		});
+
+		this._register(autorun((reader) => {
+			const message = placeholderMessage.read(reader);
+			this._elements.placeholder.innerText = message ?? '';
+			this._elements.placeholder.classList.toggle('visible', !!message);
 		}));
 
 		this._scrollableElements.content.style.position = 'relative';

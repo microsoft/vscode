@@ -8,7 +8,6 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { LanguagesRegistry } from './languagesRegistry.js';
 import { ILanguageNameIdPair, ILanguageSelection, ILanguageService, ILanguageIcon, ILanguageExtensionPoint } from '../languages/language.js';
-import { firstOrDefault } from '../../../base/common/arrays.js';
 import { ILanguageIdCodec, TokenizationRegistry } from '../languages.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
 import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
@@ -96,7 +95,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	public guessLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
 		const languageIds = this._registry.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
-		return firstOrDefault(languageIds, null);
+		return languageIds.at(0) ?? null;
 	}
 
 	public createById(languageId: string | null | undefined): ILanguageSelection {

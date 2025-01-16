@@ -46,6 +46,7 @@ import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
+import { TokenArray } from '../tokens/tokenArray.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -2268,6 +2269,7 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 	}
 
 	public readonly content: string;
+	public readonly tokens: TokenArray | null;
 	readonly inlineClassName: string | null;
 	readonly inlineClassNameAffectsLetterSpacing: boolean;
 	readonly attachedData: unknown | null;
@@ -2275,6 +2277,7 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 
 	private constructor(options: model.InjectedTextOptions) {
 		this.content = options.content || '';
+		this.tokens = options.tokens ?? null;
 		this.inlineClassName = options.inlineClassName || null;
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
 		this.attachedData = options.attachedData || null;

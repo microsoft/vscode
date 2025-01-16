@@ -8,7 +8,6 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { LineRange } from '../core/lineRange.js';
-import { IPosition } from '../core/position.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 import { ILanguageIdCodec } from '../languages.js';
 import { IAttachedView } from '../model.js';
@@ -132,7 +131,7 @@ export abstract class AbstractTokens extends Disposable {
 
 	public abstract getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
 
-	public abstract tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
+	public abstract tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null;
 
 	public abstract get hasTokens(): boolean;
 }

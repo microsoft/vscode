@@ -9,7 +9,6 @@ import { ITextModel } from '../../../common/model.js';
 import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation } from '../../../common/languages.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { registerEditorFeature } from '../../../common/editorFeatures.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 
 export class DefaultDocumentColorProvider implements DocumentColorProvider {
@@ -40,7 +39,7 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	}
 }
 
-class DefaultDocumentColorProviderFeature extends Disposable {
+export class DefaultDocumentColorProviderFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
@@ -50,4 +49,3 @@ class DefaultDocumentColorProviderFeature extends Disposable {
 	}
 }
 
-registerEditorFeature(DefaultDocumentColorProviderFeature);

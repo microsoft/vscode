@@ -121,12 +121,15 @@ function discoverAndReadFiles(ts, options) {
         for (let i = info.importedFiles.length - 1; i >= 0; i--) {
             const importedFileName = info.importedFiles[i].fileName;
             if (options.importIgnorePattern.test(importedFileName)) {
-                // Ignore vs/css! imports
+                // Ignore *.css imports
                 continue;
             }
             let importedModuleId = importedFileName;
             if (/(^\.\/)|(^\.\.\/)/.test(importedModuleId)) {
                 importedModuleId = path.join(path.dirname(moduleId), importedModuleId);
+                if (importedModuleId.endsWith('.js')) { // ESM: code imports require to be relative and have a '.js' file extension
+                    importedModuleId = importedModuleId.substr(0, importedModuleId.length - 3);
+                }
             }
             enqueue(importedModuleId);
         }
@@ -453,6 +456,9 @@ function markNodes(ts, languageService, options) {
         const nodeSourceFile = node.getSourceFile();
         let fullPath;
         if (/(^\.\/)|(^\.\.\/)/.test(importText)) {
+            if (importText.endsWith('.js')) { // ESM: code imports require to be relative and to have a '.js' file extension
+                importText = importText.substr(0, importText.length - 3);
+            }
             fullPath = path.join(path.dirname(nodeSourceFile.fileName), importText) + '.ts';
         }
         else {

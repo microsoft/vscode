@@ -29,7 +29,7 @@ import { KeybindingWeight, KeybindingsRegistry } from '../../platform/keybinding
 import { EditorOption } from '../common/config/editorOptions.js';
 import { IViewModel } from '../common/viewModel.js';
 import { ISelection } from '../common/core/selection.js';
-import { getActiveElement } from '../../base/browser/dom.js';
+import { getActiveElement, isEditableElement } from '../../base/browser/dom.js';
 import { EnterOperation } from '../common/cursor/cursorTypeEditOperations.js';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
@@ -318,7 +318,7 @@ abstract class EditorOrNativeTextInputCommand {
 		target.addImplementation(1000, 'generic-dom-input-textarea', (accessor: ServicesAccessor, args: unknown) => {
 			// Only if focused on an element that allows for entering text
 			const activeElement = getActiveElement();
-			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+			if (activeElement && isEditableElement(activeElement)) {
 				this.runDOMCommand(activeElement);
 				return true;
 			}

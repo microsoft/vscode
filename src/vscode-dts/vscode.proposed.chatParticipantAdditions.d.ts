@@ -36,6 +36,11 @@ declare module 'vscode' {
 		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
 
+	export class ChatResponseCodeblockUriPart {
+		value: Uri;
+		constructor(value: Uri);
+	}
+
 	/**
 	 * Displays a {@link Command command} as a button in the chat response.
 	 */
@@ -52,6 +57,8 @@ declare module 'vscode' {
 	export class ChatResponseTextEditPart {
 		uri: Uri;
 		edits: TextEdit[];
+		isDone?: boolean;
+		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
 
@@ -129,6 +136,27 @@ declare module 'vscode' {
 		constructor(uri: Uri, range: Range);
 	}
 
+	export interface ChatResponseAnchorPart {
+		/**
+		 * The target of this anchor.
+		 *
+		 * If this is a {@linkcode Uri} or {@linkcode Location}, this is rendered as a normal link.
+		 *
+		 * If this is a {@linkcode SymbolInformation}, this is rendered as a symbol link.
+		 *
+		 * TODO mjbvz: Should this be a full `SymbolInformation`? Or just the parts we need?
+		 * TODO mjbvz: Should we allow a `SymbolInformation` without a location? For example, until `resolve` completes?
+		 */
+		value2: Uri | Location | SymbolInformation;
+
+		/**
+		 * Optional method which fills in the details of the anchor.
+		 *
+		 * THis is currently only implemented for symbol links.
+		 */
+		resolve?(token: CancellationToken): Thenable<void>;
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -142,7 +170,11 @@ declare module 'vscode' {
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
+
+		textEdit(target: Uri, isDone: true): void;
+
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
+		codeblockUri(uri: Uri): void;
 		detectedParticipant(participant: string, command?: ChatCommand): void;
 		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
@@ -250,7 +282,7 @@ declare module 'vscode' {
 	export interface ChatParticipantMetadata {
 		participant: string;
 		command?: string;
-		disambiguation: { categoryName: string; description: string; examples: string[] }[];
+		disambiguation: { category: string; description: string; examples: string[] }[];
 	}
 
 	export interface ChatParticipantDetectionResult {
@@ -288,7 +320,14 @@ declare module 'vscode' {
 		codeBlockIndex: number;
 		totalCharacters: number;
 		newFile?: boolean;
-		userAction?: string;
+	}
+
+	export interface ChatApplyAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'apply';
+		codeBlockIndex: number;
+		totalCharacters: number;
+		newFile?: boolean;
 		codeMapper?: string;
 	}
 
@@ -317,13 +356,28 @@ declare module 'vscode' {
 	}
 
 	export interface ChatEditorAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'editor';
 		accepted: boolean;
 	}
 
+	export interface ChatEditingSessionAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'chatEditingSessionAction';
+		uri: Uri;
+		hasRemainingEdits: boolean;
+		outcome: ChatEditingSessionActionOutcome;
+	}
+
+	export enum ChatEditingSessionActionOutcome {
+		Accepted = 1,
+		Rejected = 2,
+		Saved = 3
+	}
+
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction;
 	}
 
 	export interface ChatPromptReference {
@@ -335,5 +389,9 @@ declare module 'vscode' {
 
 	export interface ChatResultFeedback {
 		readonly unhelpfulReason?: string;
+	}
+
+	export namespace lm {
+		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
 	}
 }

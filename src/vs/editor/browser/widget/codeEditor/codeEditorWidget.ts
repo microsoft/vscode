@@ -188,11 +188,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _updateCounter = 0;
 
+	private readonly _onWillTriggerEditorOperationEvent: Emitter<editorCommon.ITriggerEditorOperationEvent> = this._register(new Emitter<editorCommon.ITriggerEditorOperationEvent>());
+	public readonly onWillTriggerEditorOperationEvent: Event<editorCommon.ITriggerEditorOperationEvent> = this._onWillTriggerEditorOperationEvent.event;
+
 	private readonly _onBeginUpdate: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onBeginUpdate: Event<void> = this._onBeginUpdate.event;
 
 	private readonly _onEndUpdate: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onEndUpdate: Event<void> = this._onEndUpdate.event;
+
+	private readonly _onBeforeExecuteEdit = this._register(new Emitter<{ source: string | undefined }>());
+	public readonly onBeforeExecuteEdit = this._onBeforeExecuteEdit.event;
 
 	//#endregion
 
@@ -241,6 +247,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _dropIntoEditorDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
 
+	public inComposition: boolean = false;
+
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IEditorConstructionOptions>,
@@ -282,6 +290,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
+		if (codeEditorWidgetOptions.contextKeyValues) {
+			for (const [key, value] of Object.entries(codeEditorWidgetOptions.contextKeyValues)) {
+				this._contextKeyService.createKey(key, value);
+			}
+		}
 		this._notificationService = notificationService;
 		this._codeEditorService = codeEditorService;
 		this._commandService = commandService;
@@ -581,8 +594,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
 	}
 
-	public setHiddenAreas(ranges: IRange[], source?: unknown): void {
-		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source);
+	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source, forceUpdate);
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
@@ -1047,6 +1060,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		payload = payload || {};
 
 		try {
+			this._onWillTriggerEditorOperationEvent.fire({ source: source, handlerId: handlerId, payload: payload });
 			this._beginUpdate();
 
 			switch (handlerId) {
@@ -1109,6 +1123,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
+		this.inComposition = true;
 		this._modelData.viewModel.startComposition();
 		this._onDidCompositionStart.fire();
 	}
@@ -1117,6 +1132,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
+		this.inComposition = false;
 		this._modelData.viewModel.endComposition(source);
 		this._onDidCompositionEnd.fire();
 	}
@@ -1227,6 +1243,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		} else {
 			cursorStateComputer = endCursorState;
 		}
+
+		this._onBeforeExecuteEdit.fire({ source: source ?? undefined });
 
 		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
 		return true;
@@ -1855,6 +1873,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 
 		const view = new View(
+			this.getId(),
 			commandDelegate,
 			this._configuration,
 			this._themeService.getColorTheme(),
@@ -1974,6 +1993,12 @@ export interface ICodeEditorWidgetOptions {
 	 * Defaults to MenuId.SimpleEditorContext or MenuId.EditorContext depending on whether the widget is simple.
 	 */
 	contextMenuId?: MenuId;
+
+	/**
+	 * Define extra context keys that will be defined in the context service
+	 * for the editor.
+	 */
+	contextKeyValues?: Record<string, ContextKeyValue>;
 }
 
 class ModelData {

@@ -12,12 +12,10 @@ import { IExtensionManagementService, IExtensionGalleryService, InstallOperation
 import { INotificationService, NeverShowAgainScope } from '../../../../platform/notification/common/notification.js';
 import Severity from '../../../../base/common/severity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from '../../extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { minimumTranslatedStrings } from './minimalTranslations.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { ILocaleService } from '../../../services/localization/common/locale.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { BaseLocalizationWorkbenchContribution } from '../common/localization.contribution.js';
@@ -32,7 +30,7 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
@@ -168,16 +166,7 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 			label: translations['searchMarketplace'],
 			run: async () => {
 				logUserReaction('search');
-				const viewlet = await this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-				if (!viewlet) {
-					return;
-				}
-				const container = viewlet.getViewPaneContainer();
-				if (!container) {
-					return;
-				}
-				(container as IExtensionsViewPaneContainer).search(`tag:lp-${locale}`);
-				container.focus();
+				await this.extensionsWorkbenchService.openSearch(`tag:lp-${locale}`);
 			}
 		};
 

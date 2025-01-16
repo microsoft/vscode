@@ -33,7 +33,7 @@ suite('ChatModel', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 	});
 
 	test('Waits for initialization', async () => {
@@ -151,6 +151,21 @@ suite('ChatModel', () => {
 
 		assert.strictEqual(request1.response.response.toString(), 'Hello');
 	});
+
+	test('addCompleteRequest', async function () {
+		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
+
+		model1.startInitialize();
+		model1.initialize(undefined);
+
+		const text = 'hello';
+		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, true);
+
+		assert.strictEqual(request1.isCompleteAddedRequest, true);
+		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);
+		assert.strictEqual(request1.shouldBeRemovedOnSend, false);
+		assert.strictEqual(request1.response!.shouldBeRemovedOnSend, false);
+	});
 });
 
 suite('Response', () => {
@@ -176,10 +191,13 @@ suite('Response', () => {
 
 	test('inline reference', async () => {
 		const response = store.add(new Response([]));
-		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
-		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
-		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('text before '), kind: 'markdownContent' });
+		response.updateContent({ inlineReference: URI.parse('https://microsoft.com/'), kind: 'inlineReference' });
+		response.updateContent({ content: new MarkdownString(' text after'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+
+		assert.strictEqual(response.toString(), 'text before https://microsoft.com/ text after');
+
 	});
 });
 
@@ -197,7 +215,6 @@ suite('normalizeSerializableChatData', () => {
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
-			welcomeMessage: []
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
@@ -220,7 +237,6 @@ suite('normalizeSerializableChatData', () => {
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
-			welcomeMessage: [],
 			computedTitle: 'computed title'
 		};
 
@@ -244,7 +260,6 @@ suite('normalizeSerializableChatData', () => {
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
-			welcomeMessage: []
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
@@ -269,7 +284,6 @@ suite('normalizeSerializableChatData', () => {
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
-			welcomeMessage: [],
 			customTitle: 'computed title'
 		};
 

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, SubmenuAction } from '../../../base/common/actions.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
 import { Event, MicrotaskEmitter } from '../../../base/common/event.js';
-import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, toDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from '../../action/common/action.js';
 import { Categories } from '../../action/common/actionCommonCategories.js';
 import { CommandsRegistry, ICommandService } from '../../commands/common/commands.js';
@@ -82,6 +82,7 @@ export class MenuId {
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExplorerContextShare = new MenuId('ExplorerContextShare');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
+	static readonly ExtensionEditorContextMenu = new MenuId('ExtensionEditorContextMenu');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
 	static readonly CommandCenter = new MenuId('CommandCenter');
 	static readonly CommandCenterCenter = new MenuId('CommandCenterCenter');
@@ -113,7 +114,6 @@ export class MenuId {
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMInputBox = new MenuId('SCMInputBox');
-	static readonly SCMChangesContext = new MenuId('SCMChangesContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
 	static readonly SCMResourceContextShare = new MenuId('SCMResourceContextShare');
@@ -123,6 +123,9 @@ export class MenuId {
 	static readonly SCMSourceControlInline = new MenuId('SCMSourceControlInline');
 	static readonly SCMSourceControlTitle = new MenuId('SCMSourceControlTitle');
 	static readonly SCMHistoryTitle = new MenuId('SCMHistoryTitle');
+	static readonly SCMHistoryItemContext = new MenuId('SCMHistoryItemContext');
+	static readonly SCMHistoryItemHover = new MenuId('SCMHistoryItemHover');
+	static readonly SCMHistoryItemRefContext = new MenuId('SCMHistoryItemRefContext');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly SearchActionMenu = new MenuId('SearchActionContext');
@@ -137,6 +140,7 @@ export class MenuId {
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
 	static readonly TestCallStack = new MenuId('TestCallStack');
+	static readonly TestCoverageFilterItem = new MenuId('TestCoverageFilterItem');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
@@ -180,6 +184,7 @@ export class MenuId {
 	static readonly NotebookCellExecuteGoTo = new MenuId('NotebookCellExecuteGoTo');
 	static readonly NotebookCellExecutePrimary = new MenuId('NotebookCellExecutePrimary');
 	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
+	static readonly NotebookDiffDocumentMetadata = new MenuId('NotebookDiffDocumentMetadata');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
@@ -207,7 +212,6 @@ export class MenuId {
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly InlineEditsActions = new MenuId('InlineEditsActions');
-	static readonly InlineEditActions = new MenuId('InlineEditActions');
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
 	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
@@ -219,9 +223,22 @@ export class MenuId {
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
+	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');
+	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
+	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
+	static readonly ChatEditingEditorContent = new MenuId('ChatEditingEditorContent');
+	static readonly ChatEditingEditorHunk = new MenuId('ChatEditingEditorHunk');
+	static readonly ChatEditingWidgetModifiedFilesToolbar = new MenuId('ChatEditingWidgetModifiedFilesToolbar');
+	static readonly ChatInputResourceAttachmentContext = new MenuId('ChatInputResourceAttachmentContext');
+	static readonly ChatInputSymbolAttachmentContext = new MenuId('ChatInputSymbolAttachmentContext');
+	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
+	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
+	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
+	static readonly ChatCommandCenter = new MenuId('ChatCommandCenter');
+	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
@@ -381,11 +398,11 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		this._commands.set(command.id, command);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 
-		return toDisposable(() => {
+		return markAsSingleton(toDisposable(() => {
 			if (this._commands.delete(command.id)) {
 				this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 			}
-		});
+		}));
 	}
 
 	getCommand(id: string): ICommandAction | undefined {
@@ -406,10 +423,10 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		}
 		const rm = list.push(item);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
-		return toDisposable(() => {
+		return markAsSingleton(toDisposable(() => {
 			rm();
 			this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
-		});
+		}));
 	}
 
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable {
@@ -459,7 +476,7 @@ export class SubmenuItemAction extends SubmenuAction {
 	constructor(
 		readonly item: ISubmenuItem,
 		readonly hideActions: IMenuItemHide | undefined,
-		actions: IAction[],
+		actions: readonly IAction[],
 	) {
 		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu');
 	}
@@ -629,7 +646,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	disposables.push(CommandsRegistry.registerCommand({
 		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		metadata: command.metadata,
+		metadata: command.metadata ?? { description: action.desc.title }
 	}));
 
 	// menu

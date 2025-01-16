@@ -189,7 +189,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return path.join(cachePath, `CodeSetup-${this.productService.quality}-${version}.exe`);
 	}
 
-	private async cleanup(exceptVersion: string | null = null): Promise<any> {
+	private async cleanup(exceptVersion: string | null = null): Promise<void> {
 		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		const cachePath = await this.cachePath;

@@ -18,7 +18,6 @@ import { INotificationService, INotificationSourceFilter, NotificationPriority, 
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { hash } from '../../../../base/common/hash.js';
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -171,11 +170,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 		handler: (accessor) => {
 			const actionRunner = accessor.get(IInstantiationService).createInstance(NotificationActionRunner);
-			const notification = getNotificationFromContext(accessor.get(IListService)) || firstOrDefault(model.notifications);
+			const notification = getNotificationFromContext(accessor.get(IListService)) || model.notifications.at(0);
 			if (!notification) {
 				return;
 			}
-			const primaryAction = notification.actions?.primary ? firstOrDefault(notification.actions.primary) : undefined;
+			const primaryAction = notification.actions?.primary ? notification.actions.primary.at(0) : undefined;
 			if (!primaryAction) {
 				return;
 			}

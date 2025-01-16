@@ -149,7 +149,10 @@ export class ViewsService extends Disposable implements IViewsService {
 		this.registerPaneComposite(viewContainer, to);
 
 		// Open view container if part is visible and there is only one view container in location
-		if (this.layoutService.isVisible(getPartByLocation(to)) && this.viewDescriptorService.getViewContainersByLocation(to).length === 1) {
+		if (
+			this.layoutService.isVisible(getPartByLocation(to)) &&
+			this.viewDescriptorService.getViewContainersByLocation(to).filter(vc => this.isViewContainerActive(vc.id)).length === 1
+		) {
 			this.openViewContainer(viewContainer.id);
 		}
 	}
@@ -196,15 +199,33 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.paneCompositeService.getPaneComposite(compositeId, location);
 	}
 
+	// One view container can be visible at a time in a location
 	isViewContainerVisible(id: string): boolean {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-		if (viewContainer) {
-			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			if (viewContainerLocation !== null) {
-				return this.paneCompositeService.getActivePaneComposite(viewContainerLocation)?.getId() === id;
-			}
+		if (!viewContainer) {
+			return false;
 		}
-		return false;
+
+		const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+		if (viewContainerLocation === null) {
+			return false;
+		}
+
+		return this.paneCompositeService.getActivePaneComposite(viewContainerLocation)?.getId() === id;
+	}
+
+	// Multiple view containers can be active/inactive at a time in a location
+	isViewContainerActive(id: string): boolean {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
+		if (!viewContainer) {
+			return false;
+		}
+
+		if (!viewContainer.hideIfEmpty) {
+			return true;
+		}
+
+		return this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0;
 	}
 
 	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null {
@@ -268,10 +289,14 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	getFocusedViewName(): string {
+	getFocusedView(): IViewDescriptor | null {
 		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString());
+	}
+
+	getFocusedViewName(): string {
 		const textEditorFocused = this.editorService.activeTextEditorControl?.hasTextFocus() ? localize('editor', "Text Editor") : undefined;
-		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name?.value ?? textEditorFocused ?? '';
+		return this.getFocusedView()?.name?.value ?? textEditorFocused ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
@@ -434,7 +459,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						id,
 						title: mnemonicTitle,
 					},
-					group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+					group: defaultLocation === ViewContainerLocation.Sidebar ? '3_sidebar' : defaultLocation === ViewContainerLocation.AuxiliaryBar ? '4_auxbar' : '5_panel',
 					when: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
 					order: order ?? Number.MAX_VALUE
 				}));
@@ -503,7 +528,7 @@ export class ViewsService extends Disposable implements IViewsService {
 							id: commandId,
 							title: viewDescriptor.openCommandActionDescriptor.mnemonicTitle,
 						},
-						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_sidebar' : defaultLocation === ViewContainerLocation.AuxiliaryBar ? '4_auxbar' : '5_panel',
 						when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
 						order: viewDescriptor.openCommandActionDescriptor.order ?? Number.MAX_VALUE
 					}));
@@ -590,7 +615,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					viewDescriptorService.moveViewContainerToLocation(defaultContainer, defaultLocation, undefined, this.desc.id);
 				}
 
-				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!, undefined, this.desc.id);
+				viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer, undefined, this.desc.id);
 				accessor.get(IViewsService).openView(viewDescriptor.id, true);
 			}
 		});

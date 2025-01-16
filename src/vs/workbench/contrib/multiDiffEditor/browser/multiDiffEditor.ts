@@ -28,6 +28,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
+import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
@@ -48,6 +49,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IEditorProgressService private editorProgressService: IEditorProgressService,
 	) {
 		super(
 			MultiDiffEditor.ID,
@@ -146,6 +148,10 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		if (!i) { return undefined; }
 		const i2 = i as IDocumentDiffItemWithMultiDiffEditorItem;
 		return i2.multiDiffEditorItem;
+	}
+
+	public async showWhile(promise: Promise<unknown>): Promise<void> {
+		return this.editorProgressService.showWhile(promise);
 	}
 }
 

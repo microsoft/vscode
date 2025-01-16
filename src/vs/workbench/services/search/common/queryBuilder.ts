@@ -13,7 +13,7 @@ import * as path from '../../../../base/common/path.js';
 import { isEqual, basename, relativePath, isAbsolutePath } from '../../../../base/common/resources.js';
 import * as strings from '../../../../base/common/strings.js';
 import { assertIsDefined, isDefined } from '../../../../base/common/types.js';
-import { URI, URI as uri } from '../../../../base/common/uri.js';
+import { URI, URI as uri, UriComponents } from '../../../../base/common/uri.js';
 import { isMultilineRegexSource } from '../../../../editor/common/model/textModelSearch.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -22,7 +22,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 import { IPathService } from '../../path/common/pathService.js';
-import { ExcludeGlobPattern, getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
+import { ExcludeGlobPattern, getExcludes, IAITextQuery, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
 import { GlobPattern } from './searchExtTypes.js';
 
 /**
@@ -43,16 +43,16 @@ export interface ISearchPathPattern {
 
 type ISearchPathPatternBuilder = string | string[];
 
-export interface ISearchPatternBuilder {
-	uri?: uri;
+export interface ISearchPatternBuilder<U extends UriComponents> {
+	uri?: U;
 	pattern: ISearchPathPatternBuilder;
 }
 
-export function isISearchPatternBuilder(object: ISearchPatternBuilder | ISearchPathPatternBuilder): object is ISearchPatternBuilder {
+export function isISearchPatternBuilder<U extends UriComponents>(object: ISearchPatternBuilder<U> | ISearchPathPatternBuilder): object is ISearchPatternBuilder<U> {
 	return (typeof object === 'object' && 'uri' in object && 'pattern' in object);
 }
 
-export function globPatternToISearchPatternBuilder(globPattern: GlobPattern): ISearchPatternBuilder {
+export function globPatternToISearchPatternBuilder(globPattern: GlobPattern): ISearchPatternBuilder<URI> {
 
 	if (typeof globPattern === 'string') {
 		return {
@@ -74,11 +74,11 @@ export interface ISearchPathsInfo {
 	pattern?: glob.IExpression;
 }
 
-interface ICommonQueryBuilderOptions {
+interface ICommonQueryBuilderOptions<U extends UriComponents = URI> {
 	_reason?: string;
-	excludePattern?: ISearchPatternBuilder[];
+	excludePattern?: ISearchPatternBuilder<U>[];
 	includePattern?: ISearchPathPatternBuilder;
-	extraFileResources?: uri[];
+	extraFileResources?: U[];
 
 	/** Parse the special ./ syntax supported by the searchview, and expand foo to ** /foo */
 	expandPatterns?: boolean;
@@ -95,7 +95,7 @@ interface ICommonQueryBuilderOptions {
 	onlyFileScheme?: boolean;
 }
 
-export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
+export interface IFileQueryBuilderOptions<U extends UriComponents = URI> extends ICommonQueryBuilderOptions<U> {
 	filePattern?: string;
 	exists?: boolean;
 	sortByScore?: boolean;
@@ -103,7 +103,7 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	shouldGlobSearch?: boolean;
 }
 
-export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
+export interface ITextQueryBuilderOptions<U extends UriComponents = URI> extends ICommonQueryBuilderOptions<U> {
 	previewOptions?: ITextSearchPreviewOptions;
 	fileEncoding?: string;
 	surroundingContext?: number;
@@ -126,6 +126,15 @@ export class QueryBuilder {
 		@IPathService private readonly pathService: IPathService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
+	}
+
+	aiText(contentPattern: string, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): IAITextQuery {
+		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
+		return {
+			...commonQuery,
+			type: QueryType.aiText,
+			contentPattern,
+		};
 	}
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
@@ -637,7 +646,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string; globPorti
 	};
 }
 
-function patternListToIExpression(...patterns: string[]): glob.IExpression {
+function patternListToIExpression(...patterns: string[]): glob.IExpression | undefined {
 	return patterns.length ?
 		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null)) :
 		undefined;

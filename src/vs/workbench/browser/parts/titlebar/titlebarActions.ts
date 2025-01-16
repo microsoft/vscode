@@ -9,18 +9,20 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { isLinux, isNative } from '../../../../base/common/platform.js';
 
 // --- Context Menu Actions --- //
 
-class ToggleConfigAction extends Action2 {
+export class ToggleTitleBarConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, description: string | ILocalizedString | undefined, order: number, mainWindowOnly: boolean) {
-		const when = mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true();
+	constructor(private readonly section: string, title: string, description: string | ILocalizedString | undefined, order: number, mainWindowOnly: boolean, when?: ContextKeyExpression) {
+		when = ContextKeyExpr.and(mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true(), when);
+
 		super({
 			id: `toggle.${section}`,
 			title,
@@ -50,15 +52,21 @@ class ToggleConfigAction extends Action2 {
 	}
 }
 
-registerAction2(class ToggleCommandCenter extends ToggleConfigAction {
+registerAction2(class ToggleCommandCenter extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), localize('toggle.commandCenterDescription', "Toggle visibility of the Command Center in title bar"), 1, false);
 	}
 });
 
-registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
+registerAction2(class ToggleNavigationControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 2, true);
+		super('workbench.navigationControl.enabled', localize('toggle.navigation', 'Navigation Controls'), localize('toggle.navigationDescription', "Toggle visibility of the Navigation Controls in title bar"), 2, false, ContextKeyExpr.has('config.window.commandCenter'));
+	}
+});
+
+registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
+	constructor() {
+		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 4, true);
 	}
 });
 
@@ -97,7 +105,6 @@ registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.WINDOWED);
 	}
 });
-
 
 class ToggleCustomTitleBar extends Action2 {
 
@@ -170,7 +177,6 @@ registerAction2(class ShowCustomTitleBar extends Action2 {
 		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
 	}
 });
-
 
 registerAction2(class HideCustomTitleBar extends Action2 {
 	constructor() {
@@ -252,6 +258,26 @@ registerAction2(class ToggleEditorActions extends Action2 {
 		}
 	}
 });
+
+if (isLinux && isNative) {
+	registerAction2(class ToggleCustomTitleBar extends Action2 {
+		constructor() {
+			super({
+				id: `toggle.${TitleBarSetting.TITLE_BAR_STYLE}`,
+				title: localize('toggle.titleBarStyle', 'Restore Native Title Bar'),
+				menu: [
+					{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.CUSTOM), group: '4_restore_native_title' },
+					{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.CUSTOM), group: '4_restore_native_title' },
+				]
+			});
+		}
+
+		run(accessor: ServicesAccessor): void {
+			const configService = accessor.get(IConfigurationService);
+			configService.updateValue(TitleBarSetting.TITLE_BAR_STYLE, TitlebarStyle.NATIVE);
+		}
+	});
+}
 
 // --- Toolbar actions --- //
 

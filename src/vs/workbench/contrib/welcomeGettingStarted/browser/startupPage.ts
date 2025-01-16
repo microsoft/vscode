@@ -14,6 +14,7 @@ import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchStat
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
@@ -70,7 +71,7 @@ export class StartupPageEditorResolverContribution implements IWorkbenchContribu
 	}
 }
 
-export class StartupPageRunnerContribution implements IWorkbenchContribution {
+export class StartupPageRunnerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.startupPageRunner';
 
@@ -89,7 +90,14 @@ export class StartupPageRunnerContribution implements IWorkbenchContribution {
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
+		super();
 		this.run().then(undefined, onUnexpectedError);
+		this._register(this.editorService.onDidCloseEditor((e) => {
+			if (e.editor instanceof GettingStartedInput) {
+				e.editor.selectedCategory = undefined;
+				e.editor.selectedStep = undefined;
+			}
+		}));
 	}
 
 	private async run() {

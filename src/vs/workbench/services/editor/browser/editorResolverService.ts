@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from '../../../../base/common/glob.js';
-import { distinct, firstOrDefault, insert } from '../../../../base/common/arrays.js';
+import { distinct, insert } from '../../../../base/common/arrays.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, extname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -645,7 +645,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private mapEditorsToQuickPickEntry(resource: URI, showDefaultPicker?: boolean) {
-		const currentEditor = firstOrDefault(this.editorGroupService.activeGroup.findEditors(resource));
+		const currentEditor = this.editorGroupService.activeGroup.findEditors(resource).at(0);
 		// If untitled, we want all registered editors
 		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors.filter(e => e.editorInfo.priority !== RegisteredEditorPriority.exclusive) : this.findMatchingEditors(resource);
 		// We don't want duplicate Id entries

@@ -23,7 +23,6 @@ const minimatch_1 = require("minimatch");
 // Types we assume are present in all implementations of JS VMs (node.js, browsers)
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
-    'require', // from our AMD loader
     'setTimeout',
     'clearTimeout',
     'setInterval',
@@ -68,11 +67,17 @@ const CORE_TYPES = [
     'fetch',
     'RequestInit',
     'Headers',
+    'Request',
     'Response',
+    'Body',
+    '__type',
     '__global',
     'PerformanceMark',
     'PerformanceObserver',
-    'ImportMeta'
+    'ImportMeta',
+    // webcrypto has been available since Node.js 19, but still live in dom.d.ts
+    'Crypto',
+    'SubtleCrypto'
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
@@ -113,6 +118,22 @@ const RULES = [
             // Safe access to requestIdleCallback & cancelIdleCallback
             'requestIdleCallback',
             'cancelIdleCallback'
+        ],
+        disallowedTypes: NATIVE_TYPES,
+        disallowedDefinitions: [
+            'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/base/common/performance.ts
+    {
+        target: '**/vs/base/common/performance.ts',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to Performance
+            'Performance',
+            'PerformanceEntry',
+            'PerformanceTiming'
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
@@ -174,9 +195,9 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/base/parts/sandbox/electron-sandbox/preload.js
+    // Common: vs/base/parts/sandbox/electron-sandbox/preload.ts
     {
-        target: '**/vs/base/parts/sandbox/electron-sandbox/preload.js',
+        target: '**/vs/base/parts/sandbox/electron-sandbox/preload.ts',
         allowedTypes: [
             ...CORE_TYPES,
             // Safe access to a very small subset of node.js
@@ -233,6 +254,22 @@ const RULES = [
         allowedTypes: CORE_TYPES,
         disallowedDefinitions: [
             '@types/node' // no node.js
+        ]
+    },
+    // Electron (utility)
+    {
+        target: '**/vs/**/electron-utility/**',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // --> types from electron.d.ts that duplicate from lib.dom.d.ts
+            'Event',
+            'Request'
+        ],
+        disallowedTypes: [
+            'ipcMain' // not allowed, use validatedIpcMain instead
+        ],
+        disallowedDefinitions: [
+            'lib.dom.d.ts' // no DOM
         ]
     },
     // Electron (main)

@@ -30,12 +30,10 @@ import { getCodiconAriaLabel } from '../../../../base/common/iconLabels.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ReloadWindowAction } from '../../../browser/actions/windowActions.js';
 import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IExtensionsViewPaneContainer, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, VIEWLET_ID } from '../../extensions/common/extensions.js';
+import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from '../../extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { RemoteNameContext, VirtualWorkspaceContext } from '../../../common/contextkeys.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -227,13 +225,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					});
 				}
 				run = (accessor: ServicesAccessor, input: string) => {
-					const paneCompositeService = accessor.get(IPaneCompositePartService);
-					return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
-						if (viewlet) {
-							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@recommended:remotes`);
-							viewlet.focus();
-						}
-					});
+					const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+					return extensionsWorkbenchService.openSearch(`@recommended:remotes`);
 				};
 			}));
 		}

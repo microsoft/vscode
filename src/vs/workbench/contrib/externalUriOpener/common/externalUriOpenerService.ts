@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -126,7 +125,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		}
 
 		// See if we have a preferred opener first
-		const preferred = firstOrDefault(validOpeners.filter(x => x.priority === languages.ExternalUriOpenerPriority.Preferred));
+		const preferred = validOpeners.filter(x => x.priority === languages.ExternalUriOpenerPriority.Preferred).at(0);
 		if (preferred) {
 			return [preferred.opener];
 		}

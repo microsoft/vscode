@@ -29,12 +29,4 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 		}
 		return null;
 	}
-
-	protected _createSaveExtensionHostProfileAction(): Action | null {
-		return null;
-	}
-
-	protected _createProfileAction(): Action | null {
-		return null;
-	}
 }

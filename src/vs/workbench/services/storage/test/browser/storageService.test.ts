@@ -36,7 +36,6 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const inMemoryExtraProfile: IUserDataProfile = {
 		id: 'id',
 		name: 'inMemory',
-		shortName: 'inMemory',
 		isDefault: false,
 		location: inMemoryExtraProfileRoot,
 		globalStorageHome: joinPath(inMemoryExtraProfileRoot, 'globalStorageHome'),

@@ -101,31 +101,23 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 	}
 
 	/** assumes state is up to date */
-	public tokenizeLineWithEdit(position: Position, length: number, newText: string): LineTokens | null {
-		const lineNumber = position.lineNumber;
-		const column = position.column;
-
-		const lineStartState = this.getStartState(lineNumber);
+	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
+		const lineStartState: IState | null = this.getStartState(lineNumber);
 		if (!lineStartState) {
 			return null;
 		}
 
-		const curLineContent = this._textModel.getLineContent(lineNumber);
-		const newLineContent = curLineContent.substring(0, column - 1)
-			+ newText + curLineContent.substring(column - 1 + length);
+		const languageId = this._textModel.getLanguageId();
+		const result: LineTokens[] = [];
 
-		const languageId = this._textModel.getLanguageIdAtPosition(lineNumber, 0);
-		const result = safeTokenize(
-			this._languageIdCodec,
-			languageId,
-			this.tokenizationSupport,
-			newLineContent,
-			true,
-			lineStartState
-		);
+		let state = lineStartState;
+		for (const line of lines) {
+			const r = safeTokenize(this._languageIdCodec, languageId, this.tokenizationSupport, line, true, state);
+			result.push(new LineTokens(r.tokens, line, this._languageIdCodec));
+			state = r.endState;
+		}
 
-		const lineTokens = new LineTokens(result.tokens, newLineContent, this._languageIdCodec);
-		return lineTokens;
+		return result;
 	}
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {

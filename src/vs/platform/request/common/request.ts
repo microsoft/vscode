@@ -11,7 +11,7 @@ import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { CONTEXT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, LogLevelToString } from '../../log/common/log.js';
+import { ILogService } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
@@ -68,28 +68,21 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly logger: ILogger;
 	private counter = 0;
 
-	constructor(
-		loggerService: ILoggerService
-	) {
+	constructor(protected readonly logService: ILogService) {
 		super();
-		this.logger = loggerService.createLogger('network', {
-			name: localize('request', "Network Requests"),
-			when: CONTEXT_LOG_LEVEL.isEqualTo(LogLevelToString(LogLevel.Trace)).serialize()
-		});
 	}
 
-	protected async logAndRequest(stack: string, options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
-		const prefix = `${stack} #${++this.counter}: ${options.url}`;
-		this.logger.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
+	protected async logAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		const prefix = `[network] #${++this.counter}: ${options.url}`;
+		this.logService.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
 		try {
 			const result = await request();
-			this.logger.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
+			this.logService.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
 			return result;
 		} catch (error) {
-			this.logger.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
 			throw error;
 		}
 	}
@@ -208,7 +201,19 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				type: 'boolean',
 				tags: ['experimental'],
 				default: false,
-				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implemenation."),
+				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implementation."),
+				restricted: true
+			},
+			'http.electronFetch': {
+				type: 'boolean',
+				default: false,
+				description: localize('electronFetch', "Controls whether use of Electron's fetch implementation instead of Node.js' should be enabled. All local extensions will get Electron's fetch implementation for the global fetch API."),
+				restricted: true
+			},
+			'http.fetchAdditionalSupport': {
+				type: 'boolean',
+				default: true,
+				markdownDescription: localize('fetchAdditionalSupport', "Controls whether Node.js' fetch implementation should be extended with additional support. Currently proxy support ({0}) and system certificates ({1}) are added when the corresponding settings are enabled.", '`#http.proxySupport#`', '`#http.systemCertificates#`'),
 				restricted: true
 			}
 		}

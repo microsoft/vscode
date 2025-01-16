@@ -6,8 +6,6 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IBufferMarkCapability, TerminalCapability, IMarkProperties } from './capabilities.js';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { IMarker, Terminal } from '@xterm/headless';
 
 /**

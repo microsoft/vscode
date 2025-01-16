@@ -106,6 +106,7 @@ class NotebookEditorModelManager extends Disposable {
 		this._proxy.$acceptNewModel(
 			model.uri.toString(),
 			model.metadata,
+			model.transientOptions.transientDocumentMetadata,
 			model.cells.map(cell => ({
 				handle: cell.handle,
 				url: cell.uri.toString(),
@@ -140,10 +141,12 @@ class NotebookEditorModelManager extends Disposable {
 
 		const cellHandlers = new Set<NotebookCellTextModel>();
 		const addCellContentChangeHandler = (cell: NotebookCellTextModel) => {
-			if (!cellHandlers.has(cell) && cell.textModel) {
-				cellHandlers.add(cell);
-				toDispose.add(cell.textModel.onDidChangeContent((e) => this._proxy.$acceptCellModelChanged(modelUrl, cell.handle, e)));
-			}
+			cellHandlers.add(cell);
+			toDispose.add(cell.onDidChangeContent((e) => {
+				if (typeof e === 'object' && e.type === 'model') {
+					this._proxy.$acceptCellModelChanged(modelUrl, cell.handle, e.event);
+				}
+			}));
 		};
 
 		model.cells.forEach(cell => addCellContentChangeHandler(cell));
@@ -176,6 +179,12 @@ class NotebookEditorModelManager extends Disposable {
 								kind: e.kind,
 								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
 							});
+
+							for (const change of e.changes) {
+								for (const cell of change[2]) {
+									addCellContentChangeHandler(cell as NotebookCellTextModel);
+								}
+							}
 							break;
 						}
 						case NotebookCellsChangeType.Move: {
@@ -191,6 +200,11 @@ class NotebookEditorModelManager extends Disposable {
 						case NotebookCellsChangeType.ChangeCellContent:
 							// Changes to cell content are handled by the cell model change listener.
 							break;
+						case NotebookCellsChangeType.ChangeDocumentMetadata:
+							dto.push({
+								kind: e.kind,
+								metadata: e.metadata
+							});
 						default:
 							dto.push(e);
 					}

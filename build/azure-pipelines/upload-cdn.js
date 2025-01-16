@@ -13,7 +13,7 @@ const mime = require("mime");
 const identity_1 = require("@azure/identity");
 const azure = require('gulp-azure-storage');
 const commit = process.env['BUILD_SOURCEVERSION'];
-const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
+const credential = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
 mime.define({
     'application/typescript': ['ts'],
     'application/json': ['code-snippets'],

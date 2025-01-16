@@ -34,8 +34,6 @@ export interface IBaseWindow extends IDisposable {
 	setDocumentEdited(edited: boolean): void;
 	isDocumentEdited(): boolean;
 
-	handleTitleDoubleClick(): void;
-
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
 
@@ -141,8 +139,8 @@ export interface IWindowState {
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
 	return {
-		width: 1024,
-		height: 768,
+		width: 1200,
+		height: 800,
 		mode
 	};
 };
@@ -156,8 +154,8 @@ export const defaultAuxWindowState = function (): IWindowState {
 	// we need to set not only width and height but also x and y to
 	// a good location on the primary display.
 
-	const width = 800;
-	const height = 600;
+	const width = 1024;
+	const height = 768;
 	const workArea = electron.screen.getPrimaryDisplay().workArea;
 	const x = Math.max(workArea.x + (workArea.width / 2) - (width / 2), 0);
 	const y = Math.max(workArea.y + (workArea.height / 2) - (height / 2), 0);
