@@ -234,6 +234,7 @@ import { assertNoRpc, poll } from '../utils';
 		test('onDidChangeTerminalState should fire after writing to a terminal', async () => {
 			const terminal = window.createTerminal();
 			strictEqual(terminal.state.isInteractedWith, false);
+			terminal.sendText('test');
 			const eventState = await new Promise<TerminalState>(r => {
 				disposables.push(window.onDidChangeTerminalState(e => {
 					if (e === terminal) {
