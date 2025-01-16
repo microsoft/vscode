@@ -117,7 +117,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, change: IModelContentChangedEvent | undefined) {
 		const changedNodes = await treeSitterTree.onDidChangeContent(this.model, change?.changes ?? []);
 		// Tree sitter is 0 based, text model is 1 based
-		const ranges: RangeChange[] = changedNodes ?? [{ newRange: this.model.getFullModelRange(), oldRangeLength: this.model.getValueLength() }];
+		const ranges: RangeChange[] = changedNodes ?? [{ newRange: this.model.getFullModelRange(), oldRangeLength: this.model.getValueLength(), newRangeStartOffset: 0, newRangeEndOffset: this.model.getValueLength() }];
 		this._onDidChangeParseResult.fire({ ranges, versionId: change?.versionId ?? this.model.getVersionId() });
 	}
 }
@@ -131,6 +131,8 @@ interface ChangedRange {
 	newNodeId: number;
 	newStartPosition: Position;
 	newEndPosition: Position;
+	newStartIndex: number;
+	newEndIndex: number;
 	oldStartIndex: number;
 	oldEndIndex: number;
 }
@@ -207,19 +209,20 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				const oldEndIndex = oldCursor.currentNode.endIndex;
 				// Fill holes between nodes.
 				const prevNewSibling = newCursor.currentNode.previousSibling;
-				const newStartPosition = new Position(prevNewSibling ? prevNewSibling.endPosition.row + 1 : 1, prevNewSibling ? prevNewSibling.endPosition.column + 1 : 1);
+				const newStartPosition = new Position(prevNewSibling ? prevNewSibling.endPosition.row + 1 : newCursor.currentNode.startPosition.row + 1, prevNewSibling ? prevNewSibling.endPosition.column + 1 : newCursor.currentNode.startPosition.column + 1);
+				const newStartIndex = prevNewSibling ? prevNewSibling.endIndex : newCursor.currentNode.startIndex;
 
 				const prevOldSibling = oldCursor.currentNode.previousSibling;
-				const oldStartIndex = prevOldSibling ? prevOldSibling.endIndex : 0;
+				const oldStartIndex = prevOldSibling ? prevOldSibling.endIndex : oldCursor.currentNode.startIndex;
 
-				changedRanges.push({ newStartPosition, newEndPosition, oldStartIndex, oldEndIndex, newNodeId: newCursor.currentNode.id });
+				changedRanges.push({ newStartPosition, newEndPosition, oldStartIndex, oldEndIndex, newNodeId: newCursor.currentNode.id, newStartIndex, newEndIndex: newCursor.currentNode.endIndex });
 				canGoChild = false;
 			}
 			next = canGoChild ? gotoFirstChild() : nextSiblingOrParentSibling();
 		} while (next);
 
 		if (changedRanges.length === 0 && newTree.rootNode.hasChanges) {
-			return [{ newStartPosition: new Position(newTree.rootNode.startPosition.row + 1, newTree.rootNode.startPosition.column + 1), newEndPosition: new Position(newTree.rootNode.endPosition.row + 1, newTree.rootNode.endPosition.column + 1), oldStartIndex: oldTree.rootNode.startIndex, oldEndIndex: oldTree.rootNode.endIndex, newNodeId: newTree.rootNode.id }];
+			return [{ newStartPosition: new Position(newTree.rootNode.startPosition.row + 1, newTree.rootNode.startPosition.column + 1), newEndPosition: new Position(newTree.rootNode.endPosition.row + 1, newTree.rootNode.endPosition.column + 1), oldStartIndex: oldTree.rootNode.startIndex, oldEndIndex: oldTree.rootNode.endIndex, newStartIndex: newTree.rootNode.startIndex, newEndIndex: newTree.rootNode.endIndex, newNodeId: newTree.rootNode.id }];
 		} else {
 			return changedRanges;
 		}
@@ -241,8 +244,9 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				const prevRangeChange = ranges[ranges.length - 1];
 				prevRangeChange.newRange = new Range(prevRangeChange.newRange.startLineNumber, prevRangeChange.newRange.startColumn, node.newEndPosition.lineNumber, node.newEndPosition.column);
 				prevRangeChange.oldRangeLength = node.oldEndIndex - prevNode.oldStartIndex;
+				prevRangeChange.newRangeEndOffset = node.newEndIndex;
 			} else {
-				ranges.push({ newRange: Range.fromPositions(node.newStartPosition, node.newEndPosition), oldRangeLength: node.oldEndIndex - node.oldStartIndex });
+				ranges.push({ newRange: Range.fromPositions(node.newStartPosition, node.newEndPosition), oldRangeLength: node.oldEndIndex - node.oldStartIndex, newRangeStartOffset: node.newStartIndex, newRangeEndOffset: node.newEndIndex });
 			}
 		}
 		return ranges;

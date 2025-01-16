@@ -653,5 +653,50 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 4, length: 3, token: 2 }
 		]);
 	});
+
+	test('replace a token with a slightly larger token', () => {
+		const store = new TokenStore(textModel);
+		store.buildStore([
+			{ startOffsetInclusive: 0, length: 5, token: 1 },
+			{ startOffsetInclusive: 5, length: 1, token: 2 },
+			{ startOffsetInclusive: 6, length: 1, token: 2 },
+			{ startOffsetInclusive: 7, length: 17, token: 2 },
+			{ startOffsetInclusive: 24, length: 1, token: 2 },
+			{ startOffsetInclusive: 25, length: 5, token: 2 },
+			{ startOffsetInclusive: 30, length: 1, token: 2 },
+			{ startOffsetInclusive: 31, length: 1, token: 2 },
+			{ startOffsetInclusive: 32, length: 5, token: 2 }
+		]);
+		store.update(17, [{ startOffsetInclusive: 7, length: 19, token: 0 }]); // removes 4 chars within token 1 and partially token 2
+		const tokens = store.getTokensInRange(0, 39);
+		assert.deepStrictEqual(tokens, [
+			{ startOffsetInclusive: 0, length: 5, token: 1 },
+			{ startOffsetInclusive: 5, length: 1, token: 2 },
+			{ startOffsetInclusive: 6, length: 1, token: 2 },
+			{ startOffsetInclusive: 7, length: 19, token: 0 },
+			{ startOffsetInclusive: 26, length: 1, token: 2 },
+			{ startOffsetInclusive: 27, length: 5, token: 2 },
+			{ startOffsetInclusive: 32, length: 1, token: 2 },
+			{ startOffsetInclusive: 33, length: 1, token: 2 },
+			{ startOffsetInclusive: 34, length: 5, token: 2 }
+		]);
+	});
+
+	test('replace a character from a large token', () => {
+		const store = new TokenStore(textModel);
+		store.buildStore([
+			{ startOffsetInclusive: 0, length: 2, token: 1 },
+			{ startOffsetInclusive: 2, length: 5, token: 2 },
+			{ startOffsetInclusive: 7, length: 1, token: 3 }
+		]);
+		store.delete(1, 3);
+		const tokens = store.getTokensInRange(0, 7);
+		assert.deepStrictEqual(tokens, [
+			{ startOffsetInclusive: 0, length: 2, token: 1 },
+			{ startOffsetInclusive: 2, length: 1, token: 2 },
+			{ startOffsetInclusive: 3, length: 3, token: 2 },
+			{ startOffsetInclusive: 6, length: 1, token: 3 }
+		]);
+	});
 });
 

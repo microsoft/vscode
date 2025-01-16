@@ -255,7 +255,7 @@ export class TokenStore {
 			} else if (isLeaf(node.node) && (currentOffset < updateOffsetStart)) {
 				// We have a partial preceding node
 				precedingNodes.push({ length: updateOffsetStart - currentOffset, token: node.node.token, height: 0 });
-				continue;
+				// Node could also be postceeding, so don't continue
 			}
 
 			if ((updateOffsetStart <= currentOffset) && (currentOffset + node.node.length <= firstUnchangedOffsetAfterUpdate)) {

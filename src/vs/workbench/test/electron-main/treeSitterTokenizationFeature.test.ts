@@ -181,7 +181,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 	test('File single line file', async () => {
 		const content = `console.log('x');`;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 1, 17);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 1, 18), 0, 17);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 7);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -193,7 +193,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 console.log('x');
 `;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 3, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 3, 1), 0, 19);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 9);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -203,7 +203,7 @@ console.log('x');
 	test('File with new lines at beginning and end \\r\\n', async () => {
 		const content = '\r\nconsole.log(\'x\');\r\n';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 3, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 3, 1), 0, 21);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 9);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -217,9 +217,9 @@ console.log('x');
 console.log('7');
 `;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 5, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 38);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 18);
+		assert.deepStrictEqual(tokens?.length, 17);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -227,9 +227,9 @@ console.log('7');
 	test('File with empty lines in the middle \\r\\n', async () => {
 		const content = '\r\nconsole.log(\'x\');\r\n\r\nconsole.log(\'7\');\r\n';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 5, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 42);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 18);
+		assert.deepStrictEqual(tokens?.length, 17);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -241,9 +241,9 @@ console.log('7');
 }
 `;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 5, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 24);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 12);
+		assert.deepStrictEqual(tokens?.length, 10);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -251,9 +251,9 @@ console.log('7');
 	test('File with non-empty lines that match no scopes \\r\\n', async () => {
 		const content = 'console.log(\'x\');\r\n;\r\n{\r\n}\r\n';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 5, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 28);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 12);
+		assert.deepStrictEqual(tokens?.length, 10);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -266,9 +266,9 @@ console.log('x');
 
 `;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 6, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 1), 0, 28);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 13);
+		assert.deepStrictEqual(tokens?.length, 10);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -276,9 +276,9 @@ console.log('x');
 	test('File with tree-sitter token that spans multiple lines \\r\\n', async () => {
 		const content = '/**\r\n**/\r\n\r\nconsole.log(\'x\');\r\n\r\n';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 6, 0);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 1), 0, 33);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 13);
+		assert.deepStrictEqual(tokens?.length, 10);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -292,9 +292,9 @@ class Y {
 	private z = false;
 }`;
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 7, 1);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 7, 1), 0, 63);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 27);
+		assert.deepStrictEqual(tokens?.length, 22);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -302,9 +302,9 @@ class Y {
 	test('File with tabs \\r\\n', async () => {
 		const content = 'function x() {\r\n\treturn true;\r\n}\r\n\r\nclass Y {\r\n\tprivate z = false;\r\n}';
 		const model = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, 1, 0, 7, 1);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 7, 1), 0, 69);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 27);
+		assert.deepStrictEqual(tokens?.length, 22);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});

@@ -16,6 +16,8 @@ export const ITreeSitterParserService = createDecorator<ITreeSitterParserService
 export interface RangeChange {
 	newRange: Range;
 	oldRangeLength: number;
+	newRangeStartOffset: number;
+	newRangeEndOffset: number;
 }
 
 export interface TreeParseUpdateEvent {
