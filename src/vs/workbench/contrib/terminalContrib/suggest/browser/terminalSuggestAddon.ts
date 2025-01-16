@@ -422,7 +422,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
 			this._register(this._suggestWidget.onDidBlurDetails((e) => {
 				const elt = e.relatedTarget as HTMLElement;
-				if (elt.className === 'xterm-helper-textarea') {
+				if (this._terminal?.element?.contains(elt)) {
 					// Do nothing, just the terminal getting focused
 					return;
 				}
