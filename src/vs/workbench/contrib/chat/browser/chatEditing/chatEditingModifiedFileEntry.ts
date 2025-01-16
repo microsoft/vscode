@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
@@ -91,6 +91,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._maxLineNumberObs;
 	}
 
+	private readonly _reviewModeTempObs = observableValue<true | undefined>(this, undefined);
+	readonly reviewMode: IObservable<boolean>;
+
+	private readonly _autoAcceptCountdown = observableValue<number | undefined>(this, undefined);
+	readonly autoAcceptCountdown: IObservable<number | undefined> = this._autoAcceptCountdown;
+
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
@@ -133,6 +139,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 
 	private readonly _diffTrimWhitespace: IObservable<boolean>;
+
+	private _refCounter: number = 1;
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
@@ -197,6 +205,41 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this._diffTrimWhitespace.read(r);
 			this._updateDiffInfoSeq();
 		}));
+
+		// review mode depends on setting and temporary override
+		const autoAccept = observableConfigValue('chat.editing.automaticallyAcceptChanges', false, configService);
+		this.reviewMode = derived(r => {
+			const configuredValue = !autoAccept.read(r);
+			const tempValue = this._reviewModeTempObs.read(r);
+			return tempValue || configuredValue;
+		});
+	}
+
+	override dispose(): void {
+		if (--this._refCounter === 0) {
+			super.dispose();
+		}
+	}
+
+	acquire() {
+		this._refCounter++;
+		return this;
+	}
+
+	enableReviewModeUntilSettled(): void {
+
+		this._reviewModeTempObs.set(true, undefined);
+
+		const cleanup = autorun(r => {
+			// reset config when settled
+			const resetConfig = this.state.read(r) !== WorkingSetEntryState.Modified;
+			if (resetConfig) {
+				this._store.delete(cleanup);
+				this._reviewModeTempObs.set(undefined, undefined);
+			}
+		});
+
+		this._store.add(cleanup);
 	}
 
 	private _clearCurrentEditLineDecoration() {
@@ -245,6 +288,31 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._isCurrentlyBeingModifiedObs.set(false, tx);
 		this._rewriteRatioObs.set(0, tx);
 		this._clearCurrentEditLineDecoration();
+
+		// AUTO accept mode
+		if (!this.reviewMode.get()) {
+
+			const future = Date.now() + 10000; // 10secs
+			const update = () => {
+
+				const reviewMode = this.reviewMode.get();
+				if (reviewMode) {
+					// switched back to review mode
+					this._autoAcceptCountdown.set(undefined, undefined);
+					return;
+				}
+
+				const remain = Math.round((future - Date.now()) / 1000);
+				if (remain <= 0) {
+					this.accept(undefined);
+					this._autoAcceptCountdown.set(undefined, undefined);
+				} else {
+					this._autoAcceptCountdown.set(remain, undefined);
+					setTimeout(update, 1000);
+				}
+			};
+			update();
+		}
 	}
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {

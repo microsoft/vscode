@@ -266,7 +266,7 @@ export class ApplyCodeBlockOperation {
 		const inlineChatController = InlineChatController.get(codeEditor);
 		if (inlineChatController) {
 			let isOpen = true;
-			const promise = inlineChatController.reviewEdits(codeEditor.getSelection(), edits, tokenSource.token);
+			const promise = inlineChatController.reviewEdits(edits, tokenSource.token);
 			promise.finally(() => {
 				isOpen = false;
 				tokenSource.dispose();

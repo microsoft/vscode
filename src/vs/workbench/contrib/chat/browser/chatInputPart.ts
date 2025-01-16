@@ -195,7 +195,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				continue;
 			}
 
-			for (const childUri of variable.validFileReferenceUris) {
+			for (const childUri of variable.allValidReferencesUris) {
 				contextArr.push({
 					id: variable.id,
 					name: basename(childUri.path),

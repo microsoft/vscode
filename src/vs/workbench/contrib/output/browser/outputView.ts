@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { AbstractTextResourceEditor } from '../../../browser/parts/editor/textResourceEditor.js';
-import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, LOG_ENTRY_REGEX } from '../../../services/output/common/output.js';
+import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, parseLogEntries, ILogEntry, parseLogEntryAt } from '../../../services/output/common/output.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -340,12 +340,6 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 }
 
-
-interface ILogEntry {
-	readonly logLevel: LogLevel;
-	readonly lineRange: [number, number];
-}
-
 export class FilterController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'output.editor.contrib.filterController';
@@ -403,8 +397,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 	private computeLogEntries(model: ITextModel): void {
 		this.logEntries = undefined;
-		const firstLine = model.getLineContent(1);
-		if (!LOG_ENTRY_REGEX.test(firstLine)) {
+		if (!parseLogEntryAt(model, 1)) {
 			return;
 		}
 
@@ -413,30 +406,8 @@ export class FilterController extends Disposable implements IEditorContribution 
 	}
 
 	private computeLogEntriesIncremental(model: ITextModel, fromLine: number): void {
-		if (!this.logEntries) {
-			return;
-		}
-
-		const lineCount = model.getLineCount();
-		for (let lineNumber = fromLine; lineNumber <= lineCount; lineNumber++) {
-			const lineContent = model.getLineContent(lineNumber);
-			const match = LOG_ENTRY_REGEX.exec(lineContent);
-			if (match) {
-				const logLevel = this.parseLogLevel(match[3]);
-				const startLine = lineNumber;
-				let endLine = lineNumber;
-
-				while (endLine < lineCount) {
-					const nextLineContent = model.getLineContent(endLine + 1);
-					if (model.getLineFirstNonWhitespaceColumn(endLine + 1) === 0 || LOG_ENTRY_REGEX.test(nextLineContent)) {
-						break;
-					}
-					endLine++;
-				}
-
-				this.logEntries.push({ logLevel, lineRange: [startLine, endLine] });
-				lineNumber = endLine;
-			}
+		if (this.logEntries) {
+			this.logEntries = this.logEntries.concat(parseLogEntries(model, fromLine));
 		}
 	}
 
@@ -451,22 +422,22 @@ export class FilterController extends Disposable implements IEditorContribution 
 		const findMatchesDecorations: IModelDeltaDecoration[] = [];
 
 		if (this.logEntries) {
-			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || filters.error;
+			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error;
 			if (hasLogLevelFilter || filters.text) {
 				for (let i = from; i < this.logEntries.length; i++) {
 					const entry = this.logEntries[i];
 					if (hasLogLevelFilter && !this.shouldShowEntry(entry, filters)) {
-						this.hiddenAreas.push(new Range(entry.lineRange[0], 1, entry.lineRange[1], model.getLineMaxColumn(entry.lineRange[1])));
+						this.hiddenAreas.push(entry.range);
 						continue;
 					}
 					if (filters.text) {
-						const matches = model.findMatches(filters.text, new Range(entry.lineRange[0], 1, entry.lineRange[1], model.getLineLastNonWhitespaceColumn(entry.lineRange[1])), false, false, null, false);
+						const matches = model.findMatches(filters.text, entry.range, false, false, null, false);
 						if (matches.length) {
 							for (const match of matches) {
 								findMatchesDecorations.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
 							}
 						} else {
-							this.hiddenAreas.push(new Range(entry.lineRange[0], 1, entry.lineRange[1], model.getLineMaxColumn(entry.lineRange[1])));
+							this.hiddenAreas.push(entry.range);
 						}
 					}
 				}
@@ -508,22 +479,5 @@ export class FilterController extends Disposable implements IEditorContribution 
 				return filters.error;
 		}
 		return true;
-	}
-
-	private parseLogLevel(level: string): LogLevel {
-		switch (level.toLowerCase()) {
-			case 'trace':
-				return LogLevel.Trace;
-			case 'debug':
-				return LogLevel.Debug;
-			case 'info':
-				return LogLevel.Info;
-			case 'warning':
-				return LogLevel.Warning;
-			case 'error':
-				return LogLevel.Error;
-			default:
-				throw new Error(`Unknown log level: ${level}`);
-		}
 	}
 }

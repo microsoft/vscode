@@ -27,7 +27,7 @@ import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpl
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
-import { ITerminalCompletion, ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
+import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -58,7 +58,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _enableWidget: boolean = true;
 	private _pathSeparator: string = sep;
 	private _isFilteringDirectories: boolean = false;
-	private _mostRecentCompletion?: ITerminalCompletion;
 
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
@@ -193,12 +192,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._leadingLineContent = this._promptInputModel.prefix;
 		}
 
-		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.isDirectory)) {
-			completions.push(this._mostRecentCompletion);
-		}
-		this._mostRecentCompletion = undefined;
-
-
 		let normalizedLeadingLineContent = this._leadingLineContent;
 
 		// If there is a single directory in the completions:
@@ -235,6 +228,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	toggleExplainMode(): void {
 		this._suggestWidget?.toggleExplainMode();
+	}
+
+	toggleSuggestionDetails(): void {
+		this._suggestWidget?.toggleDetails();
 	}
 
 	resetWidgetSize(): void {
@@ -503,8 +500,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (completion.icon === Codicon.folder) {
 			SuggestAddon.lastAcceptedCompletionTimestamp = 0;
 		}
-
-		this._mostRecentCompletion = completion;
 
 		const commonPrefixLen = commonPrefixLength(replacementText, completionText);
 		const commonPrefix = replacementText.substring(replacementText.length - 1 - commonPrefixLen, replacementText.length - 1);

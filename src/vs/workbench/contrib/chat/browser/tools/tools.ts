@@ -17,6 +17,8 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -67,7 +69,9 @@ class EditTool implements IToolData, IToolImpl {
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@ICodeMapperService private readonly codeMapperService: ICodeMapperService
+		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService
 	) {
 		this.inputSchema = {
 			type: 'object',
@@ -94,16 +98,23 @@ class EditTool implements IToolData, IToolImpl {
 			throw new Error('toolInvocationToken is required for this tool');
 		}
 
-
 		const parameters = invocation.parameters as EditToolParams;
 		if (!parameters.filePath || !parameters.explanation || !parameters.code) {
 			throw new Error(`Invalid tool input: ${JSON.stringify(parameters)}`);
 		}
 
+		const uri = URI.file(parameters.filePath);
+		if (!this.workspaceContextService.isInsideWorkspace(uri)) {
+			return { content: [{ kind: 'text', value: `Error: file ${parameters.filePath} can't be edited because it's not inside the current workspace` }] };
+		}
+
+		if (await this.ignoredFilesService.fileIsIgnored(uri, token)) {
+			return { content: [{ kind: 'text', value: `Error: file ${parameters.filePath} can't be edited because it is configured to be ignored by Copilot` }] };
+		}
+
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
 
-		const uri = URI.file(parameters.filePath);
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString('\n````\n')

@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OutputService } from './outputServices.js';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT } from '../../../services/output/common/output.js';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT } from '../../../services/output/common/output.js';
 import { OutputViewPane } from './outputView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -41,6 +41,10 @@ import { localize, localize2 } from '../../../../nls.js';
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { basename } from '../../../../base/common/resources.js';
+
+const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -95,7 +99,6 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IOutputService private readonly outputService: IOutputService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IFilesConfigurationService private readonly fileConfigurationService: IFilesConfigurationService,
 	) {
 		super();
 		this.registerActions();
@@ -114,6 +117,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerConfigureActiveOutputLogLevelAction();
 		this.registerFilterActions();
 		this.registerExportLogsAction();
+		this.registerImportLogAction();
 	}
 
 	private registerSwitchOutputAction(): void {
@@ -144,7 +148,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		const registerOutputChannels = (channels: IOutputChannelDescriptor[]) => {
 			for (const channel of channels) {
 				const title = channel.label;
-				const group = channel.files && channel.files.length > 1 ? '2_compound_logs' : channel.extensionId ? '0_ext_outputchannels' : '1_core_outputchannels';
+				const group = (channel.files?.length && channel.files.length > 1) || channel.id.startsWith(IMPORTED_LOG_ID_PREFIX) ? '2_custom_logs' : channel.extensionId ? '0_ext_outputchannels' : '1_core_outputchannels';
 				registeredChannels.set(channel.id, registerAction2(class extends Action2 {
 					constructor() {
 						super({
@@ -186,6 +190,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: '2_add',
 					}],
 				});
 			}
@@ -362,11 +367,10 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						isHiddenByDefault: true
 					}],
 					icon: Codicon.goToFile,
-					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
 			async run(): Promise<void> {
-				that.openActiveOutputFile();
+				that.openActiveOutput();
 			}
 		}));
 	}
@@ -386,11 +390,10 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						isHiddenByDefault: true
 					}],
 					icon: Codicon.emptyWindow,
-					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
 			async run(): Promise<void> {
-				that.openActiveOutputFile(AUX_WINDOW_GROUP);
+				that.openActiveOutput(AUX_WINDOW_GROUP);
 			}
 		}));
 	}
@@ -405,7 +408,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
-						group: 'export',
+						group: '1_export',
 						order: 1
 					}],
 				});
@@ -420,12 +423,11 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		}));
 	}
 
-	private async openActiveOutputFile(group?: AUX_WINDOW_GROUP_TYPE): Promise<void> {
-		const fileOutputChannelDescriptor = this.getFileOutputChannelDescriptor();
-		if (fileOutputChannelDescriptor) {
-			await this.fileConfigurationService.updateReadonly(fileOutputChannelDescriptor.files[0], true);
+	private async openActiveOutput(group?: AUX_WINDOW_GROUP_TYPE): Promise<void> {
+		const channel = this.outputService.getActiveChannel();
+		if (channel) {
 			await this.editorService.openEditor({
-				resource: fileOutputChannelDescriptor.files[0],
+				resource: channel.uri,
 				options: {
 					pinned: true,
 				},
@@ -711,7 +713,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
-						group: 'export',
+						group: '1_export',
 						order: 2,
 					}],
 				});
@@ -743,6 +745,53 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				const result = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log"), canPickMany: true });
 				if (result?.length) {
 					await outputService.saveOutputAs(...result);
+				}
+			}
+		}));
+	}
+
+	private registerImportLogAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.importLog`,
+					title: nls.localize2('importLog', "Import Log..."),
+					f1: true,
+					category: Categories.Developer,
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: '2_add',
+						order: 2,
+					}],
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const outputService = accessor.get(IOutputService);
+				const fileDialogService = accessor.get(IFileDialogService);
+				const result = await fileDialogService.showOpenDialog({
+					title: nls.localize('importLogFile', "Import Log File"),
+					canSelectFiles: true,
+					canSelectFolders: false,
+					canSelectMany: true,
+					filters: [{
+						name: nls.localize('logFiles', "Log Files"),
+						extensions: ['log']
+					}]
+				});
+
+				if (result?.length) {
+					const channelName = basename(result[0]);
+					const channelId = `${IMPORTED_LOG_ID_PREFIX}${Date.now()}`;
+					// Register and show the channel
+					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({
+						id: channelId,
+						label: channelName,
+						log: true,
+						files: result,
+						fileNames: result.map(r => basename(r).split('.')[0])
+					});
+					outputService.showChannel(channelId);
 				}
 			}
 		}));
