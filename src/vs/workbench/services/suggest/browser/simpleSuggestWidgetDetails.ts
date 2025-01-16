@@ -21,6 +21,8 @@ export function canExpandCompletionItem(item: SimpleCompletionItem | undefined):
 	return !!item && Boolean(item.completion.detail && item.completion.detail !== item.completion.label);
 }
 
+export const SuggestDetailsClassName = 'suggest-details';
+
 export class SimpleSuggestDetailsWidget {
 
 	readonly domNode: HTMLDivElement;

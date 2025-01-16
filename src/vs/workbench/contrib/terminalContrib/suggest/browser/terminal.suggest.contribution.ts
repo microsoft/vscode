@@ -28,6 +28,7 @@ import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
 import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
+import { SuggestDetailsClassName } from '../../../../services/suggest/browser/simpleSuggestWidgetDetails.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -155,7 +156,8 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, 'focusout', (e) => {
 			const relatedTarget = e.relatedTarget as HTMLElement;
-			if (relatedTarget.className !== 'suggest-details') {
+			if (relatedTarget.className !== SuggestDetailsClassName) {
+				// If the focus is not on the suggest details, hide the suggest widget
 				addon.hideSuggestWidget();
 			}
 		}));
