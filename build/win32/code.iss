@@ -34,6 +34,9 @@ ShowLanguageDialog=auto
 ArchitecturesAllowed={#ArchitecturesAllowed}
 ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
 WizardStyle=modern
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=commandline dialog
+DefaultDirName={autopf}\{#DirName}
 
 // We've seen an uptick on broken installations from updates which were unable
 // to shutdown VS Code. We rely on the fact that the update signals
@@ -42,13 +45,6 @@ CloseApplications=force
 
 #ifdef Sign
 SignTool=esrp
-#endif
-
-#if "user" == InstallTarget
-DefaultDirName={userpf}\{#DirName}
-PrivilegesRequired=lowest
-#else
-DefaultDirName={pf}\{#DirName}
 #endif
 
 [Languages]
@@ -1289,19 +1285,13 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%V"""; Tasks: addcontextmenufolders; Check: not (IsWindows11OrLater and QualityIsInsiders)
 
 ; Environment
-#if "user" == InstallTarget
-#define EnvironmentRootKey "HKCU"
-#define EnvironmentKey "Environment"
-#define Uninstall64RootKey "HKCU64"
-#define Uninstall32RootKey "HKCU32"
-#else
-#define EnvironmentRootKey "HKLM"
+; #if "user" == InstallTarget
+; #define EnvironmentKey "Environment"
+; #else
 #define EnvironmentKey "System\CurrentControlSet\Control\Session Manager\Environment"
-#define Uninstall64RootKey "HKLM64"
-#define Uninstall32RootKey "HKLM32"
-#endif
+; #endif
 
-Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; ValueName: "Path"; ValueData: "{code:AddToPath|{app}\bin}"; Tasks: addtopath; Check: NeedsAddToPath(ExpandConstant('{app}\bin'))
+Root: HKA; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; ValueName: "Path"; ValueData: "{code:AddToPath|{app}\bin}"; Tasks: addtopath; Check: NeedsAddToPath(ExpandConstant('{app}\bin'))
 
 [Code]
 function IsBackgroundUpdate(): Boolean;
@@ -1318,20 +1308,18 @@ end;
 function InitializeSetup(): Boolean;
 var
   RegKey: String;
-  ThisArch: String;
-  AltArch: String;
 begin
   Result := True;
 
-  #if "user" == InstallTarget
+  if not IsAdminInstallMode() then begin
     if not WizardSilent() and IsAdmin() then begin
       if MsgBox('This User Installer is not meant to be run as an Administrator. If you would like to install VS Code for all users in this system, download the System Installer instead from https://code.visualstudio.com. Are you sure you want to continue?', mbError, MB_OKCANCEL) = IDCANCEL then begin
         Result := False;
       end;
     end;
-  #endif
+  end;
 
-  #if "user" == InstallTarget
+  if not IsAdminInstallMode() then begin
     #if "arm64" == Arch
       #define IncompatibleArchRootKey "HKLM32"
     #else
@@ -1347,7 +1335,7 @@ begin
         end;
       end;
     end;
-  #endif
+  end;
 
 end;
 
@@ -1486,10 +1474,10 @@ var
 begin
   if WizardIsTaskSelected('addcontextmenufiles') then begin
     ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}');
+    RegDeleteKeyIncludingSubkeys(HKA, 'Software\Classes\*\shell\{#RegValueName}');
+    RegDeleteKeyIncludingSubkeys(HKA, 'Software\Classes\directory\shell\{#RegValueName}');
+    RegDeleteKeyIncludingSubkeys(HKA, 'Software\Classes\directory\background\shell\{#RegValueName}');
+    RegDeleteKeyIncludingSubkeys(HKA, 'Software\Classes\Drive\shell\{#RegValueName}');
   end;
 end;
 
@@ -1499,7 +1487,7 @@ var
 begin
   ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
   if not WizardIsTaskSelected('addcontextmenufiles') then begin
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\{#RegValueName}ContextMenu');
+    RegDeleteKeyIncludingSubkeys(HKA, 'Software\Classes\{#RegValueName}ContextMenu');
   end;
 end;
 #endif
@@ -1562,7 +1550,7 @@ function NeedsAddToPath(VSCode: string): boolean;
 var
   OrigPath: string;
 begin
-  if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath)
+  if not RegQueryStringValue(HKA, '{#EnvironmentKey}', 'Path', OrigPath)
   then begin
     Result := True;
     exit;
@@ -1574,7 +1562,7 @@ function AddToPath(VSCode: string): string;
 var
   OrigPath: string;
 begin
-  RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath)
+  RegQueryStringValue(HKA, '{#EnvironmentKey}', 'Path', OrigPath)
 
   if (Length(OrigPath) > 0) and (OrigPath[Length(OrigPath)] = ';') then
     Result := OrigPath + VSCode
@@ -1593,7 +1581,7 @@ begin
   if not CurUninstallStep = usUninstall then begin
     exit;
   end;
-  if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', Path)
+  if not RegQueryStringValue(HKA, '{#EnvironmentKey}', 'Path', Path)
   then begin
     exit;
   end;
@@ -1609,7 +1597,7 @@ begin
       end;
     end;
   end;
-  RegWriteExpandStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', NewPath);
+  RegWriteExpandStringValue(HKA, '{#EnvironmentKey}', 'Path', NewPath);
 end;
 
 #ifdef Debug
@@ -1625,9 +1613,9 @@ var
 begin
   Permissions := '/grant:r "*S-1-5-18:(OI)(CI)F" /grant:r "*S-1-5-32-544:(OI)(CI)F" /grant:r "*S-1-5-11:(OI)(CI)RX" /grant:r "*S-1-5-32-545:(OI)(CI)RX"';
 
-  #if "user" == InstallTarget
+  if not IsAdminInstallMode() then begin
     Permissions := Permissions + Format(' /grant:r "*S-1-3-0:(OI)(CI)F" /grant:r "%s:(OI)(CI)F"', [GetUserNameString()]);
-  #endif
+  end;
 
   Exec(ExpandConstant('{sys}\icacls.exe'), ExpandConstant('"{app}" /inheritancelevel:r ') + Permissions, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
