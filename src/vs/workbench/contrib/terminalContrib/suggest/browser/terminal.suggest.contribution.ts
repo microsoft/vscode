@@ -153,7 +153,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
 		}
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-		this.add(dom.addDisposableListener(this._ctx.instance.domElement, 'blur', (e) => {
+		this.add(dom.addDisposableListener(this._ctx.instance.domElement, 'focusout', (e) => {
 			const relatedTarget = e.relatedTarget as HTMLElement;
 			if (relatedTarget.className !== 'suggest-details') {
 				addon.hideSuggestWidget();
@@ -285,7 +285,7 @@ registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.ToggleDetails,
 	title: localize2('workbench.action.terminal.suggestToggleDetails', 'Suggest Toggle Details'),
 	f1: false,
-	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.focus, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
 	keybinding: {
 		// HACK: Force weight to be higher than that to start terminal chat
 		weight: KeybindingWeight.ExternalExtension + 2,
