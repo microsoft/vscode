@@ -43,7 +43,7 @@ export function connectProxyResolver(
 	const useHostProxyDefault = initData.environment.useHostProxy ?? !isRemote;
 	const fallbackToLocalKerberos = useHostProxyDefault;
 	const loadLocalCertificates = useHostProxyDefault;
-	const isUseHostProxyEnabled = () => configProvider.getConfiguration('http').get<boolean>('useLocalProxyConfiguration', useHostProxyDefault);
+	const isUseHostProxyEnabled = () => !isRemote || configProvider.getConfiguration('http').get<boolean>('useLocalProxyConfiguration', useHostProxyDefault);
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
 		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, {}, initData.remote.isRemote, fallbackToLocalKerberos),
@@ -71,7 +71,7 @@ export function connectProxyResolver(
 			}
 		},
 		proxyResolveTelemetry: () => { },
-		useHostProxy: isUseHostProxyEnabled(), // TODO: can change at runtime now
+		isUseHostProxyEnabled,
 		loadAdditionalCertificates: async () => {
 			const promises: Promise<string[]>[] = [];
 			if (initData.remote.isRemote) {
