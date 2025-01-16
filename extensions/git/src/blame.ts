@@ -12,7 +12,7 @@ import { BlameInformation, Commit } from './git';
 import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
-import { provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -205,6 +205,7 @@ export class GitBlameController {
 
 	async getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation, includeCommitDetails = false): Promise<MarkdownString> {
 		const remoteHoverCommands: Command[] = [];
+		let commitAvatar: string | undefined;
 		let commitInformation: Commit | undefined;
 		let commitMessageWithLinks: string | undefined;
 
@@ -216,6 +217,10 @@ export class GitBlameController {
 					commitInformation = await repository.getCommit(blameInformation.hash);
 				} catch { }
 			}
+
+			// Avatar
+			commitAvatar = await provideSourceControlHistoryItemAvatar(
+				this._model, repository, blameInformation.hash, blameInformation.authorName, blameInformation.authorEmail);
 
 			// Remote hover commands
 			const unpublishedCommits = await repository.getUnpublishedCommits();
@@ -234,16 +239,18 @@ export class GitBlameController {
 		markdownString.supportThemeIcons = true;
 
 		// Author, date
+		const hash = commitInformation?.hash ?? blameInformation.hash;
 		const authorName = commitInformation?.authorName ?? blameInformation.authorName;
 		const authorEmail = commitInformation?.authorEmail ?? blameInformation.authorEmail;
 		const authorDate = commitInformation?.authorDate ?? blameInformation.authorDate;
+		const avatar = commitAvatar ? `![${authorName}](${commitAvatar})` : '$(account)';
 
 		if (authorName) {
 			if (authorEmail) {
 				const emailTitle = l10n.t('Email');
-				markdownString.appendMarkdown(`$(account) [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
+				markdownString.appendMarkdown(`${avatar} [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
 			} else {
-				markdownString.appendMarkdown(`$(account) **${authorName}**`);
+				markdownString.appendMarkdown(`${avatar} **${authorName}**`);
 			}
 
 			if (authorDate) {
@@ -282,8 +289,6 @@ export class GitBlameController {
 		}
 
 		// Commands
-		const hash = commitInformation?.hash ?? blameInformation.hash;
-
 		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, hash]))} "${l10n.t('Open Commit')}")`);
 		markdownString.appendMarkdown('&nbsp;');
 		markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
