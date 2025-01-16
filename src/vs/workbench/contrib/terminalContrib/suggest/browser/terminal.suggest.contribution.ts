@@ -264,8 +264,8 @@ registerActiveInstanceAction({
 });
 
 registerActiveInstanceAction({
-	id: 'terminalSuggestToggleDetails',
-	title: localize2('workbench.action.terminal.suggestToggleDetils', 'Suggest Toggle Details'),
+	id: TerminalSuggestCommandId.ToggleDetails,
+	title: localize2('workbench.action.terminal.suggestToggleDetails', 'Suggest Toggle Details'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
 	keybinding: {
