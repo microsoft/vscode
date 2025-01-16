@@ -35,6 +35,7 @@ import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry
 import { getHoverProviderResultsAsAsyncIterable } from './getHover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { HoverStartSource } from './hoverOperation.js';
+import { ScrollEvent } from '../../../../base/common/scrollable.js';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -196,6 +197,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return this._renderedHoverParts;
 	}
 
+	public handleScroll(e: ScrollEvent): void {
+		this._renderedHoverParts?.handleScroll(e);
+	}
+
 	public getAccessibleContent(hoverPart: MarkdownHover): string {
 		return this._renderedHoverParts?.getAccessibleContent(hoverPart) ?? '';
 	}
@@ -215,6 +220,8 @@ class RenderedMarkdownHoverPart implements IRenderedHoverPart<MarkdownHover> {
 		public readonly hoverPart: MarkdownHover,
 		public readonly hoverElement: HTMLElement,
 		public readonly disposables: DisposableStore,
+		public readonly actionsContainer?: HTMLElement,
+		public readonly actionsContainerInner?: HTMLElement
 	) { }
 
 	get hoverAccessibleContent(): string {
@@ -275,7 +282,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		hoverPart: MarkdownHover,
 		onFinishedRendering: () => void
 	): RenderedMarkdownHoverPart {
-
+		console.log('_renderHoverPart');
 		const renderedMarkdownPart = this._renderMarkdownHover(hoverPart, onFinishedRendering);
 		const renderedMarkdownElement = renderedMarkdownPart.hoverElement;
 		const hoverSource = hoverPart.source;
@@ -283,6 +290,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		disposables.add(renderedMarkdownPart);
 
 		if (!hoverSource) {
+			console.log('return 1');
 			return new RenderedMarkdownHoverPart(hoverPart, renderedMarkdownElement, disposables);
 		}
 
@@ -290,15 +298,19 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		const canDecreaseVerbosity = hoverSource.supportsVerbosityAction(HoverVerbosityAction.Decrease);
 
 		if (!canIncreaseVerbosity && !canDecreaseVerbosity) {
+			console.log('return 2');
 			return new RenderedMarkdownHoverPart(hoverPart, renderedMarkdownElement, disposables);
 		}
 
 		const actionsContainer = $('div.verbosity-actions');
 		renderedMarkdownElement.prepend(actionsContainer);
-
-		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity));
-		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity));
-		return new RenderedMarkdownHoverPart(hoverPart, renderedMarkdownElement, disposables);
+		const actionsContainerInner = $('div.verbosity-actions-inner');
+		actionsContainer.append(actionsContainerInner);
+		console.log('actionsContainerInner : ', actionsContainerInner);
+		disposables.add(this._renderHoverExpansionAction(actionsContainerInner, HoverVerbosityAction.Increase, canIncreaseVerbosity));
+		disposables.add(this._renderHoverExpansionAction(actionsContainerInner, HoverVerbosityAction.Decrease, canDecreaseVerbosity));
+		console.log('return 3');
+		return new RenderedMarkdownHoverPart(hoverPart, renderedMarkdownElement, disposables, actionsContainer, actionsContainerInner);
 	}
 
 	private _renderMarkdownHover(
@@ -331,6 +343,56 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		store.add(new ClickAction(actionElement, actionFunction));
 		store.add(new KeyDownAction(actionElement, actionFunction, [KeyCode.Enter, KeyCode.Space]));
 		return store;
+	}
+
+	public handleScroll(e: ScrollEvent): void {
+		console.log('handleScroll');
+		console.log('e.height : ', e.height);
+		console.log('e.scrollTop : ', e.scrollTop);
+		let topOfRenderedPart = 0;
+		let bottomOfRenderedPart = 0;
+		this.renderedHoverParts.forEach((renderedHoverPart, index) => {
+			console.log('index : ', index);
+
+			const actionsContainerInner = renderedHoverPart.actionsContainerInner;
+			console.log('actionsContainer : ', actionsContainerInner);
+
+			const clientHeight = renderedHoverPart.hoverElement.clientHeight;
+			bottomOfRenderedPart += clientHeight;
+
+			console.log('topOfRenderedPart : ', topOfRenderedPart);
+			console.log('bottomOfRenderedPart : ', bottomOfRenderedPart);
+
+			const topOfHoverScrollPosition = e.scrollTop;
+			const bottomOfHoverScrollPosition = topOfHoverScrollPosition + e.height;
+
+			if (actionsContainerInner) {
+				actionsContainerInner.style.position = 'absolute';
+
+				if (bottomOfRenderedPart < topOfHoverScrollPosition) {
+					actionsContainerInner.style.display = 'none';
+				} else if (bottomOfRenderedPart >= topOfHoverScrollPosition && bottomOfRenderedPart < bottomOfHoverScrollPosition) {
+					actionsContainerInner.style.display = 'block';
+					const diff = bottomOfHoverScrollPosition - bottomOfRenderedPart;
+					const top = e.height - diff - 22;
+					actionsContainerInner.style.top = `${top}px`;
+				} else if (bottomOfRenderedPart > bottomOfHoverScrollPosition && topOfRenderedPart < topOfHoverScrollPosition) {
+					actionsContainerInner.style.display = 'block';
+					const top = e.height - 22;
+					actionsContainerInner.style.top = `${top}px`;
+				} else if (topOfRenderedPart >= topOfHoverScrollPosition && bottomOfRenderedPart <= bottomOfHoverScrollPosition) {
+					actionsContainerInner.style.display = 'block';
+				} else if (topOfRenderedPart >= topOfHoverScrollPosition && bottomOfRenderedPart > bottomOfHoverScrollPosition) {
+					actionsContainerInner.style.display = 'block';
+					const top = e.height - 22;
+					actionsContainerInner.style.top = `${top}px`;
+				} else if (topOfRenderedPart > bottomOfHoverScrollPosition) {
+					actionsContainerInner.style.display = 'none';
+				}
+			}
+
+			topOfRenderedPart += clientHeight;
+		});
 	}
 
 	public async updateMarkdownHoverPartVerbosityLevel(action: HoverVerbosityAction, index: number): Promise<{ hoverPart: MarkdownHover; hoverElement: HTMLElement } | undefined> {
@@ -413,6 +475,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 	}
 
 	private _updateRenderedHoverPart(index: number, hoverPart: MarkdownHover): RenderedMarkdownHoverPart | undefined {
+		console.log('_updateRenderedHoverPart');
 		if (index >= this.renderedHoverParts.length || index < 0) {
 			return undefined;
 		}
@@ -422,11 +485,19 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		const renderedMarkdown = renderedHoverPart.hoverElement;
 		const renderedChildrenElements = Array.from(renderedMarkdown.children);
 		currentRenderedMarkdown.replaceChildren(...renderedChildrenElements);
+		const actionsContainer = renderedHoverPart.actionsContainer;
 		const newRenderedHoverPart = new RenderedMarkdownHoverPart(
 			hoverPart,
 			currentRenderedMarkdown,
-			renderedHoverPart.disposables
+			renderedHoverPart.disposables,
+			actionsContainer,
+			renderedHoverPart.actionsContainerInner
 		);
+		if (actionsContainer) {
+			actionsContainer.style.width = '22px';
+		}
+		console.log('newRenderedHoverPart.actionsContainer : ', newRenderedHoverPart.actionsContainer);
+		console.log('newRenderedHoverPart.actionsContainerInner : ', newRenderedHoverPart.actionsContainerInner);
 		currentRenderedHoverPart.dispose();
 		this.renderedHoverParts[index] = newRenderedHoverPart;
 		return newRenderedHoverPart;
