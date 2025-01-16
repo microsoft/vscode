@@ -239,7 +239,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 
 			for (const [file, fileType] of files) {
 				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file)) {
-					executables.add({ label: file, path });
+					executables.add({ label: file, path: path + pathSeparator + file });
 					labels.add(file);
 				}
 			}
