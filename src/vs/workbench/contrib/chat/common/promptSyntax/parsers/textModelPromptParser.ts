@@ -11,8 +11,8 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
- * Class capable of parsing prompt syntax out of a provided text
- * model, including all the nested child file references it may have.
+ * Class capable of parsing prompt syntax out of a provided text model,
+ * including all the nested child file references it may have.
  */
 export class TextModelPromptParser extends BasePromptParser<TextModelContentsProvider> {
 	constructor(

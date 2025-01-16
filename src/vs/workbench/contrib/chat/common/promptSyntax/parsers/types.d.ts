@@ -9,6 +9,22 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
 /**
+ * Interface for a resolve error.
+ */
+export interface IResolveError {
+	/**
+	 * Localized error message.
+	 */
+	message: string;
+
+	/**
+	 * Whether this error is for the root reference
+	 * object, or for one of its possible children.
+	 */
+	isRootError: boolean;
+}
+
+/**
  * List of all available prompt reference types.
  */
 type PromptReferenceTypes = 'file';
@@ -42,18 +58,30 @@ export interface IPromptReference extends IDisposable {
 	readonly resolveFailed: boolean | undefined;
 
 	/**
-	 * If failed to resolve the reference this property contains an error
-	 * object that describes the failure reason.
+	 * If failed to resolve the reference this property contains
+	 * an error object that describes the failure reason.
 	 *
 	 * See also {@linkcode resolveFailed}.
 	 */
 	readonly errorCondition: ParseError | undefined;
 
 	/**
+	 * List of all errors that occurred while resolving the current
+	 * reference including all possible errors of nested children.
+	 */
+	readonly allErrors: readonly ParseError[];
+
+	/**
+	 * The top most error of the current reference or any of its
+	 * possible child reference errors.
+	 */
+	readonly topError: IResolveError | undefined;
+
+	/**
 	 * All references that the current reference may have,
 	 * including the all possible nested child references.
 	 */
-	allReferences: readonly IPromptFileReference[];
+	allReferences: readonly IPromptReference[];
 
 	/**
 	 * All *valid* references that the current reference may have,
@@ -63,7 +91,7 @@ export interface IPromptReference extends IDisposable {
 	 * without creating a circular reference loop or having any other
 	 * issues that would make the reference resolve logic to fail.
 	 */
-	allValidReferences: readonly IPromptFileReference[];
+	allValidReferences: readonly IPromptReference[];
 }
 
 /**

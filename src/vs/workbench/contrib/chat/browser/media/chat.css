@@ -960,7 +960,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0.75;
 }
 /*
- * This overly specific CSS selector is needed to beat priority of some
+ * This overly-specific CSS selector is needed to beat priority of some
  * styles applied on the the `.chat-attached-context-attachment` element.
  */
 .chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.error.implicit,
