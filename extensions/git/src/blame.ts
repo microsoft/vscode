@@ -215,12 +215,12 @@ export class GitBlameController {
 			if (includeCommitDetails) {
 				try {
 					commitInformation = await repository.getCommit(blameInformation.hash);
+
+					// Avatar
+					commitAvatar = await provideSourceControlHistoryItemAvatar(
+						this._model, repository, blameInformation.hash, blameInformation.authorName, blameInformation.authorEmail);
 				} catch { }
 			}
-
-			// Avatar
-			commitAvatar = await provideSourceControlHistoryItemAvatar(
-				this._model, repository, blameInformation.hash, blameInformation.authorName, blameInformation.authorEmail);
 
 			// Remote hover commands
 			const unpublishedCommits = await repository.getUnpublishedCommits();
