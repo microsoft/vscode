@@ -131,6 +131,11 @@
 	display: flex;
 }
 
+.extensions-viewlet > .extensions .message-container.hidden {
+	display: none;
+	visibility: hidden;
+}
+
 .extensions-viewlet > .extensions .message-container .message {
 	padding-left: 5px;
 }
