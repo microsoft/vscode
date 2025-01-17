@@ -636,7 +636,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				charWidth = spaceWidthDevicePixels * (tabXOffset - offsetBefore);
 				// Convert back to offset excluding x and the current character
 				tabXOffset -= x + 1;
-			} else if (lineData.isBasicASCII && this._lastViewLineOptions) {
+			} else if (lineData.isBasicASCII && this._lastViewLineOptions.useMonospaceOptimizations) {
 				charWidth = spaceWidthDevicePixels;
 			} else {
 				charWidth = this._renderStrategy.glyphRasterizer.getTextMetrics(chars).width;
@@ -650,6 +650,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			column++;
 		}
 
+		console.log(lineNumber, column);
 		return new Position(lineNumber, column + 1);
 	}
 }
