@@ -6,9 +6,10 @@
 import { osIsWindows } from './os';
 import * as fs from 'fs/promises';
 
-export async function isExecutable(filePath: string): Promise<boolean> {
+export async function isExecutable(filePath: string, configuredWindowsExecutableExtensions: Object): Promise<boolean> {
 	if (osIsWindows()) {
-		return windowsExecutableExtensions.find(ext => filePath.endsWith(ext)) !== undefined;
+		const resolvedWindowsExecutableExtensions = resolveWindowsExecutableExtensions(configuredWindowsExecutableExtensions);
+		return resolvedWindowsExecutableExtensions.find(ext => filePath.endsWith(ext)) !== undefined;
 	}
 	try {
 		const stats = await fs.stat(filePath);
@@ -19,7 +20,21 @@ export async function isExecutable(filePath: string): Promise<boolean> {
 		return false;
 	}
 }
-const windowsExecutableExtensions: string[] = [
+
+function resolveWindowsExecutableExtensions(configuredWindowsExecutableExtensions: Object): string[] {
+	const resolvedWindowsExecutableExtensions: string[] = windowsDefaultExecutableExtensions;
+	const excluded = new Set<string>();
+	for (const [key, value] of Object.entries(configuredWindowsExecutableExtensions)) {
+		if (value === true) {
+			resolvedWindowsExecutableExtensions.push(key);
+		} else {
+			excluded.add(key);
+		}
+	}
+	return Array.from(new Set(resolvedWindowsExecutableExtensions)).filter(ext => !excluded.has(ext));
+}
+
+export const windowsDefaultExecutableExtensions: string[] = [
 	'.exe',   // Executable file
 	'.bat',   // Batch file
 	'.cmd',   // Command script

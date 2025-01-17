@@ -214,7 +214,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 
 			for (const [file, fileType] of files) {
-				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file)) {
+				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file, vscode.workspace.getConfiguration('terminal.integrated.suggest.windowsExecutableExtensions'))) {
 					executables.add(file);
 				}
 			}
