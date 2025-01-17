@@ -664,9 +664,9 @@ export class QuickInputController extends Disposable {
 		const backKeybindingLabel = this.options.backKeybindingLabel();
 		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
 
+		ui.inputBox.setFocus();
 		ui.container.style.display = '';
 		this.updateLayout();
-		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
 	}
 
@@ -797,8 +797,64 @@ export class QuickInputController extends Disposable {
 			style.width = width + 'px';
 
 			// Position
-			style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+			if (this.previousFocusElement?.offsetParent) {
+				let rect = this.previousFocusElement.getBoundingClientRect();
+				if (!rect.width) {
+					rect = this.previousFocusElement.offsetParent.getBoundingClientRect();
+				}
+
+				const containerRect = this._container.getBoundingClientRect();
+				const centerX = containerRect.width / 2;
+				const centerY = containerRect.height / 2;
+				const outer30Percent = containerRect.width * 0.3;
+
+				let top = rect.top;
+				let left = rect.left;
+
+				if (rect.right <= outer30Percent || rect.left >= containerRect.width - outer30Percent) {
+					if (rect.left < centerX) {
+						left = rect.right; // Position to the right of the element
+					} else {
+						left = rect.left - width; // Position to the left of the element
+					}
+
+					if (rect.top < centerY) {
+						top = rect.bottom; // Position below the element
+					} else {
+						top = rect.top - this.ui.container.offsetHeight; // Position above the element
+					}
+
+					// Ensure the quick input is within the container bounds and does not overlap on the X axis
+					top = Math.max(0, Math.min(top, containerRect.height - this.ui.container.offsetHeight));
+					if (left < rect.right && left + width > rect.left) {
+						if (rect.left < centerX) {
+							left = rect.right; // Position to the right of the element
+						} else {
+							left = rect.left - width; // Position to the left of the element
+						}
+					}
+					left = Math.max(0, Math.min(left, containerRect.width - width));
+
+					// Adjust left to ensure no overlap on the X axis
+					if (left >= rect.left && left <= rect.right) {
+						if (rect.left < centerX) {
+							left = rect.right; // Position to the right of the element
+						} else {
+							left = rect.left - width; // Position to the left of the element
+						}
+					}
+				} else {
+					// Default positioning logic if not in the outer 30% of the X axis
+					top = this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset!;
+					left = Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2));
+				}
+
+				style.top = `${top}px`;
+				style.left = `${left}px`;
+			} else {
+				style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+			}
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
