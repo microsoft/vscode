@@ -63,7 +63,7 @@ export enum DecorationClassNameModifiers {
 	/**
 	 * CSS class name for `error` modifier.
 	 */
-	error = 'squiggly-error', // TODO: @legomushroom - use "markers" instead
+	error = 'squiggly-error', // TODO: @legomushroom - use "markers" instead?
 }
 
 /**

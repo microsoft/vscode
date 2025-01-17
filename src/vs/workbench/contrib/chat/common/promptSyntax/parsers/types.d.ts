@@ -5,8 +5,8 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { ParseError } from '../../promptFileReferenceErrors.js';
-import { Range } from '../../../../../../editor/common/core/range.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 
 /**
  * Interface for a resolve error.
@@ -44,9 +44,16 @@ export interface IPromptReference extends IDisposable {
 	readonly uri: URI;
 
 	/**
-	 * Range of the prompt reference in the source text.
+	 * The full range of the prompt reference in the source text,
+	 * including the {@linkcode linkRange} and any additional
+	 * parts the reference may contain (e.g., the `#file:` prefix).
 	 */
 	readonly range: Range;
+
+	/**
+	 * Range of the link part that the reference points to.
+	 */
+	readonly linkRange: IRange | undefined;
 
 	/**
 	 * Flag that indicates if resolving this reference failed.

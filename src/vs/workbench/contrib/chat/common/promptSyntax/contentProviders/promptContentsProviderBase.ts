@@ -16,6 +16,7 @@ import { cancelPreviousCalls } from '../../../../../../base/common/decorators/ca
 
 /**
  * File extension for the prompt snippets.
+ * TODO: @legomushroom - use one in the `basePromptParser.ts` file
  */
 export const PROMP_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
 
