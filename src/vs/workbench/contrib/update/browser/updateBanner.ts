@@ -37,7 +37,7 @@ export class UpdateBannerContribution extends Disposable implements IWorkbenchCo
         const banner = {
             id: UPDATE_BANNER_ID,
             icon: Codicon.sync,
-            message: localize('updateAvailable', "An update for {0} is available.", this.productService.nameLong),
+            message: localize('updateAvailable', "An update for {0} is available. Use Command Palette (Cmd/Ctrl+Shift+P) > Check For Updates to install", this.productService.nameLong),
         };
 
         this.bannerService.show(banner);
