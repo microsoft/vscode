@@ -87,6 +87,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._store.add(_terminalService.onAnyInstanceTitleChange(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 		this._store.add(_terminalService.onAnyInstanceDataInput(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
 		this._store.add(_terminalService.onAnyInstanceSelectionChange(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
+		this._store.add(_terminalService.onAnyInstanceShellTypeChanged(instance => this._onShellTypeChanged(instance.instanceId)));
 
 		// Set initial ext host state
 		for (const instance of this._terminalService.instances) {
@@ -356,6 +357,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTitleChanged(terminalId: number, name: string): void {
 		this._proxy.$acceptTerminalTitleChange(terminalId, name);
+	}
+
+	private _onShellTypeChanged(terminalId: number): void {
+		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance) {
+			this._proxy.$acceptTerminalShellType(terminalId, terminalInstance.shellType);
+		}
 	}
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {

@@ -276,6 +276,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onAnyInstanceProcessIdReady: Event<ITerminalInstance>;
 	readonly onAnyInstanceSelectionChange: Event<ITerminalInstance>;
 	readonly onAnyInstanceTitleChange: Event<ITerminalInstance>;
+	readonly onAnyInstanceShellTypeChanged: Event<ITerminalInstance>;
 
 	/**
 	 * Creates a terminal.
