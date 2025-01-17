@@ -268,4 +268,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			}
 		}
 	}
+
+	public getTextMetrics(text: string): TextMetrics {
+		return this._ctx.measureText(text);
+	}
 }

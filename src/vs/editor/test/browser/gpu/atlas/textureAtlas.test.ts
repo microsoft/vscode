@@ -60,6 +60,9 @@ class TestGlyphRasterizer implements IGlyphRasterizer {
 			fontBoundingBoxDescent: 0,
 		};
 	}
+	getTextMetrics(text: string): TextMetrics {
+		return null!;
+	}
 }
 
 suite('TextureAtlas', () => {

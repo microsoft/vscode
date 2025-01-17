@@ -96,6 +96,7 @@ export class OutputViewPane extends FilterViewPane {
 		filters.info = this.panelState['showInfo'] ?? true;
 		filters.warning = this.panelState['showWarning'] ?? true;
 		filters.error = this.panelState['showError'] ?? true;
+		filters.sources = this.panelState['sourcesFilter'] ?? '';
 
 		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
 
@@ -172,6 +173,7 @@ export class OutputViewPane extends FilterViewPane {
 
 	private setInput(channel: IOutputChannel): void {
 		this.channelId = channel.id;
+		this.checkMoreFilters();
 
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
@@ -182,9 +184,9 @@ export class OutputViewPane extends FilterViewPane {
 
 	}
 
-	public checkMoreFilters(): void {
+	private checkMoreFilters(): void {
 		const filters = this.outputService.filters;
-		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error);
+		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error || (!!this.channelId && filters.sources.includes(this.channelId)));
 	}
 
 	private clearInput(): void {
@@ -205,6 +207,7 @@ export class OutputViewPane extends FilterViewPane {
 		this.panelState['showInfo'] = filters.info;
 		this.panelState['showWarning'] = filters.warning;
 		this.panelState['showError'] = filters.error;
+		this.panelState['sourcesFilter'] = filters.sources;
 
 		this.memento.saveMemento();
 		super.saveState();
@@ -419,14 +422,19 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 	private filterIncremental(model: ITextModel, from: number): void {
 		const filters = this.outputService.filters;
+		const activeChannelId = this.outputService.getActiveChannel()?.id ?? '';
 		const findMatchesDecorations: IModelDeltaDecoration[] = [];
 
 		if (this.logEntries) {
 			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error;
-			if (hasLogLevelFilter || filters.text) {
+			if (hasLogLevelFilter || filters.text || filters.sources.includes(activeChannelId)) {
 				for (let i = from; i < this.logEntries.length; i++) {
 					const entry = this.logEntries[i];
-					if (hasLogLevelFilter && !this.shouldShowEntry(entry, filters)) {
+					if (hasLogLevelFilter && !this.shouldShowLogLevel(entry, filters)) {
+						this.hiddenAreas.push(entry.range);
+						continue;
+					}
+					if (!this.shouldShowSource(activeChannelId, entry, filters)) {
 						this.hiddenAreas.push(entry.range);
 						continue;
 					}
@@ -465,7 +473,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 		}
 	}
 
-	private shouldShowEntry(entry: ILogEntry, filters: IOutputViewFilters): boolean {
+	private shouldShowLogLevel(entry: ILogEntry, filters: IOutputViewFilters): boolean {
 		switch (entry.logLevel) {
 			case LogLevel.Trace:
 				return filters.trace;
@@ -479,5 +487,12 @@ export class FilterController extends Disposable implements IEditorContribution 
 				return filters.error;
 		}
 		return true;
+	}
+
+	private shouldShowSource(activeChannelId: string, entry: ILogEntry, filters: IOutputViewFilters): boolean {
+		if (!entry.source) {
+			return true;
+		}
+		return !filters.hasSource(`${activeChannelId}-${entry.source}`);
 	}
 }
