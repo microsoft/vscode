@@ -93,7 +93,7 @@ suite('TelemetryLogAdapter', () => {
 		const testInstantiationService = new TestInstantiationService();
 		const testObject = new TelemetryLogAppender(new NullLogService(), testLoggerService, testInstantiationService.stub(IEnvironmentService, {}), testInstantiationService.stub(IProductService, {}));
 		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.strictEqual(testLoggerService.createLogger().logs.length, 2);
+		assert.strictEqual(testLoggerService.createLogger().logs.length, 0);
 		testObject.dispose();
 		testInstantiationService.dispose();
 	});
@@ -103,7 +103,7 @@ suite('TelemetryLogAdapter', () => {
 		const testInstantiationService = new TestInstantiationService();
 		const testObject = new TelemetryLogAppender(new NullLogService(), testLoggerService, testInstantiationService.stub(IEnvironmentService, {}), testInstantiationService.stub(IProductService, {}));
 		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.strictEqual(testLoggerService.createLogger().logs[2], 'telemetry/testEvent' + JSON.stringify([{
+		assert.strictEqual(testLoggerService.createLogger().logs[0], 'telemetry/testEvent' + JSON.stringify([{
 			properties: {
 				hello: 'world',
 			},

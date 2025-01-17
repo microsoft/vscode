@@ -25,6 +25,7 @@ import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
 import type * as viewEvents from '../../../common/viewEvents.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
+import { createContentSegmenter, type IContentSegmenter } from '../../gpu/contentSegmenter.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -91,7 +92,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	async initWebgpu() {
 		// #region General
 
-		this._device = await this._viewGpuContext.device;
+		this._device = ViewGpuContext.deviceSync || await ViewGpuContext.device;
 
 		if (this._store.isDisposed) {
 			return;
@@ -520,17 +521,45 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		// Resolve tab widths for this line
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const content = lineData.content;
+
+		let contentSegmenter: IContentSegmenter | undefined;
+		if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
+			contentSegmenter = createContentSegmenter(lineData, viewLineOptions);
+		}
+
+		let chars: string | undefined = '';
+
 		let resolvedStartColumn = 0;
+		let resolvedStartCssPixelOffset = 0;
 		for (let x = 0; x < startColumn - 1; x++) {
-			if (content[x] === '\t') {
+			if (lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations) {
+				chars = content.charAt(x);
+			} else {
+				chars = contentSegmenter!.getSegmentAtIndex(x);
+				if (chars === undefined) {
+					continue;
+				}
+				resolvedStartCssPixelOffset += (this._renderStrategy.glyphRasterizer.getTextMetrics(chars).width / getActiveWindow().devicePixelRatio) - viewLineOptions.spaceWidth;
+			}
+			if (chars === '\t') {
 				resolvedStartColumn = CursorColumns.nextRenderTabStop(resolvedStartColumn, lineData.tabSize);
 			} else {
 				resolvedStartColumn++;
 			}
 		}
 		let resolvedEndColumn = resolvedStartColumn;
+		let resolvedEndCssPixelOffset = 0;
 		for (let x = startColumn - 1; x < endColumn - 1; x++) {
-			if (content[x] === '\t') {
+			if (lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations) {
+				chars = content.charAt(x);
+			} else {
+				chars = contentSegmenter!.getSegmentAtIndex(x);
+				if (chars === undefined) {
+					continue;
+				}
+				resolvedEndCssPixelOffset += (this._renderStrategy.glyphRasterizer.getTextMetrics(chars).width / getActiveWindow().devicePixelRatio) - viewLineOptions.spaceWidth;
+			}
+			if (chars === '\t') {
 				resolvedEndColumn = CursorColumns.nextRenderTabStop(resolvedEndColumn, lineData.tabSize);
 			} else {
 				resolvedEndColumn++;
@@ -539,8 +568,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		// Visible horizontal range in _scaled_ pixels
 		const result = new VisibleRanges(false, [new FloatHorizontalRange(
-			resolvedStartColumn * viewLineOptions.spaceWidth,
-			(resolvedEndColumn - resolvedStartColumn) * viewLineOptions.spaceWidth)
+			resolvedStartColumn * viewLineOptions.spaceWidth + resolvedStartCssPixelOffset,
+			(resolvedEndColumn - resolvedStartColumn) * viewLineOptions.spaceWidth + resolvedEndCssPixelOffset)
 		]);
 
 		return result;
@@ -581,24 +610,46 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		}
 		const lineData = this._lastViewportData.getViewLineRenderingData(lineNumber);
 		const content = lineData.content;
-		let visualColumnTarget = Math.round(mouseContentHorizontalOffset / this._lastViewLineOptions.spaceWidth);
-		let contentColumn = 0;
-		let contentColumnWithTabStops = 0;
-		while (visualColumnTarget > 0) {
-			let columnWithTabStopsSize = 0;
-			if (content[contentColumn] === '\t') {
-				const tabStop = CursorColumns.nextRenderTabStop(contentColumnWithTabStops, lineData.tabSize);
-				columnWithTabStopsSize = tabStop - contentColumnWithTabStops;
-			} else {
-				columnWithTabStopsSize = 1;
+		const dpr = getActiveWindow().devicePixelRatio;
+		const mouseContentHorizontalOffsetDevicePixels = mouseContentHorizontalOffset * dpr;
+		const spaceWidthDevicePixels = this._lastViewLineOptions.spaceWidth * dpr;
+		const contentSegmenter = createContentSegmenter(lineData, this._lastViewLineOptions);
+
+		let widthSoFar = 0;
+		let charWidth = 0;
+		let tabXOffset = 0;
+		let column = 0;
+		for (let x = 0; x < content.length; x++) {
+			const chars = contentSegmenter.getSegmentAtIndex(x);
+
+			// Part of an earlier segment
+			if (chars === undefined) {
+				column++;
+				continue;
 			}
-			if (visualColumnTarget - columnWithTabStopsSize / 2 < 0) {
+
+			// Get the width of the character
+			if (chars === '\t') {
+				// Find the pixel offset between the current position and the next tab stop
+				const offsetBefore = x + tabXOffset;
+				tabXOffset = CursorColumns.nextRenderTabStop(x + tabXOffset, lineData.tabSize);
+				charWidth = spaceWidthDevicePixels * (tabXOffset - offsetBefore);
+				// Convert back to offset excluding x and the current character
+				tabXOffset -= x + 1;
+			} else if (lineData.isBasicASCII && this._lastViewLineOptions.useMonospaceOptimizations) {
+				charWidth = spaceWidthDevicePixels;
+			} else {
+				charWidth = this._renderStrategy.glyphRasterizer.getTextMetrics(chars).width;
+			}
+
+			if (mouseContentHorizontalOffsetDevicePixels < widthSoFar + charWidth / 2) {
 				break;
 			}
-			visualColumnTarget -= columnWithTabStopsSize;
-			contentColumn++;
-			contentColumnWithTabStops += columnWithTabStopsSize;
+
+			widthSoFar += charWidth;
+			column++;
 		}
-		return new Position(lineNumber, Math.floor(contentColumn) + 1);
+
+		return new Position(lineNumber, column + 1);
 	}
 }

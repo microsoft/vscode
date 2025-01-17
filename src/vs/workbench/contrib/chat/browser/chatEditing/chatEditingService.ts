@@ -9,9 +9,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { derived, IObservable, observableValue, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isString } from '../../../../../base/common/types.js';
@@ -37,6 +39,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -50,6 +53,17 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	private readonly _currentSessionObs = observableValue<ChatEditingSession | null>(this, null);
 	private readonly _currentSessionDisposables = this._register(new DisposableStore());
 
+	private readonly _adhocSessionsObs = observableValueOpts<LinkedList<ChatEditingSession>>({ equalsFn: (a, b) => false }, new LinkedList());
+
+	readonly editingSessionsObs: IObservable<readonly IChatEditingSession[]> = derived(r => {
+		const result = Array.from(this._adhocSessionsObs.read(r));
+		const globalSession = this._currentSessionObs.read(r);
+		if (globalSession) {
+			result.push(globalSession);
+		}
+		return result;
+	});
+
 	private readonly _currentAutoApplyOperationObs = observableValue<CancellationTokenSource | null>(this, null);
 	get currentAutoApplyOperation(): CancellationTokenSource | null {
 		return this._currentAutoApplyOperationObs.get();
@@ -62,9 +76,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	get currentEditingSessionObs(): IObservable<IChatEditingSession | null> {
 		return this._currentSessionObs;
 	}
-
-	private readonly _onDidChangeEditingSession = this._register(new Emitter<void>());
-	public readonly onDidChangeEditingSession = this._onDidChangeEditingSession.event;
 
 	private _editingSessionFileLimitPromise: Promise<number>;
 	private _editingSessionFileLimit: number | undefined;
@@ -111,13 +122,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			return decidedEntries.map(entry => entry.entryId);
 		}));
 		this._register(bindContextKey(hasUndecidedChatEditingResourceContextKey, contextKeyService, (reader) => {
-			const currentSession = this._currentSessionObs.read(reader);
-			if (!currentSession) {
-				return;
+
+			for (const session of this.editingSessionsObs.read(reader)) {
+				const entries = session.entries.read(reader);
+				const decidedEntries = entries.filter(entry => entry.state.read(reader) === WorkingSetEntryState.Modified);
+				return decidedEntries.length > 0;
 			}
-			const entries = currentSession.entries.read(reader);
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) === WorkingSetEntryState.Modified);
-			return decidedEntries.length > 0;
+
+			return false;
 		}));
 		this._register(bindContextKey(hasAppliedChatEditsContextKey, contextKeyService, (reader) => {
 			const currentSession = this._currentSessionObs.read(reader);
@@ -211,6 +223,18 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 
+	private _lookupEntry(uri: URI): ChatEditingModifiedFileEntry | undefined {
+
+		for (const item of Iterable.concat(this.editingSessionsObs.get())) {
+			const candidate = item.getEntry(uri);
+			if (candidate instanceof ChatEditingModifiedFileEntry) {
+				// make sure to ref-count this object
+				return candidate.acquire();
+			}
+		}
+		return undefined;
+	}
+
 	private async _createEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
 		if (this._currentSessionObs.get()) {
 			throw new BugIndicatingError('Cannot have more than one active editing session');
@@ -218,7 +242,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		this._currentSessionDisposables.clear();
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, this._editingSessionFileLimitPromise);
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
 
 		// listen for completed responses, run the code mapper and apply the edits to this edit session
@@ -227,14 +251,33 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._currentSessionDisposables.add(session.onDidDispose(() => {
 			this._currentSessionDisposables.clear();
 			this._currentSessionObs.set(null, undefined);
-			this._onDidChangeEditingSession.fire();
-		}));
-		this._currentSessionDisposables.add(session.onDidChange(() => {
-			this._onDidChangeEditingSession.fire();
 		}));
 
 		this._currentSessionObs.set(session, undefined);
-		this._onDidChangeEditingSession.fire();
+		return session;
+	}
+
+	async createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
+		await session.init();
+
+		const list = this._adhocSessionsObs.get();
+		const removeSession = list.unshift(session);
+
+		const store = new DisposableStore();
+		this._store.add(store);
+
+		store.add(this.installAutoApplyObserver(session));
+
+		store.add(session.onDidDispose(e => {
+			removeSession();
+			this._adhocSessionsObs.set(list, undefined);
+			this._store.deleteAndLeak(store);
+			store.dispose();
+		}));
+
+		this._adhocSessionsObs.set(list, undefined);
+
 		return session;
 	}
 

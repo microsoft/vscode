@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { AbstractTextResourceEditor } from '../../../browser/parts/editor/textResourceEditor.js';
-import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT } from '../../../services/output/common/output.js';
+import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, parseLogEntries, ILogEntry, parseLogEntryAt } from '../../../services/output/common/output.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -96,6 +96,7 @@ export class OutputViewPane extends FilterViewPane {
 		filters.info = this.panelState['showInfo'] ?? true;
 		filters.warning = this.panelState['showWarning'] ?? true;
 		filters.error = this.panelState['showError'] ?? true;
+		filters.sources = this.panelState['sourcesFilter'] ?? '';
 
 		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
 
@@ -172,6 +173,7 @@ export class OutputViewPane extends FilterViewPane {
 
 	private setInput(channel: IOutputChannel): void {
 		this.channelId = channel.id;
+		this.checkMoreFilters();
 
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
@@ -182,9 +184,9 @@ export class OutputViewPane extends FilterViewPane {
 
 	}
 
-	public checkMoreFilters(): void {
+	private checkMoreFilters(): void {
 		const filters = this.outputService.filters;
-		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error);
+		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error || (!!this.channelId && filters.sources.includes(`,${this.channelId}:`)));
 	}
 
 	private clearInput(): void {
@@ -205,6 +207,7 @@ export class OutputViewPane extends FilterViewPane {
 		this.panelState['showInfo'] = filters.info;
 		this.panelState['showWarning'] = filters.warning;
 		this.panelState['showError'] = filters.error;
+		this.panelState['sourcesFilter'] = filters.sources;
 
 		this.memento.saveMemento();
 		super.saveState();
@@ -340,14 +343,6 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 }
 
-
-interface ILogEntry {
-	readonly logLevel: LogLevel;
-	readonly lineRange: [number, number];
-}
-
-const logEntryRegex = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) \[(info|trace|debug|error|warn)\]/;
-
 export class FilterController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'output.editor.contrib.filterController';
@@ -405,8 +400,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 	private computeLogEntries(model: ITextModel): void {
 		this.logEntries = undefined;
-		const firstLine = model.getLineContent(1);
-		if (!logEntryRegex.test(firstLine)) {
+		if (!parseLogEntryAt(model, 1)) {
 			return;
 		}
 
@@ -415,30 +409,8 @@ export class FilterController extends Disposable implements IEditorContribution 
 	}
 
 	private computeLogEntriesIncremental(model: ITextModel, fromLine: number): void {
-		if (!this.logEntries) {
-			return;
-		}
-
-		const lineCount = model.getLineCount();
-		for (let lineNumber = fromLine; lineNumber <= lineCount; lineNumber++) {
-			const lineContent = model.getLineContent(lineNumber);
-			const match = logEntryRegex.exec(lineContent);
-			if (match) {
-				const logLevel = this.parseLogLevel(match[2]);
-				const startLine = lineNumber;
-				let endLine = lineNumber;
-
-				while (endLine < lineCount) {
-					const nextLineContent = model.getLineContent(endLine + 1);
-					if (model.getLineFirstNonWhitespaceColumn(endLine + 1) === 0 || logEntryRegex.test(nextLineContent)) {
-						break;
-					}
-					endLine++;
-				}
-
-				this.logEntries.push({ logLevel, lineRange: [startLine, endLine] });
-				lineNumber = endLine;
-			}
+		if (this.logEntries) {
+			this.logEntries = this.logEntries.concat(parseLogEntries(model, fromLine));
 		}
 	}
 
@@ -450,25 +422,30 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 	private filterIncremental(model: ITextModel, from: number): void {
 		const filters = this.outputService.filters;
+		const activeChannelId = this.outputService.getActiveChannel()?.id ?? '';
 		const findMatchesDecorations: IModelDeltaDecoration[] = [];
 
 		if (this.logEntries) {
-			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || filters.error;
-			if (hasLogLevelFilter || filters.text) {
+			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error;
+			if (hasLogLevelFilter || filters.text || filters.sources.includes(activeChannelId)) {
 				for (let i = from; i < this.logEntries.length; i++) {
 					const entry = this.logEntries[i];
-					if (hasLogLevelFilter && !this.shouldShowEntry(entry, filters)) {
-						this.hiddenAreas.push(new Range(entry.lineRange[0], 1, entry.lineRange[1], model.getLineMaxColumn(entry.lineRange[1])));
+					if (hasLogLevelFilter && !this.shouldShowLogLevel(entry, filters)) {
+						this.hiddenAreas.push(entry.range);
+						continue;
+					}
+					if (!this.shouldShowSource(activeChannelId, entry, filters)) {
+						this.hiddenAreas.push(entry.range);
 						continue;
 					}
 					if (filters.text) {
-						const matches = model.findMatches(filters.text, new Range(entry.lineRange[0], 1, entry.lineRange[1], model.getLineLastNonWhitespaceColumn(entry.lineRange[1])), false, false, null, false);
+						const matches = model.findMatches(filters.text, entry.range, false, false, null, false);
 						if (matches.length) {
 							for (const match of matches) {
 								findMatchesDecorations.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
 							}
 						} else {
-							this.hiddenAreas.push(new Range(entry.lineRange[0], 1, entry.lineRange[1], model.getLineMaxColumn(entry.lineRange[1])));
+							this.hiddenAreas.push(entry.range);
 						}
 					}
 				}
@@ -496,7 +473,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 		}
 	}
 
-	private shouldShowEntry(entry: ILogEntry, filters: IOutputViewFilters): boolean {
+	private shouldShowLogLevel(entry: ILogEntry, filters: IOutputViewFilters): boolean {
 		switch (entry.logLevel) {
 			case LogLevel.Trace:
 				return filters.trace;
@@ -512,20 +489,10 @@ export class FilterController extends Disposable implements IEditorContribution 
 		return true;
 	}
 
-	private parseLogLevel(level: string): LogLevel {
-		switch (level.toLowerCase()) {
-			case 'trace':
-				return LogLevel.Trace;
-			case 'debug':
-				return LogLevel.Debug;
-			case 'info':
-				return LogLevel.Info;
-			case 'warn':
-				return LogLevel.Warning;
-			case 'error':
-				return LogLevel.Error;
-			default:
-				throw new Error(`Unknown log level: ${level}`);
+	private shouldShowSource(activeChannelId: string, entry: ILogEntry, filters: IOutputViewFilters): boolean {
+		if (!entry.source) {
+			return true;
 		}
+		return !filters.hasSource(`${activeChannelId}-${entry.source}`);
 	}
 }

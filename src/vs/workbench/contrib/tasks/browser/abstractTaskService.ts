@@ -83,6 +83,7 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -2055,12 +2056,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			const error = (error: any) => {
 				try {
-					if (error && Types.isString(error.message)) {
-						this._log(`Error: ${error.message}\n`);
-						this._showOutput();
-					} else {
-						this._log('Unknown error received while collecting tasks from providers.');
-						this._showOutput();
+					if (!isCancellationError(error)) {
+						if (error && Types.isString(error.message)) {
+							this._log(`Error: ${error.message}\n`);
+							this._showOutput();
+						} else {
+							this._log('Unknown error received while collecting tasks from providers.');
+							this._showOutput();
+						}
 					}
 				} finally {
 					if (--counter === 0) {

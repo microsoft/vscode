@@ -195,7 +195,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				continue;
 			}
 
-			for (const childUri of variable.validFileReferenceUris) {
+			for (const childUri of variable.allValidReferencesUris) {
 				contextArr.push({
 					id: variable.id,
 					name: basename(childUri.path),
@@ -1314,7 +1314,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress) {
-			this._chatEditsProgress ??= new ProgressBar(innerContainer);
+			// this._chatEditsProgress ??= new ProgressBar(innerContainer);
 			this._chatEditsProgress?.infinite().show(500);
 		}
 

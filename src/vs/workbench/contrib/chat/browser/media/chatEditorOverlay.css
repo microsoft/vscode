@@ -13,6 +13,7 @@
 	align-items: center;
 	z-index: 10;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	overflow: hidden;
 }
 
 @keyframes pulse {
@@ -87,4 +88,29 @@
 .chat-editor-overlay-widget .monaco-action-bar .action-item.label-item > .action-label:hover {
 	color: var(--vscode-button-foreground);
 	opacity: 1;
+}
+
+.chat-editor-overlay-widget .action-item.auto {
+	position: relative;
+	overflow: hidden;
+}
+
+.chat-editor-overlay-widget .action-item.auto::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: -100%;
+	width: 100%;
+	height: 100%;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	animation: slideRight var(--vscode-action-item-auto-timeout) linear forwards;
+}
+
+@keyframes slideRight {
+	0% {
+		left: -100%;
+	}
+	100% {
+		left: 0%;
+	}
 }

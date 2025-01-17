@@ -470,7 +470,6 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
@@ -1603,6 +1602,7 @@ export interface SCMHistoryItemRefsChangeEventDto {
 export interface SCMHistoryItemDto {
 	readonly id: string;
 	readonly parentIds: string[];
+	readonly subject: string;
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
@@ -2333,7 +2333,6 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentDropEditDto[] | undefined>;
 	$releaseDocumentOnDropEdits(handle: number, cacheId: number): void;
-	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
 	$provideInlineEdit(handle: number, document: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined>;
 	$freeInlineEdit(handle: number, pid: number): void;
 }

@@ -72,7 +72,7 @@ const defaultChat = {
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	providerId: product.defaultChatAgent?.providerId ?? '',
+	providerIds: [product.defaultChatAgent?.providerId ?? '', 'github-enterprise'],
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
@@ -368,7 +368,8 @@ class ChatSetupRequests extends Disposable {
 		@IRequestService private readonly requestService: IRequestService,
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -381,19 +382,19 @@ class ChatSetupRequests extends Disposable {
 		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.resolve()));
 
 		this._register(this.authenticationService.onDidChangeSessions(e => {
-			if (e.providerId === defaultChat.providerId) {
+			if (defaultChat.providerIds.includes(e.providerId)) {
 				this.resolve();
 			}
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => {
-			if (e.id === defaultChat.providerId) {
+			if (defaultChat.providerIds.includes(e.id)) {
 				this.resolve();
 			}
 		}));
 
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
-			if (e.id === defaultChat.providerId) {
+			if (defaultChat.providerIds.includes(e.id)) {
 				this.resolve();
 			}
 		}));
@@ -440,9 +441,20 @@ class ChatSetupRequests extends Disposable {
 	}
 
 	private async findMatchingProviderSession(token: CancellationToken): Promise<AuthenticationSession | undefined> {
-		const sessions = await this.authenticationService.getSessions(defaultChat.providerId);
-		if (token.isCancellationRequested) {
-			return undefined;
+		let sessions: ReadonlyArray<AuthenticationSession> = [];
+		const authProviderConfigValue = this.configurationService.getValue<string | undefined>('github.copilot.advanced.authProvider');
+		if (authProviderConfigValue) {
+			sessions = await this.authenticationService.getSessions(authProviderConfigValue);
+		} else {
+			for (const providerId of defaultChat.providerIds) {
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+				sessions = await this.authenticationService.getSessions(providerId);
+				if (sessions.length) {
+					break;
+				}
+			}
 		}
 
 		for (const session of sessions) {
@@ -788,7 +800,7 @@ class ChatSetupController extends Disposable {
 			}
 
 			if (!session) {
-				session = (await this.authenticationService.getSessions(defaultChat.providerId)).at(0);
+				session = (await this.authenticationService.getSessions(defaultChat.providerIds[0])).at(0);
 				if (!session) {
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false, signUpErrorCode: undefined });
 					return; // unexpected
@@ -827,11 +839,11 @@ class ChatSetupController extends Disposable {
 		try {
 			showCopilotView(this.viewsService, this.layoutService);
 
-			session = await this.authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes[0]);
+			session = await this.authenticationService.createSession(defaultChat.providerIds[0], defaultChat.providerScopes[0]);
 			entitlement = await this.requests.forceResolveEntitlement(session);
 
-			this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, defaultChat.providerId, session.account);
-			this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, defaultChat.providerId, session.account);
+			this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, defaultChat.providerIds[0], session.account);
+			this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, defaultChat.providerIds[0], session.account);
 		} catch (error) {
 			this.logService.error(`[chat setup] signIn: error ${error}`);
 		}

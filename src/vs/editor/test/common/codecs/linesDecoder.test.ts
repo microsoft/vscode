@@ -42,9 +42,9 @@ export class TestLinesDecoder extends TestDecoder<TLineToken, LinesDecoder> {
 }
 
 suite('LinesDecoder', () => {
-	suite('produces expected tokens', () => {
-		const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('produces expected tokens', () => {
 		test('input starts with line data', async () => {
 			const test = testDisposables.add(new TestLinesDecoder());
 
