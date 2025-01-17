@@ -523,8 +523,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		const content = lineData.content;
 
 		let contentSegmenter: IContentSegmenter | undefined;
-		if (!lineData.isBasicASCII) {
-			contentSegmenter = createContentSegmenter(lineData);
+		if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
+			contentSegmenter = createContentSegmenter(lineData, viewLineOptions);
 		}
 
 		let chars: string | undefined = '';
@@ -532,7 +532,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		let resolvedStartColumn = 0;
 		let resolvedStartCssPixelOffset = 0;
 		for (let x = 0; x < startColumn - 1; x++) {
-			if (lineData.isBasicASCII) {
+			if (lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations) {
 				chars = content.charAt(x);
 			} else {
 				chars = contentSegmenter!.getSegmentAtIndex(x);
@@ -550,7 +550,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		let resolvedEndColumn = resolvedStartColumn;
 		let resolvedEndCssPixelOffset = 0;
 		for (let x = startColumn - 1; x < endColumn - 1; x++) {
-			if (lineData.isBasicASCII) {
+			if (lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations) {
 				chars = content.charAt(x);
 			} else {
 				chars = contentSegmenter!.getSegmentAtIndex(x);
@@ -613,7 +613,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		const dpr = getActiveWindow().devicePixelRatio;
 		const mouseContentHorizontalOffsetDevicePixels = mouseContentHorizontalOffset * dpr;
 		const spaceWidthDevicePixels = this._lastViewLineOptions.spaceWidth * dpr;
-		const contentSegmenter = createContentSegmenter(lineData);
+		const contentSegmenter = createContentSegmenter(lineData, this._lastViewLineOptions);
 
 		let widthSoFar = 0;
 		let charWidth = 0;
@@ -629,13 +629,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			}
 
 			// Get the width of the character
-			if (lineData.isBasicASCII) {
-				charWidth = spaceWidthDevicePixels;
-			} else {
-				charWidth = this._renderStrategy.glyphRasterizer.getTextMetrics(chars).width;
-			}
-
-			// Adjust for tabs
 			if (chars === '\t') {
 				// Find the pixel offset between the current position and the next tab stop
 				const offsetBefore = x + tabXOffset;
@@ -643,6 +636,10 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				charWidth = spaceWidthDevicePixels * (tabXOffset - offsetBefore);
 				// Convert back to offset excluding x and the current character
 				tabXOffset -= x + 1;
+			} else if (lineData.isBasicASCII && this._lastViewLineOptions.useMonospaceOptimizations) {
+				charWidth = spaceWidthDevicePixels;
+			} else {
+				charWidth = this._renderStrategy.glyphRasterizer.getTextMetrics(chars).width;
 			}
 
 			if (mouseContentHorizontalOffsetDevicePixels < widthSoFar + charWidth / 2) {
@@ -653,6 +650,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			column++;
 		}
 
+		console.log(lineNumber, column);
 		return new Position(lineNumber, column + 1);
 	}
 }
