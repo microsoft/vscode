@@ -133,6 +133,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		),
 		type: 'object',
 		default: {},
+		tags: ['experimental'],
 	}
 };
 
