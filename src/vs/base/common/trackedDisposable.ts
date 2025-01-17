@@ -7,10 +7,11 @@ import { Emitter } from './event.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 
 /**
- * Disposable object that tracks its {@linkcode disposed} state as
- * a public attribute.
+ * Disposable object that tracks its {@linkcode disposed} state
+ * as a public attribute and provides the {@linkcode onDispose}
+ * event to subscribe to.
  */
-export class TrackedDisposable extends Disposable {
+export abstract class TrackedDisposable extends Disposable {
 	/**
 	 * Private emitter for the `onDispose` event.
 	 */
@@ -18,10 +19,21 @@ export class TrackedDisposable extends Disposable {
 
 	/**
 	 * The event is fired when this object is disposed.
+	 * Note! Executes the callback immediately if already disposed.
+	 *
 	 * @param callback The callback function to be called on updates.
 	 */
-	public onDispose(callback: () => void): void {
-		this._onDispose.event(callback);
+	public onDispose(callback: () => void): this {
+		// if already disposed, execute the callback immediately
+		if (this.disposed) {
+			callback();
+
+			return this;
+		}
+
+		// otherwise subscribe to the event
+		this._register(this._onDispose.event(callback));
+		return this;
 	}
 
 	/**
@@ -49,4 +61,44 @@ export class TrackedDisposable extends Disposable {
 		this._onDispose.fire();
 		super.dispose();
 	}
+
+	/**
+	 * Assert that the current object was not yet disposed.
+	 *
+	 * @throws If the current object was already disposed.
+	 * @param error Error message or error object to throw if assertion fails.
+	 */
+	public assertNotDisposed(
+		error: string | NonNullable<Error>,
+	): asserts this is TNotDisposed<this> {
+		assertNotDisposed(this, error);
+	}
 }
+
+/**
+ * Type for a non-disposed object `TObject`.
+ */
+export type TNotDisposed<TObject extends NonNullable<{}>> = TObject & { disposed: false };
+
+/**
+ * Asserts that a provided `object` is not `disposed` yet,
+ * e.g., its `disposed` property is `false`.
+ *
+ * @throws if the provided `object.disposed` equal to `false`.
+ * @param error Error message or error object to throw if assertion fails.
+ */
+export function assertNotDisposed<TObject extends { disposed: boolean }>(
+	object: TObject,
+	error: string | NonNullable<Error>,
+): asserts object is TNotDisposed<TObject> {
+	if (!object.disposed) {
+		return;
+	}
+
+	const errorToThrow = typeof error === 'string'
+		? new Error(error)
+		: error;
+
+	throw errorToThrow;
+}
+

@@ -7,6 +7,7 @@ import { assert } from '../assert.js';
 import { Emitter } from '../event.js';
 import { IDisposable } from '../lifecycle.js';
 import { ReadableStream } from '../stream.js';
+import { DeferredPromise } from '../async.js';
 import { AsyncDecoder } from './asyncDecoder.js';
 import { TrackedDisposable } from '../trackedDisposable.js';
 
@@ -26,18 +27,24 @@ export abstract class BaseDecoder<
 	K extends NonNullable<unknown> = NonNullable<unknown>,
 > extends TrackedDisposable implements ReadableStream<T> {
 	/**
-	 * Flag that indicates if the decoder stream has ended.
+	 * Private attribute to track if the stream has ended.
 	 */
-	protected ended = false;
+	private _ended = false;
 
 	protected readonly _onData = this._register(new Emitter<T>());
-	protected readonly _onEnd = this._register(new Emitter<void>());
-	protected readonly _onError = this._register(new Emitter<Error>());
+	private readonly _onEnd = this._register(new Emitter<void>());
+	private readonly _onError = this._register(new Emitter<Error>());
 
 	/**
 	 * A store of currently registered event listeners.
 	 */
 	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
+
+	/**
+	 * This method is called when a new incomming data
+	 * is received from the input stream.
+	 */
+	protected abstract onStreamData(data: K): void;
 
 	/**
 	 * @param stream The input stream to decode.
@@ -53,25 +60,66 @@ export abstract class BaseDecoder<
 	}
 
 	/**
-	 * This method is called when a new incomming data
-	 * is received from the input stream.
+	 * Private attribute to track if the stream has started.
 	 */
-	protected abstract onStreamData(data: K): void;
+	private started = false;
+
+	/**
+	 * Promise that resolves when the stream has ended, either by
+	 * receiving the `end` event or by a disposal, but not when
+	 * the `error` event is received alone.
+	 */
+	private settledPromise = new DeferredPromise<void>();
+
+	/**
+	 * Promise that resolves when the stream has ended, either by
+	 * receiving the `end` event or by a disposal, but not when
+	 * the `error` event is received alone.
+	 *
+	 * @throws If the stream was not yet started to prevent this
+	 * 		   promise to block the consumer calls indefinitely.
+	 *
+	 * TODO: @legomushroom - unit test this
+	 */
+	public get settled(): Promise<void> {
+		// if the stream has not started yet, the promise might
+		// block the consumer calls indefinitely if they forget
+		// to call the `start()` method, or if the call happens
+		// after await on the `settled` promise; to forbid this
+		// confusion, we require the stream to be started first
+		assert(
+			this.started,
+			[
+				'Cannot get `settled` promise of a stream that has not been started.',
+				'Please call `start()` first.',
+			].join(' '),
+		);
+
+		return this.settledPromise.p;
+	}
 
 	/**
 	 * Start receiveing data from the stream.
 	 * @throws if the decoder stream has already ended.
 	 */
 	public start(): this {
+		// TODO: @legomushroom - unit test this
 		assert(
-			!this.ended,
+			!this._ended,
 			'Cannot start stream that has already ended.',
 		);
 
+		// TODO: @legomushroom - unit test this
 		assert(
 			!this.disposed,
 			'Cannot start stream that has already disposed.',
 		);
+
+		// if already started, nothing to do
+		if (this.started) {
+			return this;
+		}
+		this.started = true;
 
 		this.stream.on('data', this.tryOnStreamData);
 		this.stream.on('error', this.onStreamError);
@@ -91,8 +139,8 @@ export abstract class BaseDecoder<
 	 * Check if the decoder has been ended hence has
 	 * no more data to produce.
 	 */
-	public get isEnded(): boolean {
-		return this.ended;
+	public get ended(): boolean {
+		return this._ended;
 	}
 
 	/**
@@ -263,12 +311,13 @@ export abstract class BaseDecoder<
 	 * This method is called when the input stream ends.
 	 */
 	protected onStreamEnd(): void {
-		if (this.ended) {
+		if (this._ended) {
 			return;
 		}
 
-		this.ended = true;
+		this._ended = true;
 		this._onEnd.fire();
+		this.settledPromise.complete();
 	}
 
 	/**
@@ -286,7 +335,7 @@ export abstract class BaseDecoder<
 	 */
 	public async consumeAll(): Promise<T[]> {
 		assert(
-			!this.ended,
+			!this._ended,
 			'Cannot consume all messages of the stream that has already ended.',
 		);
 
@@ -309,7 +358,7 @@ export abstract class BaseDecoder<
 	 */
 	[Symbol.asyncIterator](): AsyncIterator<T | null> {
 		assert(
-			!this.ended,
+			!this._ended,
 			'Cannot iterate on messages of the stream that has already ended.',
 		);
 

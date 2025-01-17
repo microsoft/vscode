@@ -7,11 +7,14 @@ import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { assert } from '../../../../../../base/common/assert.js';
 import { IPromptFileReference, IResolveError } from './types.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
+import { IRange } from '../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
@@ -21,6 +24,36 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
+
+/**
+ * {@linkcode DeferredPromise} extension that adds the public {@linkcode completed}
+ * attribute that indicates if the promise has been already completed.
+ *
+ * TODO: @legomushroom - unit test this
+ */
+class TrackedPromise<T = void> extends DeferredPromise<T> {
+	/**
+	 * Private attribute to track if the promise has been
+	 * already completed.
+	 */
+	private _completed: boolean = false;
+
+	/**
+	 * Flag that indicates if the promise has been completed.
+	 */
+	public get completed(): boolean {
+		return this._completed;
+	}
+
+	/**
+	 * Complete the promise with the provided value.
+	 */
+	public override complete(value: T): Promise<void> {
+		this._completed = true;
+
+		return super.complete(value);
+	}
+}
 
 /**
  * Well-known localized error messages.
@@ -84,20 +117,54 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	}
 
 	/**
-	 * Whether file reference resolution was attempted at least once.
-	 */
-	private _resolveAttempted: boolean = false;
-
-	/**
 	 * Whether file references resolution failed.
 	 * Set to `undefined` if the `resolve` method hasn't been ever called yet.
 	 */
 	public get resolveFailed(): boolean | undefined {
-		if (!this._resolveAttempted) {
+		if (!this.firstParseResult.completed) {
 			return undefined;
 		}
 
 		return !!this._errorCondition;
+	}
+
+	/**
+	 * The promise is resolved when at least one parse result (a stream or
+	 * an error) has been received from the prompt contents provider.
+	 */
+	private firstParseResult = new TrackedPromise();
+
+	/**
+	 * Returned promise is resolved when the parser process is settled.
+	 * The settled state means that the prompt parser stream exists and
+	 * has ended, or an error condition has been set in case of failure.
+	 *
+	 * Furthermore, this function can be called multiple times and will
+	 * block until the latest prompt contents parsing logic is settled
+	 * (e.g., for every `onContentChanged` event of the prompt source).
+	 *
+	 * TODO: @legomushroom - add unit tests
+	 */
+	public async settled(): Promise<this> {
+		assert(
+			this.started,
+			'Cannot wait on the parser that did not start yet.',
+		);
+
+		await this.firstParseResult.p;
+
+		if (this.errorCondition) {
+			return this;
+		}
+
+		assertDefined(
+			this.stream,
+			'No stream reference found.',
+		);
+
+		await this.stream.settled;
+
+		return this;
 	}
 
 	constructor(
@@ -119,8 +186,8 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			seenReferences.push(this.uri.path);
 
 			this._errorCondition = new RecursiveReference(this.uri, seenReferences);
-			this._resolveAttempted = true;
 			this._onUpdate.fire();
+			this.firstParseResult.complete();
 
 			return this;
 		}
@@ -130,23 +197,21 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		// even if the file doesn't exist, we would never end up in the recursion
 		seenReferences.push(this.uri.path);
 
-		let currentStream: VSBufferReadableStream | undefined;
 		this._register(
 			this.promptContentsProvider.onContentChanged((streamOrError) => {
-				// destroy previously received stream
-				currentStream?.destroy();
-
-				if (!(streamOrError instanceof ParseError)) {
-					// save the current stream object so it can be destroyed when/if
-					// a new stream is received
-					currentStream = streamOrError;
-				}
-
 				// process the the received message
 				this.onContentsChanged(streamOrError, seenReferences);
+
+				// indicate that we've received at least one `onContentChanged` event
+				this.firstParseResult.complete();
 			}),
 		);
 	}
+
+	/**
+	 * The latest received stream of prompt tokens, if any.
+	 */
+	private stream: ChatPromptDecoder | undefined;
 
 	/**
 	 * Handler the event event that is triggered when prompt contents change.
@@ -162,8 +227,11 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		streamOrError: VSBufferReadableStream | ParseError,
 		seenReferences: string[],
 	): void {
-		// set the flag indicating that reference resolution was attempted
-		this._resolveAttempted = true;
+		// dispose and cleanup the previously received stream
+		// object or an error condition, if any received yet
+		this.stream?.dispose();
+		delete this.stream;
+		delete this._errorCondition;
 
 		// dispose all currently existing references
 		this.disposeReferences();
@@ -176,18 +244,15 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			return;
 		}
 
-		// cleanup existing error condition (if any)
-		delete this._errorCondition;
-
 		// decode the byte stream to a stream of prompt tokens
-		const stream = ChatPromptCodec.decode(streamOrError);
+		this.stream = ChatPromptCodec.decode(streamOrError);
 
 		// on error or stream end, dispose the stream and fire the update event
-		stream.on('error', this.onStreamEnd.bind(this, stream));
-		stream.on('end', this.onStreamEnd.bind(this, stream));
+		this.stream.on('error', this.onStreamEnd.bind(this, this.stream));
+		this.stream.on('end', this.onStreamEnd.bind(this, this.stream));
 
 		// when some tokens received, process and store the references
-		stream.on('data', (token) => {
+		this.stream.on('data', (token) => {
 			if (token instanceof FileReference) {
 				this.onReference(token, [...seenReferences]);
 			}
@@ -200,7 +265,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		});
 
 		// calling `start` on a disposed stream throws, so we warn and return instead
-		if (stream.disposed) {
+		if (this.stream.disposed) {
 			this.logService.warn(
 				`[prompt parser][${basename(this.uri)}] cannot start stream that has been already disposed, aborting`,
 			);
@@ -209,7 +274,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		}
 
 		// start receiving data on the stream
-		stream.start();
+		this.stream.start();
 	}
 
 	/**
@@ -239,10 +304,13 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * @param error Optional error object if stream ended with an error.
 	 */
 	private onStreamEnd(
-		stream: ChatPromptDecoder,
+		_stream: ChatPromptDecoder,
 		error?: Error,
 	): this {
-		stream.dispose();
+		// TODO: @legomushroom - remove?
+		// setTimeout(() => {
+		// 	stream.dispose();
+		// });
 
 		this.logService.warn(
 			`[prompt parser][${basename(this.uri)}]} received an error on the chat prompt decoder stream: ${error}`,
@@ -265,13 +333,26 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	}
 
 	/**
+	 * Private attribute to track if the {@linkcode start}
+	 * method has been already called at least once.
+	 */
+	private started: boolean = false;
+
+	/**
 	 * Start the prompt parser.
 	 */
 	public start(): this {
-		// if already in error state, nothing to do
-		if (this.errorCondition) {
+		// if already started, nothing to do
+		if (this.started) {
 			return this;
 		}
+		this.started = true;
+
+		// TODO: @legomushroom - remove?
+		// // if already in error state, nothing to do
+		// if (this.errorCondition) {
+		// 	return this;
+		// }
 
 		this.promptContentsProvider.start();
 
@@ -528,6 +609,18 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 		const provider = initService.createInstance(FilePromptContentProvider, fileUri);
 
 		super(provider, seenReferences, initService, configService, logService);
+	}
+
+	/**
+	 * Get the range of the `link` part of the reference.
+	 */
+	public get linkRange(): IRange | undefined {
+		// we handle #file: references only for now
+		if (!(this.token instanceof FileReference)) {
+			return undefined;
+		}
+
+		return this.token.linkRange;
 	}
 
 	/**

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from '../../../../../../../base/common/assert.js';
-import { Range } from '../../../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
 
@@ -91,6 +91,21 @@ export class FileReference extends BaseToken {
 		}
 
 		return this.text === other.text;
+	}
+
+	/**
+	 * Get the range of the link part of the token.
+	 */
+	public get linkRange(): IRange | undefined {
+		if (this.path.length === 0) {
+			return undefined;
+		}
+
+		const { range } = this;
+		return {
+			...range,
+			startColumn: range.startColumn + TOKEN_START.length,
+		};
 	}
 
 	/**
