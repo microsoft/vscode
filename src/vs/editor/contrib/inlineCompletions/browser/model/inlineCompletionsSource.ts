@@ -323,7 +323,7 @@ export class InlineCompletionWithUpdatedRange {
 	]);
 
 	public get forwardStable() {
-		return this.inlineCompletion.source.inlineCompletions.enableForwardStability ?? false;
+		return this.source.inlineCompletions.enableForwardStability ?? false;
 	}
 
 	private readonly _updatedRange = derivedOpts<Range | null>({ owner: this, equalsFn: Range.equalsRange }, reader => {
@@ -341,6 +341,9 @@ export class InlineCompletionWithUpdatedRange {
 	 */
 	public _inlineEdit: ISettableObservable<OffsetEdit | null>;
 	public get inlineEdit() { return this._inlineEdit.get(); }
+
+	public get source() { return this.inlineCompletion.source; }
+	public get sourceInlineCompletion() { return this.inlineCompletion.sourceInlineCompletion; }
 
 	private readonly _creationTime: number = Date.now();
 

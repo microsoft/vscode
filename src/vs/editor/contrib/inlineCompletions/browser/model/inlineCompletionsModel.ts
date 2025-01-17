@@ -258,9 +258,11 @@ export class InlineCompletionsModel extends Disposable {
 	public stop(stopReason: 'explicitCancel' | 'automatic' = 'automatic', tx?: ITransaction): void {
 		subtransaction(tx, tx => {
 			if (stopReason === 'explicitCancel') {
-				const completion = this.state.get()?.inlineCompletion?.inlineCompletion;
-				if (completion && completion.source.provider.handleRejection) {
-					completion.source.provider.handleRejection(completion.source.inlineCompletions, completion.sourceInlineCompletion);
+				const inlineCompletion = this.state.get()?.inlineCompletion;
+				const source = inlineCompletion?.source;
+				const sourceInlineCompletion = inlineCompletion?.sourceInlineCompletion;
+				if (sourceInlineCompletion && source?.provider.handleRejection) {
+					source.provider.handleRejection(source.inlineCompletions, sourceInlineCompletion);
 				}
 			}
 
@@ -284,7 +286,7 @@ export class InlineCompletionsModel extends Disposable {
 		let inlineEdit: InlineCompletionWithUpdatedRange | undefined = undefined;
 		const visibleCompletions: InlineCompletionWithUpdatedRange[] = [];
 		for (const completion of c.inlineCompletions) {
-			if (!completion.inlineCompletion.sourceInlineCompletion.isInlineEdit) {
+			if (!completion.sourceInlineCompletion.isInlineEdit) {
 				if (completion.isVisible(this.textModel, cursorPosition, reader)) {
 					visibleCompletions.push(completion);
 				}
@@ -329,7 +331,7 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	public readonly activeCommands = derivedOpts<Command[]>({ owner: this, equalsFn: itemsEquals() },
-		r => this.selectedInlineCompletion.read(r)?.inlineCompletion.source.inlineCompletions.commands ?? []
+		r => this.selectedInlineCompletion.read(r)?.source.inlineCompletions.commands ?? []
 	);
 
 	public readonly lastTriggerKind: IObservable<InlineCompletionTriggerKind | undefined>
@@ -745,10 +747,11 @@ export class InlineCompletionsModel extends Disposable {
 		const augmentedCompletion = this._computeAugmentation(itemEdit, undefined);
 		if (!augmentedCompletion) { return; }
 
-		const inlineCompletion = augmentedCompletion.completion.inlineCompletion;
-		inlineCompletion.source.provider.handlePartialAccept?.(
-			inlineCompletion.source.inlineCompletions,
-			inlineCompletion.sourceInlineCompletion,
+		const source = augmentedCompletion.completion.source;
+		const sourceInlineCompletion = augmentedCompletion.completion.sourceInlineCompletion;
+		source.provider.handlePartialAccept?.(
+			source.inlineCompletions,
+			sourceInlineCompletion,
 			itemEdit.text.length,
 			{
 				kind: PartialAcceptTriggerKind.Suggest,
