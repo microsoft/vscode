@@ -24,35 +24,16 @@ const windowsExecutableExtensions: string[] = [
 	'.bat',   // Batch file
 	'.cmd',   // Command script
 	'.com',   // Command file
-	'.cpl',   // Control Panel extension
-	'.msc',   // Microsoft Management Console file
-	'.scr',   // Screensaver file
+
+	'.msi',   // Windows Installer package
+
 	'.ps1',   // PowerShell script
+
 	'.vbs',   // VBScript file
 	'.js',    // JScript file
-	'.wsf',   // Windows Script File
-	'.msi',   // Windows Installer package
-	'.msp',   // Windows Installer patch
-	'.pif',   // Program Information File
-	'.gadget',// Windows Gadget
-	'.hta',   // HTML Application
 	'.jar',   // Java Archive (requires Java runtime)
 	'.py',    // Python script (requires Python interpreter)
 	'.rb',    // Ruby script (requires Ruby interpreter)
 	'.pl',    // Perl script (requires Perl interpreter)
 	'.sh',    // Shell script (via WSL or third-party tools)
-	'.ksh',   // KornShell script (via WSL or compatible shells)
-	'.inf',   // Setup Information File
-	'.scf',   // Shell Command File
-	'.lnk',   // Shortcut file
-	'.url',   // Internet shortcut
-	'.vb',    // VBScript file
-	'.vbe',   // VBScript Encoded Script file
-	'.wsh',   // Windows Script Host settings file
-	'.msh',   // Microsoft Shell script
-	'.msh1',  // Monad Shell script
-	'.msh2',  // Monad Shell script
-	'.mshxml',// Monad Shell XML script
-	'.msh1xml',// Monad Shell XML script
-	'.msh2xml' // Monad Shell XML script
 ];
