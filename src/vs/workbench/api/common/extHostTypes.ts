@@ -2071,6 +2071,22 @@ export enum TerminalShellExecutionCommandLineConfidence {
 	Medium = 1,
 	High = 2
 }
+// IMPORTANT: Stay sync with proposed.d.ts
+export enum TerminalShellType {
+	Sh = 1,
+	Bash,
+	Fish,
+	Csh,
+	Ksh,
+	Zsh,
+	CommandPrompt,
+	GitBash,
+	PowerShell,
+	Python,
+	Julia,
+	NuShell,
+	Node
+}
 
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
@@ -3670,6 +3686,7 @@ export enum DebugConsoleMode {
 	 */
 	MergeWithParent = 1
 }
+
 
 export class DebugVisualization {
 	iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;

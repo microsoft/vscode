@@ -10,7 +10,7 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { URI } from '../../../base/common/uri.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, TerminalCompletionItem } from './extHostTypes.js';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, TerminalCompletionItem, TerminalShellType as VSCodeTerminalShellType } from './extHostTypes.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { localize } from '../../../nls.js';
 import { NotSupportedError } from '../../../base/common/errors.js';
@@ -268,21 +268,6 @@ export class ExtHostTerminal extends Disposable {
 	}
 
 	public setShellType(shellType: TerminalShellType | undefined): boolean {
-		// IMPORTANT: This must stay in sync with the extension host API type.
-		enum VSCodeTerminalShellType {
-			Sh = 1,
-			Bash,
-			Fish,
-			Csh,
-			Ksh,
-			Zsh,
-			CommandPrompt,
-			GitBash,
-			PowerShell,
-			Python,
-			Julia,
-			NuShell
-		}
 
 		let extHostType: VSCodeTerminalShellType | undefined;
 
