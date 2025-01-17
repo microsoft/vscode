@@ -122,7 +122,7 @@ __vsc_update_env() {
 			value=$(builtin printf '%s' "${(P)var}")
 			# Skip variables with values that start with a hypen
 			# Things like -q can lead to __vsc_escape_value bad option
-			if [[ "$value" == -* ]]; then
+			if [[ "$value" == -* || "$var" == -* ]]; then
 				continue
 			fi
 			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
