@@ -1034,6 +1034,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._validatePosition(position.lineNumber, position.column, validationType);
 	}
 
+	public isValidRange(range: Range): boolean {
+		return this._isValidRange(range, StringOffsetValidationType.SurrogatePairs);
+	}
+
 	private _isValidRange(range: Range, validationType: StringOffsetValidationType): boolean {
 		const startLineNumber = range.startLineNumber;
 		const startColumn = range.startColumn;

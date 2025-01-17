@@ -19,6 +19,7 @@ import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../../common/core/cursorColumns.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { LineRange } from '../../../../common/core/lineRange.js';
+import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -31,7 +32,7 @@ import { EndOfLinePreference, IModelDecorationOptions, ITextModel, TrackedRangeS
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
-import { addPositions, getEndPositionsAfterApplying, getModifiedRangesAfterApplying, substringPos, subtractPositions } from '../utils.js';
+import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from './inlineCompletionsSource.js';
@@ -95,6 +96,19 @@ export class InlineCompletionsModel extends Disposable {
 					const i = completion.inlineCompletion;
 					const src = i.source;
 					src.provider.handleItemDidShow?.(src.inlineCompletions, i.sourceInlineCompletion, i.insertText);
+				}
+			}
+		}));
+		this._register(autorun(reader => {
+			/** @description handle text edits collapsing */
+			const inlineCompletions = this._source.inlineCompletions.read(reader);
+			if (!inlineCompletions) {
+				return;
+			}
+			for (const inlineCompletion of inlineCompletions.inlineCompletions) {
+				const singleEdit = inlineCompletion.toSingleTextEdit(reader);
+				if (singleEdit.isEmpty) {
+					this.stop();
 				}
 			}
 		}));
@@ -564,6 +578,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		let completion: InlineCompletionItem;
+		const acceptDecorationOffsetRanges: OffsetRange[] = [];
 
 		const state = this.state.get();
 		if (state?.kind === 'ghostText') {
@@ -573,6 +588,7 @@ export class InlineCompletionsModel extends Disposable {
 			completion = state.inlineCompletion.toInlineCompletion(undefined);
 		} else if (state?.kind === 'inlineEdit') {
 			completion = state.inlineCompletion.toInlineCompletion(undefined);
+			acceptDecorationOffsetRanges.push(...(state.inlineCompletion.inlineEdit?.getNewTextRanges() ?? []));
 		} else {
 			return;
 		}
@@ -595,18 +611,16 @@ export class InlineCompletionsModel extends Disposable {
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			const edits = state.edits;
-			const modifiedRanges = getModifiedRangesAfterApplying(edits);
-			const selections = modifiedRanges.map(r => Selection.fromPositions(r.getEndPosition()));
+			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 			editor.executeEdits('inlineSuggestion.accept', [
 				...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
 				...completion.additionalTextEdits
 			]);
 			editor.setSelections(selections, 'inlineCompletionAccept');
 
-			if (state.kind === 'inlineEdit') {
-				this._acceptCompletionDecorationCollection.set(modifiedRanges.map(r => ({ range: r, options: this._acceptCompletionDecorationOptions })));
-				this._acceptCompletionDecorationTimer.value = disposableTimeout(() => this._acceptCompletionDecorationCollection.clear(), 2500);
-			}
+			const newTextRanges = acceptDecorationOffsetRanges.map(r => Range.fromPositions(this.textModel.getPositionAt(r.start), this.textModel.getPositionAt(r.endExclusive)));
+			this._acceptCompletionDecorationCollection.set(newTextRanges.map(r => ({ range: r, options: this._acceptCompletionDecorationOptions })));
+			this._acceptCompletionDecorationTimer.value = disposableTimeout(() => this._acceptCompletionDecorationCollection.clear(), 2500);
 		}
 
 		// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).

@@ -21,7 +21,8 @@ import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
+import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 const $ = dom.$;
 
@@ -50,6 +51,10 @@ const enum WidgetPositionPreference {
 	Above,
 	Below
 }
+
+export const SimpleSuggestContext = {
+	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('simpleSuggestWidgetHasFocusedSuggestion', "Whether any simple suggestion is focused")),
+};
 
 export interface IWorkbenchSuggestWidgetOptions {
 	/**
@@ -96,6 +101,8 @@ export class SimpleSuggestWidget extends Disposable {
 
 	get list(): List<SimpleCompletionItem> { return this._list; }
 
+	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
+
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
@@ -104,12 +111,15 @@ export class SimpleSuggestWidget extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this.element = this._register(new ResizableHTMLElement());
 		this.element.domNode.classList.add('workbench-suggest-widget');
 		this._container.appendChild(this.element.domNode);
+
+		this._ctxSuggestWidgetHasFocusedSuggestion = SimpleSuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 
 		class ResizeState {
 			constructor(
@@ -246,6 +256,7 @@ export class SimpleSuggestWidget extends Disposable {
 				this._currentSuggestionDetails.cancel();
 				this._currentSuggestionDetails = undefined;
 				this._focusedItem = undefined;
+				this._ctxSuggestWidgetHasFocusedSuggestion.set(false);
 			}
 			this._clearAriaActiveDescendant();
 			return;
@@ -255,7 +266,7 @@ export class SimpleSuggestWidget extends Disposable {
 			return;
 		}
 
-		// this._ctxSuggestWidgetHasFocusedSuggestion.set(true);
+		this._ctxSuggestWidgetHasFocusedSuggestion.set(true);
 		const item = e.elements[0];
 		const index = e.indexes[0];
 
@@ -422,7 +433,7 @@ export class SimpleSuggestWidget extends Disposable {
 				// this._contentWidget.hide();
 				// this._ctxSuggestWidgetVisible.reset();
 				// this._ctxSuggestWidgetMultipleSuggestions.reset();
-				// this._ctxSuggestWidgetHasFocusedSuggestion.reset();
+				this._ctxSuggestWidgetHasFocusedSuggestion.reset();
 				this._showTimeout.cancel();
 				this.element.domNode.classList.remove('visible');
 				this._list.splice(0, this._list.length);
@@ -521,13 +532,15 @@ export class SimpleSuggestWidget extends Disposable {
 			// hide details widget
 			this._pendingShowDetails.clear();
 			// this._ctxSuggestWidgetDetailsVisible.set(false);
+
 			this._setDetailsVisible(false);
 			this._details.hide();
 			this.element.domNode.classList.remove('shows-details');
 
-		} else if ((this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
+		} else if ((canExpandCompletionItem(this._list.getFocusedElements()[0]) || this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
 			// show details widget (iff possible)
 			// this._ctxSuggestWidgetDetailsVisible.set(true);
+
 			this._setDetailsVisible(true);
 			this._showDetails(false, focused);
 		}
@@ -569,7 +582,6 @@ export class SimpleSuggestWidget extends Disposable {
 			}
 		}
 	}
-
 
 	hide(): void {
 		this._pendingLayout.clear();

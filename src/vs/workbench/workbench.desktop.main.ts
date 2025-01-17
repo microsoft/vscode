@@ -127,9 +127,6 @@ import './contrib/remote/electron-sandbox/remote.contribution.js';
 // Configuration Exporter
 import './contrib/configExporter/electron-sandbox/configurationExportHelper.contribution.js';
 
-// Output View
-import './contrib/output/electron-sandbox/output.contribution.js';
-
 // Terminal
 import './contrib/terminal/electron-sandbox/terminal.contribution.js';
 
