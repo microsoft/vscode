@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { format, noBreakWhitespace } from '../../../../../../base/common/strings.js';
 import { Constants } from '../../../../../../base/common/uint.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { InlineValueContext, InlineValueExpression, InlineValueText, InlineValueVariableLookup } from '../../../../../../editor/common/languages.js';
+import { InlineValueContext, InlineValueText, InlineValueVariableLookup } from '../../../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, InjectedTextCursorStops } from '../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../../nls.js';
 import { registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IDebugService } from '../../../../debug/common/debug.js';
-import { Expression } from '../../../../debug/common/debugModel.js';
+import { IDebugService, State } from '../../../../debug/common/debug.js';
 import { NotebookSetting } from '../../../common/notebookCommon.js';
-import { ICellExecutionStateChangedEvent, INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
+import { ICellExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 import { INotebookKernelMatchResult, INotebookKernelService, VariablesResult } from '../../../common/notebookKernelService.js';
 import { INotebookActionContext, NotebookAction } from '../../controller/coreActions.js';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
@@ -58,23 +58,23 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		super();
 
 		this._register(this.notebookExecutionStateService.onDidChangeExecution(async e => {
-			if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineVariables)) {
+			if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineValues)) {
 				return;
 			}
 
-			if (this.isCellExecutionStateChangedEvent(e)) {
+			if (e.type === NotebookExecutionType.cell) {
 				await this.updateInlineVariables(e);
 			}
 		}));
 	}
 
 	private async updateInlineVariables(event: ICellExecutionStateChangedEvent): Promise<void> {
-		if (this.debugService.state !== 0) { // debug session is a state other than inactive, so clear and defer to whatever it's handling
+		if (this.debugService.state !== State.Inactive) {
 			this._clearNotebookInlineDecorations();
 			return;
 		}
 
-		if (this.notebookEditor.textModel?.uri !== event.notebook) {
+		if (this.notebookEditor.textModel?.uri && isEqual(this.notebookEditor.textModel.uri, event.notebook)) {
 			return;
 		}
 
@@ -83,26 +83,26 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		}
 
 		const cell = this.notebookEditor.getCellByHandle(event.cellHandle);
-		if (!cell || cell.language !== 'python') { // TODO: support more than just python
+		if (!cell) {
 			return;
 		}
-		const model = cell.textModel;
+		const model = await cell.resolveTextModel();
 		if (!model) {
 			return;
 		}
 
 		this.clearCellInlineDecorations(cell);
+
+		const cts = new CancellationTokenSource();
 		const inlineDecorations: IModelDeltaDecoration[] = [];
 
-
-		// might need to be a new provider registry, since we will have these that don't necessarily provide at the right timing
 		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
 			// use extension based provider, borrowed from https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/debug/browser/debugEditorContribution.ts#L679
 			const lastLine = model.getLineCount();
 			const lastColumn = model.getLineMaxColumn(lastLine);
 			const ctx: InlineValueContext = {
 				frameId: 0, // ignored, we won't have a stack from since not in a debug session
-				stoppedLocation: new Range(lastLine, lastColumn, lastLine, lastColumn) // executing cell by cell, so "stopped" location would just be the end of document
+				stoppedLocation: new Range(lastLine + 1, 0, lastLine + 1, 0) // executing cell by cell, so "stopped" location would just be the end of document
 			};
 
 			const providers = this.languageFeaturesService.inlineValuesProvider.ordered(model).reverse();
@@ -110,17 +110,17 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 			const fullCellRange = new Range(1, 1, lastLine, lastColumn);
 
-			const promises = providers.flatMap(provider => Promise.resolve(provider.provideInlineValues(model, fullCellRange, ctx, CancellationToken.None)).then(async (result) => {
+			const promises = providers.flatMap(provider => Promise.resolve(provider.provideInlineValues(model, fullCellRange, ctx, cts.token)).then(async (result) => {
 				if (result) {
 
 					let kernel: INotebookKernelMatchResult;
 					const kernelVars: VariablesResult[] = [];
 					if (result.some(iv => iv.type === 'variable')) { // if anyone will need a lookup, get vars now to avoid needing to do it multiple times
-						if (!this.notebookEditor.textModel) {
+						if (!this.notebookEditor.hasModel()) {
 							return; // should not happen, a cell will be executed
 						}
 						kernel = this.notebookKernelService.getMatchingKernel(this.notebookEditor.textModel);
-						const variables = kernel?.selected?.provideVariables(event.notebook, undefined, 'named', 0, CancellationToken.None);
+						const variables = kernel.selected?.provideVariables(event.notebook, undefined, 'named', 0, cts.token);
 						if (!variables) {
 							return;
 						}
@@ -147,19 +147,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 								text = format('{0} = {1}', name, value);
 							}
 							case 'expression': {
-								let expr = (iv as InlineValueExpression).expression;
-								if (!expr) {
-									const lineContent = model.getLineContent(iv.range.startLineNumber);
-									expr = lineContent.substring(iv.range.startColumn - 1, iv.range.endColumn - 1);
-								}
-								if (expr) {
-									const expression = new Expression(expr);
-									await expression.evaluate(undefined, undefined, 'watch', true);
-									if (expression.available) {
-										text = format('{0} = {1}', expr, expression.value);
-									}
-								}
-								break;
+								continue; // no active debug session, so evaluate would break
 							}
 						}
 
@@ -192,8 +180,10 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 				}
 			});
 
-
 		} else { // generic regex matching approach
+			if (!this.notebookEditor.hasModel()) {
+				return; // should not happen, a cell will be executed
+			}
 			const kernel = this.notebookKernelService.getMatchingKernel(this.notebookEditor.textModel);
 			const variables = kernel?.selected?.provideVariables(event.notebook, undefined, 'named', 0, CancellationToken.None);
 			if (!variables) {
@@ -274,10 +264,6 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 	public clearNotebookInlineDecorations() {
 		this._clearNotebookInlineDecorations();
-	}
-
-	private isCellExecutionStateChangedEvent(e: any): e is ICellExecutionStateChangedEvent {
-		return 'cellHandle' in e;
 	}
 
 	// taken from /src/vs/workbench/contrib/debug/browser/debugEditorContribution.ts
