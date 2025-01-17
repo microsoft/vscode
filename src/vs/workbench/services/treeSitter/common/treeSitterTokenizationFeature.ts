@@ -261,6 +261,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			endOffsetsAndScopes.push({ endOffset: 0, scopes: [] });
 		};
 
+
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
 			const tokenEndIndex = capture.node.endIndex < rangeStartOffset + rangeLength ? capture.node.endIndex : rangeStartOffset + rangeLength;
