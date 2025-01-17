@@ -5,20 +5,20 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -31,8 +31,8 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		const editTool = instantiationService.createInstance(EditTool);
-		this._register(toolsService.registerToolData(editTool));
-		this._register(toolsService.registerToolImplementation(editTool.id, editTool));
+		this._register(toolsService.registerToolData(editToolData));
+		this._register(toolsService.registerToolImplementation(editToolData.id, editTool));
 	}
 }
 
@@ -62,39 +62,41 @@ class Person {
 }
 `;
 
-class EditTool implements IToolData, IToolImpl {
-	readonly id = 'vscode_editFile';
-	readonly tags = ['vscode_editing'];
-	readonly displayName = localize('chat.tools.editFile', "Edit File");
-	readonly modelDescription = `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`;
-	readonly inputSchema: IJSONSchema;
+const editToolData: IToolData = {
+	id: 'vscode_editFile',
+	tags: ['vscode_editing'],
+	displayName: localize('chat.tools.editFile', "Edit File"),
+	modelDescription: `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`,
+	inputSchema: {
+		type: 'object',
+		properties: {
+			explanation: {
+				type: 'string',
+				description: 'A short explanation of the edit being made. Can be the same as the explanation you showed to the user.',
+			},
+			filePath: {
+				type: 'string',
+				description: 'An absolute path to the file to edit',
+			},
+			code: {
+				type: 'string',
+				description: 'The code change to apply to the file. ' + codeInstructions
+			}
+		},
+		required: ['explanation', 'filePath', 'code']
+	}
+};
+
+class EditTool implements IToolImpl {
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService
-	) {
-		this.inputSchema = {
-			type: 'object',
-			properties: {
-				explanation: {
-					type: 'string',
-					description: 'A short explanation of the edit being made. Can be the same as the explanation you showed to the user.',
-				},
-				filePath: {
-					type: 'string',
-					description: 'An absolute path to the file to edit',
-				},
-				code: {
-					type: 'string',
-					description: 'The code change to apply to the file. ' + codeInstructions
-				}
-			},
-			required: ['explanation', 'filePath', 'code']
-		};
-	}
+		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		if (!invocation.context) {
@@ -159,6 +161,8 @@ class EditTool implements IToolData, IToolImpl {
 				}
 			});
 		});
+
+		await this.textFileService.save(uri);
 
 		return {
 			content: [{ kind: 'text', value: 'Success' }]
