@@ -109,7 +109,6 @@ import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifie
 import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
 import type * as vscode from 'vscode';
 import { ExtHostCodeMapper } from './extHostCodeMapper.js';
-import { TerminalShellType } from 'vscode';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -1668,7 +1667,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TerminalCompletionItem: extHostTypes.TerminalCompletionItem,
 			TerminalCompletionItemKind: extHostTypes.TerminalCompletionItemKind,
 			TerminalCompletionList: extHostTypes.TerminalCompletionList,
-			TerminalShellType: TerminalShellType,
+			TerminalShellType: extHostTypes.TerminalShellType,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
 			SnippetTextEdit: extHostTypes.SnippetTextEdit,
