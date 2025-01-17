@@ -6,7 +6,7 @@
 import { osIsWindows } from './os';
 import * as fs from 'fs/promises';
 
-export async function isExecutable(filePath: string, configuredWindowsExecutableExtensions: Object): Promise<boolean> {
+export async function isExecutable(filePath: string, configuredWindowsExecutableExtensions?: Object): Promise<boolean> {
 	if (osIsWindows()) {
 		const resolvedWindowsExecutableExtensions = resolveWindowsExecutableExtensions(configuredWindowsExecutableExtensions);
 		return resolvedWindowsExecutableExtensions.find(ext => filePath.endsWith(ext)) !== undefined;
@@ -21,14 +21,16 @@ export async function isExecutable(filePath: string, configuredWindowsExecutable
 	}
 }
 
-function resolveWindowsExecutableExtensions(configuredWindowsExecutableExtensions: Object): string[] {
+function resolveWindowsExecutableExtensions(configuredWindowsExecutableExtensions?: Object): string[] {
 	const resolvedWindowsExecutableExtensions: string[] = windowsDefaultExecutableExtensions;
 	const excluded = new Set<string>();
-	for (const [key, value] of Object.entries(configuredWindowsExecutableExtensions)) {
-		if (value === true) {
-			resolvedWindowsExecutableExtensions.push(key);
-		} else {
-			excluded.add(key);
+	if (configuredWindowsExecutableExtensions) {
+		for (const [key, value] of Object.entries(configuredWindowsExecutableExtensions)) {
+			if (value === true) {
+				resolvedWindowsExecutableExtensions.push(key);
+			} else {
+				excluded.add(key);
+			}
 		}
 	}
 	return Array.from(new Set(resolvedWindowsExecutableExtensions)).filter(ext => !excluded.has(ext));

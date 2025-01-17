@@ -15,8 +15,10 @@ import { isExecutable } from './helpers/executable';
 
 const isWindows = osIsWindows();
 let cachedAvailableCommandsPath: string | undefined;
+let cachedWindowsExecutableExtensions: Object | undefined;
 let cachedAvailableCommands: Set<string> | undefined;
 const cachedBuiltinCommands: Map<string, string[] | undefined> = new Map();
+const cachedWindowsExecutableExtensionsSettingId = 'terminal.integrated.suggest.windowsExecutableExtensions';
 
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
@@ -108,8 +110,18 @@ export async function activate(context: vscode.ExtensionContext) {
 			return result.items;
 		}
 	}, '/', '\\'));
-}
 
+	if (isWindows) {
+		cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration(cachedWindowsExecutableExtensionsSettingId);
+		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(cachedWindowsExecutableExtensionsSettingId)) {
+				cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration(cachedWindowsExecutableExtensionsSettingId);
+				cachedAvailableCommands = undefined;
+				cachedAvailableCommandsPath = undefined;
+			}
+		}));
+	}
+}
 
 /**
  * Adjusts the current working directory based on a given prefix if it is a folder.
@@ -214,7 +226,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 
 			for (const [file, fileType] of files) {
-				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file, vscode.workspace.getConfiguration('terminal.integrated.suggest.windowsExecutableExtensions'))) {
+				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file, cachedWindowsExecutableExtensions)) {
 					executables.add(file);
 				}
 			}
