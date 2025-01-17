@@ -1400,7 +1400,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const rmBtn = this._chatEditsActionsDisposables.add(new Button(addFilesElement, {
 				supportIcons: false,
 				secondary: true,
-				hoverDelegate
+				hoverDelegate,
+				ariaLabel: localize('chatEditingSession.removeSuggestion', 'Remove suggestion {0}', this.labelService.getUriLabel(uri, { relative: true })),
 			}));
 			rmBtn.icon = Codicon.close;
 			rmBtn.setTitle(localize('chatEditingSession.removeSuggested', 'Remove suggestion'));
