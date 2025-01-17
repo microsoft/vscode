@@ -11,8 +11,8 @@ import { ExtUri } from '../../../base/common/resources.js';
 import { isString } from '../../../base/common/types.js';
 import { URI, UriDto } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files.js';
-import { DBClosedError, IndexedDB } from '../../../base/browser/indexedDB.js';
+import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files.js';
+import { IndexedDB } from '../../../base/browser/indexedDB.js';
 import { BroadcastDataChannel } from '../../../base/browser/broadcast.js';
 
 // Standard FS Errors (expected to be thrown in production when invalid FS operations are requested)
@@ -238,7 +238,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 				return [...entry.children.entries()].map(([name, node]) => [name, node.type]);
 			}
 		} catch (error) {
-			this.reportError('readDir', error);
 			throw error;
 		}
 	}
@@ -260,7 +259,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 
 			return buffer;
 		} catch (error) {
-			this.reportError('readFile', error);
 			throw error;
 		}
 	}
@@ -273,7 +271,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 			}
 			await this.bulkWrite([[resource, content]]);
 		} catch (error) {
-			this.reportError('writeFile', error);
 			throw error;
 		}
 	}
@@ -433,10 +430,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 
 	async reset(): Promise<void> {
 		await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => objectStore.clear());
-	}
-
-	private reportError(operation: string, error: Error): void {
-		this._onReportError.fire({ scheme: this.scheme, operation, code: error instanceof FileSystemProviderError || error instanceof DBClosedError ? error.code : 'unknown' });
 	}
 
 }
