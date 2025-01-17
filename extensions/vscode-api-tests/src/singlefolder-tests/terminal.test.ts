@@ -233,7 +233,6 @@ import { assertNoRpc, poll } from '../utils';
 
 		test('onDidChangeTerminalState should fire with isInteractedWith after writing to a terminal', async () => {
 			const terminal = window.createTerminal();
-			// It seems like shell type is undefined when terminal is first created
 			strictEqual(terminal.state.isInteractedWith, false);
 			const eventState = await new Promise<TerminalState>(r => {
 				disposables.push(window.onDidChangeTerminalState(e => {
@@ -257,7 +256,7 @@ import { assertNoRpc, poll } from '../utils';
 		test('onDidChangeTerminalState should fire with shellType when created', async () => {
 			const terminal = window.createTerminal();
 			if (terminal.state.shellType) {
-				return; // Pass
+				return;
 			}
 			await new Promise<void>(r => {
 				disposables.push(window.onDidChangeTerminalState(e => {
