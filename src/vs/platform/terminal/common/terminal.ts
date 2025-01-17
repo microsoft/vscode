@@ -150,7 +150,8 @@ export const enum GeneralShellType {
 	PowerShell = 'pwsh',
 	Python = 'python',
 	Julia = 'julia',
-	NuShell = 'nu'
+	NuShell = 'nu',
+	Node = 'node',
 }
 export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType;
 
