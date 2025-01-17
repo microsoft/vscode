@@ -133,6 +133,10 @@
 					}
 				}
 			}
+
+			.inline-edits-view-zone.diagonal-fill {
+				opacity: 0.5;
+			}
 		}
 	}
 

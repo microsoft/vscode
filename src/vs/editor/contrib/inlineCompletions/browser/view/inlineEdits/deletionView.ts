@@ -138,14 +138,13 @@ export class InlineEditsDeletionView extends Disposable {
 		const rectangleOverlay = createRectangle(
 			{
 				topLeft: layoutInfo.codeStart1,
-				topRight: layoutInfo.code1.deltaX(1),
-				bottomLeft: layoutInfo.codeStart2.deltaY(1),
-				bottomRight: layoutInfo.code2.deltaX(1).deltaY(1),
+				width: layoutInfo.code1.x - layoutInfo.codeStart1.x + 1,
+				height: layoutInfo.code2.y - layoutInfo.code1.y + 1,
 			},
 			layoutInfo.padding,
 			layoutInfo.borderRadius,
 			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
-		);
+		).build();
 
 		return [
 			n.svgElem('path', {
