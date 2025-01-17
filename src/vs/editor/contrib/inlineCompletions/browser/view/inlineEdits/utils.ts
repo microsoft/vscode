@@ -163,32 +163,48 @@ export class PathBuilder {
 	}
 }
 
+// Arguments are a bit messy currently, could be improved
 export function createRectangle(
-	corners: { topLeft: Point; topRight: Point; bottomLeft: Point; bottomRight: Point },
+	layout: { topLeft: Point; width: number; height: number },
 	padding: number | { top: number; right: number; bottom: number; left: number },
-	borderRadius: number,
+	borderRadius: number | { topLeft: number; topRight: number; bottomLeft: number; bottomRight: number },
 	options: { hideLeft?: boolean; hideRight?: boolean; hideTop?: boolean; hideBottom?: boolean } = {}
-): string {
+): PathBuilder {
+
+	const topLeftInner = layout.topLeft;
+	const topRightInner = topLeftInner.deltaX(layout.width);
+	const bottomLeftInner = topLeftInner.deltaY(layout.height);
+	const bottomRightInner = bottomLeftInner.deltaX(layout.width);
+
+	// padding
 	const { top: paddingTop, bottom: paddingBottom, left: paddingLeft, right: paddingRight } = typeof padding === 'number' ?
 		{ top: padding, bottom: padding, left: padding, right: padding }
 		: padding;
 
+	// corner radius
+	const { topLeft: radiusTL, topRight: radiusTR, bottomLeft: radiusBL, bottomRight: radiusBR } = typeof borderRadius === 'number' ?
+		{ topLeft: borderRadius, topRight: borderRadius, bottomLeft: borderRadius, bottomRight: borderRadius } :
+		borderRadius;
+
+	const totalHeight = layout.height + paddingTop + paddingBottom;
+	const totalWidth = layout.width + paddingLeft + paddingRight;
+
 	// The path is drawn from bottom left at the end of the rounded corner in a clockwise direction
 	// Before: before the rounded corner
 	// After: after the rounded corner
-	const topLeft = corners.topLeft.deltaX(-paddingLeft).deltaY(-paddingTop);
-	const topRight = corners.topRight.deltaX(paddingRight).deltaY(-paddingTop);
-	const topLeftBefore = topLeft.deltaY(borderRadius);
-	const topLeftAfter = topLeft.deltaX(borderRadius);
-	const topRightBefore = topRight.deltaX(-borderRadius);
-	const topRightAfter = topRight.deltaY(borderRadius);
+	const topLeft = topLeftInner.deltaX(-paddingLeft).deltaY(-paddingTop);
+	const topRight = topRightInner.deltaX(paddingRight).deltaY(-paddingTop);
+	const topLeftBefore = topLeft.deltaY(Math.min(radiusTL, totalHeight / 2));
+	const topLeftAfter = topLeft.deltaX(Math.min(radiusTL, totalWidth / 2));
+	const topRightBefore = topRight.deltaX(-Math.min(radiusTR, totalWidth / 2));
+	const topRightAfter = topRight.deltaY(Math.min(radiusTR, totalHeight / 2));
 
-	const bottomLeft = corners.bottomLeft.deltaX(-paddingLeft).deltaY(paddingBottom);
-	const bottomRight = corners.bottomRight.deltaX(paddingRight).deltaY(paddingBottom);
-	const bottomLeftBefore = bottomLeft.deltaX(borderRadius);
-	const bottomLeftAfter = bottomLeft.deltaY(-borderRadius);
-	const bottomRightBefore = bottomRight.deltaY(-borderRadius);
-	const bottomRightAfter = bottomRight.deltaX(-borderRadius);
+	const bottomLeft = bottomLeftInner.deltaX(-paddingLeft).deltaY(paddingBottom);
+	const bottomRight = bottomRightInner.deltaX(paddingRight).deltaY(paddingBottom);
+	const bottomLeftBefore = bottomLeft.deltaX(Math.min(radiusBL, totalWidth / 2));
+	const bottomLeftAfter = bottomLeft.deltaY(-Math.min(radiusBL, totalHeight / 2));
+	const bottomRightBefore = bottomRight.deltaY(-Math.min(radiusBR, totalHeight / 2));
+	const bottomRightAfter = bottomRight.deltaX(-Math.min(radiusBR, totalWidth / 2));
 
 	const path = new PathBuilder();
 
@@ -224,7 +240,7 @@ export function createRectangle(
 		path.curveTo(bottomLeft, bottomLeftAfter);
 	}
 
-	return path.build();
+	return path;
 }
 
 type Value<T> = T | IObservable<T>;

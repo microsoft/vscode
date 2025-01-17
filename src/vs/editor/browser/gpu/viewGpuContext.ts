@@ -163,7 +163,6 @@ export class ViewGpuContext extends Disposable {
 		if (
 			data.containsRTL ||
 			data.maxColumn > GpuRenderLimits.maxGpuCols ||
-			data.continuesWithWrappedLine ||
 			lineNumber >= GpuRenderLimits.maxGpuLines
 		) {
 			return false;
@@ -211,9 +210,6 @@ export class ViewGpuContext extends Disposable {
 		}
 		if (data.maxColumn > GpuRenderLimits.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
-		}
-		if (data.continuesWithWrappedLine) {
-			reasons.push('continuesWithWrappedLine');
 		}
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;

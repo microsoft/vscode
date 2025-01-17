@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ExecOptionsWithStringEncoding, execSync } from 'child_process';
@@ -11,7 +10,10 @@ import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
 import codeInsidersCompletionSpec from './completions/code-insiders';
+import { osIsWindows } from './helpers/os';
+import { isExecutable } from './helpers/executable';
 
+const isWindows = osIsWindows();
 let cachedAvailableCommandsPath: string | undefined;
 let cachedAvailableCommands: Set<ICompletionResource> | undefined;
 const cachedBuiltinCommands: Map<string, ICompletionResource[] | undefined> = new Map();
@@ -103,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, terminal.shellIntegration?.cwd, token);
 			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
 				// const cwd = resolveCwdFromPrefix(prefix, terminal.shellIntegration?.cwd) ?? terminal.shellIntegration?.cwd;
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: osIsWindows() ? '\\' : '/' });
+				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: isWindows ? '\\' : '/' });
 			}
 			return result.items;
 		}
@@ -125,7 +127,7 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
 		// they are what triggers changes in the directory.
 		let lastSlashIndex: number;
-		if (osIsWindows()) {
+		if (isWindows) {
 			// TODO: This support is very basic, ideally the slashes supported would depend upon the
 			//       shell type. For example git bash under Windows does not allow using \ as a path
 			//       separator.
@@ -181,33 +183,14 @@ function createCompletionItem(cursorPosition: number, prefix: string, commandRes
 	};
 }
 
-async function isExecutable(filePath: string): Promise<boolean> {
-	// Windows doesn't have the concept of an executable bit and running any
-	// file is possible. We considered using $PATHEXT here but since it's mostly
-	// there for legacy reasons and it would be easier and more intuitive to add
-	// a setting if needed instead.
-	if (osIsWindows()) {
-		return true;
-	}
-	try {
-		const stats = await fs.stat(filePath);
-		// On macOS/Linux, check if the executable bit is set
-		return (stats.mode & 0o100) !== 0;
-	} catch (error) {
-		// If the file does not exist or cannot be accessed, it's not executable
-		return false;
-	}
-}
-
 interface ICompletionResource {
 	label: string;
 	path?: string;
 }
 async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
-	// Get PATH value
-	let pathValue: string | undefined;
 	const labels: Set<string> = new Set<string>();
-	if (osIsWindows()) {
+	let pathValue: string | undefined;
+	if (isWindows) {
 		const caseSensitivePathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
 		if (caseSensitivePathKey) {
 			pathValue = env[caseSensitivePathKey];
@@ -225,7 +208,6 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 	}
 
 	// Extract executables from PATH
-	const isWindows = osIsWindows();
 	const paths = pathValue.split(isWindows ? ';' : ':');
 	const pathSeparator = isWindows ? '\\' : '/';
 	const executables = new Set<ICompletionResource>();
@@ -493,9 +475,7 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 	return { items, filesRequested, foldersRequested };
 }
 
-function osIsWindows(): boolean {
-	return os.platform() === 'win32';
-}
+
 
 function getFirstCommand(commandLine: string): string | undefined {
 	const wordsOnLine = commandLine.split(' ');
