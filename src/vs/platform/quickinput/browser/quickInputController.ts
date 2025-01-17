@@ -938,15 +938,18 @@ class QuickInputDragAndDropController extends Disposable {
 	}
 
 	private _registerLayoutListener() {
-		this._layoutService.onDidLayoutActiveContainer((e) => {
+		this._layoutService.onDidLayoutContainer((e) => {
+			if (e.container !== this._container) {
+				return;
+			}
 			const state = this.dndViewState.get();
 			const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
 			if (state?.top && state?.left) {
 				const a = Math.round(state.left * 1e2) / 1e2;
-				const b = e.width;
+				const b = e.dimension.width;
 				const c = dragAreaRect.width;
 				const d = a * b - c / 2;
-				this._layout(state.top * e.height, d);
+				this._layout(state.top * e.dimension.height, d);
 			}
 		});
 	}
