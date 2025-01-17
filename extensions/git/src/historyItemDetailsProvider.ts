@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, Disposable } from 'vscode';
-import { SourceControlHistoryItemDetailsProvider } from './api/git';
+import { AvatarQuery, SourceControlHistoryItemDetailsProvider } from './api/git';
 import { Repository } from './repository';
 import { ApiRepository } from './api/api1';
 
@@ -16,12 +16,10 @@ export interface ISourceControlHistoryItemDetailsProviderRegistry {
 export async function provideSourceControlHistoryItemAvatar(
 	registry: ISourceControlHistoryItemDetailsProviderRegistry,
 	repository: Repository,
-	commit: string,
-	authorName?: string,
-	authorEmail?: string
-): Promise<string | undefined> {
+	query: AvatarQuery[]
+): Promise<Map<string, string | undefined> | undefined> {
 	for (const provider of registry.getSourceControlHistoryItemDetailsProviders()) {
-		const result = await provider.provideAvatar(new ApiRepository(repository), commit, authorName, authorEmail);
+		const result = await provider.provideAvatar(new ApiRepository(repository), query);
 
 		if (result) {
 			return result;

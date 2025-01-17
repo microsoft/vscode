@@ -5,8 +5,8 @@
 
 import { authentication, Command, l10n, LogOutputChannel } from 'vscode';
 import { Commit, Repository as GitHubRepository, Maybe } from '@octokit/graphql-schema';
-import { API, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git';
-import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, sequentialize } from './util';
+import { API, AvatarQuery, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git';
+import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util';
 import { AuthenticationError, getOctokitGraphql } from './auth';
 
 const AVATAR_SIZE = 20;
@@ -62,6 +62,17 @@ interface GitHubUser {
 	readonly avatarUrl: string;
 }
 
+function compareAvatarQuery(a: AvatarQuery, b: AvatarQuery): number {
+	// Email
+	const emailComparison = (a.authorEmail ?? '').localeCompare(b.authorEmail ?? '');
+	if (emailComparison !== 0) {
+		return emailComparison;
+	}
+
+	// Name
+	return (a.authorName ?? '').localeCompare(b.authorName ?? '');
+}
+
 export class GitHubSourceControlHistoryItemDetailsProvider implements SourceControlHistoryItemDetailsProvider {
 	private _enabled = true;
 	private readonly _store = new Map<string, GitHubRepositoryStore>();
@@ -77,8 +88,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 		}));
 	}
 
-	async provideAvatar(repository: Repository, commit: string, authorName?: string, authorEmail?: string): Promise<string | undefined> {
-		this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Avatar resolution for ${commit} in ${repository.rootUri.fsPath}.`);
+	async provideAvatar(repository: Repository, query: AvatarQuery[]): Promise<Map<string, string | undefined> | undefined> {
+		this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Avatar resolution for ${query.length} commit(s) in ${repository.rootUri.fsPath}.`);
 
 		if (!this._enabled) {
 			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Avatar resolution is disabled.`);
@@ -92,7 +103,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 		}
 
 		try {
-			// Get the first page of the assignable users
+			// Warm up the in-memory cache with the first page
+			// (100 users) from this list of assignable users
 			await this._loadAssignableUsers(descriptor);
 
 			const repositoryStore = this._store.get(this._getRepositoryKey(descriptor));
@@ -100,33 +112,59 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 				return undefined;
 			}
 
-			// Lookup the user in the cache
-			const avatarUrl = repositoryStore.users.find(
-				user => user.email === authorEmail || user.name === authorName)?.avatarUrl;
-			if (avatarUrl) {
-				return this._getAvatarUrl(avatarUrl, AVATAR_SIZE);
-			}
+			// Group the query by author
+			const authorQuery = groupBy<AvatarQuery>(query, compareAvatarQuery);
 
-			// Check the commit against the list of known commits
-			// that are known to have incomplte author information
-			if (repositoryStore.commits.has(commit)) {
-				return undefined;
-			}
+			const results = new Map<string, string | undefined>();
+			await Promise.all(authorQuery.map(async q => {
+				if (q.length === 0) {
+					return;
+				}
 
-			// Get the commit details
-			const commitAuthor = await this._getCommitAuthor(descriptor, commit);
-			if (!commitAuthor) {
-				// The commit has incomplete author information,
-				// so we should not try to query the authors details
-				// again
-				repositoryStore.commits.add(commit);
-				return undefined;
-			}
+				// Query the in-memory cache for the user
+				const avatarUrl = repositoryStore.users.find(
+					user => user.email === q[0].authorEmail || user.name === q[0].authorName)?.avatarUrl;
 
-			// Save the user to the cache
-			repositoryStore.users.push(commitAuthor);
+				// Cache hit
+				if (avatarUrl) {
+					// Add avatar for each commit
+					for (const { commit } of q) {
+						results.set(commit, this._getAvatarUrl(avatarUrl, AVATAR_SIZE));
+					}
+					return;
+				}
 
-			return this._getAvatarUrl(commitAuthor.avatarUrl, AVATAR_SIZE);
+				// Check if any of the commit are being tracked in the list
+				// of known commits that have incomplte author information
+				if (q.some(({ commit }) => repositoryStore.commits.has(commit))) {
+					for (const { commit } of q) {
+						results.set(commit, undefined);
+					}
+					return;
+				}
+
+				// Get the commit details
+				const commitAuthor = await this._getCommitAuthor(descriptor, q[0].commit);
+				if (!commitAuthor) {
+					// The commit has incomplete author information, so
+					// we should not try to query the authors details again
+					for (const { commit } of q) {
+						repositoryStore.commits.add(commit);
+						results.set(commit, undefined);
+					}
+					return;
+				}
+
+				// Save the user to the cache
+				repositoryStore.users.push(commitAuthor);
+
+				// Add avatar for each commit
+				for (const { commit } of q) {
+					results.set(commit, this._getAvatarUrl(commitAuthor.avatarUrl, AVATAR_SIZE));
+				}
+			}));
+
+			return results;
 		} catch (err) {
 			// A GitHub authentication session could be missing if the user has not yet
 			// signed in with their GitHub account or they have signed out. Disable the
@@ -134,9 +172,9 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			if (err instanceof AuthenticationError) {
 				this._enabled = false;
 			}
-		}
 
-		return undefined;
+			return undefined;
+		}
 	}
 
 	async provideHoverCommands(repository: Repository): Promise<Command[] | undefined> {

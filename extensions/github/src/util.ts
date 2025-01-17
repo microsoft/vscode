@@ -57,6 +57,20 @@ function _sequentialize(fn: Function, key: string): Function {
 
 export const sequentialize = decorate(_sequentialize);
 
+export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => number): T[][] {
+	const result: T[][] = [];
+	let currentGroup: T[] | undefined = undefined;
+	for (const element of data.slice(0).sort(compare)) {
+		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
+			currentGroup = [element];
+			result.push(currentGroup);
+		} else {
+			currentGroup.push(element);
+		}
+	}
+	return result;
+}
+
 export function getRepositoryFromUrl(url: string): { owner: string; repo: string } | undefined {
 	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url)
 		|| /^git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);

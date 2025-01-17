@@ -13,6 +13,7 @@ import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { AvatarQuery } from './api/git';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -217,8 +218,14 @@ export class GitBlameController {
 					commitInformation = await repository.getCommit(blameInformation.hash);
 
 					// Avatar
-					commitAvatar = await provideSourceControlHistoryItemAvatar(
-						this._model, repository, blameInformation.hash, blameInformation.authorName, blameInformation.authorEmail);
+					const avatarQuery = {
+						commit: blameInformation.hash,
+						authorName: blameInformation.authorName,
+						authorEmail: blameInformation.authorEmail
+					} satisfies AvatarQuery;
+
+					const avatarResult = await provideSourceControlHistoryItemAvatar(this._model, repository, [avatarQuery]);
+					commitAvatar = avatarResult?.get(avatarQuery.commit);
 				} catch { }
 			}
 
