@@ -444,12 +444,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private supportsVision() {
-		if (this.currentLanguageModel) {
-			const model = this.languageModelsService.lookupLanguageModel(this.currentLanguageModel);
-			return model?.capabilities?.vision;
-		}
-		return false;
+	private supportsVision(): boolean {
+		const model = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel) : undefined;
+		return model?.capabilities?.vision ?? false;
 	}
 
 	private setCurrentLanguageModelToDefault() {
