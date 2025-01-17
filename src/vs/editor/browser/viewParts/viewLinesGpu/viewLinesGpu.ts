@@ -92,7 +92,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	async initWebgpu() {
 		// #region General
 
-		this._device = await this._viewGpuContext.device;
+		this._device = ViewGpuContext.deviceSync || await ViewGpuContext.device;
 
 		if (this._store.isDisposed) {
 			return;
@@ -650,7 +650,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			column++;
 		}
 
-		console.log(lineNumber, column);
 		return new Position(lineNumber, column + 1);
 	}
 }
