@@ -870,12 +870,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
-		if (this.environmentMainService.extensionTestsLocationURI) {
-			const testProxy = this.configurationService.getValue<string>('integration-test.http.proxy');
-			if (testProxy) {
-				return testProxy;
-			}
-		}
 		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;
 
