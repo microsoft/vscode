@@ -444,7 +444,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private isVisionCapable() {
+	private supportsVision() {
 		if (this.currentLanguageModel) {
 			const model = this.languageModelsService.lookupLanguageModel(this.currentLanguageModel);
 			return model?.capabilities?.vision;
@@ -946,13 +946,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const hoverElement = dom.$('div.chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
-				const isVisionCapable = this.isVisionCapable();
-				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(!isVisionCapable ? 'span.codicon.codicon-warning' : 'span.codicon.codicon-file-media'));
+				const supportsVision = this.supportsVision();
+				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
 				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
 				widget.appendChild(pillIcon);
 				widget.appendChild(textLabel);
 
-				if (!isVisionCapable) {
+				if (!supportsVision) {
 					widget.classList.add('warning');
 					hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel)?.name : this.currentLanguageModel);
 					textLabel.style.textDecoration = 'line-through';
@@ -976,12 +976,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						} catch (error) {
 							console.error('Error processing attachment:', error);
 						}
-
-						widget.style.position = 'relative';
 						store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 						resolve();
 					}));
 				}
+				widget.style.position = 'relative';
 			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
