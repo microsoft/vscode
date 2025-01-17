@@ -235,10 +235,10 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			if (!dirExists) {
 				continue;
 			}
-			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
-
+			const fileResource = vscode.Uri.file(path);
+			const files = await vscode.workspace.fs.readDirectory(fileResource);
 			for (const [file, fileType] of files) {
-				const formattedPath = getFriendlyFilePath(vscode.Uri.joinPath(vscode.Uri.from({ scheme: 'file', path }), file), pathSeparator);
+				const formattedPath = getFriendlyFilePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
 				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath)) {
 					executables.add({ label: file, path: formattedPath });
 					labels.add(file);
