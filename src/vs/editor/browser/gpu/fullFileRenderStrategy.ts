@@ -347,7 +347,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			lineData = viewportData.getViewLineRenderingData(y);
 			tabXOffset = 0;
 
-			contentSegmenter = createContentSegmenter(lineData);
+			contentSegmenter = createContentSegmenter(lineData, viewLineOptions);
 			charWidth = viewLineOptions.spaceWidth * dpr;
 			absoluteOffsetX = 0;
 
@@ -374,7 +374,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					}
 					chars = segment;
 
-					if (!lineData.isBasicASCII) {
+					if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
 						charWidth = this._glyphRasterizer.value.getTextMetrics(chars).width;
 					}
 

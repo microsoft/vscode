@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { safeIntl } from '../../../base/common/date.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
+import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 
 export interface IContentSegmenter {
 	/**
@@ -16,8 +18,8 @@ export interface IContentSegmenter {
 	getSegmentData(index: number): Intl.SegmentData | undefined;
 }
 
-export function createContentSegmenter(lineData: ViewLineRenderingData): IContentSegmenter {
-	if (lineData.isBasicASCII) {
+export function createContentSegmenter(lineData: ViewLineRenderingData, options: ViewLineOptions): IContentSegmenter {
+	if (lineData.isBasicASCII && options.useMonospaceOptimizations) {
 		return new AsciiContentSegmenter(lineData);
 	}
 	return new GraphemeContentSegmenter(lineData);
@@ -44,7 +46,7 @@ class GraphemeContentSegmenter implements IContentSegmenter {
 
 	constructor(lineData: ViewLineRenderingData) {
 		const content = lineData.content;
-		const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+		const segmenter = safeIntl.Segmenter(undefined, { granularity: 'grapheme' });
 		const segmentedContent = Array.from(segmenter.segment(content));
 		let segmenterIndex = 0;
 
