@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { GraphemeIterator } from '../../../base/common/strings.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
 
 export interface IContentSegmenter {
@@ -39,6 +40,10 @@ class AsciiContentSegmenter implements IContentSegmenter {
 	}
 }
 
+/**
+ * This is a more modern version of {@link GraphemeIterator}, relying on browser APIs instead of a
+ * manual table approach.
+ */
 class GraphemeContentSegmenter implements IContentSegmenter {
 	private readonly _segments: (Intl.SegmentData | undefined)[] = [];
 
