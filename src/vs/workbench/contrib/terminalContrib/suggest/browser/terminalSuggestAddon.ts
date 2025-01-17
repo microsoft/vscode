@@ -230,6 +230,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.toggleExplainMode();
 	}
 
+	toggleSuggestionFocus(): void {
+		this._suggestWidget?.toggleDetailsFocus();
+	}
+
 	toggleSuggestionDetails(): void {
 		this._suggestWidget?.toggleDetails();
 	}
@@ -373,6 +377,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		suggestWidget.setCompletionModel(model);
+		this._register(suggestWidget.onDidFocus(() => this._terminal?.focus()));
 		if (!this._promptInputModel || !explicitlyInvoked && model.items.length === 0) {
 			return;
 		}
@@ -413,8 +418,29 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				listInactiveFocusOutline: activeContrastBorder
 			}));
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
-			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.set(false)));
+			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
+
+			const element = this._terminal?.element?.querySelector('.xterm-helper-textarea');
+			if (element) {
+				this._register(dom.addDisposableListener(dom.getActiveDocument(), 'click', (event) => {
+					const target = event.target as HTMLElement;
+					if (this._terminal?.element?.contains(target)) {
+						this._suggestWidget?.hide();
+					}
+				}));
+			}
+
+			this._register(this._suggestWidget.onDidBlurDetails((e) => {
+				const elt = e.relatedTarget as HTMLElement;
+				if (this._terminal?.element?.contains(elt)) {
+					// Do nothing, just the terminal getting focused
+					// If there was a mouse click, the suggest widget will be
+					// hidden above
+					return;
+				}
+				this._suggestWidget?.hide();
+			}));
 			this._terminalSuggestWidgetVisibleContextKey.set(false);
 		}
 		return this._suggestWidget;

@@ -41,8 +41,8 @@ interface IMsalFlow {
 class DefaultLoopbackFlow implements IMsalFlow {
 	label = 'default';
 	options: IMsalFlowOptions = {
-		supportsRemoteExtensionHost: true,
-		supportsWebWorkerExtensionHost: true
+		supportsRemoteExtensionHost: false,
+		supportsWebWorkerExtensionHost: false
 	};
 
 	async trigger({ cachedPca, scopes, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
@@ -62,7 +62,7 @@ class DefaultLoopbackFlow implements IMsalFlow {
 class UrlHandlerFlow implements IMsalFlow {
 	label = 'protocol handler';
 	options: IMsalFlowOptions = {
-		supportsRemoteExtensionHost: false,
+		supportsRemoteExtensionHost: true,
 		supportsWebWorkerExtensionHost: false
 	};
 

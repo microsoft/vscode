@@ -28,7 +28,6 @@
     "fsChunks",
     "interactive",
     "languageStatusText",
-    "mappedEditsProvider",
     "nativeWindowHandle",
     "notebookCellExecutionState",
     "notebookDeprecated",

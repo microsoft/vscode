@@ -1511,7 +1511,7 @@ export class GettingStartedPage extends EditorPane {
 		buildStepList();
 
 		this.detailsPageDisposables.add(this.contextService.onDidChangeContext(e => {
-			if (e.affectsSome(contextKeysToWatch)) {
+			if (e.affectsSome(contextKeysToWatch) && this.currentWalkthrough) {
 				buildStepList();
 				this.registerDispatchListeners();
 				this.selectStep(this.editorInput.selectedStep, false);

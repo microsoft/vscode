@@ -897,9 +897,6 @@ class QuickInputDragAndDropController extends Disposable {
 
 	private readonly _snapThreshold = 20;
 	private readonly _snapLineHorizontalRatio = 0.25;
-	private readonly _snapLineHorizontal: HTMLElement;
-	private readonly _snapLineVertical1: HTMLElement;
-	private readonly _snapLineVertical2: HTMLElement;
 
 	private _quickInputAlignmentContext = QuickInputAlignmentContextKey.bindTo(this._contextKeyService);
 
@@ -911,22 +908,11 @@ class QuickInputDragAndDropController extends Disposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
-
-		this._snapLineHorizontal = dom.append(this._container, $('.quick-input-widget-snapline.horizontal.hidden'));
-		this._snapLineVertical1 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
-		this._snapLineVertical2 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
-
 		this.registerMouseListeners();
 	}
 
 	reparentUI(container: HTMLElement): void {
 		this._container = container;
-		this._snapLineHorizontal.remove();
-		this._snapLineVertical1.remove();
-		this._snapLineVertical2.remove();
-		dom.append(this._container, this._snapLineHorizontal);
-		dom.append(this._container, this._snapLineVertical1);
-		dom.append(this._container, this._snapLineVertical2);
 	}
 
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }, done = true): void {
@@ -1000,7 +986,6 @@ class QuickInputDragAndDropController extends Disposable {
 				mouseMoveEvent.preventDefault();
 
 				if (!isMovingQuickInput) {
-					this._showSnapLines(snapCoordinateY, snapCoordinateX);
 					isMovingQuickInput = true;
 				}
 
@@ -1036,9 +1021,6 @@ class QuickInputDragAndDropController extends Disposable {
 			// Mouse up
 			const mouseUpListener = dom.addDisposableGenericMouseUpListener(activeWindow, (e: MouseEvent) => {
 				if (isMovingQuickInput) {
-					// Hide snaplines
-					this._hideSnapLines();
-
 					// Save position
 					const state = this.dndViewState.get();
 					this.dndViewState.set({ top: state?.top, left: state?.left, done: true }, undefined);
@@ -1061,21 +1043,5 @@ class QuickInputDragAndDropController extends Disposable {
 
 	private _getCenterXSnapValue() {
 		return Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
-	}
-
-	private _showSnapLines(horizontal: number, vertical: number) {
-		this._snapLineHorizontal.style.top = `${horizontal}px`;
-		this._snapLineVertical1.style.left = `${vertical}px`;
-		this._snapLineVertical2.style.left = `${vertical + this._quickInputContainer.clientWidth}px`;
-
-		this._snapLineHorizontal.classList.remove('hidden');
-		this._snapLineVertical1.classList.remove('hidden');
-		this._snapLineVertical2.classList.remove('hidden');
-	}
-
-	private _hideSnapLines() {
-		this._snapLineHorizontal.classList.add('hidden');
-		this._snapLineVertical1.classList.add('hidden');
-		this._snapLineVertical2.classList.add('hidden');
 	}
 }

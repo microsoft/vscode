@@ -46,7 +46,8 @@ export class ViewGpuContext extends Disposable {
 	readonly canvas: FastDomNode<HTMLCanvasElement>;
 	readonly ctx: GPUCanvasContext;
 
-	readonly device: Promise<GPUDevice>;
+	static device: Promise<GPUDevice>;
+	static deviceSync: GPUDevice | undefined;
 
 	readonly rectangleRenderer: RectangleRenderer;
 
@@ -109,18 +110,23 @@ export class ViewGpuContext extends Disposable {
 
 		this.ctx = ensureNonNullable(this.canvas.domNode.getContext('webgpu'));
 
-		this.device = GPULifecycle.requestDevice((message) => {
-			const choices: IPromptChoice[] = [{
-				label: nls.localize('editor.dom.render', "Use DOM-based rendering"),
-				run: () => this.configurationService.updateValue('editor.experimentalGpuAcceleration', 'off'),
-			}];
-			this._notificationService.prompt(Severity.Warning, message, choices);
-		}).then(ref => this._register(ref).object);
-		this.device.then(device => {
-			if (!ViewGpuContext._atlas) {
-				ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, device.limits.maxTextureDimension2D, undefined);
-			}
-		});
+		// Request the GPU device, we only want to do this a single time per window as it's async
+		// and can delay the initial render.
+		if (!ViewGpuContext.device) {
+			ViewGpuContext.device = GPULifecycle.requestDevice((message) => {
+				const choices: IPromptChoice[] = [{
+					label: nls.localize('editor.dom.render', "Use DOM-based rendering"),
+					run: () => this.configurationService.updateValue('editor.experimentalGpuAcceleration', 'off'),
+				}];
+				this._notificationService.prompt(Severity.Warning, message, choices);
+			}).then(ref => {
+				ViewGpuContext.deviceSync = ref.object;
+				if (!ViewGpuContext._atlas) {
+					ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, ref.object.limits.maxTextureDimension2D, undefined);
+				}
+				return ref.object;
+			});
+		}
 
 		const dprObs = observableValue(this, getActiveWindow().devicePixelRatio);
 		this._register(addDisposableListener(getActiveWindow(), 'resize', () => {
@@ -147,8 +153,7 @@ export class ViewGpuContext extends Disposable {
 		}));
 		this.contentLeft = contentLeft;
 
-
-		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, this.device);
+		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, ViewGpuContext.device);
 	}
 
 	/**
@@ -163,7 +168,6 @@ export class ViewGpuContext extends Disposable {
 		if (
 			data.containsRTL ||
 			data.maxColumn > GpuRenderLimits.maxGpuCols ||
-			data.continuesWithWrappedLine ||
 			lineNumber >= GpuRenderLimits.maxGpuLines
 		) {
 			return false;
@@ -211,9 +215,6 @@ export class ViewGpuContext extends Disposable {
 		}
 		if (data.maxColumn > GpuRenderLimits.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
-		}
-		if (data.continuesWithWrappedLine) {
-			reasons.push('continuesWithWrappedLine');
 		}
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;

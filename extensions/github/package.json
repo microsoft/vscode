@@ -32,7 +32,8 @@
     "contribShareMenu",
     "contribSourceControlHistoryItemMenu",
     "scmHistoryProvider",
-    "shareProvider"
+    "shareProvider",
+    "timeline"
   ],
   "contributes": {
     "commands": [
@@ -59,6 +60,11 @@
       },
       {
         "command": "github.graph.openOnGitHub",
+        "title": "%command.openOnGitHub%",
+        "icon": "$(github)"
+      },
+      {
+        "command": "github.timeline.openOnGitHub",
         "title": "%command.openOnGitHub%",
         "icon": "$(github)"
       }
@@ -96,6 +102,10 @@
         },
         {
           "command": "github.openOnVscodeDev",
+          "when": "false"
+        },
+        {
+          "command": "github.timeline.openOnGitHub",
           "when": "false"
         }
       ],
@@ -151,6 +161,13 @@
           "command": "github.graph.openOnGitHub",
           "when": "github.hasGitHubRepo",
           "group": "1_open@1"
+        }
+      ],
+      "timeline/item/context": [
+        {
+          "command": "github.timeline.openOnGitHub",
+          "group": "1_actions@3",
+          "when": "github.hasGitHubRepo && timelineItem =~ /git:file:commit\\b/"
         }
       ]
     },
