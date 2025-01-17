@@ -160,6 +160,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return Boolean(this._editorPane && this._editorPane.isVisible());
 	}
 
+	private _isToolsAgentSession = false;
+	get isToolsAgentSession(): boolean {
+		return this._isToolsAgentSession;
+	}
+
 	constructor(
 		public readonly chatSessionId: string,
 		private editingSessionFileLimitPromise: Promise<number>,
@@ -559,6 +564,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			// we don't throw in this case because there could be a builder still connected to a disposed session
 			return;
 		}
+
+		this._isToolsAgentSession = !!responseModel.agent?.isToolsAgent;
 
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, isLastEdits, responseModel));
