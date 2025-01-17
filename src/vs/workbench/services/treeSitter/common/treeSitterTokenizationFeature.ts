@@ -131,26 +131,27 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				for (const range of e.ranges) {
 					this._tokenizationStoreService.markForRefresh(e.textModel, range.newRange);
 				}
+				const captures = e.ranges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
 
-				// Don't block
-				new Promise<void>(resolve => {
-					const tokenUpdates = e.ranges.map(range => {
-						const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset);
-						if (updates) {
-							return { oldRangeLength: range.oldRangeLength, newTokens: updates };
-						}
-						return { oldRangeLength: range.oldRangeLength, newTokens: [] };
-					});
-					this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, tokenUpdates);
-					this._onDidChangeTokens.fire({
-						textModel: e.textModel,
-						changes: {
-							semanticTokensApplied: false,
-							ranges
-						}
-					});
-					resolve();
+				// // Don't block
+				// new Promise<void>(resolve => {
+				const tokenUpdates = e.ranges.map((range, index) => {
+					const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset, captures[index]);
+					if (updates) {
+						return { oldRangeLength: range.oldRangeLength, newTokens: updates };
+					}
+					return { oldRangeLength: range.oldRangeLength, newTokens: [] };
 				});
+				this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, tokenUpdates);
+				this._onDidChangeTokens.fire({
+					textModel: e.textModel,
+					changes: {
+						semanticTokensApplied: false,
+						ranges
+					}
+				});
+				// 	resolve();
+				// });
 			}
 		}));
 	}
@@ -168,10 +169,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return updates;
 	}
 
-	public getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined {
+	public getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number, captures?: { tree: ITreeSitterParseResult | undefined; captures: Parser.QueryCapture[] }): TokenUpdate[] | undefined {
 		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 
-		const tokens = this._tokenize(languageId, range, rangeStartOffset, rangeEndOffset, textModel);
+		const tokens = captures ? this._tokenizeCaptures(captures.tree, captures.captures, languageId, rangeStartOffset, rangeEndOffset, textModel) : this._tokenize(languageId, range, rangeStartOffset, rangeEndOffset, textModel);
 		if (tokens?.endOffsetsAndMetadata) {
 			return this._rangeTokensAsUpdates(rangeStartOffset, tokens.endOffsetsAndMetadata);
 		}
@@ -238,10 +239,19 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._tokenizeEncoded(lineNumber, textModel);
 	}
 
-	private _tokenize(encodedLanguageId: LanguageId, range: Range, rangeStartOffset: number, rangeEndOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
-		const stopwatch = StopWatch.create();
+	private _getTreeAndCaptures(range: Range, textModel: ITextModel): { tree: ITreeSitterParseResult | undefined; captures: Parser.QueryCapture[] } {
 		const tree = this._getTree(textModel);
 		const captures = this._captureAtRange(range, tree?.tree);
+		return { tree, captures };
+	}
+
+	private _tokenize(encodedLanguageId: LanguageId, range: Range, rangeStartOffset: number, rangeEndOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
+		const { tree, captures } = this._getTreeAndCaptures(range, textModel);
+		return this._tokenizeCaptures(tree, captures, encodedLanguageId, rangeStartOffset, rangeEndOffset, textModel);
+	}
+
+	private _tokenizeCaptures(tree: ITreeSitterParseResult | undefined, captures: Parser.QueryCapture[], encodedLanguageId: LanguageId, rangeStartOffset: number, rangeEndOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
+		const stopwatch = StopWatch.create();
 		const rangeLength = rangeEndOffset - rangeStartOffset;
 
 		if (captures.length === 0) {

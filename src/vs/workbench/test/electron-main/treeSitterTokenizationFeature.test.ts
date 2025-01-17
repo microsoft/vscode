@@ -19,7 +19,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { ModelService } from '../../../editor/common/services/modelService.js';
 import { TreeSitterTokenizationFeature, TreeSitterTokenizationSupport } from '../../services/treeSitter/common/treeSitterTokenizationFeature.js';
-import { ITreeSitterParserService } from '../../../editor/common/services/treeSitterParserService.js';
+import { ITreeSitterParserService, TreeUpdateEvent } from '../../../editor/common/services/treeSitterParserService.js';
 import { TreeSitterTokenizationRegistry } from '../../../editor/common/languages.js';
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -36,7 +36,7 @@ import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js'
 import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
 import { TestDialogService } from '../../../platform/dialogs/test/common/testDialogService.js';
 import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ProbeScope, TokenStyle } from '../../../platform/theme/common/tokenClassificationRegistry.js';
 import { TextMateThemingRuleDefinitions } from '../../services/themes/common/colorThemeData.js';
 import { Color } from '../../../base/common/color.js';
@@ -44,6 +44,7 @@ import { ITreeSitterTokenizationStoreService } from '../../../editor/common/mode
 import { Range } from '../../../editor/common/core/range.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { TokenUpdate } from '../../../editor/common/model/tokenStore.js';
+import { timeout } from '../../../base/common/async.js';
 
 class MockTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -306,6 +307,70 @@ class Y {
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 22);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
+		modelService.destroyModel(model.uri);
+	});
+
+	test('Three changes come back to back ', async () => {
+		const content = `/**
+**/
+class x {
+}
+
+
+
+
+class y {
+}`;
+		const model = await getModelAndPrepTree(content);
+
+		let updateListener: IDisposable | undefined;
+		let firstChange: TreeUpdateEvent | undefined;
+		let secondChange: TreeUpdateEvent | undefined;
+		let thirdChange: TreeUpdateEvent | undefined;
+		const updatePromise = new Promise<void>(resolve => {
+			let count = 0;
+			updateListener = treeSitterParserService.onDidUpdateTree(async e => {
+				count++;
+				switch (count) {
+					case 1:
+						firstChange = e;
+						break;
+					case 2:
+						secondChange = e;
+						break;
+					case 3:
+						thirdChange = e;
+						resolve();
+						break;
+				}
+			});
+		});
+
+		model.applyEdits([{ range: new Range(7, 1, 8, 1), text: '' }]);
+		await timeout(0);
+		model.applyEdits([{ range: new Range(6, 1, 7, 1), text: '' }]);
+		await timeout(0);
+		model.applyEdits([{ range: new Range(5, 1, 6, 1), text: '' }]);
+		await updatePromise;
+		assert.ok(firstChange);
+		assert.ok(secondChange);
+		assert.ok(thirdChange);
+		assert.strictEqual(firstChange.versionId, 2);
+		assert.strictEqual(secondChange.versionId, 3);
+		assert.strictEqual(thirdChange.versionId, 4);
+		assert.strictEqual(firstChange.ranges[0].newRangeStartOffset, secondChange.ranges[0].newRangeStartOffset);
+		assert.strictEqual(firstChange.ranges[0].newRangeEndOffset, secondChange.ranges[0].newRangeEndOffset + 1);
+		assert.strictEqual(firstChange.ranges[0].newRange.startLineNumber, secondChange.ranges[0].newRange.startLineNumber);
+		assert.strictEqual(firstChange.ranges[0].newRange.endLineNumber, secondChange.ranges[0].newRange.endLineNumber + 1);
+		assert.strictEqual(firstChange.ranges[0].oldRangeLength, secondChange.ranges[0].oldRangeLength + 1);
+
+		assert.strictEqual(secondChange.ranges[0].newRangeStartOffset, thirdChange.ranges[0].newRangeStartOffset);
+		assert.strictEqual(secondChange.ranges[0].newRangeEndOffset, thirdChange.ranges[0].newRangeEndOffset + 1);
+		assert.strictEqual(secondChange.ranges[0].newRange.startLineNumber, thirdChange.ranges[0].newRange.startLineNumber);
+		assert.strictEqual(secondChange.ranges[0].newRange.endLineNumber, thirdChange.ranges[0].newRange.endLineNumber + 1);
+		assert.strictEqual(secondChange.ranges[0].oldRangeLength, thirdChange.ranges[0].oldRangeLength + 1);
+
+		updateListener?.dispose();
 		modelService.destroyModel(model.uri);
 	});
 });

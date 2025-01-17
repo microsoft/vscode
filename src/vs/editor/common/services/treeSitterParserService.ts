@@ -21,7 +21,7 @@ export interface RangeChange {
 }
 
 export interface TreeParseUpdateEvent {
-	ranges: RangeChange[];
+	ranges: RangeChange[] | undefined;
 	versionId: number;
 }
 
