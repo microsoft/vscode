@@ -86,7 +86,9 @@ export interface ILanguageModelChatMetadata {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
 	};
-	readonly supportsVision?: boolean;
+	readonly capabilities: {
+		readonly vision?: boolean;
+	};
 }
 
 export interface ILanguageModelChatResponse {

@@ -447,9 +447,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private isVisionCapable() {
 		if (this.currentLanguageModel) {
 			const model = this.languageModelsService.lookupLanguageModel(this.currentLanguageModel);
-			return model?.supportsVision;
+			return model?.capabilities?.vision;
 		}
-
 		return false;
 	}
 
@@ -947,23 +946,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const hoverElement = dom.$('div.chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
-				if (!this.isVisionCapable()) {
+				const isVisionCapable = this.isVisionCapable();
+				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(!isVisionCapable ? 'span.codicon.codicon-warning' : 'span.codicon.codicon-file-media'));
+				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
+				widget.appendChild(pillIcon);
+				widget.appendChild(textLabel);
+
+				if (!isVisionCapable) {
 					widget.classList.add('warning');
-					const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-warning'));
-					const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
-					widget.appendChild(pillIcon);
-					widget.appendChild(textLabel);
+					hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel)?.name : this.currentLanguageModel);
 					textLabel.style.textDecoration = 'line-through';
-					hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", this.currentLanguageModel);
 					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
 					this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 				} else {
-					// Custom label
-					const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
-					const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
-					widget.appendChild(pillIcon);
-					widget.appendChild(textLabel);
-
 					attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
 						let buffer: Uint8Array;
 						try {

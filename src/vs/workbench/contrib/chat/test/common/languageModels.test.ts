@@ -9,11 +9,11 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, LanguageModelsService } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, LanguageModelsService } from '../../common/languageModels.js';
 
 suite('LanguageModels', function () {
 
@@ -54,6 +54,7 @@ suite('LanguageModels', function () {
 				id: 'test-id',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
+				capabilities: {}
 			},
 			sendChatRequest: async () => {
 				throw new Error();
@@ -73,6 +74,7 @@ suite('LanguageModels', function () {
 				id: 'test-id',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
+				capabilities: {}
 			},
 			sendChatRequest: async () => {
 				throw new Error();
@@ -119,6 +121,7 @@ suite('LanguageModels', function () {
 				id: 'actual-lm',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
+				capabilities: {}
 			},
 			sendChatRequest: async (messages, _from, _options, token) => {
 				// const message = messages.at(-1);
