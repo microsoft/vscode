@@ -77,7 +77,7 @@ import { UserDataProfileService } from '../services/userDataProfile/common/userD
 import { IUserDataProfileService } from '../services/userDataProfile/common/userDataProfile.js';
 import { BrowserUserDataProfilesService } from '../../platform/userDataProfile/browser/userDataProfile.js';
 import { DeferredPromise, timeout } from '../../base/common/async.js';
-import { windowLogId } from '../services/log/common/logConstants.js';
+import { windowLogGroup, windowLogId } from '../services/log/common/logConstants.js';
 import { LogService } from '../../platform/log/common/logService.js';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from '../../platform/remote/common/remoteSocketFactoryService.js';
 import { BrowserSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
@@ -298,7 +298,7 @@ export class BrowserMain extends Disposable {
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 			otherLoggers.push(new ConsoleLogInAutomationLogger(loggerService.getLogLevel()));
 		}
-		const logger = loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: localize('rendererLog', "Window") });
+		const logger = loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: windowLogGroup.name, group: windowLogGroup });
 		const logService = new LogService(logger, otherLoggers);
 		serviceCollection.set(ILogService, logService);
 
@@ -397,7 +397,7 @@ export class BrowserMain extends Disposable {
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted())));
 
 		// Request Service
-		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
+		const requestService = new BrowserRequestService(remoteAgentService, configurationService, loggerService);
 		serviceCollection.set(IRequestService, requestService);
 
 		// Userdata Sync Store Management Service

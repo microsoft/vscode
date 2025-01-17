@@ -81,7 +81,12 @@ export class InlineEditsView extends Disposable {
 		)!;
 
 		this._previewTextModel.setLanguage(this._editor.getModel()!.getLanguageId());
-		this._previewTextModel.setValue(newText);
+
+		const previousNewText = this._previewTextModel.getValue();
+		if (previousNewText !== newText) {
+			// Only update the model if the text has changed to avoid flickering
+			this._previewTextModel.setValue(newText);
+		}
 
 		return {
 			state,

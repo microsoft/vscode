@@ -2166,57 +2166,6 @@ class DocumentDropEditAdapter {
 	}
 }
 
-class MappedEditsAdapter {
-
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.MappedEditsProvider,
-	) { }
-
-	async provideMappedEdits(
-		resource: UriComponents,
-		codeBlocks: string[],
-		context: extHostProtocol.IMappedEditsContextDto,
-		token: CancellationToken
-	): Promise<extHostProtocol.IWorkspaceEditDto | null> {
-
-		const uri = URI.revive(resource);
-		const doc = this._documents.getDocument(uri);
-
-		const reviveContextItem = (item: extHostProtocol.IDocumentContextItemDto) => ({
-			uri: URI.revive(item.uri),
-			version: item.version,
-			ranges: item.ranges.map(r => typeConvert.Range.to(r)),
-		} satisfies vscode.DocumentContextItem);
-
-
-		const usedContext = context.documents.map(docSubArray => docSubArray.map(reviveContextItem));
-
-		const ctx = {
-			documents: usedContext,
-			selections: usedContext[0]?.[0]?.ranges ?? [], // @ulugbekna: this is a hack for backward compatibility
-			conversation: context.conversation?.map(c => {
-				if (c.type === 'response') {
-					return {
-						type: 'response',
-						message: c.message,
-						references: c.references?.map(reviveContextItem)
-					} satisfies vscode.ConversationResponse;
-				} else {
-					return {
-						type: 'request',
-						message: c.message,
-					} satisfies vscode.ConversationRequest;
-				}
-			})
-		};
-
-		const mappedEdits = await this._provider.provideMappedEdits(doc, codeBlocks, ctx, token);
-
-		return mappedEdits ? typeConvert.WorkspaceEdit.from(mappedEdits) : null;
-	}
-}
-
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | MultiDocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter
 	| DocumentPasteEditProvider | DocumentFormattingAdapter | RangeFormattingAdapter
@@ -2227,7 +2176,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentDropEditAdapter | MappedEditsAdapter | NewSymbolNamesAdapter | InlineEditAdapter;
+	| DocumentDropEditAdapter | NewSymbolNamesAdapter | InlineEditAdapter;
 
 class AdapterData {
 	constructor(
@@ -2939,19 +2888,6 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$releaseDocumentOnDropEdits(handle: number, cacheId: number): void {
 		this._withAdapter(handle, DocumentDropEditAdapter, adapter => Promise.resolve(adapter.releaseDropEdits(cacheId)), undefined, undefined);
-	}
-
-	// --- mapped edits
-
-	registerMappedEditsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new MappedEditsAdapter(this._documents, provider), extension);
-		this._proxy.$registerMappedEditsProvider(handle, this._transformDocumentSelector(selector, extension), extension.displayName ?? extension.name);
-		return this._createDisposable(handle);
-	}
-
-	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: extHostProtocol.IMappedEditsContextDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | null> {
-		return this._withAdapter(handle, MappedEditsAdapter, adapter =>
-			Promise.resolve(adapter.provideMappedEdits(document, codeBlocks, context, token)), null, token);
 	}
 
 	// --- copy/paste actions

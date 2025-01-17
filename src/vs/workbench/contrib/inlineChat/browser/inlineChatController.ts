@@ -423,7 +423,7 @@ export class InlineChatController implements IEditorContribution {
 				this._ctxUserDidEdit.set(altVersionNow !== this._editor.getModel()?.getAlternativeVersionId());
 			}
 
-			if (this._session?.hunkData.ignoreTextModelNChanges || this._strategy?.hasFocus()) {
+			if (this._session?.hunkData.ignoreTextModelNChanges || this._ui.value.widget.hasFocus()) {
 				return;
 			}
 
