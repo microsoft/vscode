@@ -159,7 +159,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	}
 	get isDisposed() { return this._isDisposed; }
 
-	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree): ChangedRange[] {
+	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree, editorChanges: IModelContentChange[]): ChangedRange[] {
 		const newCursor = newTree.walk();
 		const oldCursor = oldTree.walk();
 		const gotoNextSibling = () => {
@@ -178,11 +178,24 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			}
 			return n && o;
 		};
-		const gotoFirstChild = () => {
+		const gotoNthChild = (index: number) => {
 			const n = newCursor.gotoFirstChild();
 			const o = oldCursor.gotoFirstChild();
 			if (n !== o) {
 				throw new Error('Trees are out of sync');
+			}
+			if (index === 0) {
+				return n && o;
+			}
+			for (let i = 1; i <= index; i++) {
+				const nn = newCursor.gotoNextSibling();
+				const oo = oldCursor.gotoNextSibling();
+				if (nn !== oo) {
+					throw new Error('Trees are out of sync');
+				}
+				if (!nn || !oo) {
+					return false;
+				}
 			}
 			return n && o;
 		};
@@ -201,24 +214,64 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			return false;
 		};
 
-		do {
-			let canGoChild = newCursor.currentNode.childCount > 0;
+		const getClosestPreviousNodes = (): { old: Parser.SyntaxNode; new: Parser.SyntaxNode } | undefined => {
+			// Go up parents until the end of the parent is before the start of the current.
+			const newFindPrev = newTree.walk();
+			newFindPrev.resetTo(newCursor);
+			const oldFindPrev = oldTree.walk();
+			oldFindPrev.resetTo(oldCursor);
+			const startingNode = newCursor.currentNode;
+			do {
+				if (newFindPrev.currentNode.previousSibling) {
+					newFindPrev.gotoPreviousSibling();
+					oldFindPrev.gotoPreviousSibling();
+				} else {
+					newFindPrev.gotoParent();
+					oldFindPrev.gotoParent();
+				}
 
-			if (newCursor.currentNode.hasChanges && newCursor.currentNode.id !== newTree.rootNode.id) {
-				const newEndPosition = new Position(newCursor.currentNode.endPosition.row + 1, newCursor.currentNode.endPosition.column + 1);
-				const oldEndIndex = oldCursor.currentNode.endIndex;
-				// Fill holes between nodes.
-				const prevNewSibling = newCursor.currentNode.previousSibling;
-				const newStartPosition = new Position(prevNewSibling ? prevNewSibling.endPosition.row + 1 : newCursor.currentNode.startPosition.row + 1, prevNewSibling ? prevNewSibling.endPosition.column + 1 : newCursor.currentNode.startPosition.column + 1);
-				const newStartIndex = prevNewSibling ? prevNewSibling.endIndex : newCursor.currentNode.startIndex;
-
-				const prevOldSibling = oldCursor.currentNode.previousSibling;
-				const oldStartIndex = prevOldSibling ? prevOldSibling.endIndex : oldCursor.currentNode.startIndex;
-
-				changedRanges.push({ newStartPosition, newEndPosition, oldStartIndex, oldEndIndex, newNodeId: newCursor.currentNode.id, newStartIndex, newEndIndex: newCursor.currentNode.endIndex });
-				canGoChild = false;
+			} while (newFindPrev.currentNode.startIndex === startingNode.startIndex && (newFindPrev.currentNode.parent || newFindPrev.currentNode.previousSibling));
+			if (newFindPrev.currentNode.endIndex < startingNode.startIndex) {
+				return { old: oldFindPrev.currentNode, new: newFindPrev.currentNode };
+			} else {
+				return undefined;
 			}
-			next = canGoChild ? gotoFirstChild() : nextSiblingOrParentSibling();
+		};
+
+		do {
+			if (newCursor.currentNode.hasChanges) {
+				// Check if only one of the children has changes.
+				// If it's only one, then we go to that child.
+				// If it's more then, we need to go to each child
+				// If it's none, then we've found one of our ranges
+				const newChildren = newCursor.currentNode.children;
+				const indexChangedChildren: number[] = [];
+				const changedChildren = newChildren.filter((c, index) => {
+					if (c.hasChanges) {
+						indexChangedChildren.push(index);
+					}
+					return c.hasChanges;
+				});
+				if (changedChildren.length >= 1) {
+					next = gotoNthChild(indexChangedChildren[0]);
+				} else if (changedChildren.length === 0) {
+					const newNode = newCursor.currentNode;
+					const oldNode = oldCursor.currentNode;
+					const newEndPosition = new Position(newNode.endPosition.row + 1, newNode.endPosition.column + 1);
+					const oldEndIndex = oldNode.endIndex;
+
+					// Fill holes between nodes.
+					const closestPrev = getClosestPreviousNodes();
+					const newStartPosition = new Position(closestPrev ? closestPrev.new.endPosition.row + 1 : newNode.startPosition.row + 1, closestPrev ? closestPrev.new.endPosition.column + 1 : newNode.startPosition.column + 1);
+					const newStartIndex = closestPrev ? closestPrev.new.endIndex : newNode.startIndex;
+					const oldStartIndex = closestPrev ? closestPrev.old.endIndex : oldNode.startIndex;
+
+					changedRanges.push({ newStartPosition, newEndPosition, oldStartIndex, oldEndIndex, newNodeId: newNode.id, newStartIndex, newEndIndex: newNode.endIndex });
+					next = nextSiblingOrParentSibling();
+				}
+			} else {
+				next = nextSiblingOrParentSibling();
+			}
 		} while (next);
 
 		if (changedRanges.length === 0 && newTree.rootNode.hasChanges) {
@@ -238,7 +291,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		for (let i = 0; i < changedNodes.length; i++) {
 			const node = changedNodes[i];
 
-			// Check if contigous with previous
+			// Check if contiguous with previous
 			const prevNode = changedNodes[i - 1];
 			if ((i > 0) && prevNode.newEndPosition.equals(node.newStartPosition)) {
 				const prevRangeChange = ranges[ranges.length - 1];
@@ -259,7 +312,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		let changedNodes: RangeChange[] | undefined = undefined;
 		if (this.tree && oldTree) {
 			// The nodes from the old tree that have changed
-			changedNodes = this.calculateRangeChange(this.findChangedNodes(this.tree, oldTree));
+			changedNodes = this.calculateRangeChange(this.findChangedNodes(this.tree, oldTree, changes));
 		}
 
 		return new Promise(resolve => {
