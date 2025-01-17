@@ -238,8 +238,9 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 
 			for (const [file, fileType] of files) {
-				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file)) {
-					executables.add({ label: file, path: path + pathSeparator + file });
+				const formattedPath = getFriendlyFolderPath(vscode.Uri.joinPath(vscode.Uri.from({ scheme: 'file', path }), file), pathSeparator);
+				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath)) {
+					executables.add({ label: file, path: formattedPath });
 					labels.add(file);
 				}
 			}
@@ -505,4 +506,17 @@ function getFirstCommand(commandLine: string): string | undefined {
 		firstCommand = commandLine;
 	}
 	return firstCommand;
+}
+
+function getFriendlyFolderPath(uri: vscode.Uri, pathSeparator: string): string {
+	let path = uri.fsPath;
+	// Ensure folders end with the path separator to differentiate presentation from files
+	if (!path.endsWith(pathSeparator)) {
+		path += pathSeparator;
+	}
+	// Ensure drive is capitalized on Windows
+	if (pathSeparator === '\\' && path.match(/^[a-zA-Z]:\\/)) {
+		path = `${path[0].toUpperCase()}:${path.slice(2)}`;
+	}
+	return path;
 }
