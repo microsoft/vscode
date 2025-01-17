@@ -271,8 +271,8 @@ class MultiFileContentProvider extends Disposable implements IContentProvider {
 		const timestamps: number[] = [];
 		const contents: string[] = [];
 		const process = (model: ITextModel, logEntry: ILogEntry, name: string): [number, string] => {
-			const lineContent = model.getLineContent(logEntry.range.endLineNumber);
-			const content = `${lineContent.substring(0, logEntry.timestampRange.endColumn - 1)} [${name}]${lineContent.substring(logEntry.timestampRange.endColumn - 1)}`;
+			const lineContent = model.getValueInRange(logEntry.range);
+			const content = name ? `${lineContent.substring(0, logEntry.logLevelRange.endColumn)} [${name}]${lineContent.substring(logEntry.logLevelRange.endColumn)}` : lineContent;
 			return [logEntry.timestamp, content];
 		};
 

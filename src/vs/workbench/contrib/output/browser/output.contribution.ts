@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OutputService } from './outputServices.js';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, isSingleSourceOutputChannelDescriptor, ISingleSourceOutputChannelDescriptor, isMultiSourceOutputChannelDescriptor, HIDE_SOURCE_FILTER_CONTEXT } from '../../../services/output/common/output.js';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, isSingleSourceOutputChannelDescriptor, isMultiSourceOutputChannelDescriptor, HIDE_SOURCE_FILTER_CONTEXT } from '../../../services/output/common/output.js';
 import { OutputViewPane } from './outputView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -203,9 +203,9 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				const outputService = accessor.get(IOutputService);
 				const quickInputService = accessor.get(IQuickInputService);
 
-				const extensionLogs: ISingleSourceOutputChannelDescriptor[] = [], logs: ISingleSourceOutputChannelDescriptor[] = [];
+				const extensionLogs: IOutputChannelDescriptor[] = [], logs: IOutputChannelDescriptor[] = [];
 				for (const channel of outputService.getChannelDescriptors()) {
-					if (channel.log && isSingleSourceOutputChannelDescriptor(channel)) {
+					if (channel.log && !channel.user) {
 						if (channel.extensionId) {
 							extensionLogs.push(channel);
 						} else {
@@ -213,7 +213,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						}
 					}
 				}
-				const entries: Array<ISingleSourceOutputChannelDescriptor | IQuickPickSeparator> = [];
+				const entries: Array<IOutputChannelDescriptor | IQuickPickSeparator> = [];
 				for (const log of logs.sort((a, b) => a.label.localeCompare(b.label))) {
 					entries.push(log);
 				}
@@ -703,7 +703,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					disposables.add(registerAction2(class extends Action2 {
 						constructor() {
 							super({
-								id: `workbench.actions.${OUTPUT_VIEW_ID}.toggle.${source.name}`,
+								id: `workbench.actions.${OUTPUT_VIEW_ID}.toggle.${sourceFilter}`,
 								title: source.name!,
 								toggled: ContextKeyExpr.regex(HIDE_SOURCE_FILTER_CONTEXT.key, new RegExp(`.*,${escapeRegExpCharacters(sourceFilter)},.*`)).negate(),
 								menu: {
