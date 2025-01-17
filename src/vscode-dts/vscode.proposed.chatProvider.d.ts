@@ -68,7 +68,7 @@ declare module 'vscode' {
 		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
 		readonly isDefault?: boolean;
 		readonly isUserSelectable?: boolean;
-		readonly capabilities: {
+		readonly capabilities?: {
 			readonly vision?: boolean;
 		};
 	}

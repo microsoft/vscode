@@ -54,7 +54,6 @@ suite('LanguageModels', function () {
 				id: 'test-id',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
-				capabilities: {}
 			},
 			sendChatRequest: async () => {
 				throw new Error();
@@ -74,7 +73,6 @@ suite('LanguageModels', function () {
 				id: 'test-id',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
-				capabilities: {}
 			},
 			sendChatRequest: async () => {
 				throw new Error();
@@ -121,7 +119,6 @@ suite('LanguageModels', function () {
 				id: 'actual-lm',
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
-				capabilities: {}
 			},
 			sendChatRequest: async (messages, _from, _options, token) => {
 				// const message = messages.at(-1);

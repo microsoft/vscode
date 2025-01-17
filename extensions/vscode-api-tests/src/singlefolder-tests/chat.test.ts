@@ -30,8 +30,7 @@ suite('chat', () => {
 			maxInputTokens: 100,
 			maxOutputTokens: 100,
 			isDefault: true,
-			isUserSelectable: true,
-			capabilities: {}
+			isUserSelectable: true
 		}));
 	});
 

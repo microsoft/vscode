@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import 'mocha';
+import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { assertNoRpc, closeAllEditors, DeferredPromise, disposeAll } from '../utils';
 
@@ -44,9 +44,6 @@ suite('lm', function () {
 			vendor: 'test-lm-vendor',
 			maxInputTokens: 100,
 			maxOutputTokens: 100,
-			capabilities: {
-				vision: false
-			}
 		}));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
@@ -98,9 +95,6 @@ suite('lm', function () {
 			vendor: 'test-lm-vendor',
 			maxInputTokens: 100,
 			maxOutputTokens: 100,
-			capabilities: {
-				vision: false
-			}
 		}));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
@@ -132,9 +126,6 @@ suite('lm', function () {
 			vendor: 'test-lm-vendor',
 			maxInputTokens: 100,
 			maxOutputTokens: 100,
-				capabilities: {
-				vision: false
-			}
 		}));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
