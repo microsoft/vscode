@@ -22,7 +22,8 @@ declare module 'vscode' {
 		PowerShell,
 		Python,
 		Julia,
-		NuShell
+		NuShell,
+		Node
 	}
 
 	// Part of TerminalState since the shellType can change multiple times and this comes with an event.
