@@ -76,6 +76,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode.setClassName(`native-edit-context`);
 		this.textArea = new FastDomNode(document.createElement('textarea'));
 		this.textArea.setClassName('native-edit-context-textarea');
+		this.textArea.setAttribute('tabindex', '-1');
 
 		this._updateDomAttributes();
 

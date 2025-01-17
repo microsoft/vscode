@@ -326,7 +326,14 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
+export interface AvatarQuery {
+	readonly commit: string;
+	readonly authorName?: string;
+	readonly authorEmail?: string;
+}
+
 export interface SourceControlHistoryItemDetailsProvider {
+	provideAvatar(repository: Repository, query: AvatarQuery[]): ProviderResult<Map<string, string | undefined>>;
 	provideHoverCommands(repository: Repository): ProviderResult<Command[]>;
 	provideMessageLinks(repository: Repository, message: string): ProviderResult<string>;
 }

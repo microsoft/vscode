@@ -78,7 +78,7 @@ import assert from 'assert';
 		}
 	});
 
-	test.skip('basic auth', async () => {
+	test('basic auth', async () => {
 		const url = 'https://example.com'; // Need to use non-local URL because local URLs are excepted from proxying.
 		const user = 'testuser';
 		const pass = 'testpassword';
@@ -106,27 +106,19 @@ import assert from 'assert';
 			await proxyListen;
 			const proxyPort = (sf.server.address() as AddressInfo).port;
 
-			for (let i = 0; i < 3; i++) {
-				await vscode.workspace.getConfiguration().update('integration-test.http.proxy', `PROXY 127.0.0.1:${proxyPort}`, vscode.ConfigurationTarget.Global);
-				await delay(1000); // Wait for the configuration change to propagate.
-				try {
-					await new Promise<void>((resolve, reject) => {
-						https.get(url, res => {
-							if (res.statusCode === 418) {
-								resolve();
-							} else {
-								reject(new Error(`Unexpected status code (expected 418): ${res.statusCode}`));
-							}
-						})
-							.on('error', reject);
-					});
-					break; // Exit the loop if the request is successful
-				} catch (err) {
-					if (i === 2) {
-						throw err; // Rethrow the error if it's the last attempt
+			const change = waitForConfigChange('http.proxy');
+			await vscode.workspace.getConfiguration().update('http.proxy', `http://127.0.0.1:${proxyPort}`, vscode.ConfigurationTarget.Global);
+			await change;
+			await new Promise<void>((resolve, reject) => {
+				https.get(url, res => {
+					if (res.statusCode === 418) {
+						resolve();
+					} else {
+						reject(new Error(`Unexpected status code (expected 418): ${res.statusCode}`));
 					}
-				}
-			}
+				})
+					.on('error', reject);
+			});
 
 			authEnabled = true;
 			await new Promise<void>((resolve, reject) => {
@@ -163,7 +155,9 @@ import assert from 'assert';
 			}
 		} finally {
 			sf.close();
-			await vscode.workspace.getConfiguration().update('integration-test.http.proxy', undefined, vscode.ConfigurationTarget.Global);
+			const change = waitForConfigChange('http.proxy');
+			await vscode.workspace.getConfiguration().update('http.proxy', undefined, vscode.ConfigurationTarget.Global);
+			await change;
 			await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', undefined, vscode.ConfigurationTarget.Global);
 		}
 	});
@@ -212,16 +206,16 @@ import assert from 'assert';
 		assert.strictEqual(actualRemoteProxy3, '');
 		assert.strictEqual(actualLocalProxy3, localProxy);
 		assert.strictEqual(actualLocalProxy4, '');
-
-		function waitForConfigChange(key: string) {
-			return new Promise<void>(resolve => {
-				const s = vscode.workspace.onDidChangeConfiguration(e => {
-					if (e.affectsConfiguration(key)) {
-						s.dispose();
-						resolve();
-					}
-				});
-			});
-		}
 	});
+
+	function waitForConfigChange(key: string) {
+		return new Promise<void>(resolve => {
+			const s = vscode.workspace.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(key)) {
+					s.dispose();
+					resolve();
+				}
+			});
+		});
+	}
 });

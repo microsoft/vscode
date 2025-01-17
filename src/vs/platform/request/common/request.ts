@@ -75,7 +75,7 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	}
 
 	protected async logAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
-		const prefix = `[network] #${++this.counter}: ${options.url}`;
+		const prefix = `#${++this.counter}: ${options.url}`;
 		this.logService.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
 		try {
 			const result = await request();
@@ -137,6 +137,18 @@ export async function asJson<T = {}>(context: IRequestContext): Promise<T | null
 export function updateProxyConfigurationsScope(useHostProxy: boolean, useHostProxyDefault: boolean): void {
 	registerProxyConfigurations(useHostProxy, useHostProxyDefault);
 }
+
+export const USER_LOCAL_AND_REMOTE_SETTINGS = [
+	'http.proxy',
+	'http.proxyStrictSSL',
+	'http.proxyKerberosServicePrincipal',
+	'http.noProxy',
+	'http.proxyAuthorization',
+	'http.proxySupport',
+	'http.systemCertificates',
+	'http.experimental.systemCertificatesV2',
+	'http.fetchAdditionalSupport',
+];
 
 let proxyConfiguration: IConfigurationNode[] = [];
 function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = true): void {

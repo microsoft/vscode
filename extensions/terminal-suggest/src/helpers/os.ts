@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
-import { LoggerGroup } from '../../../../platform/log/common/log.js';
+import * as os from 'os';
 
-export const windowLogId = 'rendererLog';
-export const windowLogGroup: LoggerGroup = { id: windowLogId, name: localize('window', "Window") };
-export const showWindowLogActionId = 'workbench.action.showWindowLog';
+export function osIsWindows(): boolean {
+	return os.platform() === 'win32';
+}

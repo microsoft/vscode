@@ -21,6 +21,8 @@ export function canExpandCompletionItem(item: SimpleCompletionItem | undefined):
 	return !!item && Boolean(item.completion.detail && item.completion.detail !== item.completion.label);
 }
 
+export const SuggestDetailsClassName = 'suggest-details';
+
 export class SimpleSuggestDetailsWidget {
 
 	readonly domNode: HTMLDivElement;
@@ -158,7 +160,7 @@ export class SimpleSuggestDetailsWidget {
 			this._renderDisposeable.add(renderedContents);
 		}
 
-		// this.domNode.classList.toggle('detail-and-doc', !!documentation);
+		this.domNode.classList.toggle('detail-and-doc', !!detail && !!documentation);
 
 		this.domNode.style.userSelect = 'text';
 		this.domNode.tabIndex = -1;
