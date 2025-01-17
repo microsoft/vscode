@@ -449,6 +449,13 @@
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 }
 
+/** Cell execution inline vars */
+.nb-inline-value {
+	background-color: var(--vscode-editorInlayHint-background);
+	color: var(--vscode-editorInlayHint-foreground) !important;
+	font-size: 90%;
+}
+
 /** Notebook Textual Selection Highlight */
 .nb-selection-highlight {
 	background-color: var(--vscode-editor-selectionBackground);
