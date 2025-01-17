@@ -75,13 +75,15 @@ __vsc_escape_value() {
 	for (( i = 0; i < ${#str}; ++i )); do
 		byte="${str:$i:1}"
 
-		# Escape backslashes, semi-colons and newlines
+		# Escape backslashes, semi-colons, newlines, and hyphens.
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
 		elif [ "$byte" = $'\n' ]; then
 			token="\x0a"
+		elif [ "$byte" = "-" ]; then
+			token="\\x2d"
 		else
 			token="$byte"
 		fi
@@ -120,11 +122,6 @@ __vsc_update_env() {
 	for var in ${(k)parameters}; do
 		if printenv "$var" >/dev/null 2>&1; then
 			value=$(builtin printf '%s' "${(P)var}")
-			# It is not valid to have hypen in variable name
-			# It is not valid to have hypen to start variable value
-			if [[ "$value" == -* || "$var" == *-*  ]]; then
-				continue
-			fi
 			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
 		fi
 	done
