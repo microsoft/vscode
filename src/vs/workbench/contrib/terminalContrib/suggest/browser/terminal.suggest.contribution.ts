@@ -28,6 +28,8 @@ import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
 import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
+import { SuggestDetailsClassName } from '../../../../services/suggest/browser/simpleSuggestWidgetDetails.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -153,7 +155,16 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
 		}
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-		this.add(this._ctx.instance.onDidBlur(() => addon.hideSuggestWidget()));
+
+		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
+			const focusedElement = e.relatedTarget as HTMLElement;
+			if (focusedElement.className === SuggestDetailsClassName) {
+				// Don't hide the suggest widget if the focus is moving to the details
+				return;
+			}
+			addon.hideSuggestWidget();
+		}));
+
 		this.add(addon.onAcceptedCompletion(async text => {
 			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
@@ -264,10 +275,24 @@ registerActiveInstanceAction({
 });
 
 registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ToggleDetailsFocus,
+	title: localize2('workbench.action.terminal.suggestToggleDetailsFocus', 'Suggest Toggle Suggestion Focus'),
+	f1: false,
+	// HACK: This does not work with a precondition of `TerminalContextKeys.suggestWidgetVisible`, so make sure to not override the editor's keybinding
+	precondition: EditorContextKeys.textInputFocus.negate(),
+	keybinding: {
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
+		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleSuggestionFocus()
+});
+
+registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.ToggleDetails,
 	title: localize2('workbench.action.terminal.suggestToggleDetails', 'Suggest Toggle Details'),
 	f1: false,
-	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.focus, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
 	keybinding: {
 		// HACK: Force weight to be higher than that to start terminal chat
 		weight: KeybindingWeight.ExternalExtension + 2,
