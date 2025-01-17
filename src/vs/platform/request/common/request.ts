@@ -138,6 +138,18 @@ export function updateProxyConfigurationsScope(useHostProxy: boolean, useHostPro
 	registerProxyConfigurations(useHostProxy, useHostProxyDefault);
 }
 
+export const USER_LOCAL_AND_REMOTE_SETTINGS = [
+	'http.proxy',
+	'http.proxyStrictSSL',
+	'http.proxyKerberosServicePrincipal',
+	'http.noProxy',
+	'http.proxyAuthorization',
+	'http.proxySupport',
+	'http.systemCertificates',
+	'http.experimental.systemCertificatesV2',
+	'http.fetchAdditionalSupport',
+];
+
 let proxyConfiguration: IConfigurationNode[] = [];
 function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = true): void {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
