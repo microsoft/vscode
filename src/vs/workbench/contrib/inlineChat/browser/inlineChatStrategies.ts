@@ -498,10 +498,6 @@ export class LiveStrategy {
 		return renderHunks()?.position;
 	}
 
-	hasFocus(): boolean {
-		return this._zone.widget.hasFocus();
-	}
-
 	getWholeRangeDecoration(): IModelDeltaDecoration[] {
 		// don't render the blue in live mode
 		return [];
