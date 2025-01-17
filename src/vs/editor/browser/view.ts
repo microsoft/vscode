@@ -280,9 +280,11 @@ export class View extends ViewEventHandler {
 	private _instantiateEditContext(experimentalEditContextEnabled: boolean, accessibilitySupport: AccessibilitySupport): AbstractEditContext {
 		const domNode = dom.getWindow(this._overflowGuardContainer.domNode);
 		const isEditContextSupported = EditContext.supported(domNode);
-		if (experimentalEditContextEnabled && isEditContextSupported && accessibilitySupport !== AccessibilitySupport.Enabled) {
+		if (experimentalEditContextEnabled && isEditContextSupported) {
+			console.log('creating native edit context');
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
+			console.log('creating text area edit context');
 			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		}
 	}
