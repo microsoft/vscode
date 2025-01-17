@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { AbstractTextResourceEditor } from '../../../browser/parts/editor/textResourceEditor.js';
-import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, LOG_ENTRY_REGEX, parseLogEntries, ILogEntry } from '../../../services/output/common/output.js';
+import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, parseLogEntries, ILogEntry, parseLogEntryAt } from '../../../services/output/common/output.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -96,6 +96,7 @@ export class OutputViewPane extends FilterViewPane {
 		filters.info = this.panelState['showInfo'] ?? true;
 		filters.warning = this.panelState['showWarning'] ?? true;
 		filters.error = this.panelState['showError'] ?? true;
+		filters.sources = this.panelState['sourcesFilter'] ?? '';
 
 		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
 
@@ -172,6 +173,7 @@ export class OutputViewPane extends FilterViewPane {
 
 	private setInput(channel: IOutputChannel): void {
 		this.channelId = channel.id;
+		this.checkMoreFilters();
 
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
@@ -182,9 +184,9 @@ export class OutputViewPane extends FilterViewPane {
 
 	}
 
-	public checkMoreFilters(): void {
+	private checkMoreFilters(): void {
 		const filters = this.outputService.filters;
-		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error);
+		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error || (!!this.channelId && filters.sources.includes(this.channelId)));
 	}
 
 	private clearInput(): void {
@@ -205,6 +207,7 @@ export class OutputViewPane extends FilterViewPane {
 		this.panelState['showInfo'] = filters.info;
 		this.panelState['showWarning'] = filters.warning;
 		this.panelState['showError'] = filters.error;
+		this.panelState['sourcesFilter'] = filters.sources;
 
 		this.memento.saveMemento();
 		super.saveState();
@@ -397,8 +400,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 	private computeLogEntries(model: ITextModel): void {
 		this.logEntries = undefined;
-		const firstLine = model.getLineContent(1);
-		if (!LOG_ENTRY_REGEX.test(firstLine)) {
+		if (!parseLogEntryAt(model, 1)) {
 			return;
 		}
 
@@ -420,14 +422,19 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 	private filterIncremental(model: ITextModel, from: number): void {
 		const filters = this.outputService.filters;
+		const activeChannelId = this.outputService.getActiveChannel()?.id ?? '';
 		const findMatchesDecorations: IModelDeltaDecoration[] = [];
 
 		if (this.logEntries) {
-			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || filters.error;
-			if (hasLogLevelFilter || filters.text) {
+			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error;
+			if (hasLogLevelFilter || filters.text || filters.sources.includes(activeChannelId)) {
 				for (let i = from; i < this.logEntries.length; i++) {
 					const entry = this.logEntries[i];
-					if (hasLogLevelFilter && !this.shouldShowEntry(entry, filters)) {
+					if (hasLogLevelFilter && !this.shouldShowLogLevel(entry, filters)) {
+						this.hiddenAreas.push(entry.range);
+						continue;
+					}
+					if (!this.shouldShowSource(activeChannelId, entry, filters)) {
 						this.hiddenAreas.push(entry.range);
 						continue;
 					}
@@ -466,7 +473,7 @@ export class FilterController extends Disposable implements IEditorContribution 
 		}
 	}
 
-	private shouldShowEntry(entry: ILogEntry, filters: IOutputViewFilters): boolean {
+	private shouldShowLogLevel(entry: ILogEntry, filters: IOutputViewFilters): boolean {
 		switch (entry.logLevel) {
 			case LogLevel.Trace:
 				return filters.trace;
@@ -480,5 +487,12 @@ export class FilterController extends Disposable implements IEditorContribution 
 				return filters.error;
 		}
 		return true;
+	}
+
+	private shouldShowSource(activeChannelId: string, entry: ILogEntry, filters: IOutputViewFilters): boolean {
+		if (!entry.source) {
+			return true;
+		}
+		return !filters.hasSource(`${activeChannelId}-${entry.source}`);
 	}
 }

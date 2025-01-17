@@ -51,8 +51,7 @@ export const SHOW_INFO_FILTER_CONTEXT = new RawContextKey<boolean>('output.filte
 export const SHOW_WARNING_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.warning', true);
 export const SHOW_ERROR_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.error', true);
 export const OUTPUT_FILTER_FOCUS_CONTEXT = new RawContextKey<boolean>('outputFilterFocus', false);
-
-export const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) (\[(info|trace|debug|error|warning)\])/;
+export const HIDE_SOURCE_FILTER_CONTEXT = new RawContextKey<string>('output.filter.sources', '');
 
 export interface IOutputViewFilters {
 	readonly onDidChange: Event<void>;
@@ -62,6 +61,9 @@ export interface IOutputViewFilters {
 	info: boolean;
 	warning: boolean;
 	error: boolean;
+	sources: string;
+	toggleSource(source: string): void;
+	hasSource(source: string): boolean;
 }
 
 export const IOutputService = createDecorator<IOutputService>('outputService');
@@ -112,12 +114,12 @@ export interface IOutputService {
 	/**
 	 * Register a compound log channel with the given channels.
 	 */
-	registerCompoundLogChannel(channels: IFileOutputChannelDescriptor[]): string;
+	registerCompoundLogChannel(channels: IOutputChannelDescriptor[]): string;
 
 	/**
 	 * Save the logs to a file.
 	 */
-	saveOutputAs(...channels: IFileOutputChannelDescriptor[]): Promise<void>;
+	saveOutputAs(...channels: IOutputChannelDescriptor[]): Promise<void>;
 }
 
 export enum OutputChannelUpdateMode {
@@ -179,24 +181,47 @@ export interface IOutputChannelDescriptor {
 	label: string;
 	log: boolean;
 	languageId?: string;
-	files?: URI[];
-	fileNames?: string[];
+	source?: IOutputContentSource | ReadonlyArray<IOutputContentSource>;
 	extensionId?: string;
+	user?: boolean;
 }
 
-export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {
-	files: URI[];
+export interface ISingleSourceOutputChannelDescriptor extends IOutputChannelDescriptor {
+	source: IOutputContentSource;
+}
+
+export interface IMultiSourceOutputChannelDescriptor extends IOutputChannelDescriptor {
+	source: ReadonlyArray<IOutputContentSource>;
+}
+
+export function isSingleSourceOutputChannelDescriptor(descriptor: IOutputChannelDescriptor): descriptor is ISingleSourceOutputChannelDescriptor {
+	return !!descriptor.source && !Array.isArray(descriptor.source);
+}
+
+export function isMultiSourceOutputChannelDescriptor(descriptor: IOutputChannelDescriptor): descriptor is IMultiSourceOutputChannelDescriptor {
+	return Array.isArray(descriptor.source);
+}
+
+export interface IOutputContentSource {
+	readonly name?: string;
+	readonly resource: URI;
 }
 
 export interface IOutputChannelRegistry {
 
 	readonly onDidRegisterChannel: Event<string>;
 	readonly onDidRemoveChannel: Event<IOutputChannelDescriptor>;
+	readonly onDidUpdateChannelSources: Event<IMultiSourceOutputChannelDescriptor>;
 
 	/**
 	 * Make an output channel known to the output world.
 	 */
 	registerChannel(descriptor: IOutputChannelDescriptor): void;
+
+	/**
+	 * Update the files for the given output channel.
+	 */
+	updateChannelSources(id: string, sources: IOutputContentSource[]): void;
 
 	/**
 	 * Returns the list of channels known to the output world.
@@ -223,6 +248,9 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 	private readonly _onDidRemoveChannel = new Emitter<IOutputChannelDescriptor>();
 	readonly onDidRemoveChannel = this._onDidRemoveChannel.event;
 
+	private readonly _onDidUpdateChannelFiles = new Emitter<IMultiSourceOutputChannelDescriptor>();
+	readonly onDidUpdateChannelSources = this._onDidUpdateChannelFiles.event;
+
 	public registerChannel(descriptor: IOutputChannelDescriptor): void {
 		if (!this.channels.has(descriptor.id)) {
 			this.channels.set(descriptor.id, descriptor);
@@ -240,6 +268,14 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 		return this.channels.get(id);
 	}
 
+	public updateChannelSources(id: string, sources: IOutputContentSource[]): void {
+		const channel = this.channels.get(id);
+		if (channel && isMultiSourceOutputChannelDescriptor(channel)) {
+			channel.source = sources;
+			this._onDidUpdateChannelFiles.fire(channel);
+		}
+	}
+
 	public removeChannel(id: string): void {
 		const channel = this.channels.get(id);
 		if (channel) {
@@ -251,8 +287,11 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
 
+const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(?:\[((?!info|trace|debug|error|warning).*?)\]\s)?(\[(info|trace|debug|error|warning)\])/;
+
 export interface ILogEntry {
 	readonly timestamp: number;
+	readonly source?: string;
 	readonly logLevel: LogLevel;
 	readonly timestampRange: Range;
 	readonly range: Range;
@@ -296,7 +335,8 @@ export function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntr
 	if (match) {
 		const timestamp = new Date(match[1]).getTime();
 		const timestampRange = new Range(lineNumber, 1, lineNumber, match[1].length + 1);
-		const logLevel = parseLogLevel(match[3]);
+		const source = match[2];
+		const logLevel = parseLogLevel(match[4]);
 		const startLine = lineNumber;
 		let endLine = lineNumber;
 
@@ -307,9 +347,26 @@ export function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntr
 			}
 			endLine++;
 		}
-		return { timestamp, logLevel, range: new Range(startLine, 1, endLine, model.getLineMaxColumn(endLine)), timestampRange };
+		return { timestamp, logLevel, source, range: new Range(startLine, 1, endLine, model.getLineMaxColumn(endLine)), timestampRange };
 	}
 	return null;
+}
+
+/**
+ * Iterator for log entries from a model with a processing function.
+ *
+ * @param model - The text model containing the log entries.
+ * @param process - A function to process each log entry.
+ * @returns An iterable iterator for processed log entries.
+ */
+export function* logEntryIterator<T>(model: ITextModel, process: (logEntry: ILogEntry) => T): IterableIterator<T> {
+	for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
+		const logEntry = parseLogEntryAt(model, lineNumber);
+		if (logEntry) {
+			yield process(logEntry);
+			lineNumber = logEntry.range.endLineNumber;
+		}
+	}
 }
 
 function parseLogLevel(level: string): LogLevel {

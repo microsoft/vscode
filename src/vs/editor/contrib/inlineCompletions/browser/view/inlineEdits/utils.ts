@@ -163,6 +163,70 @@ export class PathBuilder {
 	}
 }
 
+export function createRectangle(
+	corners: { topLeft: Point; topRight: Point; bottomLeft: Point; bottomRight: Point },
+	padding: number | { top: number; right: number; bottom: number; left: number },
+	borderRadius: number,
+	options: { hideLeft?: boolean; hideRight?: boolean; hideTop?: boolean; hideBottom?: boolean } = {}
+): string {
+	const { top: paddingTop, bottom: paddingBottom, left: paddingLeft, right: paddingRight } = typeof padding === 'number' ?
+		{ top: padding, bottom: padding, left: padding, right: padding }
+		: padding;
+
+	// The path is drawn from bottom left at the end of the rounded corner in a clockwise direction
+	// Before: before the rounded corner
+	// After: after the rounded corner
+	const topLeft = corners.topLeft.deltaX(-paddingLeft).deltaY(-paddingTop);
+	const topRight = corners.topRight.deltaX(paddingRight).deltaY(-paddingTop);
+	const topLeftBefore = topLeft.deltaY(borderRadius);
+	const topLeftAfter = topLeft.deltaX(borderRadius);
+	const topRightBefore = topRight.deltaX(-borderRadius);
+	const topRightAfter = topRight.deltaY(borderRadius);
+
+	const bottomLeft = corners.bottomLeft.deltaX(-paddingLeft).deltaY(paddingBottom);
+	const bottomRight = corners.bottomRight.deltaX(paddingRight).deltaY(paddingBottom);
+	const bottomLeftBefore = bottomLeft.deltaX(borderRadius);
+	const bottomLeftAfter = bottomLeft.deltaY(-borderRadius);
+	const bottomRightBefore = bottomRight.deltaY(-borderRadius);
+	const bottomRightAfter = bottomRight.deltaX(-borderRadius);
+
+	const path = new PathBuilder();
+
+	if (!options.hideLeft) {
+		path.moveTo(bottomLeftAfter).lineTo(topLeftBefore);
+	}
+
+	if (!options.hideLeft && !options.hideTop) {
+		path.curveTo(topLeft, topLeftAfter);
+	}
+
+	if (!options.hideTop) {
+		path.moveTo(topLeftAfter).lineTo(topRightBefore);
+	}
+
+	if (!options.hideTop && !options.hideRight) {
+		path.curveTo(topRight, topRightAfter);
+	}
+
+	if (!options.hideRight) {
+		path.moveTo(topRightAfter).lineTo(bottomRightBefore);
+	}
+
+	if (!options.hideRight && !options.hideBottom) {
+		path.curveTo(bottomRight, bottomRightAfter);
+	}
+
+	if (!options.hideBottom) {
+		path.moveTo(bottomRightAfter).lineTo(bottomLeftBefore);
+	}
+
+	if (!options.hideBottom && !options.hideLeft) {
+		path.curveTo(bottomLeft, bottomLeftAfter);
+	}
+
+	return path.build();
+}
+
 type Value<T> = T | IObservable<T>;
 type ValueOrList<T> = Value<T> | ValueOrList<T>[];
 type ValueOrList2<T> = ValueOrList<T> | ValueOrList<ValueOrList<T>>;
