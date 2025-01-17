@@ -11,7 +11,7 @@ import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
-import { EditorOption, IEditorStickyScrollOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
@@ -187,7 +187,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 				if (!didReval && !diff.identical) {
 					didReval = true;
-					this.revealNext();
+					this._reveal(true, false, ScrollType.Immediate);
 				}
 			}
 		}));
@@ -209,16 +209,17 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		});
 
 
-		let actualReadonly: boolean | undefined;
-		let actualDeco: 'off' | 'editable' | 'on' | undefined;
-		let actualStickyScroll: IEditorStickyScrollOptions | undefined;
+		let actualOptions: IEditorOptions | undefined;
 
 		this._register(autorun(r => {
 			const value = shouldBeReadOnly.read(r);
 			if (value) {
-				actualReadonly ??= this._editor.getOption(EditorOption.readOnly);
-				actualDeco ??= this._editor.getOption(EditorOption.renderValidationDecorations);
-				actualStickyScroll ??= this._editor.getOption(EditorOption.stickyScroll);
+
+				actualOptions ??= {
+					readOnly: this._editor.getOption(EditorOption.readOnly),
+					renderValidationDecorations: this._editor.getOption(EditorOption.renderValidationDecorations),
+					stickyScroll: this._editor.getOption(EditorOption.stickyScroll)
+				};
 
 				this._editor.updateOptions({
 					readOnly: true,
@@ -226,15 +227,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					stickyScroll: { enabled: false }
 				});
 			} else {
-				if (actualReadonly !== undefined && actualDeco !== undefined && actualStickyScroll !== undefined) {
-					this._editor.updateOptions({
-						readOnly: actualReadonly,
-						renderValidationDecorations: actualDeco,
-						stickyScroll: actualStickyScroll
-					});
-					actualReadonly = undefined;
-					actualDeco = undefined;
-					actualStickyScroll = undefined;
+				if (actualOptions !== undefined) {
+					this._editor.updateOptions(actualOptions);
+					actualOptions = undefined;
 				}
 			}
 		}));
@@ -505,7 +500,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		return this._reveal(false, strict);
 	}
 
-	private _reveal(next: boolean, strict: boolean): boolean {
+	private _reveal(next: boolean, strict: boolean, scrollType = ScrollType.Smooth): boolean {
 		const position = this._editor.getPosition();
 		if (!position) {
 			this._currentChangeIndex.set(undefined, undefined);
@@ -544,7 +539,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		const targetPosition = next ? decorations[target].getStartPosition() : decorations[target].getEndPosition();
 		this._editor.setPosition(targetPosition);
-		this._editor.revealPositionInCenter(targetPosition, ScrollType.Smooth);
+		this._editor.revealPositionInCenter(targetPosition, scrollType);
 		this._editor.focus();
 
 		return true;
