@@ -5827,12 +5827,12 @@ export const EditorOptions = {
 		'off' as 'off' | 'on',
 		['off', 'on'] as const,
 		{
-			included: false, // Hide the setting from users while it's unstable
+			tags: ['experimental'],
 			enumDescriptions: [
 				nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
 				nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
 			],
-			description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the (very) experimental GPU acceleration to render the editor.")
+			description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the experimental GPU acceleration to render the editor.")
 		}
 	)),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
