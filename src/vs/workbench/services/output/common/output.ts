@@ -287,14 +287,15 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
 
-const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(?:\[((?!info|trace|debug|error|warning).*?)\]\s)?(\[(info|trace|debug|error|warning)\])/;
+const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(\[(info|trace|debug|error|warning)\])\s(\[(.*?)\]\s)?/;
 
 export interface ILogEntry {
-	readonly timestamp: number;
-	readonly source?: string;
-	readonly logLevel: LogLevel;
-	readonly timestampRange: Range;
 	readonly range: Range;
+	readonly timestamp: number;
+	readonly timestampRange: Range;
+	readonly logLevel: LogLevel;
+	readonly logLevelRange: Range;
+	readonly source?: string;
 }
 
 /**
@@ -334,9 +335,10 @@ export function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntr
 	const match = LOG_ENTRY_REGEX.exec(lineContent);
 	if (match) {
 		const timestamp = new Date(match[1]).getTime();
-		const timestampRange = new Range(lineNumber, 1, lineNumber, match[1].length + 1);
-		const source = match[2];
-		const logLevel = parseLogLevel(match[4]);
+		const timestampRange = new Range(lineNumber, 1, lineNumber, match[1].length);
+		const logLevel = parseLogLevel(match[3]);
+		const logLevelRange = new Range(lineNumber, timestampRange.endColumn + 1, lineNumber, timestampRange.endColumn + 1 + match[2].length);
+		const source = match[5];
 		const startLine = lineNumber;
 		let endLine = lineNumber;
 
@@ -347,7 +349,7 @@ export function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntr
 			}
 			endLine++;
 		}
-		return { timestamp, logLevel, source, range: new Range(startLine, 1, endLine, model.getLineMaxColumn(endLine)), timestampRange };
+		return { range: new Range(startLine, 1, endLine, model.getLineMaxColumn(endLine)), timestamp, timestampRange, logLevel, logLevelRange, source };
 	}
 	return null;
 }
