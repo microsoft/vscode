@@ -118,7 +118,6 @@ import { assertNoRpc } from '../utils';
 		});
 	}
 
-
 	test('execution events should fire in order when a command runs', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
