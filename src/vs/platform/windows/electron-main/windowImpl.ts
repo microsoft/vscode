@@ -706,6 +706,46 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) });
 		});
+
+		// Enable WebUSB, WebHID and WebSerial device access
+		this._win.webContents.session.setPermissionCheckHandler((_webContents, permission, _requestingOrigin, _details) => {
+			return permission === 'usb' || permission === 'serial' || permission === 'hid';
+		});
+
+		this._win.webContents.session.on('select-usb-device', (event, details, callback) => {
+			event.preventDefault();
+			const items = details.deviceList.map(device => ({
+				id: device.deviceId,
+				label: device.productName || device.serialNumber || `${device.vendorId}:${device.productId}`
+			}));
+			handleDeviceSelect(items, callback);
+		});
+
+		this._win.webContents.session.on('select-hid-device', (event, details, callback) => {
+			event.preventDefault();
+			const items = details.deviceList.map(device => ({
+				id: device.deviceId,
+				label: device.name
+			}));
+			handleDeviceSelect(items, callback);
+		});
+
+		this._win.webContents.session.on('select-serial-port', (event, portList, _webContents, callback) => {
+			event.preventDefault();
+			const items = portList.map(device => ({
+				id: device.portId,
+				label: device.displayName || device.portName
+			}));
+			handleDeviceSelect(items, callback);
+		});
+
+		const handleDeviceSelect = (items: { id: string; label: string }[], callback: (id: string) => void) => {
+			// Listen to callback from renderer
+			electron.ipcMain.once('vscode:device-access', (_event, value) => callback(value));
+
+			// Send details of list to be picked from
+			this.send('vscode:device-access', items);
+		};
 	}
 
 	private marketplaceHeadersPromise: Promise<object> | undefined;

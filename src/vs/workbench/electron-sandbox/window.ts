@@ -17,7 +17,7 @@ import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js'
 import { WindowMinimumSize, IOpenFileRequest, IAddRemoveFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from '../../platform/window/common/window.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { IWorkbenchThemeService } from '../services/themes/common/workbenchThemeService.js';
-import { ApplyZoomTarget, applyZoom } from '../../platform/window/electron-sandbox/window.js';
+import { ApplyZoomTarget, applyZoom, registerDeviceAccessHandler } from '../../platform/window/electron-sandbox/window.js';
 import { setFullscreen, getZoomLevel, onDidChangeZoomLevel, getZoomFactor } from '../../base/browser/browser.js';
 import { ICommandService, CommandsRegistry } from '../../platform/commands/common/commands.js';
 import { IResourceEditorInput } from '../../platform/editor/common/editor.js';
@@ -57,7 +57,7 @@ import { IEditorGroupsService, IEditorPart } from '../services/editor/common/edi
 import { IDialogService } from '../../platform/dialogs/common/dialogs.js';
 import { AuthInfo } from '../../base/parts/sandbox/electron-sandbox/electronTypes.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { whenEditorClosed } from '../browser/editor.js';
 import { ISharedProcessService } from '../../platform/ipc/electron-sandbox/services.js';
 import { IProgressService, ProgressLocation } from '../../platform/progress/common/progress.js';
@@ -79,6 +79,8 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { getWorkbenchContribution } from '../common/contributions.js';
 import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.js';
 import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
+import { HidDeviceData, SerialPortData, UsbDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice } from '../../base/browser/deviceAccess.js';
+import { IQuickInputService } from '../../platform/quickinput/common/quickInput.js';
 
 export class NativeWindow extends BaseWindow {
 
@@ -127,7 +129,8 @@ export class NativeWindow extends BaseWindow {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(mainWindow, undefined, hostService, nativeEnvironmentService);
 
@@ -684,6 +687,12 @@ export class NativeWindow extends BaseWindow {
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
 
+		// Commands
+		this.registerCommands();
+
+		// Handlers
+		this.registerHandlers();
+
 		// Smoke Test Driver
 		if (this.environmentService.enableSmokeTestDriver) {
 			this.setupDriver();
@@ -1052,6 +1061,33 @@ export class NativeWindow extends BaseWindow {
 		}
 
 		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
+	}
+
+	private registerCommands(): void {
+
+		// Allow extensions to request USB devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> => {
+			return requestUsbDevice(options);
+		});
+
+		// Allow extensions to request Serial devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestSerialPort', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<SerialPortData | undefined> => {
+			return requestSerialPort(options);
+		});
+
+		// Allow extensions to request HID devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestHidDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> => {
+			return requestHidDevice(options);
+		});
+	}
+
+	private registerHandlers(): void {
+
+		// Show a picker when a device is requested
+		registerDeviceAccessHandler(async devices => {
+			const device = await this.quickInputService.pick(devices, { title: `${this.productService.nameShort} wants to connect` });
+			return device?.id;
+		});
 	}
 
 	//#region Window Zoom

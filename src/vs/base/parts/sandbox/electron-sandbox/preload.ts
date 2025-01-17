@@ -10,6 +10,7 @@
 	const { ipcRenderer, webFrame, contextBridge, webUtils } = require('electron');
 
 	type ISandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes.js').ISandboxConfiguration;
+	type IDeviceAccess = import('vs/base/parts/sandbox/electron-sandbox/globals.js').IDeviceAccess;
 
 	//#region Utilities
 
@@ -87,6 +88,14 @@
 
 		return { ...process.env, ...shellEnv, ...userEnv };
 	})();
+
+	//#endregion
+
+	//#region Device Access
+
+	const deviceAccess: IDeviceAccess = {
+		handleDeviceAccess: callback => ipcRenderer.on('vscode:device-access', callback),
+	};
 
 	//#endregion
 
@@ -243,7 +252,9 @@
 			async resolveConfiguration(): Promise<ISandboxConfiguration> {
 				return resolveConfiguration;
 			}
-		}
+		},
+
+		deviceAccess
 	};
 
 	// Use `contextBridge` APIs to expose globals to VSCode
