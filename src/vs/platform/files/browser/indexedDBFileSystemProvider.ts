@@ -15,20 +15,6 @@ import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFil
 import { DBClosedError, IndexedDB } from '../../../base/browser/indexedDB.js';
 import { BroadcastDataChannel } from '../../../base/browser/broadcast.js';
 
-export type IndexedDBFileSystemProviderErrorDataClassification = {
-	owner: 'sandy081';
-	comment: 'Information about errors that occur in the IndexedDB file system provider';
-	readonly scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'IndexedDB file system provider scheme for which this error occurred' };
-	readonly operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'operation during which this error occurred' };
-	readonly code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'error code' };
-};
-
-export type IndexedDBFileSystemProviderErrorData = {
-	readonly scheme: string;
-	readonly operation: string;
-	readonly code: string;
-};
-
 // Standard FS Errors (expected to be thrown in production when invalid FS operations are requested)
 const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
 const ERR_FILE_IS_DIR = createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
@@ -178,9 +164,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	private readonly changesBroadcastChannel: BroadcastDataChannel<UriDto<IFileChange>[]> | undefined;
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
-
-	private readonly _onReportError = this._register(new Emitter<IndexedDBFileSystemProviderErrorData>());
-	readonly onReportError = this._onReportError.event;
 
 	private readonly mtimes = new Map<string, number>();
 

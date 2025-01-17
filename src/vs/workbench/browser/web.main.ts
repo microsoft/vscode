@@ -40,7 +40,7 @@ import { isWorkspaceToOpen, isFolderToOpen } from '../../platform/window/common/
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../services/workspaces/browser/workspaces.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ICommandService } from '../../platform/commands/common/commands.js';
-import { IndexedDBFileSystemProviderErrorDataClassification, IndexedDBFileSystemProvider, IndexedDBFileSystemProviderErrorData } from '../../platform/files/browser/indexedDBFileSystemProvider.js';
+import { IndexedDBFileSystemProvider } from '../../platform/files/browser/indexedDBFileSystemProvider.js';
 import { BrowserRequestService } from '../services/request/browser/requestService.js';
 import { IRequestService } from '../../platform/request/common/request.js';
 import { IUserDataInitializationService, IUserDataInitializer, UserDataInitializationService } from '../services/userData/browser/userDataInit.js';
@@ -64,7 +64,6 @@ import { IOpenerService } from '../../platform/opener/common/opener.js';
 import { mixin, safeStringify } from '../../base/common/objects.js';
 import { IndexedDB } from '../../base/browser/indexedDB.js';
 import { WebFileSystemAccess } from '../../platform/files/browser/webFileSystemAccess.js';
-import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IProgressService } from '../../platform/progress/common/progress.js';
 import { DelayedLogChannel } from '../services/output/common/delayedLogChannel.js';
 import { dirname, joinPath } from '../../base/common/resources.js';
@@ -136,13 +135,6 @@ export class BrowserMain extends Disposable {
 
 		// Logging
 		services.logService.trace('workbench#open with configuration', safeStringify(this.configuration));
-
-		instantiationService.invokeFunction(accessor => {
-			const telemetryService = accessor.get(ITelemetryService);
-			for (const indexedDbFileSystemProvider of this.indexedDBFileSystemProviders) {
-				this._register(indexedDbFileSystemProvider.onReportError(e => telemetryService.publicLog2<IndexedDBFileSystemProviderErrorData, IndexedDBFileSystemProviderErrorDataClassification>('indexedDBFileSystemProviderError', e)));
-			}
-		});
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
