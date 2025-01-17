@@ -186,7 +186,7 @@ export class OutputViewPane extends FilterViewPane {
 
 	private checkMoreFilters(): void {
 		const filters = this.outputService.filters;
-		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error || (!!this.channelId && filters.sources.includes(this.channelId)));
+		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error || (!!this.channelId && filters.sources.includes(`,${this.channelId}:`)));
 	}
 
 	private clearInput(): void {

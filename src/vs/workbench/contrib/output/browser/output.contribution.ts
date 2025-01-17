@@ -699,7 +699,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					if (!source.name) {
 						continue;
 					}
-					const sourceFilter = `${channel.id}-${source.name}`;
+					const sourceFilter = `${channel.id}:${source.name}`;
 					disposables.add(registerAction2(class extends Action2 {
 						constructor() {
 							super({
