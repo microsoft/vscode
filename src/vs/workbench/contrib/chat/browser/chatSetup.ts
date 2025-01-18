@@ -442,31 +442,46 @@ class ChatSetupRequests extends Disposable {
 	}
 
 	private async findMatchingProviderSession(token: CancellationToken): Promise<AuthenticationSession | undefined> {
-		let sessions: ReadonlyArray<AuthenticationSession> = [];
-		const authProviderConfigValue = this.configurationService.getValue<string | undefined>('github.copilot.advanced.authProvider');
-		if (authProviderConfigValue) {
-			sessions = await this.authenticationService.getSessions(authProviderConfigValue);
+		const authProviders: string[] = [];
+		const configuredAuthProvider = this.configurationService.getValue<string | undefined>('github.copilot.advanced.authProvider');
+		if (configuredAuthProvider) {
+			authProviders.push(configuredAuthProvider);
 		} else {
-			for (const providerId of defaultChat.providerIds) {
-				if (token.isCancellationRequested) {
-					return undefined;
-				}
-				sessions = await this.authenticationService.getSessions(providerId);
-				if (sessions.length) {
-					break;
-				}
-			}
+			authProviders.push(...defaultChat.providerIds);
 		}
 
-		for (const session of sessions) {
-			for (const scopes of defaultChat.providerScopes) {
-				if (this.scopesMatch(session.scopes, scopes)) {
-					return session;
+		let sessions: ReadonlyArray<AuthenticationSession> = [];
+		for (const authProvider of authProviders) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			sessions = await this.doGetSessions(authProvider);
+
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			for (const session of sessions) {
+				for (const scopes of defaultChat.providerScopes) {
+					if (this.scopesMatch(session.scopes, scopes)) {
+						return session;
+					}
 				}
 			}
 		}
 
 		return undefined;
+	}
+
+	private async doGetSessions(providerId: string): Promise<readonly AuthenticationSession[]> {
+		try {
+			return await this.authenticationService.getSessions(providerId);
+		} catch (error) {
+			// ignore - errors can throw if a provider is not registered
+		}
+
+		return [];
 	}
 
 	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
