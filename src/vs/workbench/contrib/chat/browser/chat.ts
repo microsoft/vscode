@@ -60,8 +60,16 @@ export function ensureSideBarChatViewSize(viewDescriptorService: IViewDescriptor
 
 	const viewPart = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
 	const partSize = layoutService.getSize(viewPart);
-	if (partSize.width < 400) {
-		layoutService.setSize(viewPart, { width: 400, height: partSize.height });
+
+	let adjustedChatWidth: number | undefined;
+	if (partSize.width < 400 && layoutService.mainContainerDimension.width > 1200) {
+		adjustedChatWidth = 400; // up to 400px if window bounds permit
+	} else if (partSize.width < 300) {
+		adjustedChatWidth = 300; // at minimum 300px
+	}
+
+	if (typeof adjustedChatWidth === 'number') {
+		layoutService.setSize(viewPart, { width: adjustedChatWidth, height: partSize.height });
 	}
 }
 
