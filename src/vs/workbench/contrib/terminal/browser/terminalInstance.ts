@@ -1262,33 +1262,47 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void> {
+		// Log incoming text for debugging
+		this._logService.debug('Original text received for processing:', text);
+
 		// Apply bracketed paste sequences if the terminal has the mode enabled,
 		// this will prevent the text from triggering keybindings and ensure new lines are handled properly
 		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
-			text = `\x1b[200~${text}\x1b[201~`;
+			this._logService.debug('Bracketed paste mode enabled, applying paste sequences');
+			text = `\x1b[200~${text}\x1b[201~`;  // Wrap text in bracketed paste
 		}
 
 		// Determine the appropriate line ending based on the platform
 		const lineEnding = process.platform === 'win32' ? '\r\n' : '\n'; // Use \r\n for Windows, \n for other platforms
 
 		// Normalize line endings to the platform-specific line ending
-		text = text.replace(/\r?\n/g, lineEnding);
+		const normalizedText = text.replace(/\r?\n/g, lineEnding);
+		this._logService.debug('Text after line ending normalization:', normalizedText);
 
 		// Ensure the text ends with the correct line ending if it needs to be executed
-		if (shouldExecute && !text.endsWith(lineEnding)) {
-			text += lineEnding;
+		if (shouldExecute && !normalizedText.endsWith(lineEnding)) {
+			this._logService.debug('Appending platform-specific line ending to text for execution');
+			text = normalizedText + lineEnding;  // Ensure it ends with the appropriate line ending
+		} else {
+			text = normalizedText;
 		}
 
 		// Send it to the process
-		this._logService.debug('sending data (vscode)', text);
-		await this._processManager.write(text);
-		this._onDidInputData.fire(text);
-		this._onDidSendText.fire(text);
-		this.xterm?.scrollToBottom();
+		try {
+			this._logService.debug('Sending data to process:', text);
+			await this._processManager.write(text);
+			this._onDidInputData.fire(text);  // Fire input event after writing text
+			this._onDidSendText.fire(text);   // Fire send event
+			this.xterm?.scrollToBottom();     // Ensure terminal scrolls to the bottom
 
-		// Trigger execution if shouldExecute is true
-		if (shouldExecute) {
-			this._onDidExecuteText.fire();
+			// Trigger execution if shouldExecute is true
+			if (shouldExecute) {
+				this._logService.debug('Executing text after sending:', text);
+				this._onDidExecuteText.fire();
+			}
+		} catch (error) {
+			// Log any errors encountered during processing
+			this._logService.error('Error while processing text in sendText:', error);
 		}
 	}
 
