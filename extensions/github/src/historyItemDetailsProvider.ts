@@ -132,7 +132,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 				// Cache hit
 				if (avatarUrl) {
 					// Add avatar for each commit
-					q.forEach(({ hash }) => results.set(hash, avatarUrl));
+					q.forEach(({ hash }) => results.set(hash, `${avatarUrl}&s=${query.size}`));
 					return;
 				}
 

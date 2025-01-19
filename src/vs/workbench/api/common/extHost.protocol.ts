@@ -1606,6 +1606,7 @@ export interface SCMHistoryItemDto {
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
+	readonly authorIcon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 	readonly authorEmail?: string;
 	readonly timestamp?: number;
 	readonly statistics?: {

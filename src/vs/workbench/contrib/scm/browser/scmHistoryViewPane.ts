@@ -475,11 +475,17 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		if (historyItem.author) {
+			const icon = URI.isUri(historyItem.authorIcon)
+				? `![${historyItem.author}](${historyItem.authorIcon.toString()}|width=20,height=20)`
+				: ThemeIcon.isThemeIcon(historyItem.authorIcon)
+					? `$(${historyItem.authorIcon.id})`
+					: '$(account)';
+
 			if (historyItem.authorEmail) {
 				const emailTitle = localize('emailLinkTitle', "Email");
-				markdown.appendMarkdown(`$(account) [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
+				markdown.appendMarkdown(`${icon} [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
 			} else {
-				markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
+				markdown.appendMarkdown(`${icon} **${historyItem.author}**`);
 			}
 
 			if (historyItem.timestamp) {
