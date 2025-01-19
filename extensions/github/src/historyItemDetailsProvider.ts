@@ -8,6 +8,7 @@ import { Commit, Repository as GitHubRepository, Maybe } from '@octokit/graphql-
 import { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git';
 import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util';
 import { AuthenticationError, getOctokitGraphql } from './auth';
+import { getAvatarLink } from './links';
 
 const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9][0-9]*)($|\b)/g;
 
@@ -145,7 +146,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 				// Try to extract the user identifier from GitHub no-reply emails
 				const userIdFromEmail = getUserIdFromNoReplyEmail(q[0].authorEmail);
 				if (userIdFromEmail) {
-					const avatarUrl = `https://avatars.githubusercontent.com/u/${userIdFromEmail}?s=${query.size}`;
+					const avatarUrl = getAvatarLink(userIdFromEmail, query.size);
 					q.forEach(({ hash }) => results.set(hash, avatarUrl));
 					return;
 				}
