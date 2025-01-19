@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from '../../../base/common/async.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { IObservable, observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from '../../../base/common/lifecycle.js';
@@ -34,10 +34,10 @@ import { ColorIdentifier } from '../../../platform/theme/common/colorUtils.js';
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
 		return undefined;
-	} else if (URI.isUri(iconDto)) {
-		return URI.revive(iconDto);
 	} else if (ThemeIcon.isThemeIcon(iconDto)) {
 		return iconDto;
+	} else if (isUriComponents(iconDto)) {
+		return URI.revive(iconDto);
 	} else {
 		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
@@ -45,11 +45,13 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 }
 
 function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
+	const authorIcon = getIconFromIconDto(historyItemDto.authorIcon);
+
 	const references = historyItemDto.references?.map(r => ({
 		...r, icon: getIconFromIconDto(r.icon)
 	}));
 
-	return { ...historyItemDto, references };
+	return { ...historyItemDto, authorIcon, references };
 }
 
 function toISCMHistoryItemRef(historyItemRefDto?: SCMHistoryItemRefDto, color?: ColorIdentifier): ISCMHistoryItemRef | undefined {
