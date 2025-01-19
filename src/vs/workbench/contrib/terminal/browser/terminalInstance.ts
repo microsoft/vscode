@@ -1262,16 +1262,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void> {
-		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
-		// the text from triggering keybindings and ensure new lines are handled properly
+		// Apply bracketed paste sequences if the terminal has the mode enabled,
+		// this will prevent the text from triggering keybindings and ensure new lines are handled properly
 		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
 			text = `\x1b[200~${text}\x1b[201~`;
 		}
 
-		// Normalize line endings to 'enter' press.
-		text = text.replace(/\r?\n/g, '\r');
-		if (shouldExecute && !text.endsWith('\r')) {
-			text += '\r';
+		// Determine the appropriate line ending based on the platform
+		const lineEnding = process.platform === 'win32' ? '\r\n' : '\n'; // Use \r\n for Windows, \n for other platforms
+
+		// Normalize line endings to the platform-specific line ending
+		text = text.replace(/\r?\n/g, lineEnding);
+
+		// Ensure the text ends with the correct line ending if it needs to be executed
+		if (shouldExecute && !text.endsWith(lineEnding)) {
+			text += lineEnding;
 		}
 
 		// Send it to the process
@@ -1280,6 +1285,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onDidInputData.fire(text);
 		this._onDidSendText.fire(text);
 		this.xterm?.scrollToBottom();
+
+		// Trigger execution if shouldExecute is true
 		if (shouldExecute) {
 			this._onDidExecuteText.fire();
 		}
