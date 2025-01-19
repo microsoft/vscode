@@ -60,6 +60,11 @@ interface GitHubUser {
 	readonly avatarUrl: string;
 }
 
+function getUserIdFromNoReplyEmail(email: string | undefined): string | undefined {
+	const match = email?.match(/^([0-9]+)\+[^@]+@users\.noreply\.github\.com$/);
+	return match?.[1];
+}
+
 function compareAvatarQuery(a: AvatarQueryCommit, b: AvatarQueryCommit): number {
 	// Email
 	const emailComparison = (a.authorEmail ?? '').localeCompare(b.authorEmail ?? '');
@@ -126,18 +131,22 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 				// Cache hit
 				if (avatarUrl) {
 					// Add avatar for each commit
-					for (const { hash } of q) {
-						results.set(hash, avatarUrl);
-					}
+					q.forEach(({ hash }) => results.set(hash, avatarUrl));
 					return;
 				}
 
 				// Check if any of the commit are being tracked in the list
 				// of known commits that have incomplte author information
 				if (q.some(({ hash }) => repositoryStore.commits.has(hash))) {
-					for (const { hash } of q) {
-						results.set(hash, undefined);
-					}
+					q.forEach(({ hash }) => results.set(hash, undefined));
+					return;
+				}
+
+				// Try to extract the user identifier from GitHub no-reply emails
+				const userIdFromEmail = getUserIdFromNoReplyEmail(q[0].authorEmail);
+				if (userIdFromEmail) {
+					const avatarUrl = `https://avatars.githubusercontent.com/u/${userIdFromEmail}?s=${query.size}`;
+					q.forEach(({ hash }) => results.set(hash, avatarUrl));
 					return;
 				}
 
@@ -157,9 +166,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 				repositoryStore.users.push(commitAuthor);
 
 				// Add avatar for each commit
-				for (const { hash } of q) {
-					results.set(hash, `${commitAuthor.avatarUrl}&s=${query.size}`);
-				}
+				q.forEach(({ hash }) => results.set(hash, `${commitAuthor.avatarUrl}&s=${query.size}`));
 			}));
 
 			return results;
