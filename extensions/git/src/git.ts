@@ -1098,7 +1098,7 @@ function parseGitBlame(data: string): BlameInformation[] {
 			authorName = line.substring('author '.length);
 		}
 		if (commitHash && line.startsWith('author-mail ')) {
-			authorEmail = line.substring('author-mail '.length);
+			authorEmail = line.substring('author-mail <'.length, line.length - 1);
 		}
 		if (commitHash && line.startsWith('author-time ')) {
 			authorTime = Number(line.substring('author-time '.length)) * 1000;
