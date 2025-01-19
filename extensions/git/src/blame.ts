@@ -13,7 +13,9 @@ import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
-import { AvatarQuery } from './api/git';
+import { AvatarQuery, AvatarQueryCommit } from './api/git';
+
+const AVATAR_SIZE = 20;
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -219,13 +221,16 @@ export class GitBlameController {
 
 					// Avatar
 					const avatarQuery = {
-						commit: blameInformation.hash,
-						authorName: blameInformation.authorName,
-						authorEmail: blameInformation.authorEmail
+						commits: [{
+							hash: blameInformation.hash,
+							authorName: blameInformation.authorName,
+							authorEmail: blameInformation.authorEmail
+						} satisfies AvatarQueryCommit],
+						size: AVATAR_SIZE
 					} satisfies AvatarQuery;
 
-					const avatarResult = await provideSourceControlHistoryItemAvatar(this._model, repository, [avatarQuery]);
-					commitAvatar = avatarResult?.get(avatarQuery.commit);
+					const avatarResult = await provideSourceControlHistoryItemAvatar(this._model, repository, avatarQuery);
+					commitAvatar = avatarResult?.get(blameInformation.hash);
 				} catch { }
 			}
 
@@ -250,7 +255,7 @@ export class GitBlameController {
 		const authorName = commitInformation?.authorName ?? blameInformation.authorName;
 		const authorEmail = commitInformation?.authorEmail ?? blameInformation.authorEmail;
 		const authorDate = commitInformation?.authorDate ?? blameInformation.authorDate;
-		const avatar = commitAvatar ? `![${authorName}](${commitAvatar})` : '$(account)';
+		const avatar = commitAvatar ? `![${authorName}](${commitAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
 
 		if (authorName) {
 			if (authorEmail) {

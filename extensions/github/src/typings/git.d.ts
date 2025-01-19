@@ -289,14 +289,19 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
-export interface AvatarQuery {
-	readonly commit: string;
+export interface AvatarQueryCommit {
+	readonly hash: string;
 	readonly authorName?: string;
 	readonly authorEmail?: string;
 }
 
+export interface AvatarQuery {
+	readonly commits: AvatarQueryCommit[];
+	readonly size: number;
+}
+
 export interface SourceControlHistoryItemDetailsProvider {
-	provideAvatar(repository: Repository, query: AvatarQuery[]): Promise<Map<string, string | undefined> | undefined>;
+	provideAvatar(repository: Repository, query: AvatarQuery): Promise<Map<string, string | undefined> | undefined>;
 	provideHoverCommands(repository: Repository): Promise<Command[] | undefined>;
 	provideMessageLinks(repository: Repository, message: string): Promise<string | undefined>;
 }
