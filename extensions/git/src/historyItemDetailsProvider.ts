@@ -16,7 +16,7 @@ export interface ISourceControlHistoryItemDetailsProviderRegistry {
 export async function provideSourceControlHistoryItemAvatar(
 	registry: ISourceControlHistoryItemDetailsProviderRegistry,
 	repository: Repository,
-	query: AvatarQuery[]
+	query: AvatarQuery
 ): Promise<Map<string, string | undefined> | undefined> {
 	for (const provider of registry.getSourceControlHistoryItemDetailsProviders()) {
 		const result = await provider.provideAvatar(new ApiRepository(repository), query);

@@ -5,11 +5,9 @@
 
 import { authentication, Command, l10n, LogOutputChannel } from 'vscode';
 import { Commit, Repository as GitHubRepository, Maybe } from '@octokit/graphql-schema';
-import { API, AvatarQuery, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git';
+import { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git';
 import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util';
 import { AuthenticationError, getOctokitGraphql } from './auth';
-
-const AVATAR_SIZE = 20;
 
 const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9][0-9]*)($|\b)/g;
 
@@ -22,7 +20,7 @@ const ASSIGNABLE_USERS_QUERY = `
 					login
 					name
 					email
-					avatarUrl(size: ${AVATAR_SIZE})
+					avatarUrl
 				}
 			}
 		}
@@ -37,7 +35,7 @@ const COMMIT_AUTHOR_QUERY = `
 					author {
 						name
 						email
-						avatarUrl(size: ${AVATAR_SIZE})
+						avatarUrl
 						user {
 							id
 							login
@@ -62,7 +60,7 @@ interface GitHubUser {
 	readonly avatarUrl: string;
 }
 
-function compareAvatarQuery(a: AvatarQuery, b: AvatarQuery): number {
+function compareAvatarQuery(a: AvatarQueryCommit, b: AvatarQueryCommit): number {
 	// Email
 	const emailComparison = (a.authorEmail ?? '').localeCompare(b.authorEmail ?? '');
 	if (emailComparison !== 0) {
@@ -88,8 +86,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 		}));
 	}
 
-	async provideAvatar(repository: Repository, query: AvatarQuery[]): Promise<Map<string, string | undefined> | undefined> {
-		this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Avatar resolution for ${query.length} commit(s) in ${repository.rootUri.fsPath}.`);
+	async provideAvatar(repository: Repository, query: AvatarQuery): Promise<Map<string, string | undefined> | undefined> {
+		this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Avatar resolution for ${query.commits.length} commit(s) in ${repository.rootUri.fsPath}.`);
 
 		if (!this._enabled) {
 			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Avatar resolution is disabled.`);
@@ -113,7 +111,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			}
 
 			// Group the query by author
-			const authorQuery = groupBy<AvatarQuery>(query, compareAvatarQuery);
+			const authorQuery = groupBy<AvatarQueryCommit>(query.commits, compareAvatarQuery);
 
 			const results = new Map<string, string | undefined>();
 			await Promise.all(authorQuery.map(async q => {
@@ -128,29 +126,29 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 				// Cache hit
 				if (avatarUrl) {
 					// Add avatar for each commit
-					for (const { commit } of q) {
-						results.set(commit, this._getAvatarUrl(avatarUrl, AVATAR_SIZE));
+					for (const { hash } of q) {
+						results.set(hash, avatarUrl);
 					}
 					return;
 				}
 
 				// Check if any of the commit are being tracked in the list
 				// of known commits that have incomplte author information
-				if (q.some(({ commit }) => repositoryStore.commits.has(commit))) {
-					for (const { commit } of q) {
-						results.set(commit, undefined);
+				if (q.some(({ hash }) => repositoryStore.commits.has(hash))) {
+					for (const { hash } of q) {
+						results.set(hash, undefined);
 					}
 					return;
 				}
 
 				// Get the commit details
-				const commitAuthor = await this._getCommitAuthor(descriptor, q[0].commit);
+				const commitAuthor = await this._getCommitAuthor(descriptor, q[0].hash);
 				if (!commitAuthor) {
 					// The commit has incomplete author information, so
 					// we should not try to query the authors details again
-					for (const { commit } of q) {
-						repositoryStore.commits.add(commit);
-						results.set(commit, undefined);
+					for (const { hash } of q) {
+						repositoryStore.commits.add(hash);
+						results.set(hash, undefined);
 					}
 					return;
 				}
@@ -159,8 +157,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 				repositoryStore.users.push(commitAuthor);
 
 				// Add avatar for each commit
-				for (const { commit } of q) {
-					results.set(commit, this._getAvatarUrl(commitAuthor.avatarUrl, AVATAR_SIZE));
+				for (const { hash } of q) {
+					results.set(hash, `${commitAuthor.avatarUrl}&s=${query.size}`);
 				}
 			}));
 
@@ -294,10 +292,6 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			this._logger.warn(`[GitHubSourceControlHistoryItemDetailsProvider][_getCommitAuthor] Failed to get commit author for ${descriptor.owner}/${descriptor.repo}/${commit}: ${err}`);
 			throw err;
 		}
-	}
-
-	private _getAvatarUrl(url: string, size: number): string {
-		return `${url}|height=${size},width=${size}`;
 	}
 
 	private _getRepositoryKey(descriptor: { owner: string; repo: string }): string {
