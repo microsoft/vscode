@@ -757,7 +757,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
