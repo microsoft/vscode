@@ -44,7 +44,6 @@ import { ITreeSitterTokenizationStoreService } from '../../../editor/common/mode
 import { Range } from '../../../editor/common/core/range.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { TokenUpdate } from '../../../editor/common/model/tokenStore.js';
-import { timeout } from '../../../base/common/async.js';
 
 class MockTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -324,51 +323,37 @@ class y {
 		const model = await getModelAndPrepTree(content);
 
 		let updateListener: IDisposable | undefined;
-		let firstChange: TreeUpdateEvent | undefined;
-		let secondChange: TreeUpdateEvent | undefined;
-		let thirdChange: TreeUpdateEvent | undefined;
+		let change: TreeUpdateEvent | undefined;
+
 		const updatePromise = new Promise<void>(resolve => {
-			let count = 0;
 			updateListener = treeSitterParserService.onDidUpdateTree(async e => {
-				count++;
-				switch (count) {
-					case 1:
-						firstChange = e;
-						break;
-					case 2:
-						secondChange = e;
-						break;
-					case 3:
-						thirdChange = e;
-						resolve();
-						break;
-				}
+				change = e;
+				resolve();
 			});
 		});
 
-		model.applyEdits([{ range: new Range(7, 1, 8, 1), text: '' }]);
-		await timeout(0);
-		model.applyEdits([{ range: new Range(6, 1, 7, 1), text: '' }]);
-		await timeout(0);
-		model.applyEdits([{ range: new Range(5, 1, 6, 1), text: '' }]);
+		const edit1 = new Promise<void>(resolve => {
+			model.applyEdits([{ range: new Range(7, 1, 8, 1), text: '' }]);
+			resolve();
+		});
+		const edit2 = new Promise<void>(resolve => {
+			model.applyEdits([{ range: new Range(6, 1, 7, 1), text: '' }]);
+			resolve();
+		});
+		const edit3 = new Promise<void>(resolve => {
+			model.applyEdits([{ range: new Range(5, 1, 6, 1), text: '' }]);
+			resolve();
+		});
+		Promise.all([edit1, edit2, edit3]);
 		await updatePromise;
-		assert.ok(firstChange);
-		assert.ok(secondChange);
-		assert.ok(thirdChange);
-		assert.strictEqual(firstChange.versionId, 2);
-		assert.strictEqual(secondChange.versionId, 3);
-		assert.strictEqual(thirdChange.versionId, 4);
-		assert.strictEqual(firstChange.ranges[0].newRangeStartOffset, secondChange.ranges[0].newRangeStartOffset);
-		assert.strictEqual(firstChange.ranges[0].newRangeEndOffset, secondChange.ranges[0].newRangeEndOffset + 1);
-		assert.strictEqual(firstChange.ranges[0].newRange.startLineNumber, secondChange.ranges[0].newRange.startLineNumber);
-		assert.strictEqual(firstChange.ranges[0].newRange.endLineNumber, secondChange.ranges[0].newRange.endLineNumber + 1);
-		assert.strictEqual(firstChange.ranges[0].oldRangeLength, secondChange.ranges[0].oldRangeLength + 1);
+		assert.ok(change);
 
-		assert.strictEqual(secondChange.ranges[0].newRangeStartOffset, thirdChange.ranges[0].newRangeStartOffset);
-		assert.strictEqual(secondChange.ranges[0].newRangeEndOffset, thirdChange.ranges[0].newRangeEndOffset + 1);
-		assert.strictEqual(secondChange.ranges[0].newRange.startLineNumber, thirdChange.ranges[0].newRange.startLineNumber);
-		assert.strictEqual(secondChange.ranges[0].newRange.endLineNumber, thirdChange.ranges[0].newRange.endLineNumber + 1);
-		assert.strictEqual(secondChange.ranges[0].oldRangeLength, thirdChange.ranges[0].oldRangeLength + 1);
+		assert.strictEqual(change.versionId, 4);
+		assert.strictEqual(change.ranges[0].newRangeStartOffset, 7);
+		assert.strictEqual(change.ranges[0].newRangeEndOffset, 26);
+		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
+		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 6);
+		assert.strictEqual(change.ranges[0].oldRangeLength, 22);
 
 		updateListener?.dispose();
 		modelService.destroyModel(model.uri);

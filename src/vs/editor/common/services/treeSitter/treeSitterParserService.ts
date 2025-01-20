@@ -37,6 +37,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	private _onDidChangeParseResult: Emitter<TreeParseUpdateEvent> = this._register(new Emitter<TreeParseUpdateEvent>());
 	public readonly onDidChangeParseResult: Event<TreeParseUpdateEvent> = this._onDidChangeParseResult.event;
 	private _parseResult: TreeSitterParseResult | undefined;
+	private _versionId: number = 0;
 
 	get parseResult(): ITreeSitterParseResult | undefined { return this._parseResult; }
 
@@ -119,7 +120,8 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		const changedNodesPromise = Event.toPromise(treeSitterTree.onDidUpdate);
 		treeSitterTree.onDidChangeContent(this.model, change?.changes ?? []);
 		const changedNodes = await changedNodesPromise;
-		if (changedNodes?.ranges) {
+		if (changedNodes?.ranges && (changedNodes.versionId > this._versionId)) {
+			this._versionId = changedNodes.versionId;
 			this._onDidChangeParseResult.fire({ ranges: changedNodes.ranges, versionId: changedNodes.versionId ?? this.model.getVersionId() });
 		}
 	}
@@ -141,8 +143,9 @@ interface ChangedRange {
 }
 
 export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResult {
-	private _workingTree: Parser.Tree | undefined;
 	private _tree: Parser.Tree | undefined;
+	private _lastFullyParsed: Parser.Tree | undefined;
+	private _lastFullyParsedWithEdits: Parser.Tree | undefined;
 	private readonly _onDidUpdate: Emitter<TreeParseUpdateEvent> = new Emitter<TreeParseUpdateEvent>();
 	public readonly onDidUpdate: Event<TreeParseUpdateEvent> = this._onDidUpdate.event;
 	private _versionId: number = 0;
@@ -162,7 +165,6 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		this._isDisposed = true;
 		this._onDidUpdate.dispose();
 		this._tree?.delete();
-		this._workingTree?.delete();
 		this.parser?.delete();
 	}
 	get tree() { return this._tree; }
@@ -243,8 +245,8 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 					oldFindPrev.gotoParent();
 				}
 
-			} while (newFindPrev.currentNode.startIndex === startingNode.startIndex && (newFindPrev.currentNode.parent || newFindPrev.currentNode.previousSibling));
-			if (newFindPrev.currentNode.endIndex < startingNode.startIndex) {
+			} while (newFindPrev.currentNode.startIndex === startingNode.startIndex && (newFindPrev.currentNode.parent || newFindPrev.currentNode.previousSibling) && (newFindPrev.currentNode.id !== startingNode.id));
+			if ((newFindPrev.currentNode.id !== startingNode.id) && newFindPrev.currentNode.endIndex < startingNode.startIndex) {
 				return { old: oldFindPrev.currentNode, new: newFindPrev.currentNode };
 			} else {
 				return undefined;
@@ -324,8 +326,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		if (version === this._editVersion) {
 			return;
 		}
-		this._editVersion = version;
-		const oldTree = this._workingTree?.copy();
+
 		this._applyEdits(changes, version);
 
 		this._onDidChangeContentQueue.queue(async () => {
@@ -334,13 +335,12 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				return;
 			}
 
-			const newTree = this._workingTree?.copy();
 			let ranges: RangeChange[] | undefined;
-			if (newTree && oldTree) {
-				ranges = this.calculateRangeChange(this.findChangedNodes(newTree, oldTree, version));
+			if (this._lastFullyParsedWithEdits && this._lastFullyParsed) {
+				ranges = this.calculateRangeChange(this.findChangedNodes(this._lastFullyParsedWithEdits, this._lastFullyParsed, version));
 			}
 
-			const completed = await this._parseAndUpdateTree(model, newTree, version);
+			const completed = await this._parseAndUpdateTree(model, this._tree, version);
 			if (completed) {
 				if (!ranges) {
 					ranges = [{ newRange: model.getFullModelRange(), oldRangeLength: model.getValueLength(), newRangeStartOffset: 0, newRangeEndOffset: model.getValueLength() }];
@@ -352,7 +352,15 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 
 	private _applyEdits(changes: IModelContentChange[], version: number) {
 		for (const change of changes) {
-			this._workingTree?.edit({
+			this._tree?.edit({
+				startIndex: change.rangeOffset,
+				oldEndIndex: change.rangeOffset + change.rangeLength,
+				newEndIndex: change.rangeOffset + change.text.length,
+				startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
+				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
+				newEndPosition: { row: change.rangeEndPosition.lineNumber - 1, column: change.rangeEndPosition.column - 1 }
+			});
+			this._lastFullyParsedWithEdits?.edit({
 				startIndex: change.rangeOffset,
 				oldEndIndex: change.rangeOffset + change.rangeLength,
 				newEndIndex: change.rangeOffset + change.text.length,
@@ -361,13 +369,15 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				newEndPosition: { row: change.rangeEndPosition.lineNumber - 1, column: change.rangeEndPosition.column - 1 }
 			});
 		}
+		this._editVersion = version;
 	}
 
 	private async _parseAndUpdateTree(model: ITextModel, newTree: Parser.Tree | undefined, version: number): Promise<Parser.Tree | undefined> {
 		const tree = await this._parse(model, newTree, version);
 		if (tree) {
-			this._workingTree = tree;
 			this.tree = tree;
+			this._lastFullyParsed = tree.copy();
+			this._lastFullyParsedWithEdits = tree.copy();
 			this._versionId = version;
 		}
 		return tree;
