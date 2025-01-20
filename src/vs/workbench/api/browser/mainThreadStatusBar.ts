@@ -59,7 +59,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this._store.dispose();
 	}
 
-	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, hasToolTipProvider: boolean, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void {
+	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, hasTooltipProvider: boolean, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void {
 		const tooltipOrTooptipProvider = hasToolTipProvider
 			? {
 				markdown: (cancellation: CancellationToken) => {
