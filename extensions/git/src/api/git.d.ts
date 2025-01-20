@@ -200,6 +200,7 @@ export interface Repository {
 	readonly ui: RepositoryUIState;
 
 	readonly onDidCommit: Event<void>;
+	readonly onDidCheckout: Event<void>;
 
 	getConfigs(): Promise<{ key: string; value: string; }[]>;
 	getConfig(key: string): Promise<string>;
