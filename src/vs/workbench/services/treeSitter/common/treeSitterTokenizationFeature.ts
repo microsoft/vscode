@@ -133,25 +133,25 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				}
 
 				const captures = e.ranges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
-				// // Don't block
-				// new Promise<void>(resolve => {
-				const tokenUpdates = e.ranges.map((range, index) => {
-					const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset, captures[index]);
-					if (updates) {
-						return { oldRangeLength: undefined, newTokens: updates };
-					}
-					return { oldRangeLength: undefined, newTokens: [] };
+				// Don't block
+				new Promise<void>(resolve => {
+					const tokenUpdates = e.ranges.map((range, index) => {
+						const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset, captures[index]);
+						if (updates) {
+							return { oldRangeLength: undefined, newTokens: updates };
+						}
+						return { oldRangeLength: undefined, newTokens: [] };
+					});
+					this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, tokenUpdates);
+					this._onDidChangeTokens.fire({
+						textModel: e.textModel,
+						changes: {
+							semanticTokensApplied: false,
+							ranges
+						}
+					});
+					resolve();
 				});
-				this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, tokenUpdates);
-				this._onDidChangeTokens.fire({
-					textModel: e.textModel,
-					changes: {
-						semanticTokensApplied: false,
-						ranges
-					}
-				});
-				// 		resolve();
-				// 	});
 			}
 		}));
 	}
