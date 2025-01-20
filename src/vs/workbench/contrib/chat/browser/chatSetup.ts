@@ -745,9 +745,7 @@ class ChatSetupController extends Disposable {
 	readonly onDidChange = this._onDidChange.event;
 
 	private _step = ChatSetupStep.Initial;
-	get step(): ChatSetupStep {
-		return this._step;
-	}
+	get step(): ChatSetupStep { return this._step; }
 
 	constructor(
 		private readonly context: ChatSetupContext,
@@ -816,7 +814,7 @@ class ChatSetupController extends Disposable {
 				const result = await this.signIn();
 				if (!result.session) {
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signUpErrorCode: undefined });
-					return; // user cancelled
+					return;
 				}
 
 				session = result.session;
@@ -881,9 +879,9 @@ class ChatSetupController extends Disposable {
 	}
 
 	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement,): Promise<void> {
-		let installResult: 'installed' | 'cancelled' | 'failedInstall' | undefined = undefined;
 		const wasInstalled = this.context.state.installed;
-		let didSignUp: boolean | { errorCode: number } | undefined = undefined;
+		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
+
 		try {
 			showCopilotView(this.viewsService, this.layoutService);
 
@@ -901,34 +899,30 @@ class ChatSetupController extends Disposable {
 					}
 				}
 
-				didSignUp = await this.requests.signUpLimited(session);
+				signUpResult = await this.requests.signUpLimited(session);
 
-				if (typeof didSignUp !== 'boolean' /* error */) {
-					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', signUpErrorCode: didSignUp.errorCode });
+				if (typeof signUpResult !== 'boolean' /* error */) {
+					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', signUpErrorCode: signUpResult.errorCode });
 				}
 			}
 
 			await this.doInstall();
-
-			installResult = 'installed';
 		} catch (error) {
 			this.logService.error(`[chat setup] install: error ${error}`);
-
-			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
-		} finally {
-			if (wasInstalled && didSignUp) {
-				refreshTokens(this.commandService);
-			}
-
-			if (installResult === 'installed') {
-				await Promise.race([
-					timeout(5000), 												// helps prevent flicker with sign-in welcome view
-					Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
-				]);
-			}
+			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: isCancellationError(error) ? 'cancelled' : 'failedInstall', signUpErrorCode: undefined });
+			return;
 		}
 
-		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signUpErrorCode: undefined });
+		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', signUpErrorCode: undefined });
+
+		if (wasInstalled && signUpResult === true) {
+			refreshTokens(this.commandService);
+		}
+
+		await Promise.race([
+			timeout(5000), 												// helps prevent flicker with sign-in welcome view
+			Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
+		]);
 	}
 
 	private async doInstall(): Promise<void> {
@@ -943,16 +937,14 @@ class ChatSetupController extends Disposable {
 			}, isCopilotEditsViewActive(this.viewsService) ? EditsViewId : ChatViewId);
 		} catch (e) {
 			this.logService.error(`[chat setup] install: error ${error}`);
-			if (!isCancellationError(e)) {
-				error = e;
-			}
+			error = e;
 		}
 
 		if (error) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
 				message: localize('unknownSetupError', "An error occurred while setting up Copilot. Would you like to try again?"),
-				detail: error ? toErrorMessage(error) : undefined,
+				detail: error && !isCancellationError(error) ? toErrorMessage(error) : undefined,
 				primaryButton: localize('retry', "Retry")
 			});
 
