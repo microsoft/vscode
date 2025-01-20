@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { authentication, Command, l10n, LogOutputChannel } from 'vscode';
+import { authentication, Command, l10n, LogOutputChannel, workspace } from 'vscode';
 import { Commit, Repository as GitHubRepository, Maybe } from '@octokit/graphql-schema';
 import { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git';
 import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util';
@@ -78,7 +78,7 @@ function compareAvatarQuery(a: AvatarQueryCommit, b: AvatarQueryCommit): number 
 }
 
 export class GitHubSourceControlHistoryItemDetailsProvider implements SourceControlHistoryItemDetailsProvider {
-	private _enabled = true;
+	private _isUserAuthenticated = true;
 	private readonly _store = new Map<string, GitHubRepositoryStore>();
 	private readonly _disposables = new DisposableStore();
 
@@ -87,16 +87,27 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 
 		this._disposables.add(authentication.onDidChangeSessions(e => {
 			if (e.provider.id === 'github') {
-				this._enabled = true;
+				this._isUserAuthenticated = true;
 			}
+		}));
+
+		this._disposables.add(workspace.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration('github.showAvatar')) {
+				return;
+			}
+
+			this._store.clear();
 		}));
 	}
 
 	async provideAvatar(repository: Repository, query: AvatarQuery): Promise<Map<string, string | undefined> | undefined> {
 		this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Avatar resolution for ${query.commits.length} commit(s) in ${repository.rootUri.fsPath}.`);
 
-		if (!this._enabled) {
-			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Avatar resolution is disabled.`);
+		const config = workspace.getConfiguration('github', repository.rootUri);
+		const showAvatar = config.get<boolean>('showAvatar', true) === true;
+
+		if (!this._isUserAuthenticated || !showAvatar) {
+			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Avatar resolution is disabled. (${showAvatar === false ? 'setting' : 'auth'})`);
 			return undefined;
 		}
 
@@ -185,7 +196,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			// signed in with their GitHub account or they have signed out. Disable the
 			// avatar resolution until the user signes in with their GitHub account.
 			if (err instanceof AuthenticationError) {
-				this._enabled = false;
+				this._isUserAuthenticated = false;
 			}
 
 			return undefined;
