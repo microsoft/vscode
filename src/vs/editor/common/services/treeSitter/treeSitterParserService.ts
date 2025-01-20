@@ -116,10 +116,12 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		});
 	}
 
+	private readonly _contentChange: DisposableStore = this._register(new DisposableStore());
 	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, change: IModelContentChangedEvent | undefined) {
-		const changedNodesPromise = Event.toPromise(treeSitterTree.onDidUpdate);
+		const changedNodesPromise = Event.toPromise(treeSitterTree.onDidUpdate, this._contentChange);
 		treeSitterTree.onDidChangeContent(this.model, change?.changes ?? []);
 		const changedNodes = await changedNodesPromise;
+		this._contentChange.clear();
 		if (changedNodes?.ranges && (changedNodes.versionId > this._versionId)) {
 			this._versionId = changedNodes.versionId;
 			this._onDidChangeParseResult.fire({ ranges: changedNodes.ranges, versionId: changedNodes.versionId ?? this.model.getVersionId() });
