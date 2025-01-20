@@ -354,13 +354,13 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	$acceptStaticEntries(added: StatusBarItemDto[], removed: string[] = []): void {
+	$acceptStaticEntries(added: StatusBarItemDto[], removed?: string): void {
 		for (const item of added) {
 			this._existingItems.set(item.entryId, item);
 		}
 
-		for (const entryId of removed) {
-			this._entries.delete(entryId);
+		if (removed) {
+			this._entries.delete(removed);
 		}
 	}
 

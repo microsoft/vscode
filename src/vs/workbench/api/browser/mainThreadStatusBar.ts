@@ -37,9 +37,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 		this._store.add(statusbarService.onDidChange(e => {
 			const added = e.added ? [asDto(e.added[0], e.added[1])] : [];
-			const removed = e.removed ? [e.removed] : [];
-
-			this._proxy.$acceptStaticEntries(added, removed);
+			this._proxy.$acceptStaticEntries(added, e.removed);
 		}));
 
 		function asDto(entryId: string, item: { entry: IStatusbarEntry; alignment: StatusbarAlignment; priority: number }): StatusBarItemDto {
