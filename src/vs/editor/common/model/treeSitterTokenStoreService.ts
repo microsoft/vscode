@@ -14,7 +14,7 @@ export interface ITreeSitterTokenizationStoreService {
 	readonly _serviceBrand: undefined;
 	setTokens(model: ITextModel, tokens: TokenUpdate[]): void;
 	getTokens(model: ITextModel, line: number): Uint32Array | undefined;
-	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void;
+	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number | undefined; newTokens: TokenUpdate[] }[]): void;
 	markForRefresh(model: ITextModel, range: Range): void;
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
 }
@@ -29,14 +29,14 @@ export interface TokenInformation {
 class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStoreService, IDisposable {
 	readonly _serviceBrand: undefined;
 
-	private readonly tokens = new Map<ITextModel, { accurateStore: TokenStore; guessStore?: TokenStore; accurateVersion: number; guessVersion?: number; readonly disposables: DisposableStore }>();
+	private readonly tokens = new Map<ITextModel, { store: TokenStore; accurateVersion: number; guessVersion?: number; readonly disposables: DisposableStore }>();
 
 	constructor() { }
 
 	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
 		const disposables = new DisposableStore();
 		const store = disposables.add(new TokenStore(model));
-		this.tokens.set(model, { accurateStore: store, accurateVersion: model.getVersionId(), disposables });
+		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables });
 
 		store.buildStore(tokens);
 		disposables.add(model.onDidChangeContent(e => {
@@ -44,21 +44,19 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 			if (!storeInfo) {
 				return;
 			}
-			if (!storeInfo.guessStore) {
-				storeInfo.guessStore = disposables.add(storeInfo.accurateStore.deepCopy());
-			}
+
 			storeInfo.guessVersion = e.versionId;
 			for (const change of e.changes) {
-				storeInfo.accurateStore.markForRefresh(change.rangeOffset, change.rangeOffset + change.rangeLength);
+				storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + change.rangeLength);
 				if (change.text.length > change.rangeLength) {
-					const oldToken = storeInfo.accurateStore.getTokenAt(change.rangeOffset)!;
+					const oldToken = storeInfo.store.getTokenAt(change.rangeOffset)!;
 					// Insert. Just grow the token at this position to include the insert.
 					const newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
-					storeInfo.guessStore.update(oldToken.length, [newToken]);
+					storeInfo.store.update(oldToken.length, [newToken]);
 				} else if (change.text.length < change.rangeLength) {
 					// Delete. Delete the tokens at the corresponding range.
 					const deletedCharCount = change.rangeLength - change.text.length;
-					storeInfo.guessStore.delete(deletedCharCount, change.rangeOffset);
+					storeInfo.store.delete(deletedCharCount, change.rangeOffset);
 				}
 			}
 		}));
@@ -71,29 +69,20 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		}));
 	}
 
-	private getStore(model: ITextModel): TokenStore | undefined {
-		const store = this.tokens.get(model);
-		if (!store) {
-			return undefined;
-		}
-
-		return store.guessStore ?? store.accurateStore;
-	}
-
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean {
-		const tokens = accurateForRange ? this.tokens.get(model)?.accurateStore : this.getStore(model);
+		const tokens = this.tokens.get(model);
 		if (!tokens) {
 			return false;
 		}
-		if (!accurateForRange) {
+		if (!accurateForRange || (tokens.guessVersion === tokens.accurateVersion)) {
 			return true;
 		}
 
-		return !tokens.rangeNeedsRefresh(model.getOffsetAt(accurateForRange.getStartPosition()), model.getOffsetAt(accurateForRange.getEndPosition()));
+		return !tokens.store.rangeNeedsRefresh(model.getOffsetAt(accurateForRange.getStartPosition()), model.getOffsetAt(accurateForRange.getEndPosition()));
 	}
 
 	getTokens(model: ITextModel, line: number): Uint32Array | undefined {
-		const tokens = this.getStore(model);
+		const tokens = this.tokens.get(model)?.store;
 		if (!tokens) {
 			return undefined;
 		}
@@ -107,25 +96,21 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		return result;
 	}
 
-	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void {
+	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number | undefined; newTokens: TokenUpdate[] }[]): void {
 		const existingTokens = this.tokens.get(model);
 		if (!existingTokens) {
 			return;
 		}
 
 		existingTokens.accurateVersion = version;
-		if (existingTokens.guessStore && existingTokens.guessVersion === version) {
-			existingTokens.guessStore.dispose();
-			existingTokens.guessStore = undefined;
-			existingTokens.guessVersion = undefined;
-		}
 		for (const update of updates) {
-			existingTokens.accurateStore.update(update.oldRangeLength, update.newTokens);
+			const lastToken = update.newTokens[update.newTokens.length - 1];
+			existingTokens.store.update(update.oldRangeLength === undefined ? lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive : update.oldRangeLength, update.newTokens);
 		}
 	}
 
 	markForRefresh(model: ITextModel, range: Range): void {
-		const tree = this.tokens.get(model)?.accurateStore;
+		const tree = this.tokens.get(model)?.store;
 		if (!tree) {
 			return;
 		}
