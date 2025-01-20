@@ -15,7 +15,7 @@ import { isExecutable } from './helpers/executable';
 
 const isWindows = osIsWindows();
 let cachedAvailableCommandsPath: string | undefined;
-let cachedWindowsExecutableExtensions: Object | undefined;
+let cachedWindowsExecutableExtensions: { [key: string]: boolean | undefined } | undefined;
 const cachedWindowsExecutableExtensionsSettingId = 'terminal.integrated.suggest.windowsExecutableExtensions';
 let cachedAvailableCommands: Set<ICompletionResource> | undefined;
 const cachedBuiltinCommands: Map<string, ICompletionResource[] | undefined> = new Map();
@@ -114,10 +114,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	}, '/', '\\'));
 
 	if (isWindows) {
-		cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration(cachedWindowsExecutableExtensionsSettingId);
+		cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration('terminal.integrated.suggest').get('windowsExecutableExtensions');
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(cachedWindowsExecutableExtensionsSettingId)) {
-				cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration(cachedWindowsExecutableExtensionsSettingId);
+				cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration('terminal.integrated.suggest').get('windowsExecutableExtensions');
 				cachedAvailableCommands = undefined;
 				cachedAvailableCommandsPath = undefined;
 			}
@@ -233,7 +233,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			const files = await vscode.workspace.fs.readDirectory(fileResource);
 			for (const [file, fileType] of files) {
 				const formattedPath = getFriendlyFilePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
-				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath), cachedWindowsExecutableExtensions) {
+				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, cachedWindowsExecutableExtensions)) {
 					executables.add({ label: file, path: formattedPath });
 					labels.add(file);
 				}
