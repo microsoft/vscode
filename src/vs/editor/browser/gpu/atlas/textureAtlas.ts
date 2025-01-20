@@ -8,7 +8,7 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { FourKeyMap } from '../../../../base/common/map.js';
+import { NKeyMap } from '../../../../base/common/map.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
@@ -50,7 +50,7 @@ export class TextureAtlas extends Disposable {
 	 * so it is not guaranteed to be the actual page the glyph is on. But it is guaranteed that all
 	 * pages with a lower index do not contain the glyph.
 	 */
-	private readonly _glyphPageIndex: GlyphMap<number> = new FourKeyMap();
+	private readonly _glyphPageIndex: GlyphMap<number> = new NKeyMap();
 
 	private readonly _onDidDeleteGlyphs = this._register(new Emitter<void>());
 	readonly onDidDeleteGlyphs = this._onDidDeleteGlyphs.event;
@@ -126,7 +126,7 @@ export class TextureAtlas extends Disposable {
 	}
 
 	private _tryGetGlyph(pageIndex: number, rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, decorationStyleSetId: number): Readonly<ITextureAtlasPageGlyph> {
-		this._glyphPageIndex.set(chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey, pageIndex);
+		this._glyphPageIndex.set(pageIndex, chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey);
 		return (
 			this._pages[pageIndex].getGlyph(rasterizer, chars, tokenMetadata, decorationStyleSetId)
 			?? (pageIndex + 1 < this._pages.length
@@ -141,7 +141,7 @@ export class TextureAtlas extends Disposable {
 			throw new Error(`Attempt to create a texture atlas page past the limit ${TextureAtlas.maximumPageCount}`);
 		}
 		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, this._pages.length, this.pageSize, this._allocatorType));
-		this._glyphPageIndex.set(chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey, this._pages.length - 1);
+		this._glyphPageIndex.set(this._pages.length - 1, chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey);
 		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, tokenMetadata, decorationStyleSetId)!;
 	}
 

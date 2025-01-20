@@ -23,6 +23,7 @@ import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
 import { ViewGpuContext } from './viewGpuContext.js';
 import { Color } from '../../../base/common/color.js';
+import { createContentSegmenter, type IContentSegmenter } from './contentSegmenter.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -51,6 +52,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private readonly _glyphRasterizer: MandatoryMutableDisposable<GlyphRasterizer>;
+	get glyphRasterizer() { return this._glyphRasterizer.value; }
 
 	private _cellBindBuffer!: GPUBuffer;
 
@@ -244,11 +246,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		// dropped frames.
 
 		let chars = '';
+		let segment: string | undefined;
+		let charWidth = 0;
 		let y = 0;
 		let x = 0;
 		let absoluteOffsetX = 0;
 		let absoluteOffsetY = 0;
-		let xOffset = 0;
+		let tabXOffset = 0;
 		let glyph: Readonly<ITextureAtlasPageGlyph>;
 		let cellIndex = 0;
 
@@ -258,16 +262,17 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 		let decorationStyleSetBold: boolean | undefined;
 		let decorationStyleSetColor: number | undefined;
+		let decorationStyleSetOpacity: number | undefined;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
-		let content: string = '';
 		let fillStartIndex = 0;
 		let fillEndIndex = 0;
 
 		let tokens: IViewLineTokens;
 
 		const dpr = getActiveWindow().devicePixelRatio;
+		let contentSegmenter: IContentSegmenter;
 
 		if (!this._scrollInitialized) {
 			this.onScrollChanged();
@@ -279,7 +284,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const lineIndexCount = this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
 
 		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
-		let dirtyLineStart = Number.MAX_SAFE_INTEGER;
+		let dirtyLineStart = 3000;
 		let dirtyLineEnd = 0;
 
 		// Handle any queued buffer updates
@@ -340,8 +345,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
 			lineData = viewportData.getViewLineRenderingData(y);
-			content = lineData.content;
-			xOffset = 0;
+			tabXOffset = 0;
+
+			contentSegmenter = createContentSegmenter(lineData, viewLineOptions);
+			charWidth = viewLineOptions.spaceWidth * dpr;
+			absoluteOffsetX = 0;
 
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;
@@ -360,9 +368,19 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					if (x > this._viewGpuContext.maxGpuCols) {
 						break;
 					}
-					chars = content.charAt(x);
+					segment = contentSegmenter.getSegmentAtIndex(x);
+					if (segment === undefined) {
+						continue;
+					}
+					chars = segment;
+
+					if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
+						charWidth = this._glyphRasterizer.value.getTextMetrics(chars).width;
+					}
+
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
+					decorationStyleSetOpacity = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -402,6 +420,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 										}
 										break;
 									}
+									case 'opacity': {
+										const parsedValue = parseCssOpacity(value);
+										decorationStyleSetOpacity = parsedValue;
+										break;
+									}
 									default: throw new BugIndicatingError('Unexpected inline decoration style');
 								}
 							}
@@ -414,16 +437,21 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
 						// Adjust xOffset for tab stops
 						if (chars === '\t') {
-							xOffset = CursorColumns.nextRenderTabStop(x + xOffset, lineData.tabSize) - x - 1;
+							// Find the pixel offset between the current position and the next tab stop
+							const offsetBefore = x + tabXOffset;
+							tabXOffset = CursorColumns.nextRenderTabStop(x + tabXOffset, lineData.tabSize);
+							absoluteOffsetX += charWidth * (tabXOffset - offsetBefore);
+							// Convert back to offset excluding x and the current character
+							tabXOffset -= x + 1;
+						} else {
+							absoluteOffsetX += charWidth;
 						}
 						continue;
 					}
 
-					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold);
+					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
 					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
 
-					// TODO: Support non-standard character widths
-					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)
 						viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] * dpr +
@@ -438,10 +466,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					);
 
 					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = absoluteOffsetX;
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
 					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
+
+					// Adjust the x pixel offset for the next character
+					absoluteOffsetX += charWidth;
 				}
 
 				tokenStartIndex = tokenEndIndex;
@@ -458,6 +489,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
 
 		// Only write when there is changed data
+		dirtyLineStart = Math.min(dirtyLineStart, this._viewGpuContext.maxGpuLines);
+		dirtyLineEnd = Math.min(dirtyLineEnd, this._viewGpuContext.maxGpuLines);
 		if (dirtyLineStart <= dirtyLineEnd) {
 			// Write buffer and swap it out to unblock writes
 			this._device.queue.writeBuffer(
@@ -508,4 +541,14 @@ function parseCssFontWeight(value: string) {
 		case 'bold': return 700;
 	}
 	return parseInt(value);
+}
+
+function parseCssOpacity(value: string): number {
+	if (value.endsWith('%')) {
+		return parseFloat(value.substring(0, value.length - 1)) / 100;
+	}
+	if (value.match(/^\d+(?:\.\d*)/)) {
+		return parseFloat(value);
+	}
+	return 1;
 }

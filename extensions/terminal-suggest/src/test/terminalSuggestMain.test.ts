@@ -150,7 +150,7 @@ suite('Terminal Suggest', () => {
 					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const result = await getCompletionItemsFromSpecs(completionSpecs, { commandLine, cursorPosition }, availableCommands, prefix, testCwd);
+					const result = await getCompletionItemsFromSpecs(completionSpecs, { commandLine, cursorPosition }, availableCommands.map(c => { return { label: c }; }), prefix, testCwd);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested);
 					strictEqual(result.foldersRequested, foldersRequested);

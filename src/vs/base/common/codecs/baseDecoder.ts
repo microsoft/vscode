@@ -5,9 +5,10 @@
 
 import { assert } from '../assert.js';
 import { Emitter } from '../event.js';
+import { IDisposable } from '../lifecycle.js';
 import { ReadableStream } from '../stream.js';
 import { AsyncDecoder } from './asyncDecoder.js';
-import { Disposable, IDisposable } from '../lifecycle.js';
+import { TrackedDisposable } from '../trackedDisposable.js';
 
 /**
  * Event names of {@link ReadableStream} stream.
@@ -23,7 +24,7 @@ export type TStreamListenerNames = 'data' | 'error' | 'end';
 export abstract class BaseDecoder<
 	T extends NonNullable<unknown>,
 	K extends NonNullable<unknown> = NonNullable<unknown>,
-> extends Disposable implements ReadableStream<T> {
+> extends TrackedDisposable implements ReadableStream<T> {
 	/**
 	 * Flag that indicates if the decoder stream has ended.
 	 */
@@ -65,6 +66,11 @@ export abstract class BaseDecoder<
 		assert(
 			!this.ended,
 			'Cannot start stream that has already ended.',
+		);
+
+		assert(
+			!this.disposed,
+			'Cannot start stream that has already disposed.',
 		);
 
 		this.stream.on('data', this.tryOnStreamData);
@@ -313,6 +319,10 @@ export abstract class BaseDecoder<
 	}
 
 	public override dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+
 		this.onStreamEnd();
 
 		this.stream.destroy();

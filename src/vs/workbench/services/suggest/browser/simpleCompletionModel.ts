@@ -208,6 +208,10 @@ export class SimpleCompletionModel {
 				// Then by file extension length ascending
 				score = a.fileExtLow.length - b.fileExtLow.length;
 			}
+			if (score === 0 || fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0) {
+				// both files or directories, sort alphabetically
+				score = a.completion.label.localeCompare(b.completion.label);
+			}
 			return score;
 		});
 		this._refilterKind = Refilter.Nothing;
@@ -230,6 +234,8 @@ const fileExtScores = new Map<string, number>(isWindows ? [
 	['exe', 0.08],
 	['bat', 0.07],
 	['cmd', 0.07],
+	['msi', 0.06],
+	['com', 0.06],
 	// Non-Windows
 	['sh', -0.05],
 	['bash', -0.05],

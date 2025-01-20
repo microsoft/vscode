@@ -35,8 +35,8 @@ function shouldUseMsal(expService: IExperimentationService): boolean {
 	}
 
 	Logger.info('Acquired MSAL enablement value from default. Value: false');
-	// If no setting or experiment value is found, default to false
-	return false;
+	// If no setting or experiment value is found, default to true
+	return true;
 }
 let useMsal: boolean | undefined;
 

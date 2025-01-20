@@ -9,9 +9,9 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { PromptFileReference, TErrorCondition } from '../../common/promptFileReference.js';
+import { FilePromptParser } from '../../common/promptSyntax/parsers/filePromptParser.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference } from '../../common/promptFileReferenceErrors.js';
+import { FailedToResolveContentsStream, FileOpenFailed, NonPromptSnippetFile, ParseError, RecursiveReference } from '../../common/promptFileReferenceErrors.js';
 
 /**
  * Well-known localized error messages.
@@ -49,14 +49,13 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 * Private reference of the underlying prompt instructions
 	 * reference instance.
 	 */
-	private readonly _reference: PromptFileReference;
+	private readonly _reference: FilePromptParser;
 	/**
 	 * Get the prompt instructions reference instance.
 	 */
-	public get reference(): PromptFileReference {
+	public get reference(): FilePromptParser {
 		return this._reference;
 	}
-
 
 	/**
 	 * Get `URI` for the main reference and `URI`s of all valid
@@ -78,7 +77,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 		// otherwise return `URI` for the main reference and
 		// all valid child `URI` references it may contain
 		return [
-			...reference.validFileReferenceUris,
+			...reference.allValidReferencesUris,
 			reference.uri,
 		];
 	}
@@ -126,11 +125,9 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 * @returns Error message.
 	 */
 	private getErrorMessage(
-		error: TErrorCondition,
+		error: ParseError,
 		isRootError: boolean,
 	): string {
-		const { uri } = error;
-
 		// if a child error - the error is somewhere in the nested references tree,
 		// then use message prefix to highlight that this is not a root error
 		const prefix = (!isRootError)
@@ -138,8 +135,8 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 			: '';
 
 		// if failed to open a file, return approprivate message and the file path
-		if (error instanceof FileOpenFailed) {
-			return `${prefix}${errorMessages.fileOpenFailed} '${uri.path}'.`;
+		if (error instanceof FileOpenFailed || error instanceof FailedToResolveContentsStream) {
+			return `${prefix}${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
 		}
 
 		// if a recursion, provide the entire recursion path so users can use
@@ -160,15 +157,23 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	}
 
 	/**
-	 * Collect all failures that may have occurred during the process
-	 * of resolving references in the entire references tree.
+	 * Collect all failures that may have occurred during the process of resolving
+	 * references in the entire references tree, including the current root reference.
 	 *
 	 * @returns List of errors in the references tree.
 	 */
-	private collectErrorConditions(): TErrorCondition[] {
-		return this.reference
-			// get all references (including the root) as a flat array
-			.flatten()
+	private collectErrorConditions(): ParseError[] {
+		const result: ParseError[] = [];
+
+		// add error conditions of this object
+		if (this._reference.errorCondition) {
+			result.push(this._reference.errorCondition);
+		}
+
+		// collect error conditions of all child references
+		const childErrorConditions = this.reference
+			// get entire reference tree
+			.allReferences
 			// filter out children without error conditions or
 			// the ones that are non-prompt snippet files
 			.filter((childReference) => {
@@ -177,7 +182,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 				return errorCondition && !(errorCondition instanceof NonPromptSnippetFile);
 			})
 			// map to error condition objects
-			.map((childReference): TErrorCondition => {
+			.map((childReference): ParseError => {
 				const { errorCondition } = childReference;
 
 				// `must` always be `true` because of the `filter` call above
@@ -188,6 +193,9 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 
 				return errorCondition;
 			});
+		result.push(...childErrorConditions);
+
+		return result;
 	}
 
 	/**
@@ -242,7 +250,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 		super();
 
 		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-		this._reference = this._register(this.initService.createInstance(PromptFileReference, uri))
+		this._reference = this._register(this.initService.createInstance(FilePromptParser, uri, []))
 			.onUpdate(this._onUpdate.fire);
 	}
 
@@ -251,7 +259,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 * that it may contain.
 	 */
 	public resolve(): this {
-		this._reference.resolve();
+		this._reference.start();
 
 		return this;
 	}

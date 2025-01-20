@@ -2539,13 +2539,8 @@ export class CommandCenter {
 		return this._checkout(repository, { treeish });
 	}
 
-	@command('git.checkoutDetached', { repository: true })
-	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
-		return this._checkout(repository, { detached: true, treeish });
-	}
-
-	@command('git.checkoutRef', { repository: true })
-	async checkoutRef(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+	@command('git.graph.checkout', { repository: true })
+	async checkout2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
 		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
 		if (!historyItemRef) {
 			return;
@@ -2569,8 +2564,13 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.checkoutRefDetached', { repository: true })
-	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
+	@command('git.checkoutDetached', { repository: true })
+	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
+		return this._checkout(repository, { detached: true, treeish });
+	}
+
+	@command('git.graph.checkoutDetached', { repository: true })
+	async checkoutDetached2(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
 		if (!historyItem) {
 			return false;
 		}
@@ -2875,10 +2875,24 @@ export class CommandCenter {
 	}
 
 	@command('git.deleteBranch', { repository: true })
-	async deleteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
+	async deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
+		await this._deleteBranch(repository, name, force);
+	}
+
+	@command('git.graph.deleteBranch', { repository: true })
+	async deleteBranch2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return;
+		}
+
+		await this._deleteBranch(repository, historyItemRef.name);
+	}
+
+	private async _deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 		if (typeof name === 'string') {
-			run = force => repository.deleteBranch(name, force);
+			run = force => repository.deleteBranch(name!, force);
 		} else {
 			const getBranchPicks = async () => {
 				const refs = await repository.getRefs({ pattern: 'refs/heads' });
@@ -3014,10 +3028,19 @@ export class CommandCenter {
 		const placeHolder = l10n.t('Select a tag to delete');
 		const choice = await this.pickRef<TagDeleteItem | QuickPickItem>(tagPicks(), placeHolder);
 
-
 		if (choice instanceof TagDeleteItem) {
 			await choice.run(repository);
 		}
+	}
+
+	@command('git.graph.deleteTag', { repository: true })
+	async deleteTag2(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<void> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return;
+		}
+
+		await repository.deleteTag(historyItemRef.name);
 	}
 
 	@command('git.deleteRemoteTag', { repository: true })
@@ -3378,11 +3401,12 @@ export class CommandCenter {
 		await repository.cherryPick(hash);
 	}
 
-	@command('git.cherryPickRef', { repository: true })
-	async cherryPickRef(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+	@command('git.graph.cherryPick', { repository: true })
+	async cherryPick2(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
 		if (!historyItem) {
 			return;
 		}
+
 		await repository.cherryPick(historyItem.id);
 	}
 
