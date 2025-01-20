@@ -493,6 +493,6 @@ export class FilterController extends Disposable implements IEditorContribution 
 		if (!entry.source) {
 			return true;
 		}
-		return !filters.hasSource(`${activeChannelId}-${entry.source}`);
+		return !filters.hasSource(`${activeChannelId}:${entry.source}`);
 	}
 }
