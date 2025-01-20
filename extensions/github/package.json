@@ -195,6 +195,12 @@
             ],
             "default": "https",
             "description": "%config.gitProtocol%"
+          },
+          "github.showAvatar": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%config.showAvatar%"
           }
         }
       }
