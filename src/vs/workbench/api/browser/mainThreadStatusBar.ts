@@ -60,7 +60,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 	}
 
 	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, hasTooltipProvider: boolean, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void {
-		const tooltipOrTooptipProvider = hasToolTipProvider
+		const tooltipOrTooltipProvider = hasTooltipProvider
 			? {
 				markdown: (cancellation: CancellationToken) => {
 					return this._proxy.$provideTooltip(entryId, cancellation);
