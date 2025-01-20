@@ -104,17 +104,13 @@ class EditTool implements IToolImpl {
 		}
 
 		const parameters = invocation.parameters as EditToolParams;
-		if (!parameters.filePath || !parameters.explanation || !parameters.code) {
-			throw new Error(`Invalid tool input: ${JSON.stringify(parameters)}`);
-		}
-
 		const uri = URI.file(parameters.filePath);
 		if (!this.workspaceContextService.isInsideWorkspace(uri)) {
-			return { content: [{ kind: 'text', value: `Error: file ${parameters.filePath} can't be edited because it's not inside the current workspace` }] };
+			throw new Error(`File ${parameters.filePath} can't be edited because it's not inside the current workspace`);
 		}
 
 		if (await this.ignoredFilesService.fileIsIgnored(uri, token)) {
-			return { content: [{ kind: 'text', value: `Error: file ${parameters.filePath} can't be edited because it is configured to be ignored by Copilot` }] };
+			throw new Error(`File ${parameters.filePath} can't be edited because it is configured to be ignored by Copilot`);
 		}
 
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
