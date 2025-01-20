@@ -933,6 +933,16 @@
         "command": "git.copyCommitMessage",
         "title": "%command.timelineCopyCommitMessage%",
         "category": "Git"
+      },
+      {
+        "command": "git.blame.toggleEditorDecoration",
+        "title": "%command.blameToggleEditorDecoration%",
+        "category": "Git"
+      },
+      {
+        "command": "git.blame.toggleStatusBarItem",
+        "title": "%command.blameToggleStatusBarItem%",
+        "category": "Git"
       }
     ],
     "continueEditSession": [

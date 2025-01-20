@@ -4356,6 +4356,23 @@ export class CommandCenter {
 		env.clipboard.writeText(content);
 	}
 
+	@command('git.blame.toggleEditorDecoration')
+	toggleBlameEditorDecoration(): void {
+		this._toggleBlameSetting('blame.editorDecoration.enabled');
+	}
+
+	@command('git.blame.toggleStatusBarItem')
+	toggleBlameStatusBarItem(): void {
+		this._toggleBlameSetting('blame.statusBarItem.enabled');
+	}
+
+	private _toggleBlameSetting(setting: string): void {
+		const config = workspace.getConfiguration('git');
+		const enabled = config.get<boolean>(setting) === true;
+
+		config.update(setting, !enabled, true);
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
