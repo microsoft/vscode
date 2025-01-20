@@ -8,6 +8,6 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/234339
 
 	export interface StatusBarItem {
-		tooltip2?: (token: CancellationToken) => ProviderResult<string | MarkdownString>;
+		tooltip: string | MarkdownString | undefined | ((token: CancellationToken) => ProviderResult<string | MarkdownString>);
 	}
 }
