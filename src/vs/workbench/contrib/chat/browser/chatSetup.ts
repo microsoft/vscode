@@ -935,7 +935,7 @@ class ChatSetupController extends Disposable {
 		if (error) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
-				message: localize('unknownSetupError', "An error occurred while setting up Copilot Free. Would you like to try again?"),
+				message: localize('unknownSetupError', "An error occurred while setting up Copilot. Would you like to try again?"),
 				detail: toErrorMessage(error),
 				primaryButton: localize('retry', "Retry")
 			});
