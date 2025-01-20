@@ -14,6 +14,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarkdownString } from './extHostTypeConverters.js';
 import { isNumber } from '../../../base/common/types.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
@@ -43,6 +44,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	private _text: string = '';
 	private _tooltip?: string | vscode.MarkdownString;
+	private _tooltip2?: (token: vscode.CancellationToken) => Promise<string | vscode.MarkdownString | undefined>;
 	private _name?: string;
 	private _color?: string | ThemeColor;
 	private _backgroundColor?: ThemeColor;
@@ -113,6 +115,10 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		return this._id ?? this._extension!.identifier.value;
 	}
 
+	public get entryId(): string {
+		return this._entryId;
+	}
+
 	public get alignment(): vscode.StatusBarAlignment {
 		return this._alignment;
 	}
@@ -131,6 +137,10 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	public get tooltip(): vscode.MarkdownString | string | undefined {
 		return this._tooltip;
+	}
+
+	public get tooltip2(): ((token: vscode.CancellationToken) => Promise<string | vscode.MarkdownString | undefined>) | undefined {
+		return this._tooltip2;
 	}
 
 	public get color(): string | ThemeColor | undefined {
@@ -161,6 +171,11 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	public set tooltip(tooltip: vscode.MarkdownString | string | undefined) {
 		this._tooltip = tooltip;
+		this.update();
+	}
+
+	public set tooltip2(tooltip: any) {
+		this._tooltip2 = tooltip;
 		this.update();
 	}
 
@@ -259,9 +274,10 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 			}
 
 			const tooltip = MarkdownString.fromStrict(this._tooltip);
+			const hasToolTipProvider = typeof this._tooltip2 === 'function';
 
 			// Set to status bar
-			this.#proxy.$setEntry(this._entryId, id, this._extension?.identifier.value, name, this._text, tooltip, this._command?.internal, color,
+			this.#proxy.$setEntry(this._entryId, id, this._extension?.identifier.value, name, this._text, tooltip, hasToolTipProvider, this._command?.internal, color,
 				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left,
 				this._priority, this._accessibilityInformation);
 
@@ -320,6 +336,7 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 	private readonly _proxy: MainThreadStatusBarShape;
 	private readonly _commands: CommandsConverter;
 	private readonly _statusMessage: StatusBarMessage;
+	private readonly _entries = new Map<string, ExtHostStatusBarEntry>();
 	private readonly _existingItems = new Map<string, StatusBarItemDto>();
 
 	constructor(mainContext: IMainContext, commands: CommandsConverter) {
@@ -334,10 +351,22 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 		}
 	}
 
+	async $provideTooltip(entryId: string, cancellation: vscode.CancellationToken): Promise<string | IMarkdownString | undefined> {
+		const entry = this._entries.get(entryId);
+		if (!entry) {
+			return undefined;
+		}
+
+		return MarkdownString.fromStrict(await entry.tooltip2?.(cancellation));
+	}
+
 	createStatusBarEntry(extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
 	createStatusBarEntry(extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
 	createStatusBarEntry(extension: IExtensionDescription, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem {
-		return new ExtHostStatusBarEntry(this._proxy, this._commands, this._existingItems, extension, id, alignment, priority);
+		const entry = new ExtHostStatusBarEntry(this._proxy, this._commands, this._existingItems, extension, id, alignment, priority);
+		this._entries.set(entry.entryId, entry);
+
+		return entry;
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {
