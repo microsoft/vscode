@@ -856,12 +856,25 @@ class ChatSetupController extends Disposable {
 			showCopilotView(this.viewsService, this.layoutService);
 
 			session = await this.authenticationService.createSession(defaultChat.providerIds[0], defaultChat.providerScopes[0]);
-			entitlement = await this.requests.forceResolveEntitlement(session);
 
 			this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, defaultChat.providerIds[0], session.account);
 			this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, defaultChat.providerIds[0], session.account);
-		} catch (error) {
-			this.logService.error(`[chat setup] signIn: error ${error}`);
+
+			entitlement = await this.requests.forceResolveEntitlement(session);
+		} catch (e) {
+			this.logService.error(`[chat setup] signIn: error ${e}`);
+		}
+
+		if (!session) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Error,
+				message: localize('unknownSignInError', "Signing in to Copilot was unsuccessful. Would you like to try again?"),
+				primaryButton: localize('retry', "Retry")
+			});
+
+			if (confirmed) {
+				return this.signIn();
+			}
 		}
 
 		return { session, entitlement };
@@ -930,14 +943,16 @@ class ChatSetupController extends Disposable {
 			}, isCopilotEditsViewActive(this.viewsService) ? EditsViewId : ChatViewId);
 		} catch (e) {
 			this.logService.error(`[chat setup] install: error ${error}`);
-			error = e;
+			if (!isCancellationError(e)) {
+				error = e;
+			}
 		}
 
 		if (error) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
 				message: localize('unknownSetupError', "An error occurred while setting up Copilot. Would you like to try again?"),
-				detail: toErrorMessage(error),
+				detail: error ? toErrorMessage(error) : undefined,
 				primaryButton: localize('retry', "Retry")
 			});
 
