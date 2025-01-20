@@ -1923,10 +1923,6 @@ class SyncControls extends Disposable {
 		DOM.hide(this.turnOnSyncButton.element);
 
 		this._register(this.turnOnSyncButton.onDidClick(async () => {
-			telemetryService.publicLog2<{}, {
-				owner: 'sandy081';
-				comment: 'This event tracks whenever settings sync is turned on from settings editor.';
-			}>('sync/turnOnSyncFromSettings');
 			await this.commandService.executeCommand('workbench.userDataSync.actions.turnOn');
 		}));
 
