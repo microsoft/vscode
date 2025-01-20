@@ -17,10 +17,10 @@ set -e
 # Provides a way to skip the server requirements check from
 # outside the install flow. A system process can create this
 # file before the server is downloaded and installed.
-if [ -f "/tmp/vscode-skip-server-requirements-check" ]; then
-	echo "!!! WARNING: Skipping server pre-requisite check !!!"
-	echo "!!! Server stability is not guaranteed. Proceed at your own risk. !!!"
-	exit 0
+if [ -f "/tmp/vscode-skip-server-requirements-check" ] || [ -n "$VSCODE_SERVER_CUSTOM_GLIBC_LINKER" ]; then
+    echo "!!! WARNING: Skipping server pre-requisite check !!!"
+    echo "!!! Server stability is not guaranteed. Proceed at your own risk. !!!"
+    exit 0
 fi
 
 ARCH=$(uname -m)
