@@ -393,15 +393,17 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		return this._parseAndYield(model, parseType, newTree, version);
 	}
 
-	private async _parseAndYield(model: ITextModel, parseType: TelemetryParseType, newTree: Parser.Tree | undefined, version: number): Promise<Parser.Tree | undefined> {
+	private async _parseAndYield(model: ITextModel, parseType: TelemetryParseType, tree: Parser.Tree | undefined, version: number): Promise<Parser.Tree | undefined> {
 		const language = model.getLanguageId();
 		let time: number = 0;
 		let passes: number = 0;
 		const inProgressVersion = this._editVersion;
+		let newTree: Parser.Tree | undefined;
+
 		do {
 			const timer = performance.now();
 			try {
-				newTree = this.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index), newTree);
+				newTree = this.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index), tree);
 			} catch (e) {
 				// parsing can fail when the timeout is reached, will resume upon next loop
 			} finally {
@@ -414,7 +416,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 
 		} while (!model.isDisposed() && !this.isDisposed && !newTree && inProgressVersion === model.getVersionId());
 		this.sendParseTimeTelemetry(parseType, language, time, passes);
-		return newTree && inProgressVersion === model.getVersionId() ? newTree : undefined;
+		return (newTree && (inProgressVersion === model.getVersionId())) ? newTree : undefined;
 	}
 
 	private _parseCallback(textModel: ITextModel, index: number): string | null {

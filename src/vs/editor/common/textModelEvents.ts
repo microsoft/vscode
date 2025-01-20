@@ -35,7 +35,7 @@ export interface IModelLanguageConfigurationChangedEvent {
 
 export interface IModelContentChange {
 	/**
-	 * The range that got replaced.
+	 * The old range that got replaced.
 	 */
 	readonly range: IRange;
 	/**
@@ -47,7 +47,7 @@ export interface IModelContentChange {
 	 */
 	readonly rangeLength: number;
 	/**
-	 * The end position of the range that got replaced.
+	 * The new end position of the range that got replaced.
 	 */
 	readonly rangeEndPosition: Position;
 	/**
