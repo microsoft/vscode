@@ -9,7 +9,7 @@ import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
 
 export interface IViewLines {
-	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean, print?: boolean): LineVisibleRanges[] | null;
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }
 
@@ -83,12 +83,12 @@ export class RenderingContext extends RestrictedRenderingContext {
 		this._viewLinesGpu = viewLinesGpu;
 	}
 
-	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		const domRanges = this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
+	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean, print?: boolean): LineVisibleRanges[] | null {
+		const domRanges = this._viewLines.linesVisibleRangesForRange(range, includeNewLines, print);
 		if (!this._viewLinesGpu) {
 			return domRanges ?? null;
 		}
-		const gpuRanges = this._viewLinesGpu.linesVisibleRangesForRange(range, includeNewLines);
+		const gpuRanges = this._viewLinesGpu.linesVisibleRangesForRange(range, includeNewLines, print);
 		if (!domRanges) {
 			return gpuRanges;
 		}

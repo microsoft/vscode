@@ -281,6 +281,30 @@ export interface IModelDecorationOptions {
 	 * @internal
 	*/
 	hideInStringTokens?: boolean | null;
+
+	/**
+	 * Font family
+	 * @internal
+	 */
+	fontFamily?: string | null;
+
+	/**
+	 * Font size
+	 * @internal
+	 */
+	fontSize?: string | null;
+
+	/**
+	 * Font weight
+	 * @internal
+	 */
+	fontWeight?: string | null;
+
+	/**
+	 * Font style
+	 * @internal
+	 */
+	fontStyle?: string | null;
 }
 
 /**
@@ -682,6 +706,11 @@ export interface ITextModel {
 	 * @internal
 	 */
 	mightContainRTL(): boolean;
+
+	/**
+	 * If true, the corresponding line is affected by special font info
+	 */
+	affectedBySpecialFontInfo(lineNumber: number): boolean;
 
 	/**
 	 * If true, the text model might contain LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).

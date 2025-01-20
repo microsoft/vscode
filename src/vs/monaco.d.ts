@@ -2002,6 +2002,10 @@ declare namespace monaco.editor {
 		 */
 		readonly id: string;
 		/**
+		 * If true, the corresponding line is affected by special font info
+		 */
+		affectedBySpecialFontInfo(lineNumber: number): boolean;
+		/**
 		 * Get the resolved options for this model.
 		 */
 		getOptions(): TextModelResolvedOptions;

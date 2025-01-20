@@ -703,6 +703,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._versionId;
 	}
 
+	public affectedBySpecialFontInfo(lineNumber: number): boolean {
+		return this._decorationsTree.hasSpecialFontInfo(this, this.getOffsetAt(new Position(lineNumber, 1)), this.getOffsetAt(new Position(lineNumber, this.getLineMaxColumn(lineNumber))), 0);
+	}
+
 	public mightContainRTL(): boolean {
 		return this._buffer.mightContainRTL();
 	}
@@ -2148,6 +2152,13 @@ class DecorationsTrees {
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
+	public hasSpecialFontInfo(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): boolean {
+		console.log('hasSpecialFontInfo start : ', start, ' end : ', end);
+		const versionId = host.getVersionId();
+		const result = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, versionId, false);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => !!i.options.fontFamily || !!i.options.fontSize).length > 0;
+	}
+
 	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number | null {
 		const versionId = host.getVersionId();
 		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
@@ -2421,6 +2432,10 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly before: ModelDecorationInjectedTextOptions | null;
 	readonly hideInCommentTokens: boolean | null;
 	readonly hideInStringTokens: boolean | null;
+	readonly fontFamily: string | null;
+	readonly fontSize?: string | null;
+	readonly fontWeight?: string | null;
+	readonly fontStyle?: string | null;
 
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
@@ -2456,6 +2471,10 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 		this.hideInStringTokens = options.hideInStringTokens ?? false;
+		this.fontFamily = options.fontFamily ?? null;
+		this.fontSize = options.fontSize ?? null;
+		this.fontStyle = options.fontStyle ?? null;
+		this.fontWeight = options.fontWeight ?? null;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });

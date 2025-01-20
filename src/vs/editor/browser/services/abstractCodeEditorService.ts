@@ -459,6 +459,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
 	public lineHeight?: number;
+	public fontFamily?: string;
+	public fontSize?: string;
+	public fontWeight?: string;
+	public fontStyle?: string;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
@@ -521,6 +525,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		this.isWholeLine = Boolean(options.isWholeLine);
 		this.lineHeight = options.lineHeight;
 		this.stickiness = options.rangeBehavior;
+		this.fontFamily = options.fontFamily;
+		this.fontSize = options.fontSize;
+		this.fontWeight = options.fontWeight;
+		this.fontStyle = options.fontStyle;
 
 		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
 		const darkOverviewRulerColor = options.dark && options.dark.overviewRulerColor || options.overviewRulerColor;
@@ -553,7 +561,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
 			before: this.beforeInjectedText,
-			after: this.afterInjectedText
+			after: this.afterInjectedText,
+			fontFamily: this.fontFamily,
+			fontSize: this.fontSize,
+			fontWeight: this.fontWeight
 		};
 	}
 
