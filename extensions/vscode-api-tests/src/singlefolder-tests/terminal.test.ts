@@ -771,9 +771,14 @@ import { assertNoRpc, poll } from '../utils';
 				terminal.sendText('echo $C');
 
 				// Poll for the echo results to show up
-				await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('b1~b2~'), 'b1~b2~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~c2~c1'), '~c2~c1 should be printed');
+				try {
+					await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('b1~b2~'), 'b1~b2~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~c2~c1'), '~c2~c1 should be printed');
+				} catch (err) {
+					console.error('DATA UP UNTIL NOW:', data);
+					throw err;
+				}
 
 				// Wait for terminal to be disposed
 				await new Promise<void>(r => {
