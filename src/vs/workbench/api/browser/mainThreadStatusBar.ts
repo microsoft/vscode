@@ -69,7 +69,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 			} satisfies IManagedHoverTooltipMarkdownString
 			: tooltip;
 
-		const kind = this.statusbarService.setOrUpdateEntry(entryId, id, extensionId, name, text, tooltipOrTooptipProvider, command, color, backgroundColor, alignLeft, priority, accessibilityInformation);
+		const kind = this.statusbarService.setOrUpdateEntry(entryId, id, extensionId, name, text, tooltipOrTooltipProvider, command, color, backgroundColor, alignLeft, priority, accessibilityInformation);
 		if (kind === StatusBarUpdateKind.DidDefine) {
 			this._store.add(toDisposable(() => this.statusbarService.unsetEntry(entryId)));
 		}

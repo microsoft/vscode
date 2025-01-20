@@ -277,7 +277,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 			const hasTooltipProvider = typeof this._tooltip2 === 'function';
 
 			// Set to status bar
-			this.#proxy.$setEntry(this._entryId, id, this._extension?.identifier.value, name, this._text, tooltip, hasToolTipProvider, this._command?.internal, color,
+			this.#proxy.$setEntry(this._entryId, id, this._extension?.identifier.value, name, this._text, tooltip, hasTooltipProvider, this._command?.internal, color,
 				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left,
 				this._priority, this._accessibilityInformation);
 
