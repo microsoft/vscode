@@ -23,6 +23,7 @@ import { CancellationError, isCancellationError } from '../../../../base/common/
 import { PromiseResult } from '../../../../base/common/observable.js';
 import { Range } from '../../core/range.js';
 import { Position } from '../../core/position.js';
+import { LimitedQueue } from '../../../../base/common/async.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -115,9 +116,12 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	}
 
 	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, change: IModelContentChangedEvent | undefined) {
-		const changedNodes = await treeSitterTree.onDidChangeContent(this.model, change?.changes ?? []);
-		const ranges: RangeChange[] = changedNodes?.ranges ?? [{ newRange: this.model.getFullModelRange(), oldRangeLength: this.model.getValueLength(), newRangeStartOffset: 0, newRangeEndOffset: this.model.getValueLength() }];
-		this._onDidChangeParseResult.fire({ ranges, versionId: changedNodes?.versionId ?? this.model.getVersionId() });
+		const changedNodesPromise = Event.toPromise(treeSitterTree.onDidUpdate);
+		treeSitterTree.onDidChangeContent(this.model, change?.changes ?? []);
+		const changedNodes = await changedNodesPromise;
+		if (changedNodes?.ranges) {
+			this._onDidChangeParseResult.fire({ ranges: changedNodes.ranges, versionId: changedNodes.versionId ?? this.model.getVersionId() });
+		}
 	}
 }
 
@@ -139,7 +143,13 @@ interface ChangedRange {
 export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResult {
 	private _workingTree: Parser.Tree | undefined;
 	private _tree: Parser.Tree | undefined;
+	private readonly _onDidUpdate: Emitter<TreeParseUpdateEvent> = new Emitter<TreeParseUpdateEvent>();
+	public readonly onDidUpdate: Event<TreeParseUpdateEvent> = this._onDidUpdate.event;
 	private _versionId: number = 0;
+	private _editVersion: number = 0;
+	get versionId() {
+		return this._versionId;
+	}
 	private _isDisposed: boolean = false;
 	constructor(public readonly parser: Parser,
 		public /** exposed for tests **/ readonly language: Parser.Language,
@@ -150,6 +160,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	}
 	dispose(): void {
 		this._isDisposed = true;
+		this._onDidUpdate.dispose();
 		this._tree?.delete();
 		this._workingTree?.delete();
 		this.parser?.delete();
@@ -307,35 +318,39 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		return ranges;
 	}
 
-	private _onDidChangeContentQueue: Promise<void> = Promise.resolve();
-	public async onDidChangeContent(model: ITextModel, changes: IModelContentChange[]): Promise<TreeParseUpdateEvent | undefined> {
-		return new Promise(resolve => {
-			this._onDidChangeContentQueue = this._onDidChangeContentQueue.then(async () => {
-				if (this.isDisposed) {
-					// No need to continue the queue if we are disposed
-					return;
-				}
+	private _onDidChangeContentQueue: LimitedQueue = new LimitedQueue();
+	public async onDidChangeContent(model: ITextModel, changes: IModelContentChange[]): Promise<void> {
+		const version = model.getVersionId();
+		if (version === this._editVersion) {
+			return;
+		}
+		this._editVersion = version;
+		const oldTree = this._workingTree?.copy();
+		this._applyEdits(changes, version);
 
-				const version = model.getVersionId();
-				const oldTree = this._workingTree?.copy();
-				this._applyEdits(model, changes, version);
-				const newTree = this._workingTree?.copy();
-				let changedNodes: RangeChange[] | undefined = undefined;
-				if (newTree && oldTree) {
-					// The nodes from the old tree that have changed
-					changedNodes = this.calculateRangeChange(this.findChangedNodes(newTree, oldTree, version));
-				}
+		this._onDidChangeContentQueue.queue(async () => {
+			if (this.isDisposed) {
+				// No need to continue the queue if we are disposed
+				return;
+			}
 
-				await this._parseAndUpdateTree(model, newTree, version);
-				resolve({ ranges: changedNodes, versionId: this._versionId });
-			}).catch((e) => {
-				this._logService.error('Error parsing tree-sitter tree', e);
-			});
+			const newTree = this._workingTree?.copy();
+			let ranges: RangeChange[] | undefined;
+			if (newTree && oldTree) {
+				ranges = this.calculateRangeChange(this.findChangedNodes(newTree, oldTree, version));
+			}
+
+			const completed = await this._parseAndUpdateTree(model, newTree, version);
+			if (completed) {
+				if (!ranges) {
+					ranges = [{ newRange: model.getFullModelRange(), oldRangeLength: model.getValueLength(), newRangeStartOffset: 0, newRangeEndOffset: model.getValueLength() }];
+				}
+				this._onDidUpdate.fire({ ranges, versionId: this._versionId });
+			}
 		});
 	}
 
-	private _newEdits: number = 1;
-	private _applyEdits(model: ITextModel, changes: IModelContentChange[], version: number) {
+	private _applyEdits(changes: IModelContentChange[], version: number) {
 		for (const change of changes) {
 			this._workingTree?.edit({
 				startIndex: change.rangeOffset,
@@ -345,7 +360,6 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
 				newEndPosition: { row: change.rangeEndPosition.lineNumber - 1, column: change.rangeEndPosition.column - 1 }
 			});
-			this._newEdits++;
 		}
 	}
 
@@ -371,7 +385,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		const language = model.getLanguageId();
 		let time: number = 0;
 		let passes: number = 0;
-		this._newEdits--;
+		const inProgressVersion = this._editVersion;
 		do {
 			const timer = performance.now();
 			try {
@@ -386,12 +400,9 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			// Even if the model changes and edits are applied, the tree parsing will continue correctly after the await.
 			await new Promise<void>(resolve => setTimeout0(resolve));
 
-			if (model.isDisposed() || this.isDisposed) {
-				return;
-			}
-		} while (!newTree);
+		} while (!model.isDisposed() && !this.isDisposed && !newTree && inProgressVersion === model.getVersionId());
 		this.sendParseTimeTelemetry(parseType, language, time, passes);
-		return newTree;
+		return newTree && inProgressVersion === model.getVersionId() ? newTree : undefined;
 	}
 
 	private _parseCallback(textModel: ITextModel, index: number): string | null {

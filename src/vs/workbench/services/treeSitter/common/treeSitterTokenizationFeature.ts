@@ -131,8 +131,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				for (const range of e.ranges) {
 					this._tokenizationStoreService.markForRefresh(e.textModel, range.newRange);
 				}
+				if (e.versionId !== e.textModel.getVersionId()) {
+					return;
+				}
 				const captures = e.ranges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
-
 				// // Don't block
 				// new Promise<void>(resolve => {
 				const tokenUpdates = e.ranges.map((range, index) => {

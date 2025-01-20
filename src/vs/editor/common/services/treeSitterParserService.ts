@@ -47,6 +47,7 @@ export interface ITreeSitterParserService {
 export interface ITreeSitterParseResult {
 	readonly tree: Parser.Tree | undefined;
 	readonly language: Parser.Language;
+	versionId: number;
 }
 
 export interface ITextModelTreeSitter {
