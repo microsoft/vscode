@@ -74,7 +74,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 				// Extract keys and values
 				const keysArr = Object.keys(envValue);
 				const valuesArr = Object.values(envValue);
-				this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr, e.data.isTrusted);
+				this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr as string[], e.data.isTrusted);
 			}
 		}));
 

@@ -89,7 +89,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
+			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env?.value);
 			const builtinCommands = getBuiltinCommands(shellPath);
 			if (!commandsInPath || !builtinCommands) {
 				return;
