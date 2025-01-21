@@ -257,8 +257,8 @@ suite('TerminalCompletionService', () => {
 
 				assertCompletions(result, [
 					{ label: '.\\', detail: 'C:\\test\\' },
-					{ label: '.\\FolderA\\' },
-					{ label: '.\\anotherFolder\\' },
+					{ label: '.\\FolderA\\', detail: 'C:\\test\\FolderA\\' },
+					{ label: '.\\anotherFolder\\', detail: 'C:\\test\\anotherFolder\\' },
 					{ label: '.\\..\\', detail: 'C:\\' },
 				], { replacementIndex: 0, replacementLength: 8 });
 			});
