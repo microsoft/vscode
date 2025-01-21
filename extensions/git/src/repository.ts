@@ -26,6 +26,7 @@ import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { detectEncoding } from './encoding';
+import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -855,6 +856,7 @@ export class Repository implements Disposable {
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
+		historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
@@ -893,7 +895,7 @@ export class Repository implements Disposable {
 
 		this._sourceControl.quickDiffProvider = this;
 
-		this._historyProvider = new GitHistoryProvider(this, logger);
+		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;
 		this.disposables.push(this._historyProvider);
 
@@ -1164,7 +1166,10 @@ export class Repository implements Disposable {
 	}
 
 	diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
-		return this.run(Operation.Diff, () => this.repository.diffTrees(treeish1, treeish2));
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.root));
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
+
+		return this.run(Operation.Diff, () => this.repository.diffTrees(treeish1, treeish2, { similarityThreshold }));
 	}
 
 	getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
@@ -1518,7 +1523,7 @@ export class Repository implements Disposable {
 	async getBranches(query: BranchQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return await this.run(Operation.GetBranches, async () => {
 			const refs = await this.getRefs(query, cancellationToken);
-			return refs.filter(value => (value.type === RefType.Head || value.type === RefType.RemoteHead) && (query.remote || !value.remote));
+			return refs.filter(value => value.type === RefType.Head || (value.type === RefType.RemoteHead && query.remote));
 		});
 	}
 

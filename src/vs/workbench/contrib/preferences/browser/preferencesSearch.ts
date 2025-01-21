@@ -99,8 +99,8 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			const { matches, matchType } = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting), this.configurationService);
-			const score = this._filter === setting.key ?
+			const { matches, matchType, keyMatchSize } = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting), this.configurationService);
+			const score = strings.equalsIgnoreCase(this._filter, setting.key) ?
 				LocalSearchProvider.EXACT_MATCH_SCORE :
 				orderedScore--;
 
@@ -108,6 +108,7 @@ export class LocalSearchProvider implements ISearchProvider {
 				{
 					matches,
 					matchType,
+					keyMatchSize,
 					score
 				} :
 				null;
@@ -138,6 +139,8 @@ export class LocalSearchProvider implements ISearchProvider {
 export class SettingMatches {
 	readonly matches: IRange[];
 	matchType: SettingMatchType = SettingMatchType.None;
+	/** A more precise match score for key matches. */
+	keyMatchSize: number = 0;
 
 	constructor(
 		searchString: string,
@@ -170,29 +173,27 @@ export class SettingMatches {
 		const keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 		const valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 
-		const words = new Set<string>(searchString.split(' '));
+		const queryWords = new Set<string>(searchString.split(' '));
 
 		// Key search
 		const settingKeyAsWords: string = this._keyToLabel(setting.key);
-		for (const word of words) {
+		for (const word of queryWords) {
 			// Check if the key contains the word.
-			const keyMatches = matchesWords(word, settingKeyAsWords, true);
+			const keyMatches = matchesWords(word, settingKeyAsWords, false);
 			if (keyMatches?.length) {
 				keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 			}
 		}
-		// For now, only allow a match if all words match in the key.
-		if (keyMatchingWords.size === words.size) {
+		if (keyMatchingWords.size) {
 			this.matchType |= SettingMatchType.KeyMatch;
-		} else {
-			keyMatchingWords.clear();
+			this.keyMatchSize = keyMatchingWords.size;
 		}
 
 		// Also check if the user tried searching by id.
 		const keyIdMatches = matchesContiguousSubString(searchString, setting.key);
 		if (keyIdMatches?.length) {
 			keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
-			this.matchType |= SettingMatchType.KeyMatch;
+			this.matchType |= SettingMatchType.KeyIdMatch;
 		}
 
 		// Check if the match was for a language tag group setting such as [markdown].
@@ -204,9 +205,9 @@ export class SettingMatches {
 			return [...keyRanges];
 		}
 
-		// Description search
-		if (this.searchDescription) {
-			for (const word of words) {
+		// Search the description if there were no key matches.
+		if (this.searchDescription && this.matchType !== SettingMatchType.None) {
+			for (const word of queryWords) {
 				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
 					const descriptionMatches = matchesContiguousSubString(word, setting.description[lineIndex]);
@@ -215,7 +216,7 @@ export class SettingMatches {
 					}
 				}
 			}
-			if (descriptionMatchingWords.size === words.size) {
+			if (descriptionMatchingWords.size === queryWords.size) {
 				this.matchType |= SettingMatchType.DescriptionOrValueMatch;
 			} else {
 				// Clear out the match for now. We want to require all words to match in the description.
@@ -232,13 +233,13 @@ export class SettingMatches {
 					continue;
 				}
 				valueMatchingWords.clear();
-				for (const word of words) {
+				for (const word of queryWords) {
 					const valueMatches = matchesContiguousSubString(word, option);
 					if (valueMatches?.length) {
 						valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
 					}
 				}
-				if (valueMatchingWords.size === words.size) {
+				if (valueMatchingWords.size === queryWords.size) {
 					this.matchType |= SettingMatchType.DescriptionOrValueMatch;
 					break;
 				} else {
@@ -250,13 +251,13 @@ export class SettingMatches {
 			// Search single string value.
 			const settingValue = this.configurationService.getValue(setting.key);
 			if (typeof settingValue === 'string') {
-				for (const word of words) {
+				for (const word of queryWords) {
 					const valueMatches = matchesContiguousSubString(word, settingValue);
 					if (valueMatches?.length) {
 						valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
 					}
 				}
-				if (valueMatchingWords.size === words.size) {
+				if (valueMatchingWords.size === queryWords.size) {
 					this.matchType |= SettingMatchType.DescriptionOrValueMatch;
 				} else {
 					// Clear out the match for now. We want to require all words to match in the value.
@@ -406,6 +407,7 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 				setting: settingsRecord[pick],
 				matches: [settingsRecord[pick].range],
 				matchType: SettingMatchType.RemoteMatch,
+				keyMatchSize: 0,
 				score: info.weight
 			});
 		}
@@ -501,6 +503,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 				setting: this._settingsRecord[pick],
 				matches: [this._settingsRecord[pick].range],
 				matchType: SettingMatchType.RemoteMatch,
+				keyMatchSize: 0,
 				score: info.score
 			});
 		}

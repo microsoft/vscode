@@ -11,7 +11,7 @@ import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diff
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { InlineChatController, InlineChatRunOptions } from './inlineChatController.js';
-import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES, CTX_INLINE_CHAT_POSSIBLE, ACTION_START } from '../common/inlineChat.js';
+import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES, CTX_INLINE_CHAT_POSSIBLE, ACTION_START } from '../common/inlineChat.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -264,7 +264,7 @@ export class AcceptChanges extends AbstractInlineChatAction {
 			shortTitle: localize('apply2', 'Accept'),
 			icon: Codicon.check,
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, ContextKeyExpr.or(CTX_INLINE_CHAT_DOCUMENT_CHANGED.toNegated(), CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview))),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE),
 			keybinding: [{
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -300,16 +300,6 @@ export class DiscardHunkAction extends AbstractInlineChatAction {
 			icon: Codicon.chromeClose,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: [{
-				id: MENU_INLINE_CHAT_WIDGET_STATUS,
-				group: '0_main',
-				order: 2,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.inputHasText.toNegated(),
-					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
-					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits),
-					CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)
-				),
-			}, {
 				id: MENU_INLINE_CHAT_ZONE,
 				group: 'navigation',
 				order: 2
@@ -392,10 +382,7 @@ export class CloseAction extends AbstractInlineChatAction {
 				order: 1,
 				when: ContextKeyExpr.and(
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
-					ContextKeyExpr.or(
-						CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.Messages),
-						CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Preview)
-					)
+					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.Messages)
 				),
 			}]
 		});
@@ -506,7 +493,7 @@ export class ToggleDiffForChange extends AbstractInlineChatAction {
 	constructor() {
 		super({
 			id: ACTION_TOGGLE_DIFF,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live), CTX_INLINE_CHAT_CHANGE_HAS_DIFF),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_CHANGE_HAS_DIFF),
 			title: localize2('showChanges', 'Toggle Changes'),
 			icon: Codicon.diffSingle,
 			toggled: {
@@ -515,7 +502,6 @@ export class ToggleDiffForChange extends AbstractInlineChatAction {
 			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: 'zzz',
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)),
 				order: 1,
 			}, {
 				id: MENU_INLINE_CHAT_ZONE,

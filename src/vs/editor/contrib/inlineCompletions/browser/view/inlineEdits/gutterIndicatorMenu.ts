@@ -20,6 +20,7 @@ import { ChildNode, FirstFnArg, LiveElement, n } from './utils.js';
 
 export class GutterIndicatorMenuContent {
 	constructor(
+		private readonly _menuTitle: IObservable<string>,
 		private readonly _selectionOverride: IObservable<'jump' | 'accept' | undefined>,
 		private readonly _close: (focusEditor: boolean) => void,
 		private readonly _extensionCommands: IObservable<readonly Command[] | undefined>,
@@ -53,9 +54,8 @@ export class GutterIndicatorMenuContent {
 
 		// TODO make this menu contributable!
 		return hoverContent([
-			// TODO: make header dynamic, get from extension
-			header(localize('inlineEdit', "Inline Edit")),
-			option(createOptionArgs({ id: 'jump', title: localize('jump', "Jump"), icon: Codicon.arrowRight, commandId: new JumpToNextInlineEdit().id })),
+			header(this._menuTitle),
+			option(createOptionArgs({ id: 'jump', title: localize('goto', "Go To"), icon: Codicon.arrowRight, commandId: new JumpToNextInlineEdit().id })),
 			option(createOptionArgs({ id: 'accept', title: localize('accept', "Accept"), icon: Codicon.check, commandId: new AcceptInlineCompletion().id })),
 			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: new HideInlineCompletion().id })),
 			separator(),
@@ -71,7 +71,7 @@ export class GutterIndicatorMenuContent {
 		if (!commandId) {
 			return constObservable(undefined);
 		}
-		return observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._keybindingService.lookupKeybinding(commandId, this._contextKeyService, true));
+		return observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._keybindingService.lookupKeybinding(commandId)); // TODO: use contextkeyservice to use different renderings
 	}
 }
 
@@ -85,7 +85,7 @@ function hoverContent(content: ChildNode) {
 	}, content);
 }
 
-function header(title: string) {
+function header(title: string | IObservable<string>) {
 	return n.div({
 		class: 'header',
 		style: {

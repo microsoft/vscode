@@ -559,7 +559,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (isRequestVM(element) && element.variables.length) {
 				const newPart = this.renderAttachments(element.variables, element.contentReferences, element.workingSet, templateData);
 				if (newPart) {
-					templateData.value.appendChild(newPart.domNode);
+					if (newPart.domNode) {
+						// p has a :last-child rule for margin
+						templateData.value.appendChild(newPart.domNode);
+					}
 					templateData.elementDisposables.add(newPart);
 				}
 			}
