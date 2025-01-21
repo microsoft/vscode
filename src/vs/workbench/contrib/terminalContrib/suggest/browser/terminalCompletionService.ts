@@ -126,7 +126,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined> {
-		if (!this._providers || !this._providers.values) {
+		if (!this._providers || !this._providers.values || cursorPosition < 0) {
 			return undefined;
 		}
 
