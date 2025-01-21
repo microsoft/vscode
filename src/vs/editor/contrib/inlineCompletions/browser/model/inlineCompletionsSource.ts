@@ -437,12 +437,19 @@ export class InlineCompletionWithUpdatedRange {
 			for (let i = changes.length - 1; i >= 0; i--) {
 				const change = changes[i];
 
-				// user inserted text at the start of the completion
+				// Edit is an insertion: user inserted text at the start of the completion
 				if (edit.replaceRange.isEmpty && change.rangeLength === 0 && change.rangeOffset === start && newText.startsWith(change.text)) {
 					start += change.text.length;
 					end = Math.max(start, end);
 					newText = newText.substring(change.text.length);
 					changeType = newText.length === 0 ? 'fullyAccepted' : 'partiallyAccepted';
+					continue;
+				}
+
+				// Edit is a deletion: user deleted text inside the deletion range
+				if (!edit.replaceRange.isEmpty && change.text.length === 0 && change.rangeOffset >= start && change.rangeOffset + change.rangeLength <= end) {
+					end -= change.rangeLength;
+					changeType = start === end ? 'fullyAccepted' : 'partiallyAccepted';
 					continue;
 				}
 
