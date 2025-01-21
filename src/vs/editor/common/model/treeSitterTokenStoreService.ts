@@ -14,7 +14,7 @@ export interface ITreeSitterTokenizationStoreService {
 	readonly _serviceBrand: undefined;
 	setTokens(model: ITextModel, tokens: TokenUpdate[]): void;
 	getTokens(model: ITextModel, line: number): Uint32Array | undefined;
-	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number | undefined; newTokens: TokenUpdate[] }[]): void;
+	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void;
 	markForRefresh(model: ITextModel, range: Range): void;
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
 }
@@ -29,14 +29,14 @@ export interface TokenInformation {
 class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStoreService, IDisposable {
 	readonly _serviceBrand: undefined;
 
-	private readonly tokens = new Map<ITextModel, { store: TokenStore; accurateVersion: number; guessVersion?: number; readonly disposables: DisposableStore }>();
+	private readonly tokens = new Map<ITextModel, { store: TokenStore; accurateVersion: number; guessVersion: number; readonly disposables: DisposableStore }>();
 
 	constructor() { }
 
 	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
 		const disposables = new DisposableStore();
 		const store = disposables.add(new TokenStore(model));
-		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables });
+		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: 0 });
 
 		store.buildStore(tokens);
 		disposables.add(model.onDidChangeContent(e => {
@@ -96,7 +96,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		return result;
 	}
 
-	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number | undefined; newTokens: TokenUpdate[] }[]): void {
+	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void {
 		const existingTokens = this.tokens.get(model);
 		if (!existingTokens) {
 			return;
@@ -105,7 +105,8 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		existingTokens.accurateVersion = version;
 		for (const update of updates) {
 			const lastToken = update.newTokens[update.newTokens.length - 1];
-			existingTokens.store.update(update.oldRangeLength === undefined ? lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive : update.oldRangeLength, update.newTokens);
+			const oldRangeLength = (existingTokens.guessVersion >= version) ? (lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive) : update.oldRangeLength;
+			existingTokens.store.update(oldRangeLength, update.newTokens);
 		}
 	}
 

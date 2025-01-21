@@ -164,7 +164,17 @@ suite('Tree Sitter TokenizationFeature', function () {
 	async function getModelAndPrepTree(content: string) {
 		const model = disposables.add(modelService.createModel(content, { languageId: 'typescript', onDidChange: Event.None }, URI.file('file.ts')));
 		const tree = disposables.add(await treeSitterParserService.getTextModelTreeSitter(model));
+		const treeParseResult = new Promise<void>(resolve => {
+			const disposable = treeSitterParserService.onDidUpdateTree(e => {
+				if (e.textModel === model) {
+					disposable.dispose();
+					resolve();
+				}
+			});
+		});
 		await tree.parse();
+		await treeParseResult;
+
 		assert.ok(tree);
 		return model;
 	}

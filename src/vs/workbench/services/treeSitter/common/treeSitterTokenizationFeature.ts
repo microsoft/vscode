@@ -138,9 +138,9 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					const tokenUpdates = e.ranges.map((range, index) => {
 						const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset, captures[index]);
 						if (updates) {
-							return { oldRangeLength: undefined, newTokens: updates };
+							return { oldRangeLength: range.oldRangeLength, newTokens: updates };
 						}
-						return { oldRangeLength: undefined, newTokens: [] };
+						return { oldRangeLength: range.oldRangeLength, newTokens: [] };
 					});
 					this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, tokenUpdates);
 					this._onDidChangeTokens.fire({
