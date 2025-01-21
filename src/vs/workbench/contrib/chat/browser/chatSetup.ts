@@ -105,10 +105,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 	static readonly ID = 'workbench.chat.setup';
 
-	private readonly context = this._register(this.instantiationService.createInstance(ChatSetupContext));
-	private readonly requests = this._register(this.instantiationService.createInstance(ChatSetupRequests, this.context));
-	private readonly controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, this.context, this.requests)));
-
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -125,22 +121,25 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return;
 		}
 
-		this.registerChatWelcome();
-		this.registerActions();
+		const context = this._register(this.instantiationService.createInstance(ChatSetupContext));
+		const requests = this._register(this.instantiationService.createInstance(ChatSetupRequests, context));
+		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
+
+		this.registerChatWelcome(controller, context);
+		this.registerActions(controller, context, requests);
 		this.registerUrlLinkHandler();
 	}
 
-	private registerChatWelcome(): void {
+	private registerChatWelcome(controller: Lazy<ChatSetupController>, context: ChatSetupContext): void {
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: localize('welcomeChat', "Welcome to Copilot"),
 			when: ChatContextKeys.SetupViewCondition,
 			icon: Codicon.copilotLarge,
-			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.controller.value, this.context)).element,
+			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, controller.value, context)).element,
 		});
 	}
 
-	private registerActions(): void {
-		const that = this;
+	private registerActions(controller: Lazy<ChatSetupController>, context: ChatSetupContext, requests: ChatSetupRequests): void {
 
 		const chatSetupTriggerContext = ContextKeyExpr.or(
 			ChatContextKeys.Setup.installed.negate(),
@@ -170,13 +169,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const configurationService = accessor.get(IConfigurationService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 
-				await that.context.update({ hidden: false });
+				await context.update({ hidden: false });
 
 				showCopilotView(viewsService, layoutService);
 				ensureSideBarChatViewSize(viewDescriptorService, layoutService);
 
 				if (startSetup === true) {
-					that.controller.value.setup();
+					controller.value.setup();
 				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
@@ -260,7 +259,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				openerService.open(URI.parse(defaultChat.upgradePlanUrl));
 
-				const entitlement = that.context.state.entitlement;
+				const entitlement = context.state.entitlement;
 				if (entitlement !== ChatEntitlement.Pro) {
 					// If the user is not yet Pro, we listen to window focus to refresh the token
 					// when the user has come back to the window assuming the user signed up.
@@ -272,7 +271,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (focus) {
 					windowFocusListener.clear();
 
-					const entitlement = await that.requests.forceResolveEntitlement(undefined);
+					const entitlement = await requests.forceResolveEntitlement(undefined);
 					if (entitlement === ChatEntitlement.Pro) {
 						refreshTokens(commandService);
 					}
@@ -283,7 +282,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		async function hideSetupView(viewsDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService): Promise<void> {
 			const location = viewsDescriptorService.getViewLocationById(ChatViewId);
 
-			await that.context.update({ hidden: true });
+			await context.update({ hidden: true });
 
 			if (location === ViewContainerLocation.AuxiliaryBar) {
 				const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
