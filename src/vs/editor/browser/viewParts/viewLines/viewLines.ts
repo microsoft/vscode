@@ -413,11 +413,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return result;
 	}
 
-	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean, print?: boolean): LineVisibleRanges[] | null {
-		if (print) {
-			console.log('ViewLines#linesVisibleRangesForRange');
-			console.log('_range : ', _range);
-		}
+	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
@@ -450,10 +446,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			const continuesInNextLine = lineNumber !== range.endLineNumber;
 			const endColumn = continuesInNextLine ? this._context.viewModel.getLineMaxColumn(lineNumber) : range.endColumn;
-			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext, print);
-			if (print) {
-				console.log('visibleRangesForLine : ', visibleRangesForLine);
-			}
+			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
 
 			if (!visibleRangesForLine) {
 				continue;

@@ -184,7 +184,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 	}
 
 	private _renderNormalDecoration(ctx: RenderingContext, range: Range, className: string, shouldFillLineOnLineBreak: boolean, showIfCollapsed: boolean, visibleStartLineNumber: number, output: string[]): void {
-		const linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch', true);
+		const linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
 		if (!linesVisibleRanges) {
 			return;
 		}
@@ -210,10 +210,6 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 			for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
 				const expandToLeft = shouldFillLineOnLineBreak && lineVisibleRanges.continuesOnNextLine && lenK === 1;
 				const visibleRange = lineVisibleRanges.ranges[k];
-				console.log('range : ', range);
-				console.log('className : ', className);
-				console.log('visibleRange.left : ', visibleRange.left);
-				console.log('visibleRange.width', visibleRange.width);
 				const decorationOutput = (
 					'<div class="cdr '
 					+ className

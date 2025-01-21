@@ -755,9 +755,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		const tabSize = this.getTabSize();
 		const lineData = this._lines.getViewLineData(lineNumber);
 		const affectedBySpecialFontInfo = this.model.affectedBySpecialFontInfo(lineNumber);
-		console.log('_getViewLineRenderingData');
-		console.log('lineNumber : ', lineNumber);
-		console.log('affectedBySpecialFontInfo : ', affectedBySpecialFontInfo);
 
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [

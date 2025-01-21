@@ -2153,7 +2153,6 @@ class DecorationsTrees {
 	}
 
 	public hasSpecialFontInfo(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): boolean {
-		console.log('hasSpecialFontInfo start : ', start, ' end : ', end);
 		const versionId = host.getVersionId();
 		const result = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => !!i.options.fontFamily || !!i.options.fontSize).length > 0;
