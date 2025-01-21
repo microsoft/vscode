@@ -82,8 +82,6 @@ __vsc_escape_value() {
 			token="\\x3b"
 		elif [ "$byte" = $'\n' ]; then
 			token="\x0a"
-		elif [ "$byte" = "-" ]; then
-			token="\\x2d"
 		else
 			token="$byte"
 		fi
@@ -91,7 +89,7 @@ __vsc_escape_value() {
 		out+="$token"
 	done
 
-	builtin print -r "$out"
+	builtin print -r -- "$out"
 }
 
 __vsc_in_command_execution="1"
