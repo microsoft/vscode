@@ -40,6 +40,12 @@ declare module 'vscode' {
 		 */
 		detail?: string;
 
+
+		/**
+		 * A human-readable string that represents a doc-comment.
+		 */
+		documentation?: string | MarkdownString;
+
 		/**
 		 * The completion's kind. Note that this will map to an icon.
 		 */
