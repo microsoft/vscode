@@ -474,13 +474,12 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					});
 				}
 				async run(accessor: ServicesAccessor): Promise<void> {
-					const loggerService = accessor.get(ILoggerService);
 					const outputService = accessor.get(IOutputService);
 					const channel = outputService.getActiveChannel();
 					if (channel) {
 						const channelDescriptor = outputService.getChannelDescriptor(channel.id);
-						if (channelDescriptor && isSingleSourceOutputChannelDescriptor(channelDescriptor)) {
-							return loggerService.setLogLevel(channelDescriptor.source.resource, logLevel);
+						if (channelDescriptor) {
+							outputService.setLogLevel(channelDescriptor, logLevel);
 						}
 					}
 				}

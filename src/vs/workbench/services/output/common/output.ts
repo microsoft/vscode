@@ -120,6 +120,25 @@ export interface IOutputService {
 	 * Save the logs to a file.
 	 */
 	saveOutputAs(...channels: IOutputChannelDescriptor[]): Promise<void>;
+
+	/**
+	 * Checks if the log level can be set for the given channel.
+	 * @param channel
+	 */
+	canSetLogLevel(channel: IOutputChannelDescriptor): boolean;
+
+	/**
+	 * Returns the log level for the given channel.
+	 * @param channel
+	 */
+	getLogLevel(channel: IOutputChannelDescriptor): LogLevel | undefined;
+
+	/**
+	 * Sets the log level for the given channel.
+	 * @param channel
+	 * @param logLevel
+	 */
+	setLogLevel(channel: IOutputChannelDescriptor, logLevel: LogLevel): void;
 }
 
 export enum OutputChannelUpdateMode {
