@@ -2686,6 +2686,7 @@ function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): 
 	const exeBasename = path.basename(executable);
 	const generalShellTypeMap: Map<TerminalShellType, RegExp> = new Map([
 		[GeneralShellType.Julia, /^julia$/],
+		[GeneralShellType.Node, /^node$/],
 		[GeneralShellType.NuShell, /^nu$/],
 		[GeneralShellType.PowerShell, /^pwsh(-preview)?|powershell$/],
 		[GeneralShellType.Python, /^py(?:thon)?$/]

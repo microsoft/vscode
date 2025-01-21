@@ -11,7 +11,6 @@ import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSuppo
 import { ITextModel } from '../../../../editor/common/model.js';
 import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from '../../../../editor/common/services/treeSitterParserService.js';
 import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
-import { ColumnRange } from '../../../../editor/contrib/inlineCompletions/browser/utils.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -20,6 +19,10 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { ITreeSitterTokenizationStoreService } from '../../../../editor/common/model/treeSitterTokenStoreService.js';
+import { LanguageId } from '../../../../editor/common/encodedTokenAttributes.js';
+import { TokenUpdate } from '../../../../editor/common/model/tokenStore.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;
@@ -30,9 +33,9 @@ export interface ITreeSitterTokenizationFeature {
 	_serviceBrand: undefined;
 }
 
-class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTokenizationFeature {
+export class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTokenizationFeature {
 	public _serviceBrand: undefined;
-	private readonly _tokenizersRegistrations: DisposableMap<string, DisposableStore> = new DisposableMap();
+	private readonly _tokenizersRegistrations: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
 
 	constructor(
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -86,7 +89,7 @@ class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTok
 	}
 }
 
-class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTokenizationSupport {
+export class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTokenizationSupport {
 	private _query: Parser.Query | undefined;
 	private readonly _onDidChangeTokens: Emitter<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = new Emitter();
 	public readonly onDidChangeTokens: Event<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._onDidChangeTokens.event;
@@ -99,19 +102,81 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@ITreeSitterTokenizationStoreService private readonly _tokenizationStoreService: ITreeSitterTokenizationStoreService
 	) {
 		super();
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
 			const maxLine = e.textModel.getLineCount();
-			this._onDidChangeTokens.fire({
-				textModel: e.textModel,
-				changes: {
-					semanticTokensApplied: false,
-					ranges: e.ranges.map(range => ({ fromLineNumber: range.startLineNumber, toLineNumber: range.endLineNumber < maxLine ? range.endLineNumber : maxLine })),
+			const ranges = e.ranges.map(range => ({ fromLineNumber: range.newRange.startLineNumber, toLineNumber: range.newRange.endLineNumber < maxLine ? range.newRange.endLineNumber : maxLine }));
+
+			// First time we see a tree we need to build a token store.
+			if (!this._tokenizationStoreService.hasTokens(e.textModel)) {
+				const lineEndOffset = e.textModel.getValueLength();
+				const editorEndPosition = e.textModel.getPositionAt(lineEndOffset);
+				const tokens = this.getTokensInRange(e.textModel, new Range(1, 1, editorEndPosition.lineNumber, editorEndPosition.column), 0, lineEndOffset);
+				if (tokens) {
+					this._tokenizationStoreService.setTokens(e.textModel, tokens);
+
+					this._onDidChangeTokens.fire({
+						textModel: e.textModel,
+						changes: {
+							semanticTokensApplied: false,
+							ranges
+						}
+					});
 				}
-			});
+			} else {
+				// Mark the range for refresh immediately
+				for (const range of e.ranges) {
+					this._tokenizationStoreService.markForRefresh(e.textModel, range.newRange);
+				}
+
+				const captures = e.ranges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
+				// Don't block
+				new Promise<void>(resolve => {
+					const tokenUpdates = e.ranges.map((range, index) => {
+						const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset, captures[index]);
+						if (updates) {
+							return { oldRangeLength: range.oldRangeLength, newTokens: updates };
+						}
+						return { oldRangeLength: range.oldRangeLength, newTokens: [] };
+					});
+					this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, tokenUpdates);
+					this._onDidChangeTokens.fire({
+						textModel: e.textModel,
+						changes: {
+							semanticTokensApplied: false,
+							ranges
+						}
+					});
+					resolve();
+				});
+			}
 		}));
+	}
+
+	private _rangeTokensAsUpdates(rangeOffset: number, lineTokens: { endOffset: number; metadata: number }[]) {
+		const updates: TokenUpdate[] = [];
+		let lastEnd = 0;
+		for (const token of lineTokens) {
+			if (token.endOffset <= lastEnd) {
+				continue;
+			}
+			updates.push({ startOffsetInclusive: rangeOffset + lastEnd, length: token.endOffset - lastEnd, token: token.metadata });
+			lastEnd = token.endOffset;
+		}
+		return updates;
+	}
+
+	public getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number, captures?: { tree: ITreeSitterParseResult | undefined; captures: Parser.QueryCapture[] }): TokenUpdate[] | undefined {
+		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
+
+		const tokens = captures ? this._tokenizeCaptures(captures.tree, captures.captures, languageId, rangeStartOffset, rangeEndOffset) : this._tokenize(languageId, range, rangeStartOffset, rangeEndOffset, textModel);
+		if (tokens?.endOffsetsAndMetadata) {
+			return this._rangeTokensAsUpdates(rangeStartOffset, tokens.endOffsetsAndMetadata);
+		}
+		return undefined;
 	}
 
 	private _getTree(textModel: ITextModel): ITreeSitterParseResult | undefined {
@@ -140,23 +205,23 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 
 	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): Parser.QueryCapture[] {
 		const tree = this._getTree(textModel);
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column + 1), tree?.tree);
+		const captures = this._captureAtRange(new Range(lineNumber, column, lineNumber, column + 1), tree?.tree);
 		return captures;
 	}
 
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[] {
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column + 1), tree);
+		const captures = this._captureAtRange(new Range(lineNumber, column, lineNumber, column + 1), tree);
 		return captures;
 	}
 
 
-	private _captureAtRange(lineNumber: number, columnRange: ColumnRange, tree: Parser.Tree | undefined): Parser.QueryCapture[] {
+	private _captureAtRange(range: Range, tree: Parser.Tree | undefined): Parser.QueryCapture[] {
 		const query = this._ensureQuery();
 		if (!tree || !query) {
 			return [];
 		}
 		// Tree sitter row is 0 based, column is 0 based
-		return query.captures(tree.rootNode, { startPosition: { row: lineNumber - 1, column: columnRange.startColumn - 1 }, endPosition: { row: lineNumber - 1, column: columnRange.endColumnExclusive - 1 } });
+		return query.captures(tree.rootNode, { startPosition: { row: range.startLineNumber - 1, column: range.startColumn - 1 }, endPosition: { row: range.endLineNumber - 1, column: range.endColumn - 1 } });
 	}
 
 	/**
@@ -174,40 +239,44 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		return this._tokenizeEncoded(lineNumber, textModel);
 	}
 
-	private _tokenizeEncoded(lineNumber: number, textModel: ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined {
-		const stopwatch = StopWatch.create();
-		const lineLength = textModel.getLineMaxColumn(lineNumber);
+	private _getTreeAndCaptures(range: Range, textModel: ITextModel): { tree: ITreeSitterParseResult | undefined; captures: Parser.QueryCapture[] } {
 		const tree = this._getTree(textModel);
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(1, lineLength), tree?.tree);
-		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
+		const captures = this._captureAtRange(range, tree?.tree);
+		return { tree, captures };
+	}
+
+	private _tokenize(encodedLanguageId: LanguageId, range: Range, rangeStartOffset: number, rangeEndOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
+		const { tree, captures } = this._getTreeAndCaptures(range, textModel);
+		return this._tokenizeCaptures(tree, captures, encodedLanguageId, rangeStartOffset, rangeEndOffset);
+	}
+
+	private _tokenizeCaptures(tree: ITreeSitterParseResult | undefined, captures: Parser.QueryCapture[], encodedLanguageId: LanguageId, rangeStartOffset: number, rangeEndOffset: number): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
+		const stopwatch = StopWatch.create();
+		const rangeLength = rangeEndOffset - rangeStartOffset;
 
 		if (captures.length === 0) {
 			if (tree) {
 				stopwatch.stop();
-				const result = new Uint32Array(2);
-				result[0] = lineLength;
-				result[1] = findMetadata(this._colorThemeData, [], encodedLanguageId);
-				return { result, captureTime: stopwatch.elapsed(), metadataTime: 0 };
+				const endOffsetsAndMetadata = [{ endOffset: rangeLength, metadata: findMetadata(this._colorThemeData, [], encodedLanguageId) }];
+				return { endOffsetsAndMetadata, captureTime: stopwatch.elapsed(), metadataTime: 0 };
 			}
 			return undefined;
 		}
 
-		const endOffsetsAndScopes: { endOffset: number; scopes: string[] }[] = Array(captures.length);
+		const endOffsetsAndScopes: { endOffset: number; scopes: string[]; metadata?: number }[] = Array(captures.length);
 		endOffsetsAndScopes.fill({ endOffset: 0, scopes: [] });
 		let tokenIndex = 0;
-		const lineStartOffset = textModel.getOffsetAt({ lineNumber: lineNumber, column: 1 });
 
 		const increaseSizeOfTokensByOneToken = () => {
 			endOffsetsAndScopes.push({ endOffset: 0, scopes: [] });
 		};
 
-
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
-			const tokenEndIndex = capture.node.endIndex < lineStartOffset + lineLength ? capture.node.endIndex : lineStartOffset + lineLength;
-			const tokenStartIndex = capture.node.startIndex < lineStartOffset ? lineStartOffset : capture.node.startIndex;
+			const tokenEndIndex = capture.node.endIndex < rangeStartOffset + rangeLength ? capture.node.endIndex : rangeStartOffset + rangeLength;
+			const tokenStartIndex = capture.node.startIndex < rangeStartOffset ? rangeStartOffset : capture.node.startIndex;
 
-			const lineRelativeOffset = tokenEndIndex - lineStartOffset;
+			const lineRelativeOffset = tokenEndIndex - rangeStartOffset;
 			// Not every character will get captured, so we need to make sure that our current capture doesn't bleed toward the start of the line and cover characters that it doesn't apply to.
 			// We do this by creating a new token in the array if the previous token ends before the current token starts.
 			let previousTokenEnd: number;
@@ -215,7 +284,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			if (captureIndex > 0) {
 				previousTokenEnd = endOffsetsAndScopes[(tokenIndex - 1)].endOffset;
 			} else {
-				previousTokenEnd = tokenStartIndex - lineStartOffset - 1;
+				previousTokenEnd = tokenStartIndex - rangeStartOffset - 1;
 			}
 			const intermediateTokenOffset = lineRelativeOffset - currentTokenLength;
 			if ((previousTokenEnd >= 0) && (previousTokenEnd < intermediateTokenOffset)) {
@@ -270,25 +339,49 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		}
 
 		// Account for uncaptured characters at the end of the line
-		if (endOffsetsAndScopes[tokenIndex - 1].endOffset < lineLength - 1) {
-			increaseSizeOfTokensByOneToken();
-			endOffsetsAndScopes[tokenIndex] = { endOffset: lineLength - 1, scopes: endOffsetsAndScopes[tokenIndex].scopes };
-			tokenIndex++;
+		if ((endOffsetsAndScopes[tokenIndex - 1].endOffset < rangeLength)) {
+			if (rangeLength - endOffsetsAndScopes[tokenIndex - 1].endOffset > 0) {
+				increaseSizeOfTokensByOneToken();
+				endOffsetsAndScopes[tokenIndex] = { endOffset: rangeLength, scopes: endOffsetsAndScopes[tokenIndex].scopes };
+				tokenIndex++;
+			}
 		}
 		const captureTime = stopwatch.elapsed();
 		stopwatch.reset();
-
-		const tokens: Uint32Array = new Uint32Array((tokenIndex) * 2);
-		for (let i = 0; i < tokenIndex; i++) {
+		for (let i = 0; i < endOffsetsAndScopes.length; i++) {
 			const token = endOffsetsAndScopes[i];
-			if (token.endOffset === 0 && token.scopes.length === 0) {
+			if (token.endOffset === 0 && token.scopes.length === 0 && i !== 0) {
+				endOffsetsAndScopes.splice(i, endOffsetsAndScopes.length - i);
 				break;
 			}
-			tokens[i * 2] = token.endOffset;
-			tokens[i * 2 + 1] = findMetadata(this._colorThemeData, token.scopes, encodedLanguageId);
+			token.metadata = findMetadata(this._colorThemeData, token.scopes, encodedLanguageId);
 		}
+
 		const metadataTime = stopwatch.elapsed();
-		return { result: tokens, captureTime, metadataTime };
+		return { endOffsetsAndMetadata: endOffsetsAndScopes as { endOffset: number; scopes: string[]; metadata: number }[], captureTime, metadataTime };
+	}
+
+	private _tokenizeEncoded(lineNumber: number, textModel: ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined {
+		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
+		const lineOffset = textModel.getOffsetAt({ lineNumber: lineNumber, column: 1 });
+		const maxLine = textModel.getLineCount();
+		const lineEndOffset = (lineNumber + 1 <= maxLine) ? textModel.getOffsetAt({ lineNumber: lineNumber + 1, column: 1 }) : textModel.getValueLength();
+		const lineLength = lineEndOffset - lineOffset;
+
+		const result = this._tokenize(encodedLanguageId, new Range(lineNumber, 1, lineNumber, lineLength), lineOffset, lineEndOffset, textModel);
+		if (!result) {
+			return undefined;
+		}
+
+		const tokens: Uint32Array = new Uint32Array((result.endOffsetsAndMetadata.length) * 2);
+
+		for (let i = 0; i < result.endOffsetsAndMetadata.length; i++) {
+			const token = result.endOffsetsAndMetadata[i];
+			tokens[i * 2] = token.endOffset;
+			tokens[i * 2 + 1] = token.metadata;
+		}
+
+		return { result: tokens, captureTime: result.captureTime, metadataTime: result.metadataTime };
 	}
 
 	override dispose() {

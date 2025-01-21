@@ -98,6 +98,8 @@ export class SimpleSuggestWidget extends Disposable {
 	readonly onDidShow: Event<this> = this._onDidShow.event;
 	private readonly _onDidFocus = new PauseableEmitter<ISimpleSelectedSuggestion>();
 	readonly onDidFocus: Event<ISimpleSelectedSuggestion> = this._onDidFocus.event;
+	private readonly _onDidBlurDetails = this._register(new Emitter<FocusEvent>());
+	readonly onDidBlurDetails = this._onDidBlurDetails.event;
 
 	get list(): List<SimpleCompletionItem> { return this._list; }
 
@@ -223,6 +225,7 @@ export class SimpleSuggestWidget extends Disposable {
 		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget));
 		this._register(details.onDidClose(() => this.toggleDetails()));
 		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
+		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
 
 		if (options.statusBarMenuId) {
 			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));

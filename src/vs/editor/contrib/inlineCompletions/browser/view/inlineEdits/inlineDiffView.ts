@@ -23,7 +23,7 @@ import { classNames } from './utils.js';
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
 	modifiedText: AbstractText;
-	mode: 'mixedLines' | 'ghostText' | 'interleavedLines' | 'sideBySide';
+	mode: 'mixedLines' | 'ghostText' | 'interleavedLines' | 'sideBySide' | 'deletion';
 
 	modifiedCodeEditor: ICodeEditor;
 }
@@ -193,7 +193,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 									'inlineCompletions-char-delete',
 									i.originalRange.isSingleLine() && diff.mode === 'ghostText' && 'single-line-inline',
 									i.originalRange.isEmpty() && 'empty',
-									(i.originalRange.isEmpty() && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
+									((i.originalRange.isEmpty() || diff.mode === 'deletion') && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
 								),
 								inlineClassName: useInlineDiff ? classNames('strike-through', 'inlineCompletions') : null,
 								zIndex: 1

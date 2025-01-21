@@ -74,10 +74,11 @@ export class WordReplacementView extends Disposable {
 		const w = this._editor.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 		const modifiedLeftOffset = 20;
 		const modifiedTopOffset = 5;
+		const PADDING = 4;
 
 		const originalLine = Rect.fromLeftTopWidthHeight(widgetStart.x + contentLeft - scrollLeft, widgetStart.y, widgetEnd.x - widgetStart.x, lineHeight);
 		const modifiedLine = Rect.fromLeftTopWidthHeight(originalLine.left + modifiedLeftOffset, originalLine.top + lineHeight + modifiedTopOffset, this._edit.text.length * w + 5, originalLine.height);
-		const background = Rect.hull([originalLine, modifiedLine]).withMargin(4);
+		const background = Rect.hull([originalLine, modifiedLine]).withMargin(PADDING);
 
 		let textLengthDelta = 0;
 		const editLocations = this._editLocations.read(reader);
@@ -109,6 +110,7 @@ export class WordReplacementView extends Disposable {
 			innerEdits,
 			lowerBackground,
 			lowerText,
+			padding: PADDING
 		};
 	});
 
@@ -121,89 +123,114 @@ export class WordReplacementView extends Disposable {
 				return [];
 			}
 
-			const edits = layout.read(reader).innerEdits;
+			const layoutProps = layout.read(reader);
+			const scrollLeft = this._editor.scrollLeft.read(reader);
+			let contentLeft = this._editor.layoutInfoContentLeft.read(reader);
+			let contentWidth = this._editor.contentWidth.read(reader);
+			const contentHeight = this._editor.editor.getContentHeight();
+
+			if (scrollLeft === 0) {
+				contentLeft -= layoutProps.padding;
+				contentWidth += layoutProps.padding;
+			}
+
+			const edits = layoutProps.innerEdits.map(edit => ({ modified: edit.modified.moveLeft(contentLeft), original: edit.original.moveLeft(contentLeft) }));
 
 			return [
 				n.div({
 					style: {
 						position: 'absolute',
-						...rectToProps(reader => layout.read(reader).lowerBackground),
-						borderRadius: '4px',
-						background: 'var(--vscode-editor-background)',
-					},
-				}, []),
-				n.div({
-					style: {
-						position: 'absolute',
-						padding: '0px',
-						boxSizing: 'border-box',
-						...rectToProps(reader => layout.read(reader).lowerText),
-						fontFamily: this._editor.getOption(EditorOption.fontFamily),
-						fontSize: this._editor.getOption(EditorOption.fontSize),
-						fontWeight: this._editor.getOption(EditorOption.fontWeight),
+						top: 0,
+						left: contentLeft,
+						width: contentWidth,
+						height: contentHeight,
+						overflow: 'hidden',
 						pointerEvents: 'none',
-					}
-				}, [this._line]),
-				...edits.map(edit => n.div({
-					style: {
-						position: 'absolute',
-						top: edit.modified.top,
-						left: edit.modified.left,
-						width: edit.modified.width,
-						height: edit.modified.height,
-						borderRadius: '4px',
-
-						background: 'var(--vscode-inlineEdit-modifiedChangedTextBackground)',
-						pointerEvents: 'none',
-					}
-				}), []),
-				...edits.map(edit => n.div({
-					style: {
-						position: 'absolute',
-						top: edit.original.top,
-						left: edit.original.left,
-						width: edit.original.width,
-						height: edit.original.height,
-						borderRadius: '4px',
-						boxSizing: 'border-box',
-						background: 'var(--vscode-inlineEdit-originalChangedTextBackground)',
-						pointerEvents: 'none',
-					}
-				}, [])),
-				n.div({
-					style: {
-						position: 'absolute',
-						...rectToProps(reader => layout.read(reader).background),
-						borderRadius: '4px',
-
-						border: '1px solid var(--vscode-editorHoverWidget-border)',
-						//background: 'rgba(122, 122, 122, 0.12)', looks better
-						background: 'var(--vscode-inlineEdit-wordReplacementView-background)',
-						pointerEvents: 'none',
-					}
-				}, []),
-
-				n.svg({
-					width: 11,
-					height: 13,
-					viewBox: '0 0 11 13',
-					fill: 'none',
-					style: {
-						position: 'absolute',
-						left: derived(reader => layout.read(reader).modifiedLine.left - 15),
-						top: derived(reader => layout.read(reader).modifiedLine.top),
 					}
 				}, [
-					n.svgElem('path', {
-						d: 'M1 0C1 2.98966 1 4.92087 1 7.49952C1 8.60409 1.89543 9.5 3 9.5H10.5',
-						stroke: 'var(--vscode-editorHoverWidget-foreground)',
-					}),
-					n.svgElem('path', {
-						d: 'M6 6.5L9.99999 9.49998L6 12.5',
-						stroke: 'var(--vscode-editorHoverWidget-foreground)',
-					})
-				]),
+					n.div({
+						style: {
+							position: 'absolute',
+							...rectToProps(reader => layout.read(reader).lowerBackground.moveLeft(contentLeft)),
+							borderRadius: '4px',
+							background: 'var(--vscode-editor-background)',
+							boxShadow: 'var(--vscode-scrollbar-shadow) 0 6px 6px -6px'
+						},
+					}, []),
+					n.div({
+						style: {
+							position: 'absolute',
+							padding: '0px',
+							boxSizing: 'border-box',
+							...rectToProps(reader => layout.read(reader).lowerText.moveLeft(contentLeft)),
+							fontFamily: this._editor.getOption(EditorOption.fontFamily),
+							fontSize: this._editor.getOption(EditorOption.fontSize),
+							fontWeight: this._editor.getOption(EditorOption.fontWeight),
+							pointerEvents: 'none',
+						}
+					}, [this._line]),
+					...edits.map(edit => n.div({
+						style: {
+							position: 'absolute',
+							top: edit.modified.top,
+							left: edit.modified.left,
+							width: edit.modified.width,
+							height: edit.modified.height,
+							borderRadius: '4px',
 
+							background: 'var(--vscode-inlineEdit-modifiedChangedTextBackground)',
+							pointerEvents: 'none',
+						}
+					}), []),
+					...edits.map(edit => n.div({
+						style: {
+							position: 'absolute',
+							top: edit.original.top,
+							left: edit.original.left,
+							width: edit.original.width,
+							height: edit.original.height,
+							borderRadius: '4px',
+							boxSizing: 'border-box',
+							background: 'var(--vscode-inlineEdit-originalChangedTextBackground)',
+							pointerEvents: 'none',
+						}
+					}, [])),
+					n.div({
+						style: {
+							position: 'absolute',
+							...rectToProps(reader => layout.read(reader).background.moveLeft(contentLeft)),
+							borderRadius: '4px',
+
+							border: '1px solid var(--vscode-editorHoverWidget-border)',
+							//background: 'rgba(122, 122, 122, 0.12)', looks better
+							background: 'var(--vscode-inlineEdit-wordReplacementView-background)',
+							pointerEvents: 'none',
+							boxSizing: 'border-box',
+						}
+					}, []),
+
+					n.svg({
+						width: 11,
+						height: 13,
+						viewBox: '0 0 11 13',
+						fill: 'none',
+						style: {
+							position: 'absolute',
+							left: derived(reader => layout.read(reader).modifiedLine.moveLeft(contentLeft).left - 15),
+							top: derived(reader => layout.read(reader).modifiedLine.top),
+						}
+					}, [
+						n.svgElem('path', {
+							d: 'M1 0C1 2.98966 1 4.92087 1 7.49952C1 8.60409 1.89543 9.5 3 9.5H10.5',
+							stroke: 'var(--vscode-editorHoverWidget-foreground)',
+						}),
+						n.svgElem('path', {
+							d: 'M6 6.5L9.99999 9.49998L6 12.5',
+							stroke: 'var(--vscode-editorHoverWidget-foreground)',
+						})
+					]),
+
+				])
 			];
 		})
 	]).keepUpdated(this._store);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult, Command } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command, SourceControlHistoryItem } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -289,6 +289,23 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
+export interface AvatarQueryCommit {
+	readonly hash: string;
+	readonly authorName?: string;
+	readonly authorEmail?: string;
+}
+
+export interface AvatarQuery {
+	readonly commits: AvatarQueryCommit[];
+	readonly size: number;
+}
+
+export interface SourceControlHistoryItemDetailsProvider {
+	provideAvatar(repository: Repository, query: AvatarQuery): Promise<Map<string, string | undefined> | undefined>;
+	provideHoverCommands(repository: Repository): Promise<Command[] | undefined>;
+	provideMessageLinks(repository: Repository, message: string): Promise<string | undefined>;
+}
+
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface PublishEvent {
@@ -316,6 +333,7 @@ export interface API {
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
+	registerSourceControlHistoryItemDetailsProvider(provider: SourceControlHistoryItemDetailsProvider): Disposable;
 }
 
 export interface GitExtension {
