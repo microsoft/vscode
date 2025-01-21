@@ -206,7 +206,7 @@ export class GitBlameController {
 		});
 	}
 
-	async getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation, includeCommitDetails = false): Promise<MarkdownString> {
+	async getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation): Promise<MarkdownString> {
 		const remoteHoverCommands: Command[] = [];
 		let commitAvatar: string | undefined;
 		let commitInformation: Commit | undefined;
@@ -214,25 +214,23 @@ export class GitBlameController {
 
 		const repository = this._model.getRepository(documentUri);
 		if (repository) {
-			// Commit details
-			if (includeCommitDetails) {
-				try {
-					commitInformation = await repository.getCommit(blameInformation.hash);
+			try {
+				// Commit details
+				commitInformation = await repository.getCommit(blameInformation.hash);
 
-					// Avatar
-					const avatarQuery = {
-						commits: [{
-							hash: blameInformation.hash,
-							authorName: blameInformation.authorName,
-							authorEmail: blameInformation.authorEmail
-						} satisfies AvatarQueryCommit],
-						size: AVATAR_SIZE
-					} satisfies AvatarQuery;
+				// Avatar
+				const avatarQuery = {
+					commits: [{
+						hash: blameInformation.hash,
+						authorName: blameInformation.authorName,
+						authorEmail: blameInformation.authorEmail
+					} satisfies AvatarQueryCommit],
+					size: AVATAR_SIZE
+				} satisfies AvatarQuery;
 
-					const avatarResult = await provideSourceControlHistoryItemAvatar(this._model, repository, avatarQuery);
-					commitAvatar = avatarResult?.get(blameInformation.hash);
-				} catch { }
-			}
+				const avatarResult = await provideSourceControlHistoryItemAvatar(this._model, repository, avatarQuery);
+				commitAvatar = avatarResult?.get(blameInformation.hash);
+			} catch { }
 
 			// Remote hover commands
 			const unpublishedCommits = await repository.getUnpublishedCommits();
@@ -612,7 +610,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 			return undefined;
 		}
 
-		const contents = await this._controller.getBlameInformationHover(textEditor.document.uri, lineBlameInformation.blameInformation, true);
+		const contents = await this._controller.getBlameInformationHover(textEditor.document.uri, lineBlameInformation.blameInformation);
 
 		if (!contents || token.isCancellationRequested) {
 			return undefined;
@@ -744,8 +742,14 @@ class GitBlameStatusBarItem {
 			const config = workspace.getConfiguration('git');
 			const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
 
-			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(window.activeTextEditor.document.uri, template, blameInformation[0].blameInformation)}`;
-			this._statusBarItem.tooltip = await this._controller.getBlameInformationHover(window.activeTextEditor.document.uri, blameInformation[0].blameInformation);
+			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(
+				window.activeTextEditor.document.uri, template, blameInformation[0].blameInformation)}`;
+
+			this._statusBarItem.tooltip2 = (cancellationToken: CancellationToken) => {
+				return this._provideTooltip(window.activeTextEditor!.document.uri,
+					blameInformation[0].blameInformation as BlameInformation, cancellationToken);
+			};
+
 			this._statusBarItem.command = {
 				title: l10n.t('Open Commit'),
 				command: 'git.viewCommit',
@@ -754,6 +758,15 @@ class GitBlameStatusBarItem {
 		}
 
 		this._statusBarItem.show();
+	}
+
+	private async _provideTooltip(uri: Uri, blameInformation: BlameInformation, cancellationToken: CancellationToken): Promise<MarkdownString | undefined> {
+		if (cancellationToken.isCancellationRequested) {
+			return undefined;
+		}
+
+		const tooltip = await this._controller.getBlameInformationHover(uri, blameInformation);
+		return cancellationToken.isCancellationRequested ? undefined : tooltip;
 	}
 
 	dispose() {
