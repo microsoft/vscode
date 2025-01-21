@@ -317,7 +317,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					label,
 					provider,
 					kind,
-					detail: getFriendlyFolderPath(stat.resource, resourceRequestConfig.pathSeparator),
+					detail: getFriendlyFolderPath(stat.resource, resourceRequestConfig.pathSeparator, kind === TerminalCompletionItemKind.File),
 					isDirectory,
 					isFile: kind === TerminalCompletionItemKind.File,
 					replacementIndex: cursorPosition - lastWord.length,
@@ -352,10 +352,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 }
 
-function getFriendlyFolderPath(uri: URI, pathSeparator: string): string {
+function getFriendlyFolderPath(uri: URI, pathSeparator: string, isFile?: boolean): string {
 	let path = uri.fsPath;
 	// Ensure folders end with the path separator to differentiate presentation from files
-	if (!path.endsWith(pathSeparator)) {
+	if (!isFile && !path.endsWith(pathSeparator)) {
 		path += pathSeparator;
 	}
 	// Ensure drive is capitalized on Windows
