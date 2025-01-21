@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextureAtlas } from './atlas/textureAtlas.js';
-import { TextureAtlasPage } from './atlas/textureAtlasPage.js';
-import { BindingId } from './gpu.js';
+import { TextureAtlas } from '../atlas/textureAtlas.js';
+import { TextureAtlasPage } from '../atlas/textureAtlasPage.js';
+import { BindingId } from '../gpu.js';
 
 export const fullFileRenderStrategyWgsl = /*wgsl*/ `
 struct GlyphInfo {

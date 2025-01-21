@@ -1491,7 +1491,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			...AlignPanelActions.map(toQuickPickItem),
 			{
 				type: 'separator',
-				label: localize('quickOpen', "Quick Input Position Presets")
+				label: localize('quickOpen', "Quick Input Position")
 			},
 			...QuickInputActions.map(toQuickPickItem),
 			{

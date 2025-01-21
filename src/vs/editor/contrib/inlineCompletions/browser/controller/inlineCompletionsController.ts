@@ -292,7 +292,7 @@ export class InlineCompletionsController extends Disposable {
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.suppressSuggestions, reader => {
 			const model = this.model.read(reader);
 			const state = model?.inlineCompletionState.read(reader);
-			return state?.primaryGhostText && state?.inlineCompletion ? state.inlineCompletion.inlineCompletion.source.inlineCompletions.suppressSuggestions : undefined;
+			return state?.primaryGhostText && state?.inlineCompletion ? state.inlineCompletion.source.inlineCompletions.suppressSuggestions : undefined;
 		}));
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.inlineSuggestionVisible, reader => {
 			const model = this.model.read(reader);

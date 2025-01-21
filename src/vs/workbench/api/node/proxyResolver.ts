@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtHostWorkspaceProvider } from '../common/extHostWorkspace.js';
-import { ExtHostConfigProvider } from '../common/extHostConfiguration.js';
+import { ConfigurationInspect, ExtHostConfigProvider } from '../common/extHostConfiguration.js';
 import { MainThreadTelemetryShape } from '../common/extHost.protocol.js';
 import { IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
 import { ExtHostExtensionService } from './extHostExtensionService.js';
@@ -39,17 +39,20 @@ export function connectProxyResolver(
 	disposables: DisposableStore,
 ) {
 
-	const useHostProxy = initData.environment.useHostProxy;
-	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
+	const isRemote = initData.remote.isRemote;
+	const useHostProxyDefault = initData.environment.useHostProxy ?? !isRemote;
+	const fallbackToLocalKerberos = useHostProxyDefault;
+	const loadLocalCertificates = useHostProxyDefault;
+	const isUseHostProxyEnabled = () => !isRemote || configProvider.getConfiguration('http').get<boolean>('useLocalProxyConfiguration', useHostProxyDefault);
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
-		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, {}, initData.remote.isRemote, doUseHostProxy),
-		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
-		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
-		getNoProxyConfig: () => configProvider.getConfiguration('http').get<string[]>('noProxy') || [],
-		isAdditionalFetchSupportEnabled: () => configProvider.getConfiguration('http').get<boolean>('fetchAdditionalSupport', true),
-		addCertificatesV1: () => certSettingV1(configProvider),
-		addCertificatesV2: () => certSettingV2(configProvider),
+		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, {}, initData.remote.isRemote, fallbackToLocalKerberos),
+		getProxyURL: () => getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxy'),
+		getProxySupport: () => getExtHostConfigValue<ProxySupportSetting>(configProvider, isRemote, 'http.proxySupport') || 'off',
+		getNoProxyConfig: () => getExtHostConfigValue<string[]>(configProvider, isRemote, 'http.noProxy') || [],
+		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
+		addCertificatesV1: () => certSettingV1(configProvider, isRemote),
+		addCertificatesV2: () => certSettingV2(configProvider, isRemote),
 		log: extHostLogService,
 		getLogLevel: () => {
 			const level = extHostLogService.getLevel();
@@ -68,13 +71,13 @@ export function connectProxyResolver(
 			}
 		},
 		proxyResolveTelemetry: () => { },
-		useHostProxy: doUseHostProxy,
+		isUseHostProxyEnabled,
 		loadAdditionalCertificates: async () => {
 			const promises: Promise<string[]>[] = [];
 			if (initData.remote.isRemote) {
 				promises.push(loadSystemCertificates({ log: extHostLogService }));
 			}
-			if (doUseHostProxy) {
+			if (loadLocalCertificates) {
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
 				const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
 				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
@@ -249,14 +252,12 @@ function createPatchedModules(params: ProxyAgentParams, resolveProxy: ResolvePro
 	};
 }
 
-function certSettingV1(configProvider: ExtHostConfigProvider) {
-	const http = configProvider.getConfiguration('http');
-	return !http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
+function certSettingV1(configProvider: ExtHostConfigProvider, isRemote: boolean) {
+	return !getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.experimental.systemCertificatesV2', systemCertificatesV2Default) && !!getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificates');
 }
 
-function certSettingV2(configProvider: ExtHostConfigProvider) {
-	const http = configProvider.getConfiguration('http');
-	return !!http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
+function certSettingV2(configProvider: ExtHostConfigProvider, isRemote: boolean) {
+	return !!getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.experimental.systemCertificatesV2', systemCertificatesV2Default) && !!getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificates');
 }
 
 const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https; undici?: typeof undiciType }>();
@@ -306,7 +307,7 @@ async function lookupProxyAuthorization(
 	proxyAuthenticateCache: Record<string, string | string[] | undefined>,
 	basicAuthCache: Record<string, string | undefined>,
 	isRemote: boolean,
-	useHostProxy: boolean,
+	fallbackToLocalKerberos: boolean,
 	proxyURL: string,
 	proxyAuthenticate: string | string[] | undefined,
 	state: { kerberosRequested?: boolean; basicAuthCacheUsed?: boolean; basicAuthAttempt?: number }
@@ -323,14 +324,14 @@ async function lookupProxyAuthorization(
 		state.kerberosRequested = true;
 
 		try {
-			const spnConfig = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal');
+			const spnConfig = getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxyKerberosServicePrincipal');
 			const response = await lookupKerberosAuthorization(proxyURL, spnConfig, extHostLogService, 'ProxyResolver#lookupProxyAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
 			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
 		}
 
-		if (isRemote && useHostProxy) {
+		if (isRemote && fallbackToLocalKerberos) {
 			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup on host', `proxyURL:${proxyURL}`);
 			const auth = await extHostWorkspace.lookupKerberosAuthorization(proxyURL);
 			if (auth) {
@@ -404,4 +405,14 @@ function sendTelemetry(mainThreadTelemetry: MainThreadTelemetryShape, authentica
 		authenticationType: authenticate.map(a => a.split(' ')[0]).join(','),
 		extensionHostType: isRemote ? 'remote' : 'local',
 	});
+}
+
+function getExtHostConfigValue<T>(configProvider: ExtHostConfigProvider, isRemote: boolean, key: string, fallback: T): T;
+function getExtHostConfigValue<T>(configProvider: ExtHostConfigProvider, isRemote: boolean, key: string): T | undefined;
+function getExtHostConfigValue<T>(configProvider: ExtHostConfigProvider, isRemote: boolean, key: string, fallback?: T): T | undefined {
+	if (isRemote) {
+		return configProvider.getConfiguration().get<T>(key) ?? fallback;
+	}
+	const values: ConfigurationInspect<T> | undefined = configProvider.getConfiguration().inspect<T>(key);
+	return values?.globalLocalValue ?? values?.defaultValue ?? fallback;
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickPickItem, window, QuickPick, QuickPickItemKind, l10n, Disposable, Command } from 'vscode';
+import { QuickPickItem, window, QuickPick, QuickPickItemKind, l10n, Disposable } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceAction } from './api/git-base';
 import { Model } from './model';
 import { throttle, debounce } from './decorators';
@@ -121,32 +121,6 @@ export async function getRemoteSourceActions(model: Model, url: string): Promise
 	}
 
 	return remoteSourceActions;
-}
-
-export async function getRemoteSourceControlHistoryItemCommands(model: Model, url: string): Promise<Command[] | undefined> {
-	const providers = model.getRemoteProviders();
-
-	const remoteSourceCommands = [];
-	for (const provider of providers) {
-		remoteSourceCommands.push(...(await provider.getRemoteSourceControlHistoryItemCommands?.(url) ?? []));
-	}
-
-	return remoteSourceCommands.length > 0 ? remoteSourceCommands : undefined;
-}
-
-export async function provideRemoteSourceLinks(model: Model, url: string, content: string): Promise<string> {
-	const providers = model.getRemoteProviders();
-
-	for (const provider of providers) {
-		const parsedContent = await provider.provideRemoteSourceLinks?.(url, content);
-		if (!parsedContent) {
-			continue;
-		}
-
-		content = parsedContent;
-	}
-
-	return content;
 }
 
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;

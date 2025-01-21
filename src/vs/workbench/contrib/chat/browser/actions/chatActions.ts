@@ -92,10 +92,6 @@ class OpenChatGlobalAction extends Action2 {
 			title: OpenChatGlobalAction.TITLE,
 			icon: Codicon.copilot,
 			f1: true,
-			precondition: ContextKeyExpr.or(
-				ChatContextKeys.Setup.installed,
-				ChatContextKeys.panelParticipantRegistered
-			),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

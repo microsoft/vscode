@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, Disposable, commands } from 'vscode';
+import { Disposable, commands } from 'vscode';
 import { Model } from '../model';
-import { getRemoteSourceActions, getRemoteSourceControlHistoryItemCommands, pickRemoteSource, provideRemoteSourceLinks } from '../remoteSource';
+import { getRemoteSourceActions, pickRemoteSource } from '../remoteSource';
 import { GitBaseExtensionImpl } from './extension';
 import { API, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceAction, RemoteSourceProvider } from './git-base';
 
@@ -19,14 +19,6 @@ export class ApiImpl implements API {
 
 	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]> {
 		return getRemoteSourceActions(this._model, url);
-	}
-
-	getRemoteSourceControlHistoryItemCommands(url: string): Promise<Command[] | undefined> {
-		return getRemoteSourceControlHistoryItemCommands(this._model, url);
-	}
-
-	provideRemoteSourceLinks(url: string, content: string): Promise<string> {
-		return provideRemoteSourceLinks(this._model, url, content);
 	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {

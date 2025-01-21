@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../base/browser/dom.js';
-import { BugIndicatingError } from '../../../base/common/errors.js';
-import { MandatoryMutableDisposable } from '../../../base/common/lifecycle.js';
-import { EditorOption } from '../../common/config/editorOptions.js';
-import { CursorColumns } from '../../common/core/cursorColumns.js';
-import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
-import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
-import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
-import type { InlineDecoration, ViewLineRenderingData } from '../../common/viewModel.js';
-import type { ViewContext } from '../../common/viewModel/viewContext.js';
-import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
-import type { ITextureAtlasPageGlyph } from './atlas/atlas.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { Color } from '../../../../base/common/color.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CursorColumns } from '../../../common/core/cursorColumns.js';
+import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
+import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
+import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
+import type { InlineDecoration, ViewLineRenderingData } from '../../../common/viewModel.js';
+import type { ViewContext } from '../../../common/viewModel/viewContext.js';
+import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.js';
+import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
+import { createContentSegmenter, type IContentSegmenter } from '../contentSegmenter.js';
 import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
-import { BindingId, type IGpuRenderStrategy } from './gpu.js';
-import { GPULifecycle } from './gpuDisposable.js';
-import { quadVertices } from './gpuUtils.js';
-import { GlyphRasterizer } from './raster/glyphRasterizer.js';
-import { ViewGpuContext } from './viewGpuContext.js';
-import { Color } from '../../../base/common/color.js';
+import { BindingId } from '../gpu.js';
+import { GPULifecycle } from '../gpuDisposable.js';
+import { quadVertices } from '../gpuUtils.js';
+import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
+import { ViewGpuContext } from '../viewGpuContext.js';
+import { BaseRenderStrategy } from './baseRenderStrategy.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -46,11 +46,9 @@ type QueuedBufferEvent = (
 	ViewZonesChangedEvent
 );
 
-export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRenderStrategy {
+export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
-
-	private readonly _glyphRasterizer: MandatoryMutableDisposable<GlyphRasterizer>;
 
 	private _cellBindBuffer!: GPUBuffer;
 
@@ -79,18 +77,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	constructor(
-		private readonly _context: ViewContext,
-		private readonly _viewGpuContext: ViewGpuContext,
-		private readonly _device: GPUDevice,
+		context: ViewContext,
+		viewGpuContext: ViewGpuContext,
+		device: GPUDevice,
 	) {
-		super();
-
-		this._context.addEventHandler(this);
-
-		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
-		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
-
-		this._glyphRasterizer = this._register(new MandatoryMutableDisposable(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get())));
+		super(context, viewGpuContext, device);
 
 		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
@@ -244,11 +235,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		// dropped frames.
 
 		let chars = '';
+		let segment: string | undefined;
+		let charWidth = 0;
 		let y = 0;
 		let x = 0;
 		let absoluteOffsetX = 0;
 		let absoluteOffsetY = 0;
-		let xOffset = 0;
+		let tabXOffset = 0;
 		let glyph: Readonly<ITextureAtlasPageGlyph>;
 		let cellIndex = 0;
 
@@ -262,13 +255,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
-		let content: string = '';
 		let fillStartIndex = 0;
 		let fillEndIndex = 0;
 
 		let tokens: IViewLineTokens;
 
 		const dpr = getActiveWindow().devicePixelRatio;
+		let contentSegmenter: IContentSegmenter;
 
 		if (!this._scrollInitialized) {
 			this.onScrollChanged();
@@ -341,8 +334,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
 			lineData = viewportData.getViewLineRenderingData(y);
-			content = lineData.content;
-			xOffset = 0;
+			tabXOffset = 0;
+
+			contentSegmenter = createContentSegmenter(lineData, viewLineOptions);
+			charWidth = viewLineOptions.spaceWidth * dpr;
+			absoluteOffsetX = 0;
 
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;
@@ -361,7 +357,16 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					if (x > this._viewGpuContext.maxGpuCols) {
 						break;
 					}
-					chars = content.charAt(x);
+					segment = contentSegmenter.getSegmentAtIndex(x);
+					if (segment === undefined) {
+						continue;
+					}
+					chars = segment;
+
+					if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
+						charWidth = this._glyphRasterizer.value.getTextMetrics(chars).width;
+					}
+
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
 					decorationStyleSetOpacity = undefined;
@@ -421,7 +426,14 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
 						// Adjust xOffset for tab stops
 						if (chars === '\t') {
-							xOffset = CursorColumns.nextRenderTabStop(x + xOffset, lineData.tabSize) - x - 1;
+							// Find the pixel offset between the current position and the next tab stop
+							const offsetBefore = x + tabXOffset;
+							tabXOffset = CursorColumns.nextRenderTabStop(x + tabXOffset, lineData.tabSize);
+							absoluteOffsetX += charWidth * (tabXOffset - offsetBefore);
+							// Convert back to offset excluding x and the current character
+							tabXOffset -= x + 1;
+						} else {
+							absoluteOffsetX += charWidth;
 						}
 						continue;
 					}
@@ -429,8 +441,6 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
 					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
 
-					// TODO: Support non-standard character widths
-					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)
 						viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] * dpr +
@@ -445,10 +455,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					);
 
 					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = absoluteOffsetX;
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
 					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
+
+					// Adjust the x pixel offset for the next character
+					absoluteOffsetX += charWidth;
 				}
 
 				tokenStartIndex = tokenEndIndex;

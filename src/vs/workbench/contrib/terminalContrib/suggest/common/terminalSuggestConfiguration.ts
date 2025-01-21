@@ -15,8 +15,28 @@ export const enum TerminalSuggestSettingId {
 	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
 	BuiltinCompletions = 'terminal.integrated.suggest.builtinCompletions',
 	EnableExtensionCompletions = 'terminal.integrated.suggest.enableExtensionCompletions',
+	WindowsExecutableExtensions = 'terminal.integrated.suggest.windowsExecutableExtensions',
 	Providers = 'terminal.integrated.suggest.providers',
 }
+
+export const windowsDefaultExecutableExtensions: string[] = [
+	'exe',   // Executable file
+	'bat',   // Batch file
+	'cmd',   // Command script
+	'com',   // Command file
+
+	'msi',   // Windows Installer package
+
+	'ps1',   // PowerShell script
+
+	'vbs',   // VBScript file
+	'js',    // JScript file
+	'jar',   // Java Archive (requires Java runtime)
+	'py',    // Python script (requires Python interpreter)
+	'rb',    // Ruby script (requires Ruby interpreter)
+	'pl',    // Perl script (requires Perl interpreter)
+	'sh',    // Shell script (via WSL or third-party tools)
+];
 
 export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
@@ -106,4 +126,15 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		default: false,
 		tags: ['experimental'],
 	},
+	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {
+		restricted: true,
+		markdownDescription: localize("terminalWindowsExecutableSuggestionSetting", "A set of windows command executable extensions that will be included as suggestions in the terminal. For example, `exe` and `bat`.\n\nMany executables are included by default, listed below:\n\n{0}.\n\nTo exclude an extension, set it to `false`\n\n. To include one not in the list, add it and set it to `true`.",
+			windowsDefaultExecutableExtensions.sort().map(extension => `- ${extension}`).join('\n'),
+		),
+		type: 'object',
+		default: {},
+		tags: ['experimental'],
+	}
 };
+
+

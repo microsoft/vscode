@@ -13,7 +13,7 @@ import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
 import { getRemoteName } from '../../../platform/remote/common/remoteHosts.js';
-import { cleanData, cleanRemoteAuthority, extensionTelemetryLogChannelId } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { cleanData, cleanRemoteAuthority, extensionTelemetryLogChannelId, TelemetryLogGroup } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { mixin } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -46,15 +46,19 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		super();
 		this.extHostTelemetryLogFile = URI.revive(this.initData.environment.extensionTelemetryLogResource);
 		this._inLoggingOnlyMode = this.initData.environment.isExtensionTelemetryLoggingOnly;
-		this._outputLogger = loggerService.createLogger(this.extHostTelemetryLogFile, { id: extensionTelemetryLogChannelId, name: localize('extensionTelemetryLog', "Extension Telemetry{0}", this._inLoggingOnlyMode ? ' (Not Sent)' : ''), hidden: true });
+		this._outputLogger = loggerService.createLogger(this.extHostTelemetryLogFile,
+			{
+				id: extensionTelemetryLogChannelId,
+				name: localize('extensionTelemetryLog', "Extension Telemetry{0}", this._inLoggingOnlyMode ? ' (Not Sent)' : ''),
+				hidden: true,
+				group: TelemetryLogGroup,
+			});
 		this._register(this._outputLogger);
 		this._register(loggerService.onDidChangeLogLevel(arg => {
 			if (isLogLevel(arg)) {
 				this.updateLoggerVisibility();
 			}
 		}));
-		this._outputLogger.info('Below are logs for extension telemetry events sent to the telemetry output channel API once the log level is set to trace.');
-		this._outputLogger.info('===========================================================');
 	}
 
 	private updateLoggerVisibility(): void {

@@ -912,6 +912,7 @@
 		"--zoom-factor",
 		"--test-bar-width",
 		"--widget-color",
-		"--text-link-decoration"
+		"--text-link-decoration",
+		"--vscode-action-item-auto-timeout"
 	]
 }
