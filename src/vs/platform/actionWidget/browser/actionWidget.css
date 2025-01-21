@@ -105,9 +105,10 @@
 }
 
 .action-widget .monaco-list-row.action .title {
-	flex: 1;
+	/* MEMBRANE: Don't let action title truncate so we can see the full title */
+	/* flex: 1;
 	overflow: hidden;
-	text-overflow: ellipsis;
+	text-overflow: ellipsis; */
 }
 
 .action-widget .monaco-list-row.action .monaco-keybinding > .monaco-keybinding-key {
