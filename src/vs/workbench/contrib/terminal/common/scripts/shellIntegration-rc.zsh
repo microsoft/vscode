@@ -75,7 +75,7 @@ __vsc_escape_value() {
 	for (( i = 0; i < ${#str}; ++i )); do
 		byte="${str:$i:1}"
 
-		# Escape backslashes, semi-colons, newlines, and hyphens.
+		# Escape backslashes, semi-colons, newlines
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
