@@ -644,8 +644,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
 	}
 
-	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier): void {
+	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
 		const provider: languages.InlineEditProvider<IdentifiableInlineEdit> = {
+			displayName,
 			provideInlineEdit: async (model: ITextModel, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined> => {
 				return this._proxy.$provideInlineEdit(handle, model.uri, context, token);
 			},
@@ -1005,22 +1006,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}
 		return provider.resolveDocumentOnDropFileData(requestId, dataId);
 	}
-
-	// --- mapped edits
-
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
-		const provider = new MainThreadMappedEditsProvider(displayName, handle, this._proxy, this._uriIdentService);
-		this._registrations.set(handle, this._languageFeaturesService.mappedEditsProvider.register(selector, provider));
-	}
 }
 
 class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider {
 
 	private readonly dataTransfers = new DataTransferFileCache();
 
-	public readonly copyMimeTypes?: readonly string[];
-	public readonly pasteMimeTypes?: readonly string[];
-	public readonly providedPasteEditKinds?: readonly HierarchicalKind[];
+	public readonly copyMimeTypes: readonly string[];
+	public readonly pasteMimeTypes: readonly string[];
+	public readonly providedPasteEditKinds: readonly HierarchicalKind[];
 
 	readonly prepareDocumentPaste?: languages.DocumentPasteEditProvider['prepareDocumentPaste'];
 	readonly provideDocumentPasteEdits?: languages.DocumentPasteEditProvider['provideDocumentPasteEdits'];
@@ -1032,9 +1026,9 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 		metadata: IPasteEditProviderMetadataDto,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
-		this.copyMimeTypes = metadata.copyMimeTypes;
-		this.pasteMimeTypes = metadata.pasteMimeTypes;
-		this.providedPasteEditKinds = metadata.providedPasteEditKinds?.map(kind => new HierarchicalKind(kind));
+		this.copyMimeTypes = metadata.copyMimeTypes ?? [];
+		this.pasteMimeTypes = metadata.pasteMimeTypes ?? [];
+		this.providedPasteEditKinds = metadata.providedPasteEditKinds?.map(kind => new HierarchicalKind(kind)) ?? [];
 
 		if (metadata.supportsCopy) {
 			this.prepareDocumentPaste = async (model: ITextModel, selections: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<IReadonlyVSDataTransfer | undefined> => {
@@ -1248,17 +1242,3 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 	}
 }
 
-export class MainThreadMappedEditsProvider implements languages.MappedEditsProvider {
-
-	constructor(
-		public readonly displayName: string,
-		private readonly _handle: number,
-		private readonly _proxy: ExtHostLanguageFeaturesShape,
-		private readonly _uriService: IUriIdentityService,
-	) { }
-
-	async provideMappedEdits(document: ITextModel, codeBlocks: string[], context: languages.MappedEditsContext, token: CancellationToken): Promise<languages.WorkspaceEdit | null> {
-		const res = await this._proxy.$provideMappedEdits(this._handle, document.uri, codeBlocks, context, token);
-		return res ? reviveWorkspaceEditDto(res, this._uriService) : null;
-	}
-}

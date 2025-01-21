@@ -139,20 +139,13 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 
 		// For testing.
 		if (this.environmentMainService.extensionTestsLocationURI) {
-			const credentials = this.configurationService.getValue<string>('integration-test.http.proxyAuth');
-			if (credentials) {
-				const j = credentials.indexOf(':');
-				if (j !== -1) {
-					return {
-						username: credentials.substring(0, j),
-						password: credentials.substring(j + 1)
-					};
-				} else {
-					return {
-						username: credentials,
-						password: ''
-					};
+			try {
+				const decodedRealm = Buffer.from(authInfo.realm, 'base64').toString('utf-8');
+				if (decodedRealm.startsWith('{')) {
+					return JSON.parse(decodedRealm);
 				}
+			} catch {
+				// ignore
 			}
 			return undefined;
 		}

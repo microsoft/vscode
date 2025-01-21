@@ -48,6 +48,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
+import { IStateService } from '../../state/node/state.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -70,7 +71,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStateService private readonly stateService: IStateService
 	) {
 		super();
 	}
@@ -189,6 +191,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return undefined;
 	}
 
+	async getNativeWindowHandle(fallbackWindowId: number | undefined, windowId: number): Promise<VSBuffer | undefined> {
+		const window = this.windowById(windowId, fallbackWindowId);
+		if (window?.win) {
+			return VSBuffer.wrap(window.win.getNativeWindowHandle());
+		}
+		return undefined;
+	}
+
 	openWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
@@ -212,6 +222,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				diffMode: options.diffMode,
 				mergeMode: options.mergeMode,
 				addMode: options.addMode,
+				removeMode: options.removeMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
 				waitMarkerFileURI: options.waitMarkerFileURI,
@@ -237,11 +248,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async toggleFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.toggleFullScreen();
-	}
-
-	async handleTitleDoubleClick(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.handleTitleDoubleClick();
 	}
 
 	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
@@ -318,6 +324,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): Promise<void> {
 		this.themeMainService.saveWindowSplash(windowId, splash);
+	}
+
+	async overrideDefaultTitlebarStyle(windowId: number | undefined, style: 'custom' | undefined): Promise<void> {
+		if (style === 'custom') {
+			this.stateService.setItem('window.titleBarStyleOverride', style);
+		} else {
+			this.stateService.removeItem('window.titleBarStyleOverride');
+		}
 	}
 
 	//#endregion
@@ -693,6 +707,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async getScreenshot(windowId: number | undefined, options?: INativeHostOptions): Promise<ArrayBufferLike | undefined> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		const captured = await window?.win?.webContents.capturePage();
+
 		return captured?.toJPEG(95);
 	}
 
@@ -855,12 +870,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
-		if (this.environmentMainService.extensionTestsLocationURI) {
-			const testProxy = this.configurationService.getValue<string>('integration-test.http.proxy');
-			if (testProxy) {
-				return testProxy;
-			}
-		}
 		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;
 

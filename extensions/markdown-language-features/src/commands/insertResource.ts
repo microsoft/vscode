@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { Command } from '../commandManager';
-import { createUriListSnippet, mediaFileExtensions } from '../languageFeatures/copyFiles/shared';
+import { createUriListSnippet, linkEditKind, mediaFileExtensions } from '../languageFeatures/copyFiles/shared';
 import { coalesce } from '../util/arrays';
 import { getParentDocumentUri } from '../util/document';
 import { Schemes } from '../util/schemes';
@@ -84,7 +84,7 @@ function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: re
 	const snippetEdits = coalesce(activeEditor.selections.map((selection, i): vscode.SnippetTextEdit | undefined => {
 		const selectionText = activeEditor.document.getText(selection);
 		const snippet = createUriListSnippet(activeEditor.document.uri, selectedFiles.map(uri => ({ uri })), {
-			insertAsMedia: insertAsMedia,
+			linkKindHint: insertAsMedia ? 'media' : linkEditKind,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,
 			separator: insertAsMedia ? '\n' : ' ',

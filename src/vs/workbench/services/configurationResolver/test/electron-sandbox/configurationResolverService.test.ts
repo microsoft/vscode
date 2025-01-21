@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { EditorType } from '../../../../../editor/common/editorCommon.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
@@ -762,5 +762,14 @@ class MockInputsConfigurationService extends TestConfigurationService {
 			};
 		}
 		return configuration;
+	}
+
+	public override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		return {
+			value: undefined,
+			defaultValue: undefined,
+			userValue: undefined,
+			overrideIdentifiers: []
+		};
 	}
 }

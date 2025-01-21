@@ -16,13 +16,12 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IOptions, ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
-import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -52,7 +51,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(editor, InlineChatZoneWidget._options);
 
@@ -84,11 +82,10 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				},
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
-						// render edits as summary only when using Live mode and when
-						// dealing with the current file in the editor
-						return isEqual(uri, editor.getModel()?.uri)
-							&& configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode) === EditMode.Live;
+						// render when dealing with the current file in the editor
+						return isEqual(uri, editor.getModel()?.uri);
 					},
+					renderDetectedCommandsWithRequest: true,
 				}
 			}
 		});
@@ -106,7 +103,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				revealFn ??= this._createZoneAndScrollRestoreFn(this.position);
 				const height = this._computeHeight();
 				this._relayout(height.linesValue);
-				revealFn();
+				revealFn?.();
 				revealFn = undefined;
 			}
 		}));
@@ -154,8 +151,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._updatePadding();
 
 		const info = this.editor.getLayoutInfo();
-		let width = info.contentWidth - info.verticalScrollbarWidth;
-		width = Math.min(850, width);
+		const width = info.contentWidth - info.verticalScrollbarWidth;
+		// width = Math.min(850, width);
 
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.layout(this._dimension);

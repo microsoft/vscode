@@ -7,7 +7,7 @@
 
 import type * as vscode from 'vscode';
 import { asArray, coalesceInPlace, equals } from '../../../base/common/arrays.js';
-import { illegalArgument } from '../../../base/common/errors.js';
+import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from '../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -22,6 +22,7 @@ import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../.
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
+import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 
 /**
  * @deprecated
@@ -1909,6 +1910,12 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
+export enum TextEditorChangeKind {
+	Addition = 1,
+	Deletion = 2,
+	Modification = 3
+}
+
 export enum TextDocumentChangeReason {
 	Undo = 1,
 	Redo = 2,
@@ -1937,11 +1944,15 @@ export enum DecorationRangeBehavior {
 }
 
 export namespace TextEditorSelectionChangeKind {
-	export function fromValue(s: string | undefined) {
+	export function fromValue(s: TextEditorSelectionSource | string | undefined) {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api': return TextEditorSelectionChangeKind.Command;
+			case 'api':
+			case TextEditorSelectionSource.PROGRAMMATIC:
+			case TextEditorSelectionSource.JUMP:
+			case TextEditorSelectionSource.NAVIGATION:
+				return TextEditorSelectionChangeKind.Command;
 		}
 		return undefined;
 	}
@@ -2061,6 +2072,22 @@ export enum TerminalShellExecutionCommandLineConfidence {
 	High = 2
 }
 
+export enum TerminalShellType {
+	Sh = 1,
+	Bash = 2,
+	Fish = 3,
+	Csh = 4,
+	Ksh = 5,
+	Zsh = 6,
+	CommandPrompt = 7,
+	GitBash = 8,
+	PowerShell = 9,
+	Python = 10,
+	Julia = 11,
+	NuShell = 12,
+	Node = 13
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
@@ -2106,6 +2133,72 @@ export class TerminalProfile implements vscode.TerminalProfile {
 			throw illegalArgument('options');
 		}
 	}
+}
+
+export enum TerminalCompletionItemKind {
+	File = 0,
+	Folder = 1,
+	Flag = 2,
+	Method = 3,
+	Argument = 4
+}
+
+export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
+	label: string;
+	icon?: ThemeIcon | undefined;
+	detail?: string | undefined;
+	isFile?: boolean | undefined;
+	isDirectory?: boolean | undefined;
+	isKeyword?: boolean | undefined;
+	replacementIndex: number;
+	replacementLength: number;
+
+	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+		this.label = label;
+		this.icon = icon;
+		this.detail = detail;
+		this.isFile = isFile;
+		this.isDirectory = isDirectory;
+		this.isKeyword = isKeyword;
+		this.replacementIndex = replacementIndex ?? 0;
+		this.replacementLength = replacementLength ?? 0;
+	}
+}
+
+
+/**
+ * Represents a collection of {@link CompletionItem completion items} to be presented
+ * in the editor.
+ */
+export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
+
+	/**
+	 * Resources should be shown in the completions list
+	 */
+	resourceRequestConfig?: TerminalResourceRequestConfig;
+
+	/**
+	 * The completion items.
+	 */
+	items: T[];
+
+	/**
+	 * Creates a new completion list.
+	 *
+	 * @param items The completion items.
+	 * @param isIncomplete The list is not complete.
+	 */
+	constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig) {
+		this.items = items ?? [];
+		this.resourceRequestConfig = resourceRequestConfig;
+	}
+}
+
+export interface TerminalResourceRequestConfig {
+	filesRequested?: boolean;
+	foldersRequested?: boolean;
+	cwd?: vscode.Uri;
+	pathSeparator: string;
 }
 
 export enum TaskRevealKind {
@@ -2266,7 +2359,9 @@ export class ShellExecution implements vscode.ShellExecution {
 				throw illegalArgument('command');
 			}
 			this._command = arg0;
-			this._args = arg1 as (string | vscode.ShellQuotedString)[];
+			if (arg1) {
+				this._args = arg1;
+			}
 			this._options = arg2;
 		} else {
 			if (typeof arg0 !== 'string') {
@@ -2303,7 +2398,7 @@ export class ShellExecution implements vscode.ShellExecution {
 		return this._args;
 	}
 
-	set args(value: (string | vscode.ShellQuotedString)[]) {
+	set args(value: (string | vscode.ShellQuotedString)[] | undefined) {
 		this._args = value || [];
 	}
 
@@ -2870,6 +2965,8 @@ export enum DocumentPasteTriggerKind {
 
 export class DocumentDropOrPasteEditKind {
 	static Empty: DocumentDropOrPasteEditKind;
+	static Text: DocumentDropOrPasteEditKind;
+	static TextUpdateImports: DocumentDropOrPasteEditKind;
 
 	private static sep = '.';
 
@@ -2890,6 +2987,8 @@ export class DocumentDropOrPasteEditKind {
 	}
 }
 DocumentDropOrPasteEditKind.Empty = new DocumentDropOrPasteEditKind('');
+DocumentDropOrPasteEditKind.Text = new DocumentDropOrPasteEditKind('text');
+DocumentDropOrPasteEditKind.TextUpdateImports = DocumentDropOrPasteEditKind.Text.append('updateImports');
 
 export class DocumentPasteEdit {
 
@@ -3907,6 +4006,19 @@ export class NotebookCellOutput {
 	}
 }
 
+export class CellErrorStackFrame {
+	/**
+	 * @param label The name of the stack frame
+	 * @param file The file URI of the stack frame
+	 * @param position The position of the stack frame within the file
+	 */
+	constructor(
+		public label: string,
+		public uri?: vscode.Uri,
+		public position?: Position,
+	) { }
+}
+
 export enum NotebookCellKind {
 	Markup = 1,
 	Code = 2
@@ -4063,6 +4175,14 @@ export enum TestRunProfileKind {
 	Coverage = 3,
 }
 
+export class TestRunProfileBase {
+	constructor(
+		public readonly controllerId: string,
+		public readonly profileId: number,
+		public readonly kind: vscode.TestRunProfileKind,
+	) { }
+}
+
 @es5ClassCompat
 export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
@@ -4175,7 +4295,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
-		public fromTests: vscode.TestItem[] = [],
+		public includesTests: vscode.TestItem[] = [],
 	) {
 	}
 }
@@ -4743,6 +4863,8 @@ export class LanguageModelChatAssistantMessage {
 
 export class LanguageModelError extends Error {
 
+	static readonly #name = 'LanguageModelError';
+
 	static NotFound(message?: string): LanguageModelError {
 		return new LanguageModelError(message, LanguageModelError.NotFound.name);
 	}
@@ -4755,11 +4877,18 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.Blocked.name);
 	}
 
+	static tryDeserialize(data: SerializedError): LanguageModelError | undefined {
+		if (data.name !== LanguageModelError.#name) {
+			return undefined;
+		}
+		return new LanguageModelError(data.message, data.code, data.cause);
+	}
+
 	readonly code: string;
 
 	constructor(message?: string, code?: string, cause?: Error) {
 		super(message, { cause });
-		this.name = 'LanguageModelError';
+		this.name = LanguageModelError.#name;
 		this.code = code ?? '';
 	}
 

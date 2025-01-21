@@ -21,31 +21,31 @@ class TestTelemetryLogger extends AbstractLogger implements ILogger {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Trace)) {
+		if (this.canLog(LogLevel.Trace)) {
 			this.logs.push(message + JSON.stringify(args));
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Debug)) {
+		if (this.canLog(LogLevel.Debug)) {
 			this.logs.push(message);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Info)) {
+		if (this.canLog(LogLevel.Info)) {
 			this.logs.push(message);
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Warning)) {
+		if (this.canLog(LogLevel.Warning)) {
 			this.logs.push(message.toString());
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Error)) {
+		if (this.canLog(LogLevel.Error)) {
 			this.logs.push(message);
 		}
 	}
@@ -93,7 +93,7 @@ suite('TelemetryLogAdapter', () => {
 		const testInstantiationService = new TestInstantiationService();
 		const testObject = new TelemetryLogAppender(new NullLogService(), testLoggerService, testInstantiationService.stub(IEnvironmentService, {}), testInstantiationService.stub(IProductService, {}));
 		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.strictEqual(testLoggerService.createLogger().logs.length, 2);
+		assert.strictEqual(testLoggerService.createLogger().logs.length, 0);
 		testObject.dispose();
 		testInstantiationService.dispose();
 	});
@@ -103,7 +103,7 @@ suite('TelemetryLogAdapter', () => {
 		const testInstantiationService = new TestInstantiationService();
 		const testObject = new TelemetryLogAppender(new NullLogService(), testLoggerService, testInstantiationService.stub(IEnvironmentService, {}), testInstantiationService.stub(IProductService, {}));
 		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.strictEqual(testLoggerService.createLogger().logs[2], 'telemetry/testEvent' + JSON.stringify([{
+		assert.strictEqual(testLoggerService.createLogger().logs[0], 'telemetry/testEvent' + JSON.stringify([{
 			properties: {
 				hello: 'world',
 			},

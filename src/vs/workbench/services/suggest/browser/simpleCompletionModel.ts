@@ -114,9 +114,8 @@ export class SimpleCompletionModel {
 			}
 
 			// remember the word against which this item was
-			// scored
+			// scored. If word is undefined, then match against the empty string.
 			item.word = word;
-
 			if (wordLen === 0) {
 				// when there is nothing to score against, don't
 				// event try to do. Use a const rank and rely on
@@ -165,13 +164,13 @@ export class SimpleCompletionModel {
 				} else {
 					// by default match `word` against the `label`
 					const match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, this._fuzzyScoreOptions);
-					if (!match) {
+					if (!match && word !== '') {
 						continue; // NO match
 					}
-					item.score = match;
+					// Use default sorting when word is empty
+					item.score = match || FuzzyScore.Default;
 				}
 			}
-
 			item.idx = i;
 			target.push(item);
 
@@ -209,6 +208,10 @@ export class SimpleCompletionModel {
 				// Then by file extension length ascending
 				score = a.fileExtLow.length - b.fileExtLow.length;
 			}
+			if (score === 0 || fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0) {
+				// both files or directories, sort alphabetically
+				score = a.completion.label.localeCompare(b.completion.label);
+			}
 			return score;
 		});
 		this._refilterKind = Refilter.Nothing;
@@ -231,6 +234,8 @@ const fileExtScores = new Map<string, number>(isWindows ? [
 	['exe', 0.08],
 	['bat', 0.07],
 	['cmd', 0.07],
+	['msi', 0.06],
+	['com', 0.06],
 	// Non-Windows
 	['sh', -0.05],
 	['bash', -0.05],

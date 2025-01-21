@@ -23,12 +23,13 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickDiff);
 	}
 
-	async $registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], label: string, rootUri: UriComponents | undefined): Promise<void> {
+	async $registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], label: string, rootUri: UriComponents | undefined, visible: boolean): Promise<void> {
 		const provider: QuickDiffProvider = {
 			label,
 			rootUri: URI.revive(rootUri),
 			selector,
 			isSCM: false,
+			visible,
 			getOriginalResource: async (uri: URI) => {
 				return URI.revive(await this.proxy.$provideOriginalResource(handle, uri, CancellationToken.None));
 			}

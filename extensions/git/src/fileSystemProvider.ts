@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError } from 'vscode';
+import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError, LogOutputChannel } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
@@ -43,7 +43,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	private mtime = new Date().getTime();
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
+	constructor(private readonly model: Model, private readonly logger: LogOutputChannel) {
 		this.disposables.push(
 			model.onDidChangeRepository(this.onDidChangeRepository, this),
 			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
@@ -136,6 +136,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		const { submoduleOf, path, ref } = fromGitUri(uri);
 		const repository = submoduleOf ? this.model.getRepository(submoduleOf) : this.model.getRepository(uri);
 		if (!repository) {
+			this.logger.warn(`[GitFileSystemProvider][stat] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
 		}
 
@@ -181,6 +182,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
+			this.logger.warn(`[GitFileSystemProvider][readFile] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
 		}
 
@@ -192,7 +194,10 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		try {
 			return await repository.buffer(sanitizeRef(ref, path, repository), path);
 		} catch (err) {
-			return new Uint8Array(0);
+			this.logger.warn(`[GitFileSystemProvider][readFile] File not found - ${uri.toString()}`);
+			// File does not exist in git. This could be
+			// because the file is untracked or ignored
+			throw FileSystemError.FileNotFound();
 		}
 	}
 

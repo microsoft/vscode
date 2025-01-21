@@ -779,6 +779,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 						minimumVersion: '1.0.0',
 					}
 				},
+				'configurationService.folder.policyObjectSetting': {
+					'type': 'object',
+					'default': {},
+					policy: {
+						name: 'configurationService.folder.policyObjectSetting',
+						minimumVersion: '1.0.0',
+					}
+				},
 			}
 		});
 
@@ -827,7 +835,19 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('defaults', () => {
-		assert.deepStrictEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet', 'restrictedSetting': 'isSet', 'policySetting': 'isSet' } });
+		assert.deepStrictEqual(testObject.getValue('configurationService'),
+			{
+				'folder': {
+					'applicationSetting': 'isSet',
+					'machineSetting': 'isSet',
+					'machineOverridableSetting': 'isSet',
+					'testSetting': 'isSet',
+					'languageSetting': 'isSet',
+					'restrictedSetting': 'isSet',
+					'policySetting': 'isSet',
+					'policyObjectSetting': {}
+				}
+			});
 	});
 
 	test('globals override defaults', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1050,6 +1070,19 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'workspaceValue');
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, undefined);
+	}));
+
+	test('policy value override all for object type setting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"a": true} }'));
+			return promise;
+		});
+
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"b": true} }'));
+		await testObject.reloadConfiguration();
+
+		assert.deepStrictEqual(testObject.getValue('configurationService.folder.policyObjectSetting'), { a: true });
 	}));
 
 	test('reload configuration emits events after global configuraiton changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1735,6 +1768,12 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		});
 
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting3'), 'defaultProfile');
+	}));
+
+	test('non registering setting should not be read from default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.nonregistered": "defaultProfile" }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.profiles.nonregistered'), undefined);
 	}));
 
 	test('initialize with custom all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

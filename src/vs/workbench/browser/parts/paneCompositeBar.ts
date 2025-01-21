@@ -11,7 +11,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
-import { Dimension, createCSSRule, isMouseEvent } from '../../../base/browser/dom.js';
+import { Dimension, isMouseEvent } from '../../../base/browser/dom.js';
+import { createCSSRule } from '../../../base/browser/domStylesheets.js';
 import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
@@ -98,7 +99,7 @@ export class PaneCompositeBar extends Disposable {
 
 	constructor(
 		protected readonly options: IPaneCompositeBarOptions,
-		private readonly part: Parts,
+		protected readonly part: Parts,
 		private readonly paneCompositePart: IPaneCompositePart,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -794,8 +795,7 @@ class ViewContainerActivityAction extends CompositeBarAction {
 	}
 
 	private updateActivity(): void {
-		const activities = this.activityService.getViewContainerActivities(this.compositeBarActionItem.id);
-		this.activity = activities[0];
+		this.activities = this.activityService.getViewContainerActivities(this.compositeBarActionItem.id);
 	}
 
 	override async run(event: { preserveFocus: boolean }): Promise<void> {

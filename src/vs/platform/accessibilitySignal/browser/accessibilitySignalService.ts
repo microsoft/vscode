@@ -566,7 +566,7 @@ export class AccessibilitySignal {
 
 	public static readonly codeActionTriggered = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.codeActionRequestTriggered', 'Code Action Request Triggered'),
-		sound: Sound.requestSent,
+		sound: Sound.voiceRecordingStarted,
 		legacySoundSettingsKey: 'audioCues.codeActionRequestTriggered',
 		legacyAnnouncementSettingsKey: 'accessibility.alert.codeActionRequestTriggered',
 		announcementMessage: localize('accessibility.signals.codeActionRequestTriggered', 'Code Action Request Triggered'),
@@ -576,14 +576,7 @@ export class AccessibilitySignal {
 	public static readonly codeActionApplied = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.codeActionApplied', 'Code Action Applied'),
 		legacySoundSettingsKey: 'audioCues.codeActionApplied',
-		sound: {
-			randomOneOf: [
-				Sound.responseReceived1,
-				Sound.responseReceived2,
-				Sound.responseReceived3,
-				Sound.responseReceived4
-			]
-		},
+		sound: Sound.voiceRecordingStopped,
 		settingsKey: 'accessibility.signals.codeActionApplied'
 	});
 

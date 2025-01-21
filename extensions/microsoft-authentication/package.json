@@ -14,7 +14,8 @@
   ],
   "activationEvents": [],
   "enabledApiProposals": [
-    "idToken"
+    "idToken",
+    "nativeWindowHandle"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -99,12 +100,20 @@
       {
         "title": "Microsoft",
         "properties": {
-          "microsoft.useMsal": {
-            "type": "boolean",
-            "description": "%useMsal.description%",
+          "microsoft-authentication.implementation": {
+            "type": "string",
+            "default": "msal",
+            "enum": [
+              "msal",
+              "classic"
+            ],
+            "enumDescriptions": [
+              "%microsoft-authentication.implementation.enumDescriptions.msal%",
+              "%microsoft-authentication.implementation.enumDescriptions.classic%"
+            ],
+            "markdownDescription": "%microsoft-authentication.implementation.description%",
             "tags": [
-              "onExP",
-              "preview"
+              "onExP"
             ]
           }
         }
@@ -130,8 +139,10 @@
   },
   "dependencies": {
     "@azure/ms-rest-azure-env": "^2.0.0",
-    "@azure/msal-node": "^2.13.1",
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@azure/msal-node": "^2.16.2",
+    "@azure/msal-node-extensions": "^1.5.0",
+    "@vscode/extension-telemetry": "^0.9.8",
+    "keytar": "file:./packageMocks/keytar",
     "vscode-tas-client": "^0.1.84"
   },
   "repository": {

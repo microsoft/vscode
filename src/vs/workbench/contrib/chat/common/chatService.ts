@@ -32,6 +32,7 @@ export interface IChatResponseErrorDetails {
 	responseIsIncomplete?: boolean;
 	responseIsFiltered?: boolean;
 	responseIsRedacted?: boolean;
+	isQuotaExceeded?: boolean;
 }
 
 export interface IChatResponseProgressFileTreeData {
@@ -201,7 +202,7 @@ export interface IChatToolInvocation {
 	confirmed: DeferredPromise<boolean>;
 	/** A 3-way: undefined=don't know yet. */
 	isConfirmed: boolean | undefined;
-	invocationMessage: string;
+	invocationMessage: string | IMarkdownString;
 
 	isComplete: boolean;
 	isCompleteDeferred: DeferredPromise<void>;
@@ -212,7 +213,7 @@ export interface IChatToolInvocation {
  * This is a IChatToolInvocation that has been serialized, like after window reload, so it is no longer an active tool invocation.
  */
 export interface IChatToolInvocationSerialized {
-	invocationMessage: string;
+	invocationMessage: string | IMarkdownString;
 	isConfirmed: boolean;
 	isComplete: boolean;
 	kind: 'toolInvocationSerialized';
@@ -430,6 +431,11 @@ export interface IChatSendRequestOptions {
 	 * The label of the confirmation action that was selected.
 	 */
 	confirmation?: string;
+
+	/**
+	 * Flag to indicate whether a prompt instructions attachment is present.
+	 */
+	hasInstructionAttachments?: boolean;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
