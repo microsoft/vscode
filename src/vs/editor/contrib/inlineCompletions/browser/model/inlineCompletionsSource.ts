@@ -152,13 +152,20 @@ export class InlineCompletionsSource extends Disposable {
 				return false;
 			}
 
+			// Reuse Inline Edit if possible
+			if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && activeInlineCompletion.canBeReused(this._textModel, position)) {
+				updatedCompletions.dispose();
+				return false;
+			}
+
 			const endTime = new Date();
 			this._debounceValue.update(this._textModel, endTime.getTime() - startTime.getTime());
 
+			// Reuse Inline Completion if possible
 			const completions = new UpToDateInlineCompletions(updatedCompletions, request, this._textModel, this._versionId, this._invalidationDelay);
-			if (activeInlineCompletion) {
+			if (activeInlineCompletion && !activeInlineCompletion.isInlineEdit && activeInlineCompletion.canBeReused(this._textModel, position)) {
 				const asInlineCompletion = activeInlineCompletion.toInlineCompletion(undefined);
-				if (activeInlineCompletion.canBeReused(this._textModel, position) && !updatedCompletions.has(asInlineCompletion)) {
+				if (!updatedCompletions.has(asInlineCompletion)) {
 					completions.prepend(activeInlineCompletion.inlineCompletion, asInlineCompletion.range, true);
 				}
 			}
@@ -347,6 +354,7 @@ export class InlineCompletionWithUpdatedRange {
 
 	public get source() { return this.inlineCompletion.source; }
 	public get sourceInlineCompletion() { return this.inlineCompletion.sourceInlineCompletion; }
+	public get isInlineEdit() { return this.inlineCompletion.sourceInlineCompletion.isInlineEdit; }
 
 	private _invalidationTime: number | undefined = Date.now() + this._invalidationDelay.get();
 
@@ -396,19 +404,21 @@ export class InlineCompletionWithUpdatedRange {
 		}
 
 		const editUpdates = offsetEdit.edits.map(edit => acceptTextModelChange(edit, e.changes));
+		const newEdits = editUpdates.filter(({ changeType }) => changeType !== 'fullyAccepted').map(({ edit }) => edit);
 
-		const emptyEdit = editUpdates.find(editUpdate => editUpdate.edit.isEmpty);
-		if (emptyEdit) {
-			// A change collided with one of our edits, so we will have to drop the completion
-			this._inlineEdit.set(new OffsetEdit([emptyEdit.edit]), tx);
+		const emptyEdit = newEdits.find(edit => edit.isEmpty);
+		if (emptyEdit || newEdits.length === 0) {
+			// Either a change collided with one of our edits, so we will have to drop the completion
+			// Or the completion has been typed by the user
+			this._inlineEdit.set(new OffsetEdit([emptyEdit ?? new SingleOffsetEdit(new OffsetRange(0, 0), '')]), tx);
 			return;
 		}
 
-		const partOfInlineEdit = editUpdates.some(({ changePartOfEdit }) => changePartOfEdit);
-		if (partOfInlineEdit) {
+		const changePartiallyAcceptsEdit = editUpdates.some(({ changeType }) => changeType === 'partiallyAccepted' || changeType === 'fullyAccepted');
+
+		if (changePartiallyAcceptsEdit) {
 			this._invalidationTime = undefined;
 		}
-
 		if (this._invalidationTime && this._invalidationTime < Date.now()) {
 			// The completion has been shown for a while and the user
 			// has been working on a different part of the document, so invalidate it
@@ -416,31 +426,38 @@ export class InlineCompletionWithUpdatedRange {
 			return;
 		}
 
-		this._lastChangePartOfInlineEdit = partOfInlineEdit;
-		this._inlineEdit.set(new OffsetEdit(editUpdates.map(({ edit }) => edit)), tx);
+		this._lastChangePartOfInlineEdit = changePartiallyAcceptsEdit;
+		this._inlineEdit.set(new OffsetEdit(newEdits), tx);
 
-		function acceptTextModelChange(edit: SingleOffsetEdit, changes: readonly IModelContentChange[]): { edit: SingleOffsetEdit; changePartOfEdit: boolean } {
+		function acceptTextModelChange(edit: SingleOffsetEdit, changes: readonly IModelContentChange[]): { edit: SingleOffsetEdit; changeType: 'move' | 'partiallyAccepted' | 'fullyAccepted' } {
 			let start = edit.replaceRange.start;
 			let end = edit.replaceRange.endExclusive;
 			let newText = edit.newText;
-			let changePartOfEdit = false;
+			let changeType: 'move' | 'partiallyAccepted' | 'fullyAccepted' = 'move';
 			for (let i = changes.length - 1; i >= 0; i--) {
 				const change = changes[i];
 
-				// user inserted text at the start of the completion
+				// Edit is an insertion: user inserted text at the start of the completion
 				if (edit.replaceRange.isEmpty && change.rangeLength === 0 && change.rangeOffset === start && newText.startsWith(change.text)) {
 					start += change.text.length;
 					end = Math.max(start, end);
 					newText = newText.substring(change.text.length);
-					changePartOfEdit = true;
+					changeType = newText.length === 0 ? 'fullyAccepted' : 'partiallyAccepted';
 					continue;
 				}
 
-				if (change.rangeOffset >= end) {
+				// Edit is a deletion: user deleted text inside the deletion range
+				if (!edit.replaceRange.isEmpty && change.text.length === 0 && change.rangeOffset >= start && change.rangeOffset + change.rangeLength <= end) {
+					end -= change.rangeLength;
+					changeType = start === end ? 'fullyAccepted' : 'partiallyAccepted';
+					continue;
+				}
+
+				if (change.rangeOffset > end) {
 					// the change happens after the completion range
 					continue;
 				}
-				if (change.rangeOffset + change.rangeLength <= start) {
+				if (change.rangeOffset + change.rangeLength < start) {
 					// the change happens before the completion range
 					start += change.text.length - change.rangeLength;
 					end += change.text.length - change.rangeLength;
@@ -452,7 +469,7 @@ export class InlineCompletionWithUpdatedRange {
 				end = change.rangeOffset;
 				newText = '';
 			}
-			return { edit: new SingleOffsetEdit(new OffsetRange(start, end), newText), changePartOfEdit };
+			return { edit: new SingleOffsetEdit(new OffsetRange(start, end), newText), changeType };
 		}
 	}
 
