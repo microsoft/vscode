@@ -10,7 +10,6 @@ import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/edito
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { EditMode } from '../common/inlineChat.js';
 import { Session, StashedSession } from './inlineChatSession.js';
 
 export interface ISessionKeyComputer {
@@ -36,7 +35,7 @@ export interface IInlineChatSessionService {
 	onDidStashSession: Event<IInlineChatSessionEvent>;
 	onDidEndSession: Event<IInlineChatSessionEndEvent>;
 
-	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange; session?: Session; headless?: boolean }, token: CancellationToken): Promise<Session | undefined>;
+	createSession(editor: IActiveCodeEditor, options: { wholeRange?: IRange; session?: Session; headless?: boolean }, token: CancellationToken): Promise<Session | undefined>;
 
 	moveSession(session: Session, newEditor: ICodeEditor): void;
 

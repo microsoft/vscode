@@ -847,11 +847,6 @@ class Extensions extends Disposable {
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		type GalleryServiceMatchInstalledExtensionClassification = {
-			owner: 'sandy081';
-			comment: 'Report when a request is made to match installed extension with gallery';
-		};
-		this.telemetryService.publicLog2<{}, GalleryServiceMatchInstalledExtensionClassification>('galleryService:matchInstalledExtension');
 		const galleryExtensions = await this.galleryService.getExtensions(toMatch.map(e => ({ ...e.identifier, preRelease: e.local?.preRelease })), { compatible: true, targetPlatform: await this.server.extensionManagementService.getTargetPlatform() }, CancellationToken.None);
 		for (const extension of extensions) {
 			const compatible = galleryExtensions.find(e => areSameExtensions(e.identifier, extension.identifier));
@@ -2925,29 +2920,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async doSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<boolean[]> {
-		const changed = await this.extensionEnablementService.setEnablement(extensions.map(e => e.local!), enablementState);
-		for (let i = 0; i < changed.length; i++) {
-			if (changed[i]) {
-				/* __GDPR__
-				"extension:enable" : {
-					"owner": "sandy081",
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
-				}
-				*/
-				/* __GDPR__
-				"extension:disable" : {
-					"owner": "sandy081",
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
-				}
-				*/
-				this.telemetryService.publicLog(enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace ? 'extension:enable' : 'extension:disable', extensions[i].telemetryData);
-			}
-		}
-		return changed;
+		return await this.extensionEnablementService.setEnablement(extensions.map(e => e.local!), enablementState);
 	}
 
 	// Current service reports progress when installing/uninstalling extensions

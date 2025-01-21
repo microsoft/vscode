@@ -105,8 +105,6 @@ async function exchangeCodeForToken(
 		headers: {
 			Accept: 'application/json',
 			'Content-Type': 'application/x-www-form-urlencoded',
-			'Content-Length': body.toString()
-
 		},
 		body: body.toString()
 	});

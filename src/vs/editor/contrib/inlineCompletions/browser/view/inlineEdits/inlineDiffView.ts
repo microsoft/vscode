@@ -23,7 +23,7 @@ import { classNames } from './utils.js';
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
 	modifiedText: AbstractText;
-	mode: 'mixedLines' | 'ghostText' | 'interleavedLines' | 'sideBySide';
+	mode: 'mixedLines' | 'ghostText' | 'interleavedLines' | 'sideBySide' | 'deletion';
 
 	modifiedCodeEditor: ICodeEditor;
 }
@@ -191,9 +191,11 @@ export class OriginalEditorInlineDiffView extends Disposable {
 								shouldFillLineOnLineBreak: false,
 								className: classNames(
 									'inlineCompletions-char-delete',
-									(i.originalRange.isEmpty() && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
+									i.originalRange.isSingleLine() && diff.mode === 'ghostText' && 'single-line-inline',
+									i.originalRange.isEmpty() && 'empty',
+									((i.originalRange.isEmpty() || diff.mode === 'deletion') && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
 								),
-								inlineClassName: useInlineDiff ? 'strike-through' : null,
+								inlineClassName: useInlineDiff ? classNames('strike-through', 'inlineCompletions') : null,
 								zIndex: 1
 							}
 						});
@@ -214,7 +216,10 @@ export class OriginalEditorInlineDiffView extends Disposable {
 								description: 'inserted-text',
 								before: {
 									content: insertedText,
-									inlineClassName: diff.mode === 'ghostText' ? 'ghost-text-decoration' : 'inlineCompletions-char-insert',
+									inlineClassName: classNames(
+										'inlineCompletions-char-insert',
+										i.modifiedRange.isSingleLine() && diff.mode === 'ghostText' && 'single-line-inline'
+									),
 								},
 								zIndex: 2,
 								showIfCollapsed: true,

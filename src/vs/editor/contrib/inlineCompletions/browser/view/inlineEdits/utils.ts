@@ -163,6 +163,86 @@ export class PathBuilder {
 	}
 }
 
+// Arguments are a bit messy currently, could be improved
+export function createRectangle(
+	layout: { topLeft: Point; width: number; height: number },
+	padding: number | { top: number; right: number; bottom: number; left: number },
+	borderRadius: number | { topLeft: number; topRight: number; bottomLeft: number; bottomRight: number },
+	options: { hideLeft?: boolean; hideRight?: boolean; hideTop?: boolean; hideBottom?: boolean } = {}
+): PathBuilder {
+
+	const topLeftInner = layout.topLeft;
+	const topRightInner = topLeftInner.deltaX(layout.width);
+	const bottomLeftInner = topLeftInner.deltaY(layout.height);
+	const bottomRightInner = bottomLeftInner.deltaX(layout.width);
+
+	// padding
+	const { top: paddingTop, bottom: paddingBottom, left: paddingLeft, right: paddingRight } = typeof padding === 'number' ?
+		{ top: padding, bottom: padding, left: padding, right: padding }
+		: padding;
+
+	// corner radius
+	const { topLeft: radiusTL, topRight: radiusTR, bottomLeft: radiusBL, bottomRight: radiusBR } = typeof borderRadius === 'number' ?
+		{ topLeft: borderRadius, topRight: borderRadius, bottomLeft: borderRadius, bottomRight: borderRadius } :
+		borderRadius;
+
+	const totalHeight = layout.height + paddingTop + paddingBottom;
+	const totalWidth = layout.width + paddingLeft + paddingRight;
+
+	// The path is drawn from bottom left at the end of the rounded corner in a clockwise direction
+	// Before: before the rounded corner
+	// After: after the rounded corner
+	const topLeft = topLeftInner.deltaX(-paddingLeft).deltaY(-paddingTop);
+	const topRight = topRightInner.deltaX(paddingRight).deltaY(-paddingTop);
+	const topLeftBefore = topLeft.deltaY(Math.min(radiusTL, totalHeight / 2));
+	const topLeftAfter = topLeft.deltaX(Math.min(radiusTL, totalWidth / 2));
+	const topRightBefore = topRight.deltaX(-Math.min(radiusTR, totalWidth / 2));
+	const topRightAfter = topRight.deltaY(Math.min(radiusTR, totalHeight / 2));
+
+	const bottomLeft = bottomLeftInner.deltaX(-paddingLeft).deltaY(paddingBottom);
+	const bottomRight = bottomRightInner.deltaX(paddingRight).deltaY(paddingBottom);
+	const bottomLeftBefore = bottomLeft.deltaX(Math.min(radiusBL, totalWidth / 2));
+	const bottomLeftAfter = bottomLeft.deltaY(-Math.min(radiusBL, totalHeight / 2));
+	const bottomRightBefore = bottomRight.deltaY(-Math.min(radiusBR, totalHeight / 2));
+	const bottomRightAfter = bottomRight.deltaX(-Math.min(radiusBR, totalWidth / 2));
+
+	const path = new PathBuilder();
+
+	if (!options.hideLeft) {
+		path.moveTo(bottomLeftAfter).lineTo(topLeftBefore);
+	}
+
+	if (!options.hideLeft && !options.hideTop) {
+		path.curveTo(topLeft, topLeftAfter);
+	}
+
+	if (!options.hideTop) {
+		path.moveTo(topLeftAfter).lineTo(topRightBefore);
+	}
+
+	if (!options.hideTop && !options.hideRight) {
+		path.curveTo(topRight, topRightAfter);
+	}
+
+	if (!options.hideRight) {
+		path.moveTo(topRightAfter).lineTo(bottomRightBefore);
+	}
+
+	if (!options.hideRight && !options.hideBottom) {
+		path.curveTo(bottomRight, bottomRightAfter);
+	}
+
+	if (!options.hideBottom) {
+		path.moveTo(bottomRightAfter).lineTo(bottomLeftBefore);
+	}
+
+	if (!options.hideBottom && !options.hideLeft) {
+		path.curveTo(bottomLeft, bottomLeftAfter);
+	}
+
+	return path;
+}
+
 type Value<T> = T | IObservable<T>;
 type ValueOrList<T> = Value<T> | ValueOrList<T>[];
 type ValueOrList2<T> = ValueOrList<T> | ValueOrList<ValueOrList<T>>;
@@ -392,11 +472,13 @@ function setClassName(domNode: Element, className: string) {
 function resolve<T>(value: ValueOrList<T>, reader: IReader | undefined, cb: (val: T) => void): void {
 	if (isObservable(value)) {
 		cb(value.read(reader));
+		return;
 	}
 	if (Array.isArray(value)) {
 		for (const v of value) {
 			resolve(v, reader, cb);
 		}
+		return;
 	}
 	cb(value as any);
 }

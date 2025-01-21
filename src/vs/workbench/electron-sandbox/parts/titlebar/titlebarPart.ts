@@ -28,6 +28,9 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export class NativeTitlebarPart extends BrowserTitlebarPart {
 
@@ -71,7 +74,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
-		@INativeHostService protected readonly nativeHostService: INativeHostService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
@@ -288,38 +291,9 @@ export class MainNativeTitlebarPart extends NativeTitlebarPart {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IProductService productService: IProductService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(Parts.TITLEBAR_PART, mainWindow, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService);
-
-		if (isLinux && productService.quality === 'stable') {
-			this.handleDefaultTitlebarStyle(); // TODO@bpasero remove me eventually once settled
-		}
-	}
-
-	private handleDefaultTitlebarStyle(): void {
-		this.updateDefaultTitlebarStyle();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.titleBarStyle')) {
-				this.updateDefaultTitlebarStyle();
-			}
-		}));
-	}
-
-	private updateDefaultTitlebarStyle(): void {
-		const titleBarStyle = this.configurationService.inspect('window.titleBarStyle');
-
-		let titleBarStyleOverride: 'custom' | undefined;
-		if (titleBarStyle.applicationValue || titleBarStyle.userValue || titleBarStyle.userLocalValue) {
-			// configured by user or application: clear override
-			titleBarStyleOverride = undefined;
-		} else {
-			// not configured: set override if experiment is active
-			titleBarStyleOverride = titleBarStyle.defaultValue === 'native' ? undefined : 'custom';
-		}
-
-		this.nativeHostService.overrideDefaultTitlebarStyle(titleBarStyleOverride);
 	}
 }
 
@@ -372,5 +346,52 @@ export class NativeTitleService extends BrowserTitleService {
 
 	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): AuxiliaryNativeTitlebarPart {
 		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart);
+	}
+}
+
+export class LinuxCustomTitlebarExperiment extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.linuxCustomTitlebarExperiment';
+
+	private readonly treatment = this.assignmentService.getTreatment('config.window.experimentalTitleBarStyle');
+
+	constructor(
+		@IProductService productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService
+	) {
+		super();
+
+		if (isLinux && productService.quality === 'stable') {
+			this.handleDefaultTitlebarStyle(); // TODO@bpasero remove me eventually once settled
+		}
+	}
+
+	private handleDefaultTitlebarStyle(): void {
+		this.updateDefaultTitlebarStyle();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.titleBarStyle')) {
+				this.updateDefaultTitlebarStyle();
+			}
+		}));
+	}
+
+	private async updateDefaultTitlebarStyle(): Promise<void> {
+		const titleBarStyle = this.configurationService.inspect('window.titleBarStyle');
+
+		let titleBarStyleOverride: 'custom' | undefined;
+		if (titleBarStyle.applicationValue || titleBarStyle.userValue) {
+			// configured by user or application: clear override
+			titleBarStyleOverride = undefined;
+		} else {
+			// not configured: set override if experiment is active
+			const value = await this.treatment;
+			if (value === 'custom') {
+				titleBarStyleOverride = 'custom';
+			}
+		}
+
+		await this.nativeHostService.overrideDefaultTitlebarStyle(titleBarStyleOverride);
 	}
 }

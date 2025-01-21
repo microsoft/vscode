@@ -62,9 +62,9 @@ function createCodeTestSpecs(executable: string): ITestSpec2[] {
 		{ input: `${executable} --merge ./file1 ./file2 ./base |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
 		{ input: `${executable} --goto |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
 		{ input: `${executable} --user-data-dir |`, expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-		{ input: `${executable} --profile |` },
-		{ input: `${executable} --install-extension |` },
-		{ input: `${executable} --uninstall-extension |` },
+		{ input: `${executable} --profile |`, expectedResourceRequests: { type: 'both', cwd: testCwd } },
+		{ input: `${executable} --install-extension |`, expectedResourceRequests: { type: 'both', cwd: testCwd } },
+		{ input: `${executable} --uninstall-extension |`, expectedResourceRequests: { type: 'both', cwd: testCwd } },
 		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --sync |`, expectedCompletions: syncOptions },
 		{ input: `${executable} --extensions-dir |`, expectedResourceRequests: { type: 'folders', cwd: testCwd } },
@@ -150,7 +150,7 @@ suite('Terminal Suggest', () => {
 					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const result = await getCompletionItemsFromSpecs(completionSpecs, { commandLine, cursorPosition }, availableCommands, prefix, testCwd);
+					const result = await getCompletionItemsFromSpecs(completionSpecs, { commandLine, cursorPosition }, availableCommands.map(c => { return { label: c }; }), prefix, testCwd);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested);
 					strictEqual(result.foldersRequested, foldersRequested);

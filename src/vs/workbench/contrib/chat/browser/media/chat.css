@@ -200,6 +200,10 @@
 	margin-bottom: 8px;
 }
 
+.interactive-item-container .value .rendered-markdown .codicon {
+	font-size: inherit;
+}
+
 .interactive-item-container .value .rendered-markdown blockquote {
 	margin: 0px;
 	padding: 0px 16px 0 10px;
@@ -260,6 +264,7 @@
 	overflow-wrap: anywhere;
 }
 
+.interactive-item-container .value > :last-child,
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child {
 	margin-bottom: 0px;
 }
@@ -291,18 +296,14 @@
 	margin: 16px 0 8px 0;
 }
 
-.interactive-item-container.editing-session .value .rendered-markdown p {
-	margin: 0;
+.interactive-item-container.editing-session .value .rendered-markdown p:has(+ [data-code] > .chat-codeblock-pill-widget) {
+	margin-bottom: 8px;
 }
 
 .interactive-item-container.editing-session .value .rendered-markdown h3 {
 	font-size: 13px;
 	margin: 0 0 8px 0;
 	font-weight: unset;
-}
-
-.interactive-item-container.editing-session .value .rendered-markdown [data-code] {
-	margin: 8px 0 16px 0;
 }
 
 .interactive-item-container .value .rendered-markdown {
@@ -334,7 +335,7 @@
 	}
 }
 
-.interactive-item-container .value .rendered-markdown p {
+.interactive-item-container .value .rendered-markdown {
 	line-height: 1.5em;
 }
 
@@ -386,10 +387,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* #endregion list indent rules */
-
-.interactive-item-container .value .rendered-markdown li {
-	line-height: 1.3rem;
-}
 
 .interactive-item-container .value .rendered-markdown img {
 	max-width: 100%;
@@ -564,6 +561,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .monaco-list-row.focused .chat-collapsible-list-action-bar,
 .interactive-session .chat-editing-session .monaco-list-row.selected .chat-collapsible-list-action-bar {
 	display: inherit;
+}
+
+.interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar .action-label.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	box-shadow: inset 0 0 0 1px var(--vscode-inputOption-activeBorder);
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
@@ -923,6 +926,70 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-attached-context .chat-attached-context-attachment.show-file-icons.warning {
 	border-color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+/**
+ * Styles for the `prompt instructions` attachment widget.
+ */
+.chat-attached-context .chat-prompt-instructions-attachments {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 2px;
+}
+.chat-attached-context .chat-prompt-instructions-attachment {
+	display: flex;
+	gap: 4px;
+}
+.chat-attached-context .chat-prompt-instructions-attachment .codicon {
+	color: inherit;
+	text-decoration: none;
+}
+.chat-attached-context .chat-prompt-instructions-attachment .chat-implicit-hint {
+	opacity: 0.7;
+	font-size: .9em;
+}
+.chat-attached-context .chat-prompt-instructions-attachment.warning {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+.chat-attached-context .chat-prompt-instructions-attachment.error {
+	color: var(--vscode-notificationsErrorIcon-foreground);
+}
+.chat-attached-context .chat-prompt-instructions-attachment.disabled {
+	border-style: dashed;
+	opacity: 0.75;
+}
+/*
+ * This overly specific CSS selector is needed to beat priority of some
+ * styles applied on the the `.chat-attached-context-attachment` element.
+ */
+.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.error.implicit,
+.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.warning.implicit {
+	border: 1px solid currentColor;
+}
+/*
+ * If in one of the non-normal states, make sure the `main icon` of
+ * the component has the same color as the component itself
+ */
+.chat-attached-context .chat-prompt-instructions-attachment.error .monaco-icon-label::before,
+.chat-attached-context .chat-prompt-instructions-attachment.warning .monaco-icon-label::before,
+.chat-attached-context .chat-prompt-instructions-attachment.disabled .monaco-icon-label::before {
+	color: inherit;
+}
+.chat-attached-context .chat-prompt-instructions-attachment.disabled .monaco-icon-label::before {
+	font-style: italic;
+}
+.chat-attached-context .chat-prompt-instructions-attachment.disabled:hover {
+	opacity: 1;
+}
+.chat-attached-context .chat-prompt-instructions-attachment.disabled .chat-implicit-hint,
+.chat-attached-context .chat-prompt-instructions-attachment.disabled .label-name {
+	font-style: italic;
+	text-decoration: line-through;
+}
+.chat-attached-context .chat-prompt-instructions-attachment.disabled:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
 }
 
 .chat-notification-widget .chat-warning-codicon .codicon-warning,
