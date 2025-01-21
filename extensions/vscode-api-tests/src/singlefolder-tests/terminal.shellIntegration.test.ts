@@ -100,8 +100,8 @@ import { assertNoRpc } from '../utils';
 			});
 			ok(shellIntegration.env);
 			ok(shellIntegration.env.value);
-			ok(shellIntegration.env.value.PATH);
-			ok(shellIntegration.env.value.PATH.length > 0, 'env.PATH should have a length greater than 0');
+			ok(shellIntegration.env.value['PATH']);
+			ok(shellIntegration.env.value['PATH'].length > 0, 'env.PATH should have a length greater than 0');
 		});
 	}
 
