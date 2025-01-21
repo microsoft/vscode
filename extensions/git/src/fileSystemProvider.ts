@@ -140,14 +140,14 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			throw FileSystemError.FileNotFound();
 		}
 
-		let size = 0;
 		try {
 			const details = await repository.getObjectDetails(sanitizeRef(ref, path, repository), path);
-			size = details.size;
+			return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
 		} catch {
-			// noop
+			// File does not exist in git. This could be because the file is untracked or ignored
+			this.logger.warn(`[GitFileSystemProvider][stat] File not found - ${uri.toString()}`);
+			throw FileSystemError.FileNotFound();
 		}
-		return { type: FileType.File, size: size, mtime: this.mtime, ctime: 0 };
 	}
 
 	readDirectory(): Thenable<[string, FileType][]> {
@@ -193,10 +193,9 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 		try {
 			return await repository.buffer(sanitizeRef(ref, path, repository), path);
-		} catch (err) {
+		} catch {
+			// File does not exist in git. This could be because the file is untracked or ignored
 			this.logger.warn(`[GitFileSystemProvider][readFile] File not found - ${uri.toString()}`);
-			// File does not exist in git. This could be
-			// because the file is untracked or ignored
 			throw FileSystemError.FileNotFound();
 		}
 	}
