@@ -1341,6 +1341,10 @@ export class CommandCenter {
 		}
 
 		await repository.move(from, to);
+
+		// Close active editor and open the renamed file
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('vscode.open', Uri.file(path.join(repository.root, to)), { viewColumn: ViewColumn.Active });
 	}
 
 	@command('git.stage')
