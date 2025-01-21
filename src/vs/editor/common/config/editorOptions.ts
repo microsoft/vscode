@@ -4198,8 +4198,6 @@ export interface IInlineSuggestOptions {
 			enabled?: boolean;
 			useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
-			useWordInsertionView?: 'never' | 'whenPossible';
-			useWordReplacementView?: 'never' | 'whenPossible';
 
 			useGutterIndicator?: boolean;
 		};
@@ -4233,8 +4231,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enabled: true,
 					useMixedLinesDiff: 'forStableInsertions',
 					useInterleavedLinesDiff: 'never',
-					useWordInsertionView: 'whenPossible',
-					useWordReplacementView: 'whenPossible',
 					useGutterIndicator: true,
 				},
 			},
@@ -4291,18 +4287,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.experimental.useInterleavedLinesDiff', "Controls whether to enable experimental interleaved lines diff in inline suggestions."),
 					enum: ['never', 'always', 'afterJump'],
 				},
-				'editor.inlineSuggest.edits.experimental.useWordInsertionView': {
-					type: 'string',
-					default: defaults.edits.experimental.useWordInsertionView,
-					description: nls.localize('inlineSuggest.edits.experimental.useWordInsertionView', "Controls whether to enable experimental word insertion view in inline suggestions."),
-					enum: ['never', 'whenPossible'],
-				},
-				'editor.inlineSuggest.edits.experimental.useWordReplacementView': {
-					type: 'string',
-					default: defaults.edits.experimental.useWordReplacementView,
-					description: nls.localize('inlineSuggest.edits.experimental.useWordReplacementView', "Controls whether to enable experimental word replacement view in inline suggestions."),
-					enum: ['never', 'whenPossible'],
-				},
 				'editor.inlineSuggest.edits.experimental.useGutterIndicator': {
 					type: 'boolean',
 					default: defaults.edits.experimental.useGutterIndicator,
@@ -4330,8 +4314,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
 					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
 					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
-					useWordInsertionView: stringSet(input.edits?.experimental?.useWordInsertionView, this.defaultValue.edits.experimental.useWordInsertionView, ['never', 'whenPossible']),
-					useWordReplacementView: stringSet(input.edits?.experimental?.useWordReplacementView, this.defaultValue.edits.experimental.useWordReplacementView, ['never', 'whenPossible']),
 					useGutterIndicator: boolean(input.edits?.experimental?.useGutterIndicator, this.defaultValue.edits.experimental.useGutterIndicator),
 				},
 			},

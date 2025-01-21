@@ -32,8 +32,6 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _useMixedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useMixedLinesDiff);
 	private readonly _useInterleavedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useInterleavedLinesDiff);
-	private readonly _useWordReplacementView = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useWordReplacementView);
-	private readonly _useWordInsertionView = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useWordInsertionView);
 
 	private _previousView: { id: string; view: ReturnType<typeof InlineEditsView.prototype.determineView>; userJumpedToIt: boolean } | undefined;
 
@@ -221,19 +219,11 @@ export class InlineEditsView extends Disposable {
 		}
 
 		if (diff.length === 1 && diff[0].original.length === 1 && diff[0].modified.length === 1) {
-			const canUseWordReplacementView = inner.every(m => (
-				m.originalRange.isEmpty() && this._useWordInsertionView.read(reader) === 'whenPossible' ||
-				!m.originalRange.isEmpty() && this._useWordReplacementView.read(reader) === 'whenPossible'
-			));
-
-			if (canUseWordReplacementView) {
-				const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
-
-				if (allInnerChangesNotTooLong && isSingleInnerEdit) {
-					return 'wordReplacements';
-				} else {
-					return 'lineReplacement';
-				}
+			const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
+			if (allInnerChangesNotTooLong && isSingleInnerEdit) {
+				return 'wordReplacements';
+			} else {
+				return 'lineReplacement';
 			}
 		}
 
