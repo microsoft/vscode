@@ -26,6 +26,8 @@ import { assertNoRpc, poll } from '../utils';
 		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
 		// Disable env var relaunch for tests to prevent terminals relaunching themselves
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+		// Disable local echo in case it causes any problems in remote tests
+		await config.update('localEchoEnabled', "off", ConfigurationTarget.Global);
 		await config.update('shellIntegration.enabled', false);
 	});
 
@@ -761,14 +763,9 @@ import { assertNoRpc, poll } from '../utils';
 					data += sanitizeData(e.data);
 				}));
 
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-				terminal.sendText('$env:C');
-				terminal.sendText('echo $C');
+				// Run sh commands, if this is ever enabled on Windows we would also want to run
+				// the pwsh equivalent
+				terminal.sendText('echo "$A $B $C"');
 
 				// Poll for the echo results to show up
 				try {
@@ -811,19 +808,19 @@ import { assertNoRpc, poll } from '../utils';
 					data += sanitizeData(e.data);
 				}));
 
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-				terminal.sendText('$env:C');
-				terminal.sendText('echo $C');
+				// Run sh commands, if this is ever enabled on Windows we would also want to run
+				// the pwsh equivalent
+				terminal.sendText('echo "$A $B $C"');
 
 				// Poll for the echo results to show up
-				await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~c2~'), '~c2~ should be printed');
+				try {
+					await poll<void>(() => Promise.resolve(), () => data.includes('~a2~'), '~a2~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~c2~'), '~c2~ should be printed');
+				} catch (err) {
+					console.error('DATA UP UNTIL NOW:', data);
+					throw err;
+				}
 
 				// Wait for terminal to be disposed
 				await new Promise<void>(r => {
@@ -855,16 +852,18 @@ import { assertNoRpc, poll } from '../utils';
 					data += sanitizeData(e.data);
 				}));
 
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
+				// Run sh commands, if this is ever enabled on Windows we would also want to run
+				// the pwsh equivalent
+				terminal.sendText('echo "$A $B"');
 
 				// Poll for the echo results to show up
-				await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~b1~'), '~b1~ should be printed');
+				try {
+					await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~b1~'), '~b1~ should be printed');
+				} catch (err) {
+					console.error('DATA UP UNTIL NOW:', data);
+					throw err;
+				}
 
 				// Wait for terminal to be disposed
 				await new Promise<void>(r => {
@@ -896,16 +895,18 @@ import { assertNoRpc, poll } from '../utils';
 					data += sanitizeData(e.data);
 				}));
 
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
+				// Run sh commands, if this is ever enabled on Windows we would also want to run
+				// the pwsh equivalent
+				terminal.sendText('echo "$A $B"');
 
 				// Poll for the echo results to show up
-				await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
-				await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
+				try {
+					await poll<void>(() => Promise.resolve(), () => data.includes('~a1~'), '~a1~ should be printed');
+					await poll<void>(() => Promise.resolve(), () => data.includes('~b2~'), '~b2~ should be printed');
+				} catch (err) {
+					console.error('DATA UP UNTIL NOW:', data);
+					throw err;
+				}
 
 				// Wait for terminal to be disposed
 				await new Promise<void>(r => {
