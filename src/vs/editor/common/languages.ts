@@ -28,6 +28,8 @@ import { ExtensionIdentifier } from '../../platform/extensions/common/extensions
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { IModelTokensChangedEvent } from './textModelEvents.js';
 import type { Parser } from '@vscode/tree-sitter-wasm';
+import { ITextModel } from './model.js';
+import { TokenUpdate } from './model/tokenStore.js';
 
 /**
  * @internal
@@ -89,6 +91,10 @@ export class EncodedTokenizationResult {
  * @internal
  */
 export interface ITreeSitterTokenizationSupport {
+	/**
+	 * exposed for testing
+	 */
+	getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
