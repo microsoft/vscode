@@ -4613,8 +4613,6 @@ declare namespace monaco.editor {
 				enabled?: boolean;
 				useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
-				useWordInsertionView?: 'never' | 'whenPossible';
-				useWordReplacementView?: 'never' | 'whenPossible';
 				useGutterIndicator?: boolean;
 			};
 		};
