@@ -884,7 +884,12 @@ class ChatSetupController extends Disposable {
 		try {
 			showCopilotView(this.viewsService, this.layoutService);
 
-			if (entitlement !== ChatEntitlement.Limited && entitlement !== ChatEntitlement.Pro && entitlement !== ChatEntitlement.Unavailable) {
+			if (
+				providerId === defaultChat.providerId &&	// Copilot Free is only available for non-enterprise providers
+				entitlement !== ChatEntitlement.Limited &&	// User is not signed up to Copilot Free
+				entitlement !== ChatEntitlement.Pro &&		// User is not signed up to Copilot Pro
+				entitlement !== ChatEntitlement.Unavailable	// User is eligible for Copilot Free
+			) {
 				if (!session) {
 					try {
 						session = (await this.authenticationService.getSessions(providerId)).at(0);
