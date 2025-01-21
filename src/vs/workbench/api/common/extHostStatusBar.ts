@@ -14,7 +14,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarkdownString } from './extHostTypeConverters.js';
 import { isNumber } from '../../../base/common/types.js';
-import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import * as htmlContent from '../../../base/common/htmlContent.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 
@@ -282,13 +282,13 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				color = ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.get(this._backgroundColor.id);
 			}
 
-			let tooltip;
-			let hasTooltipProvider;
+			let tooltip: undefined | string | htmlContent.IMarkdownString;
+			let hasTooltipProvider: boolean;
 			if (typeof this._tooltip2 === 'function') {
 				tooltip = MarkdownString.fromStrict(this._tooltip);
 				hasTooltipProvider = true;
 			} else {
-				tooltip = this._tooltip2 ?? this._tooltip;
+				tooltip = MarkdownString.fromStrict(this._tooltip2 ?? this._tooltip);
 				hasTooltipProvider = false;
 			}
 
@@ -371,7 +371,7 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 		}
 	}
 
-	async $provideTooltip(entryId: string, cancellation: vscode.CancellationToken): Promise<string | IMarkdownString | undefined> {
+	async $provideTooltip(entryId: string, cancellation: vscode.CancellationToken): Promise<string | htmlContent.IMarkdownString | undefined> {
 		const entry = this._entries.get(entryId);
 		if (!entry) {
 			return undefined;
