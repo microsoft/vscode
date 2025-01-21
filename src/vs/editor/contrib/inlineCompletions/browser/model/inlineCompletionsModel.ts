@@ -227,7 +227,7 @@ export class InlineCompletionsModel extends Disposable {
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 		};
-		const itemToPreserveCandidate = this.selectedInlineCompletion.get();
+		const itemToPreserveCandidate = this.selectedInlineCompletion.get() ?? this._inlineCompletionItems.get()?.inlineEdit;
 		const itemToPreserve = changeSummary.preserveCurrentCompletion || itemToPreserveCandidate?.forwardStable
 			? itemToPreserveCandidate : undefined;
 		return this._source.fetch(cursorPosition, context, itemToPreserve);
@@ -376,13 +376,18 @@ export class InlineCompletionsModel extends Disposable {
 		const model = this.textModel;
 
 		const item = this._inlineCompletionItems.read(reader);
-		if (item?.inlineEdit) {
-			let edit = item.inlineEdit.toSingleTextEdit(reader);
+		const inlineEditResult = item?.inlineEdit;
+		if (inlineEditResult) {
+			if (inlineEditResult.inlineEdit.read(reader) === null) {
+				return undefined;
+			}
+
+			let edit = inlineEditResult.toSingleTextEdit(reader);
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
 			const cursorPos = this.primaryPosition.read(reader);
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
-			const cursorInsideShowRange = cursorAtInlineEdit || (item.inlineEdit.inlineCompletion.cursorShowRange?.containsPosition(cursorPos) ?? true);
+			const cursorInsideShowRange = cursorAtInlineEdit || (inlineEditResult.inlineCompletion.cursorShowRange?.containsPosition(cursorPos) ?? true);
 
 			if (!cursorInsideShowRange && !this._inAcceptFlow.read(reader)) {
 				return undefined;
@@ -390,13 +395,13 @@ export class InlineCompletionsModel extends Disposable {
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this.primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
-			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEdit.semanticId);
+			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === inlineEditResult.semanticId);
 
-			const commands = item.inlineEdit.inlineCompletion.source.inlineCompletions.commands;
+			const commands = inlineEditResult.inlineCompletion.source.inlineCompletions.commands;
 			const renderExplicitly = this._jumpedTo.read(reader);
-			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, renderExplicitly, commands ?? [], item.inlineEdit.inlineCompletion);
+			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, renderExplicitly, commands ?? [], inlineEditResult.inlineCompletion);
 
-			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: item.inlineEdit, edits: [edit], cursorAtInlineEdit };
+			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: [edit], cursorAtInlineEdit };
 		}
 
 		this._jumpedTo.set(false, undefined);
@@ -590,7 +595,7 @@ export class InlineCompletionsModel extends Disposable {
 			completion = state.inlineCompletion.toInlineCompletion(undefined);
 		} else if (state?.kind === 'inlineEdit') {
 			completion = state.inlineCompletion.toInlineCompletion(undefined);
-			acceptDecorationOffsetRanges.push(...(state.inlineCompletion.inlineEdit?.getNewTextRanges() ?? []));
+			acceptDecorationOffsetRanges.push(...(state.inlineCompletion.inlineEdit?.get()?.getNewTextRanges() ?? []));
 		} else {
 			return;
 		}
