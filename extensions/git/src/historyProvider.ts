@@ -7,7 +7,7 @@
 import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, getCommitShortHash } from './util';
-import { toGitUri } from './uri';
+import { toMultiFileDiffEditorUris } from './uri';
 import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
@@ -333,10 +333,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			// History item change
 			historyItemChanges.push({
 				uri: historyItemUri,
-				originalUri: toGitUri(change.originalUri, historyItemParentId),
-				modifiedUri: toGitUri(change.uri, historyItemId),
-				renameUri: change.renameUri,
-			});
+				...toMultiFileDiffEditorUris(change, historyItemParentId, historyItemId)
+			} satisfies SourceControlHistoryItemChange);
 
 			// History item change decoration
 			const letter = Resource.getStatusLetter(change.status);

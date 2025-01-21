@@ -98,5 +98,4 @@ export interface ISCMHistoryItemChange {
 	readonly uri: URI;
 	readonly originalUri?: URI;
 	readonly modifiedUri?: URI;
-	readonly renameUri?: URI;
 }
