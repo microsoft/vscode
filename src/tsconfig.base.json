@@ -13,7 +13,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"baseUrl": ".",
 		"paths": {
-			"vs/*": [
+			"#vs/*": [
 				"./vs/*"
 			]
 		},
