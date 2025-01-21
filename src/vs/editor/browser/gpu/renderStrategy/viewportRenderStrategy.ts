@@ -9,20 +9,20 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
-import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
+import { type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { InlineDecoration, ViewLineRenderingData } from '../../../common/viewModel.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
 import { createContentSegmenter, type IContentSegmenter } from '../contentSegmenter.js';
-import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
 import { BindingId } from '../gpu.js';
 import { GPULifecycle } from '../gpuDisposable.js';
 import { quadVertices } from '../gpuUtils.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
 import { ViewGpuContext } from '../viewGpuContext.js';
 import { BaseRenderStrategy } from './baseRenderStrategy.js';
+import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -39,30 +39,14 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
-type QueuedBufferEvent = (
-	ViewConfigurationChangedEvent |
-	ViewLineMappingChangedEvent |
-	ViewLinesDeletedEvent |
-	ViewZonesChangedEvent
-);
+// TODO: Handle these dynamically
+const viewportWidth = 500;
+const viewportHeight = 35;
 
 /**
- * A render strategy that tracks a large buffer, uploading only dirty lines as they change and
- * leveraging heavy caching. This is the most performant strategy but has limitations around long
- * lines and too many lines.
+ * A render strategy that uploads the content of the entire viewport every frame.
  */
-export class FullFileRenderStrategy extends BaseRenderStrategy {
-
-	/**
-	 * The hard cap for line count that can be rendered by the GPU renderer.
-	 */
-	static readonly maxSupportedLines = 3000;
-
-	/**
-	 * The hard cap for line columns that can be rendered by the GPU renderer.
-	 */
-	static readonly maxSupportedColumns = 200;
-
+export class ViewportRenderStrategy extends BaseRenderStrategy {
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private _cellBindBuffer!: GPUBuffer;
@@ -74,15 +58,11 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	private _cellValueBuffers!: [ArrayBuffer, ArrayBuffer];
 	private _activeDoubleBufferIndex: 0 | 1 = 0;
 
-	private readonly _upToDateLines: [Set<number>, Set<number>] = [new Set(), new Set()];
 	private _visibleObjectCount: number = 0;
-	private _finalRenderedLine: number = 0;
 
 	private _scrollOffsetBindBuffer: GPUBuffer;
 	private _scrollOffsetValueBuffer: Float32Array;
 	private _scrollInitialized: boolean = false;
-
-	private readonly _queuedBufferUpdates: [QueuedBufferEvent[], QueuedBufferEvent[]] = [[], []];
 
 	get bindGroupEntries(): GPUBindGroupEntry[] {
 		return [
@@ -98,7 +78,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	) {
 		super(context, viewGpuContext, device);
 
-		const bufferSize = FullFileRenderStrategy.maxSupportedLines * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
+		const bufferSize = viewportHeight * viewportWidth * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
@@ -129,9 +109,6 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	//    cleared and uploaded to the GPU.
 
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
-		this._invalidateAllLines();
-		this._queueBufferUpdate(e);
-
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
 		const devicePixelRatio = this._viewGpuContext.devicePixelRatio.get();
@@ -147,37 +124,22 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	}
 
 	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
-		this._invalidateAllLines();
 		return true;
 	}
 
 	public override onTokensChanged(e: ViewTokensChangedEvent): boolean {
-		// TODO: This currently fires for the entire viewport whenever scrolling stops
-		//       https://github.com/microsoft/vscode/issues/233942
-		for (const range of e.ranges) {
-			this._invalidateLineRange(range.fromLineNumber, range.toLineNumber);
-		}
 		return true;
 	}
 
 	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
-		// TODO: This currently invalidates everything after the deleted line, it could shift the
-		//       line data up to retain some up to date lines
-		// TODO: This does not invalidate lines that are no longer in the file
-		this._invalidateLinesFrom(e.fromLineNumber);
-		this._queueBufferUpdate(e);
 		return true;
 	}
 
 	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
-		// TODO: This currently invalidates everything after the deleted line, it could shift the
-		//       line data up to retain some up to date lines
-		this._invalidateLinesFrom(e.fromLineNumber);
 		return true;
 	}
 
 	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
-		this._invalidateLineRange(e.fromLineNumber, e.fromLineNumber + e.count);
 		return true;
 	}
 
@@ -190,57 +152,26 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	}
 
 	public override onThemeChanged(e: ViewThemeChangedEvent): boolean {
-		this._invalidateAllLines();
 		return true;
 	}
 
 	public override onLineMappingChanged(e: ViewLineMappingChangedEvent): boolean {
-		this._invalidateAllLines();
-		this._queueBufferUpdate(e);
 		return true;
 	}
 
 	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
-		this._invalidateAllLines();
-		this._queueBufferUpdate(e);
-
 		return true;
 	}
 
 	// #endregion
 
-	private _invalidateAllLines(): void {
-		this._upToDateLines[0].clear();
-		this._upToDateLines[1].clear();
-	}
-
-	private _invalidateLinesFrom(lineNumber: number): void {
-		for (const i of [0, 1]) {
-			const upToDateLines = this._upToDateLines[i];
-			for (const upToDateLine of upToDateLines) {
-				if (upToDateLine >= lineNumber) {
-					upToDateLines.delete(upToDateLine);
-				}
-			}
-		}
-	}
-
-	private _invalidateLineRange(fromLineNumber: number, toLineNumber: number): void {
-		for (let i = fromLineNumber; i <= toLineNumber; i++) {
-			this._upToDateLines[0].delete(i);
-			this._upToDateLines[1].delete(i);
-		}
-	}
-
 	reset() {
-		this._invalidateAllLines();
 		for (const bufferIndex of [0, 1]) {
 			// Zero out buffer and upload to GPU to prevent stale rows from rendering
 			const buffer = new Float32Array(this._cellValueBuffers[bufferIndex]);
 			buffer.fill(0, 0, buffer.length);
 			this._device.queue.writeBuffer(this._cellBindBuffer, 0, buffer.buffer, 0, buffer.byteLength);
 		}
-		this._finalRenderedLine = 0;
 	}
 
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
@@ -283,70 +214,18 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			this._scrollInitialized = true;
 		}
 
-		// Update cell data
+		// Zero out cell buffer
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
-		const lineIndexCount = FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
+		cellBuffer.fill(0);
 
-		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
-		let dirtyLineStart = 3000;
-		let dirtyLineEnd = 0;
-
-		// Handle any queued buffer updates
-		const queuedBufferUpdates = this._queuedBufferUpdates[this._activeDoubleBufferIndex];
-		while (queuedBufferUpdates.length) {
-			const e = queuedBufferUpdates.shift()!;
-			switch (e.type) {
-				// TODO: Refine these cases so we're not throwing away everything
-				case ViewEventType.ViewConfigurationChanged:
-				case ViewEventType.ViewLineMappingChanged:
-				case ViewEventType.ViewZonesChanged: {
-					cellBuffer.fill(0);
-
-					dirtyLineStart = 1;
-					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
-					this._finalRenderedLine = 0;
-					break;
-				}
-				case ViewEventType.ViewLinesDeleted: {
-					// Shift content below deleted line up
-					const deletedLineContentStartIndex = (e.fromLineNumber - 1) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
-					const deletedLineContentEndIndex = (e.toLineNumber) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
-					const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
-					cellBuffer.set(cellBuffer.subarray(deletedLineContentEndIndex), deletedLineContentStartIndex);
-
-					// Zero out content on lines that are no longer valid
-					cellBuffer.fill(0, nullContentStartIndex);
-
-					// Update dirty lines and final rendered line
-					dirtyLineStart = Math.min(dirtyLineStart, e.fromLineNumber);
-					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
-					this._finalRenderedLine -= e.toLineNumber - e.fromLineNumber + 1;
-					break;
-				}
-			}
-		}
+		const lineIndexCount = viewportWidth * Constants.IndicesPerCell;
 
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
 
 			// Only attempt to render lines that the GPU renderer can handle
 			if (!this._viewGpuContext.canRender(viewLineOptions, viewportData, y)) {
-				fillStartIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
-				fillEndIndex = (y * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
-				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
-
-				dirtyLineStart = Math.min(dirtyLineStart, y);
-				dirtyLineEnd = Math.max(dirtyLineEnd, y);
-
 				continue;
 			}
-
-			// Skip updating the line if it's already up to date
-			if (upToDateLines.has(y)) {
-				continue;
-			}
-
-			dirtyLineStart = Math.min(dirtyLineStart, y);
-			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
 			lineData = viewportData.getViewLineRenderingData(y);
 			tabXOffset = 0;
@@ -369,7 +248,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
 					// TODO: This needs to move to a dynamic long line rendering strategy
-					if (x > FullFileRenderStrategy.maxSupportedColumns) {
+					if (x > viewportWidth) {
 						break;
 					}
 					segment = contentSegmenter.getSegmentAtIndex(x);
@@ -437,7 +316,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 					if (chars === ' ' || chars === '\t') {
 						// Zero out glyph to ensure it doesn't get rendered
-						cellIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
+						cellIndex = ((y - 1) * viewportWidth + x) * Constants.IndicesPerCell;
 						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
 						// Adjust xOffset for tab stops
 						if (chars === '\t') {
@@ -469,7 +348,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 						glyph.fontBoundingBoxAscent
 					);
 
-					cellIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
+					cellIndex = ((y - viewportData.startLineNumber) * viewportWidth + x) * Constants.IndicesPerCell;
 					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
@@ -483,30 +362,21 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			}
 
 			// Clear to end of line
-			fillStartIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + tokenEndIndex) * Constants.IndicesPerCell;
-			fillEndIndex = (y * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
+			fillStartIndex = ((y - viewportData.startLineNumber) * viewportWidth + tokenEndIndex) * Constants.IndicesPerCell;
+			fillEndIndex = ((y - viewportData.startLineNumber) * viewportWidth) * Constants.IndicesPerCell;
 			cellBuffer.fill(0, fillStartIndex, fillEndIndex);
-
-			upToDateLines.add(y);
 		}
 
 		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
 
-		// Only write when there is changed data
-		dirtyLineStart = Math.min(dirtyLineStart, FullFileRenderStrategy.maxSupportedLines);
-		dirtyLineEnd = Math.min(dirtyLineEnd, FullFileRenderStrategy.maxSupportedLines);
-		if (dirtyLineStart <= dirtyLineEnd) {
-			// Write buffer and swap it out to unblock writes
-			this._device.queue.writeBuffer(
-				this._cellBindBuffer,
-				(dirtyLineStart - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
-				cellBuffer.buffer,
-				(dirtyLineStart - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
-				(dirtyLineEnd - dirtyLineStart + 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
-			);
-		}
-
-		this._finalRenderedLine = Math.max(this._finalRenderedLine, dirtyLineEnd);
+		// This render strategy always uploads the whole viewport
+		this._device.queue.writeBuffer(
+			this._cellBindBuffer,
+			0,
+			cellBuffer.buffer,
+			0,
+			(viewportData.endLineNumber - viewportData.startLineNumber) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
+		);
 
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 
@@ -521,19 +391,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		pass.draw(
 			quadVertices.length / 2,
 			this._visibleObjectCount,
-			undefined,
-			(viewportData.startLineNumber - 1) * FullFileRenderStrategy.maxSupportedColumns
 		);
-	}
-
-	/**
-	 * Queue updates that need to happen on the active buffer, not just the cache. This will be
-	 * deferred to when the actual cell buffer is changed since the active buffer could be locked by
-	 * the GPU which would block the main thread.
-	 */
-	private _queueBufferUpdate(e: QueuedBufferEvent) {
-		this._queuedBufferUpdates[0].push(e);
-		this._queuedBufferUpdates[1].push(e);
 	}
 }
 

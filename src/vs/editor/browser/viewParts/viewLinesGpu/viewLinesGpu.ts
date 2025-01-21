@@ -14,7 +14,6 @@ import { Range } from '../../../common/core/range.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
-import { FullFileRenderStrategy } from '../../gpu/renderStrategy/fullFileRenderStrategy.js';
 import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
 import { GPULifecycle } from '../../gpu/gpuDisposable.js';
 import { quadVertices } from '../../gpu/gpuUtils.js';
@@ -26,6 +25,8 @@ import type * as viewEvents from '../../../common/viewEvents.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
 import { createContentSegmenter, type IContentSegmenter } from '../../gpu/contentSegmenter.js';
+import { ViewportRenderStrategy } from '../../gpu/renderStrategy/viewportRenderStrategy.js';
+import { FullFileRenderStrategy } from '../../gpu/renderStrategy/fullFileRenderStrategy.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -188,7 +189,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		// #region Storage buffers
 
-		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device));
+		// this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device));
+		this._renderStrategy = this._register(this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device));
 
 		this._glyphStorageBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',

@@ -31,7 +31,7 @@ export class ViewGpuContext extends Disposable {
 	 * The temporary hard cap for lines rendered by the GPU renderer. This can be removed once more
 	 * dynamic allocation is implemented in https://github.com/microsoft/vscode/issues/227091
 	 */
-	readonly maxGpuLines = FullFileRenderStrategy.maxSupportedLines;
+	readonly maxGpuLines = 10000;//FullFileRenderStrategy.maxSupportedLines;
 
 	/**
 	 * The temporary hard cap for line columns rendered by the GPU renderer. This can be removed
