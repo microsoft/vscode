@@ -40,10 +40,10 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
 	private readonly _fieldLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
 
-	private readonly _classFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: '80px', fontWeight: 'bold', fontFamily: 'Arial' });
-	private readonly _interfaceFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: '80px', fontWeight: 'bold', fontFamily: 'Times New Roman' });
-	private readonly _methodFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: '50px', fontWeight: 'italic', fontFamily: 'Courier New' });
-	private readonly _fieldFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: '20px', fontWeight: 'italic', fontFamily: 'Georgia' });
+	private readonly _classFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 80, fontWeight: 'bold', fontFamily: 'Arial' });
+	private readonly _interfaceFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 80, fontWeight: 'bold', fontFamily: 'Times New Roman' });
+	private readonly _methodFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 50, fontWeight: 'italic', fontFamily: 'Courier New' });
+	private readonly _fieldFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 20, fontWeight: 'italic', fontFamily: 'Georgia' });
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,

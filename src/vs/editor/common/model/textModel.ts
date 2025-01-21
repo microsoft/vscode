@@ -2433,7 +2433,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly hideInCommentTokens: boolean | null;
 	readonly hideInStringTokens: boolean | null;
 	readonly fontFamily: string | null;
-	readonly fontSize?: string | null;
+	readonly fontSize?: number | null;
 	readonly fontWeight?: string | null;
 	readonly fontStyle?: string | null;
 

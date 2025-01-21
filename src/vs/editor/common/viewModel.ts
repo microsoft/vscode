@@ -45,6 +45,7 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
+	getSpecialFontInfoForPosition(position: Position): { fontFamily?: string; fontWeight?: string; fontSize?: number } | null;
 	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;

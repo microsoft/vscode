@@ -460,7 +460,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public isWholeLine: boolean;
 	public lineHeight?: number;
 	public fontFamily?: string;
-	public fontSize?: string;
+	public fontSize?: number;
 	public fontWeight?: string;
 	public fontStyle?: string;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
@@ -768,7 +768,10 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		if (typeof opts.fontSize === 'number') {
+			cssTextArr.push(strings.format(_CSS_MAP.fontSize, opts.fontSize + 'px'));
+		}
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
