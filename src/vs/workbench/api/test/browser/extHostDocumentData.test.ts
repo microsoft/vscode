@@ -104,6 +104,7 @@ suite('ExtHostDocumentData', () => {
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 				rangeOffset: undefined!,
 				rangeLength: undefined!,
+				rangeEndPosition: undefined!,
 				text: '\t '
 			}],
 			eol: undefined!,
@@ -163,6 +164,7 @@ suite('ExtHostDocumentData', () => {
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 				rangeOffset: undefined!,
 				rangeLength: undefined!,
+				rangeEndPosition: undefined!,
 				text: ''
 			}],
 			eol: undefined!,
@@ -183,6 +185,7 @@ suite('ExtHostDocumentData', () => {
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 				rangeOffset: undefined!,
 				rangeLength: undefined!,
+				rangeEndPosition: undefined!,
 				text: 'is could be'
 			}],
 			eol: undefined!,
@@ -203,6 +206,7 @@ suite('ExtHostDocumentData', () => {
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 				rangeOffset: undefined!,
 				rangeLength: undefined!,
+				rangeEndPosition: undefined!,
 				text: 'is could be\na line with number'
 			}],
 			eol: undefined!,
@@ -226,6 +230,7 @@ suite('ExtHostDocumentData', () => {
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 2, endColumn: 6 },
 				rangeOffset: undefined!,
 				rangeLength: undefined!,
+				rangeEndPosition: undefined!,
 				text: ''
 			}],
 			eol: undefined!,
@@ -416,6 +421,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 				range: range,
 				rangeOffset: undefined!,
 				rangeLength: undefined!,
+				rangeEndPosition: undefined!,
 				text: text
 			}],
 			eol: eol!,
