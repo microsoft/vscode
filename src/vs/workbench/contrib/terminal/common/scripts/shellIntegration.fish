@@ -146,7 +146,7 @@ function __vsc_update_cwd --on-event fish_prompt
 	end
 end
 
-function __vsc_update_env
+function __vsc_update_env --on-event fish_prompt
 	__vsc_esc EnvSingleStart
 	for line in (env)
 		set myVar (echo $line | awk -F= '{print $1}')

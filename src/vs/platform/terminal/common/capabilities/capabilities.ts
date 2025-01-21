@@ -153,7 +153,9 @@ export interface ICwdDetectionCapability {
 export interface IShellEnvDetectionCapability {
 	readonly type: TerminalCapability.ShellEnvDetection;
 	readonly onDidChangeEnv: Event<Map<string, string>>;
+	readonly onDidChangeIsTrusted: Event<boolean>;
 	get env(): Map<string, string>;
+	get isEnvTrusted(): boolean;
 	setEnvironment(envs: { [key: string]: string | undefined } | undefined, isTrusted: boolean): void;
 	startEnvironmentSingleVar(isTrusted: boolean): void;
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;

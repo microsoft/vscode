@@ -2441,6 +2441,7 @@ export interface ExtHostTerminalShellIntegrationShape {
 	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
 	$shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[]): void;
+	$isEnvTrustedChange(instanceId: number, isTrusted: boolean): void;
 	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
 	$closeTerminal(instanceId: number): void;
 }

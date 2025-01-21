@@ -135,6 +135,10 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.setEnv(shellEnvKeys, shellEnvValues);
 	}
 
+	public $isEnvTrustedChange(instanceId: number, isTrusted: boolean): void {
+		this._activeShellIntegrations.get(instanceId)?.setEnvIsTrusted(isTrusted);
+	}
+
 	public $cwdChange(instanceId: number, cwd: UriComponents | undefined): void {
 		this._activeShellIntegrations.get(instanceId)?.setCwd(URI.revive(cwd));
 	}
@@ -151,6 +155,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
+	private _isEnvTrusted: boolean = false;
 	private _env: { [key: string]: string | undefined } | undefined;
 	private _cwd: URI | undefined;
 
@@ -178,6 +183,9 @@ class InternalTerminalShellIntegration extends Disposable {
 			},
 			get env(): { [key: string]: string | undefined } | undefined {
 				return that._env;
+			},
+			get isTrusted(): boolean {
+				return that._isEnvTrusted;
 			},
 			// executeCommand(commandLine: string): vscode.TerminalShellExecution;
 			// executeCommand(executable: string, args: string[]): vscode.TerminalShellExecution;
@@ -246,6 +254,10 @@ class InternalTerminalShellIntegration extends Disposable {
 			env[keys[i]] = values[i];
 		}
 		this._env = env;
+		this._fireChangeEvent();
+	}
+
+	setEnvIsTrusted(isTrusted: boolean): void {
 		this._fireChangeEvent();
 	}
 
