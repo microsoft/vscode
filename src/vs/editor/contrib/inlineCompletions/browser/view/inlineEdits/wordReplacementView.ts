@@ -205,6 +205,7 @@ export class WordReplacementView extends Disposable {
 							//background: 'rgba(122, 122, 122, 0.12)', looks better
 							background: 'var(--vscode-inlineEdit-wordReplacementView-background)',
 							pointerEvents: 'none',
+							boxSizing: 'border-box',
 						}
 					}, []),
 

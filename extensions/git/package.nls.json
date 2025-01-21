@@ -128,6 +128,8 @@
 	"command.graphCherryPick": "Cherry Pick",
 	"command.graphDeleteBranch": "Delete Branch",
 	"command.graphDeleteTag": "Delete Tag",
+	"command.blameToggleEditorDecoration": "Toggle Git Blame Editor Decoration",
+	"command.blameToggleStatusBarItem": "Toggle Git Blame Status Bar Item",
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",

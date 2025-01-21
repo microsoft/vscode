@@ -3,27 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../base/browser/dom.js';
-import { BugIndicatingError } from '../../../base/common/errors.js';
-import { MandatoryMutableDisposable } from '../../../base/common/lifecycle.js';
-import { EditorOption } from '../../common/config/editorOptions.js';
-import { CursorColumns } from '../../common/core/cursorColumns.js';
-import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
-import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
-import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
-import type { InlineDecoration, ViewLineRenderingData } from '../../common/viewModel.js';
-import type { ViewContext } from '../../common/viewModel/viewContext.js';
-import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
-import type { ITextureAtlasPageGlyph } from './atlas/atlas.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { Color } from '../../../../base/common/color.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CursorColumns } from '../../../common/core/cursorColumns.js';
+import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
+import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
+import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
+import type { InlineDecoration, ViewLineRenderingData } from '../../../common/viewModel.js';
+import type { ViewContext } from '../../../common/viewModel/viewContext.js';
+import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.js';
+import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
+import { createContentSegmenter, type IContentSegmenter } from '../contentSegmenter.js';
 import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
-import { BindingId, type IGpuRenderStrategy } from './gpu.js';
-import { GPULifecycle } from './gpuDisposable.js';
-import { quadVertices } from './gpuUtils.js';
-import { GlyphRasterizer } from './raster/glyphRasterizer.js';
-import { ViewGpuContext } from './viewGpuContext.js';
-import { Color } from '../../../base/common/color.js';
-import { createContentSegmenter, type IContentSegmenter } from './contentSegmenter.js';
+import { BindingId } from '../gpu.js';
+import { GPULifecycle } from '../gpuDisposable.js';
+import { quadVertices } from '../gpuUtils.js';
+import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
+import { ViewGpuContext } from '../viewGpuContext.js';
+import { BaseRenderStrategy } from './baseRenderStrategy.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -47,12 +46,9 @@ type QueuedBufferEvent = (
 	ViewZonesChangedEvent
 );
 
-export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRenderStrategy {
+export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
-
-	private readonly _glyphRasterizer: MandatoryMutableDisposable<GlyphRasterizer>;
-	get glyphRasterizer() { return this._glyphRasterizer.value; }
 
 	private _cellBindBuffer!: GPUBuffer;
 
@@ -81,18 +77,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	constructor(
-		private readonly _context: ViewContext,
-		private readonly _viewGpuContext: ViewGpuContext,
-		private readonly _device: GPUDevice,
+		context: ViewContext,
+		viewGpuContext: ViewGpuContext,
+		device: GPUDevice,
 	) {
-		super();
-
-		this._context.addEventHandler(this);
-
-		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
-		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
-
-		this._glyphRasterizer = this._register(new MandatoryMutableDisposable(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get())));
+		super(context, viewGpuContext, device);
 
 		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {

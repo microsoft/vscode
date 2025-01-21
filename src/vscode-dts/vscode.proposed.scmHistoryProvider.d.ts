@@ -72,7 +72,6 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly originalUri: Uri | undefined;
 		readonly modifiedUri: Uri | undefined;
-		readonly renameUri: Uri | undefined;
 	}
 
 	export interface SourceControlHistoryItemRefsChangeEvent {

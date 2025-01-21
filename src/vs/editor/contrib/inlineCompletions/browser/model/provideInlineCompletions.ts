@@ -337,6 +337,8 @@ export class InlineCompletionItem {
 		);
 	}
 
+	static ID = 1;
+
 	private _didCallShow = false;
 
 	constructor(
@@ -362,6 +364,8 @@ export class InlineCompletionItem {
 		 * Used for event data to ensure referential equality.
 		*/
 		readonly source: InlineCompletionList,
+
+		readonly id = `InlineCompletion:${InlineCompletionItem.ID++}`,
 	) {
 		// TODO: these statements are no-ops
 		filterText = filterText.replace(/\r\n|\r/g, '\n');
@@ -387,6 +391,7 @@ export class InlineCompletionItem {
 			this.additionalTextEdits,
 			this.sourceInlineCompletion,
 			this.source,
+			this.id,
 		);
 	}
 
@@ -402,6 +407,7 @@ export class InlineCompletionItem {
 			this.additionalTextEdits,
 			this.sourceInlineCompletion,
 			this.source,
+			this.id,
 		);
 	}
 

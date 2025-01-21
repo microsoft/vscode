@@ -72,6 +72,7 @@ const CORE_TYPES = [
     'Body',
     '__type',
     '__global',
+    'Performance',
     'PerformanceMark',
     'PerformanceObserver',
     'ImportMeta',

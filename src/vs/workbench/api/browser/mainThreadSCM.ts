@@ -212,8 +212,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		return changes?.map(change => ({
 			uri: URI.revive(change.uri),
 			originalUri: change.originalUri && URI.revive(change.originalUri),
-			modifiedUri: change.modifiedUri && URI.revive(change.modifiedUri),
-			renameUri: change.renameUri && URI.revive(change.renameUri)
+			modifiedUri: change.modifiedUri && URI.revive(change.modifiedUri)
 		}));
 	}
 
