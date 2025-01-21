@@ -177,7 +177,7 @@ export class SimpleSuggestDetailsWidget {
 
 		this._body.scrollTop = 0;
 
-		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
+		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight + 20);
 		this._onDidChangeContents.fire(this);
 	}
 
