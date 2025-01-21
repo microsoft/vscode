@@ -328,7 +328,7 @@ export interface ISearchPrefferedResults {
 }
 
 export interface IExtensionsControlManifest {
-	readonly malicious: IExtensionIdentifier[];
+	readonly malicious: ReadonlyArray<IExtensionIdentifier | string>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
 	readonly extensionsEnabledWithPreRelease?: string[];

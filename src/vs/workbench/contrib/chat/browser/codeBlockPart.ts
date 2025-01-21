@@ -74,6 +74,7 @@ const $ = dom.$;
 
 export interface ICodeBlockData {
 	readonly codeBlockIndex: number;
+	readonly codeBlockPartIndex: number;
 	readonly element: unknown;
 
 	readonly textModel: Promise<ITextModel>;

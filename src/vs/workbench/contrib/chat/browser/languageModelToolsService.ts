@@ -13,6 +13,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatModel } from '../common/chatModel.js';
@@ -46,6 +47,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@IChatService private readonly _chatService: IChatService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -125,6 +127,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
+
 		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
 		let tool = this._tools.get(dto.toolId);
 		if (!tool) {
@@ -165,11 +169,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const source = new CancellationTokenSource();
 				store.add(toDisposable(() => {
-					toolInvocation!.confirmed.complete(false);
 					source.dispose(true);
 				}));
 				store.add(token.onCancellationRequested(() => {
+					toolInvocation?.confirmed.complete(false);
 					source.cancel();
+				}));
+				store.add(source.token.onCancellationRequested(() => {
+					toolInvocation?.confirmed.complete(false);
 				}));
 				token = source.token;
 
@@ -179,13 +186,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
 				const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
-				toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
-
-				model.acceptResponseProgress(request, toolInvocation);
-				if (prepared?.confirmationMessages) {
-					const userConfirmed = await toolInvocation.confirmed.p;
-					if (!userConfirmed) {
-						throw new CancellationError();
+				if (tool.data.id !== 'vscode_editFile') {
+					toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
+					model.acceptResponseProgress(request, toolInvocation);
+					if (prepared?.confirmationMessages) {
+						const userConfirmed = await toolInvocation.confirmed.p;
+						if (!userConfirmed) {
+							throw new CancellationError();
+						}
 					}
 				}
 			} else {

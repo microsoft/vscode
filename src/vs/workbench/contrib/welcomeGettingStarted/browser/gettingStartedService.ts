@@ -35,6 +35,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { asWebviewUri } from '../../webview/common/webview.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -83,7 +84,8 @@ export interface IWalkthroughStep {
 	media:
 	| { type: 'image'; path: { hcDark: URI; hcLight: URI; light: URI; dark: URI }; altText: string }
 	| { type: 'svg'; path: URI; altText: string }
-	| { type: 'markdown'; path: URI; base: URI; root: URI };
+	| { type: 'markdown'; path: URI; base: URI; root: URI }
+	| { type: 'video'; path: { hcDark: URI; hcLight: URI; light: URI; dark: URI }; poster?: { hcDark: URI; hcLight: URI; light: URI; dark: URI }; root: URI; altText: string };
 }
 
 type StepProgress = { done: boolean };
@@ -205,12 +207,20 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 										altText: step.media.altText,
 										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) })
 									}
-									: {
-										type: 'markdown',
-										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) }),
-										base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
-										root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
-									},
+									: step.media.type === 'markdown'
+										? {
+											type: 'markdown',
+											path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) }),
+											base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
+											root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
+										}
+										: {
+											type: 'video',
+											path: convertRelativeMediaPathsToWebviewURIs(FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'), step.media.path),
+											altText: step.media.altText,
+											root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
+											poster: step.media.poster ? convertRelativeMediaPathsToWebviewURIs(FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'), step.media.poster) : undefined
+										},
 						});
 					})
 			});
@@ -366,6 +376,16 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 						type: 'svg',
 						path: convertExtensionPathToFileURI(step.media.svg),
 						altText: step.media.svg,
+					};
+				}
+				else if (step.media.video) {
+					const baseURI = FileAccess.uriToFileUri(extension.extensionLocation);
+					media = {
+						type: 'video',
+						path: convertRelativeMediaPathsToWebviewURIs(baseURI, step.media.video),
+						root: FileAccess.uriToFileUri(extension.extensionLocation),
+						altText: step.media.altText,
+						poster: step.media.poster ? convertRelativeMediaPathsToWebviewURIs(baseURI, step.media.poster) : undefined
 					};
 				}
 
@@ -680,6 +700,25 @@ const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string; hcL
 		};
 	}
 };
+
+const convertRelativeMediaPathsToWebviewURIs = (basePath: URI, path: string | { hc: string; hcLight?: string; dark: string; light: string }): { hcDark: URI; hcLight: URI; dark: URI; light: URI } => {
+	const convertPath = (path: string) => path.startsWith('https://')
+		? URI.parse(path, true)
+		: asWebviewUri(joinPath(basePath, path));
+
+	if (typeof path === 'string') {
+		const converted = convertPath(path);
+		return { hcDark: converted, hcLight: converted, dark: converted, light: converted };
+	} else {
+		return {
+			hcDark: convertPath(path.hc),
+			hcLight: convertPath(path.hcLight ?? path.light),
+			light: convertPath(path.light),
+			dark: convertPath(path.dark)
+		};
+	}
+};
+
 
 registerAction2(class extends Action2 {
 	constructor() {

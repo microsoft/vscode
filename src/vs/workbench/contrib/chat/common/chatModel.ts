@@ -30,6 +30,7 @@ export interface IBaseChatRequestVariableEntry {
 	fullName?: string;
 	icon?: ThemeIcon;
 	name: string;
+	isMarkedReadonly?: boolean;
 	modelDescription?: string;
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
@@ -85,7 +86,13 @@ export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariab
 	readonly isDynamic: true;
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
+export interface ILinkVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'link';
+	readonly isDynamic: true;
+	readonly value: URI;
+}
+
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | ILinkVariableEntry | IBaseChatRequestVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -93,6 +100,10 @@ export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is 
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
+}
+
+export function isLinkVariableEntry(obj: IChatRequestVariableEntry): obj is ILinkVariableEntry {
+	return obj.kind === 'link';
 }
 
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
@@ -122,7 +133,7 @@ export interface IChatRequestModel {
 	readonly workingSet?: URI[];
 	readonly isCompleteAddedRequest: boolean;
 	readonly response?: IChatResponseModel;
-	isHidden: boolean;
+	shouldBeRemovedOnSend: boolean;
 }
 
 export interface IChatTextEditGroupState {
@@ -197,7 +208,7 @@ export interface IChatResponseModel {
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	readonly isHidden: boolean;
+	readonly shouldBeRemovedOnSend: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
@@ -220,7 +231,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._session;
 	}
 
-	public isHidden: boolean = false;
+	public shouldBeRemovedOnSend: boolean = false;
 
 	public get username(): string {
 		return this.session.requesterUsername;
@@ -342,7 +353,9 @@ export class Response extends Disposable implements IResponse {
 				// The last part can't be merged with- not markdown, or markdown with different permissions
 				this._responseParts.push(progress);
 			} else {
-				lastResponsePart.content = appendMarkdownString(lastResponsePart.content, progress.content);
+				// Don't modify the current object, since it's being diffed by the renderer
+				const idx = this._responseParts.indexOf(lastResponsePart);
+				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit') {
@@ -496,16 +509,16 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._session;
 	}
 
-	public get isHidden() {
-		return this._isHidden;
+	public get shouldBeRemovedOnSend() {
+		return this._shouldBeRemovedOnSend;
 	}
 
 	public get isComplete(): boolean {
 		return this._isComplete;
 	}
 
-	public set isHidden(hidden: boolean) {
-		this._isHidden = hidden;
+	public set shouldBeRemovedOnSend(hidden: boolean) {
+		this._shouldBeRemovedOnSend = hidden;
 		this._onDidChange.fire();
 	}
 
@@ -595,7 +608,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _result?: IChatAgentResult,
 		followups?: ReadonlyArray<IChatFollowup>,
 		public readonly isCompleteAddedRequest = false,
-		private _isHidden: boolean = false,
+		private _shouldBeRemovedOnSend: boolean = false,
 		restoredId?: string
 	) {
 		super();
@@ -723,6 +736,8 @@ export interface ISerializableChatRequestData {
 	/** Is really like "prompt data". This is the message in the format in which the agent gets it + variable values. */
 	variableData: IChatRequestVariableData;
 	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability> | undefined;
+
+	/**Old, persisted name for shouldBeRemovedOnSend */
 	isHidden: boolean;
 	responseId?: string;
 	agent?: ISerializableChatAgentData;
@@ -1074,7 +1089,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				// Old messages don't have variableData, or have it in the wrong (non-array) shape
 				const variableData: IChatRequestVariableData = this.reviveVariableData(raw.variableData);
 				const request = new ChatRequestModel(this, parsedRequest, variableData, raw.timestamp ?? -1, undefined, undefined, undefined, undefined, raw.workingSet?.map((uri) => URI.revive(uri)), undefined, raw.requestId);
-				request.isHidden = !!raw.isHidden;
+				request.shouldBeRemovedOnSend = !!raw.isHidden;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						reviveSerializedAgent(raw.agent) : undefined;
@@ -1084,7 +1099,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
 					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.voteDownReason, result, raw.followups, undefined, undefined, raw.responseId);
-					request.response.isHidden = !!raw.isHidden;
+					request.response.shouldBeRemovedOnSend = !!raw.isHidden;
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.applyReference(revive(raw.usedContext));
 					}
@@ -1183,11 +1198,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	disableRequests(requestIds: ReadonlyArray<string>) {
+
+		const toHide = new Set(requestIds);
+
 		this._requests.forEach((request) => {
-			const isHidden = requestIds.includes(request.id);
-			request.isHidden = isHidden;
+			const shouldBeRemovedOnSend = toHide.has(request.id);
+			request.shouldBeRemovedOnSend = shouldBeRemovedOnSend;
 			if (request.response) {
-				request.response.isHidden = isHidden;
+				request.response.shouldBeRemovedOnSend = shouldBeRemovedOnSend;
 			}
 		});
 
@@ -1354,7 +1372,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						})
 						: undefined,
 					responseId: r.response?.id,
-					isHidden: r.isHidden,
+					isHidden: r.shouldBeRemovedOnSend,
 					result: r.response?.result,
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,

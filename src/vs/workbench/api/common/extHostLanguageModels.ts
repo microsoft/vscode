@@ -180,6 +180,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			targetExtensions: metadata.extensions,
 			isDefault: metadata.isDefault,
 			isUserSelectable: metadata.isUserSelectable,
+			capabilities: metadata.capabilities,
 		});
 
 		const responseReceivedListener = provider.onDidReceiveLanguageModelResponse2?.(({ extensionId, participant, tokenCount }) => {
@@ -434,7 +435,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (error) {
 			// we error the stream because that's the only way to signal
 			// that the request has failed
-			data.res.reject(transformErrorFromSerialization(error));
+			data.res.reject(extHostTypes.LanguageModelError.tryDeserialize(error) ?? transformErrorFromSerialization(error));
 		} else {
 			data.res.resolve();
 		}

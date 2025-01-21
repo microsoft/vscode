@@ -6,11 +6,15 @@
 import { URI } from '../../../../base/common/uri.js';
 
 /**
- * Base resolve error class used when file reference resolution fails.
+ * Base prompt parsing error class.
  */
-abstract class ResolveError extends Error {
+export abstract class ParseError extends Error {
+	/**
+	 * Error type name.
+	 */
+	public readonly abstract errorType: string;
+
 	constructor(
-		public readonly uri: URI,
 		message?: string,
 		options?: ErrorOptions,
 	) {
@@ -37,9 +41,43 @@ abstract class ResolveError extends Error {
 }
 
 /**
+ * A generic error for failing to resolve prompt contents stream.
+ */
+export class FailedToResolveContentsStream extends ParseError {
+	public override errorType = 'FailedToResolveContentsStream';
+
+	constructor(
+		public readonly uri: URI,
+		public readonly originalError: unknown,
+	) {
+		super(
+			`Failed to resolve prompt contents stream for '${uri.toString()}': ${originalError}.`,
+		);
+	}
+}
+
+
+/**
+ * Base resolve error class used when file reference resolution fails.
+ */
+export abstract class ResolveError extends ParseError {
+	public abstract override errorType: string;
+
+	constructor(
+		public readonly uri: URI,
+		message?: string,
+		options?: ErrorOptions,
+	) {
+		super(message, options);
+	}
+}
+
+/**
  * Error that reflects the case when attempt to open target file fails.
  */
 export class FileOpenFailed extends ResolveError {
+	public override errorType = 'FileOpenError';
+
 	constructor(
 		uri: URI,
 		public readonly originalError: unknown,
@@ -66,6 +104,8 @@ export class FileOpenFailed extends ResolveError {
  * ```
  */
 export class RecursiveReference extends ResolveError {
+	public override errorType = 'RecursiveReferenceError';
+
 	constructor(
 		uri: URI,
 		public readonly recursivePath: string[],
@@ -114,6 +154,8 @@ export class RecursiveReference extends ResolveError {
  * a prompt snippet file, hence was not attempted to be resolved.
  */
 export class NonPromptSnippetFile extends ResolveError {
+	public override errorType = 'NonPromptSnippetFileError';
+
 	constructor(
 		uri: URI,
 		message: string = '',

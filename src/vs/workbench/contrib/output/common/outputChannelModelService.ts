@@ -9,20 +9,21 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { toLocalISOString } from '../../../../base/common/date.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { DelegatedOutputChannelModel, FileOutputChannelModel, IOutputChannelModel } from './outputChannelModel.js';
+import { DelegatedOutputChannelModel, FileOutputChannelModel, IOutputChannelModel, MultiFileOutputChannelModel } from './outputChannelModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageSelection } from '../../../../editor/common/languages/language.js';
+import { IOutputContentSource } from '../../../services/output/common/output.js';
 
 export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
 
 export interface IOutputChannelModelService {
 	readonly _serviceBrand: undefined;
 
-	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, file?: URI): IOutputChannelModel;
+	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, source?: IOutputContentSource | ReadonlyArray<IOutputContentSource>): IOutputChannelModel;
 
 }
 
-export class OutputChannelModelService {
+export class OutputChannelModelService implements IOutputChannelModelService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -36,14 +37,17 @@ export class OutputChannelModelService {
 		this.outputLocation = joinPath(environmentService.windowLogsPath, `output_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 	}
 
-	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, file?: URI): IOutputChannelModel {
-		return file ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, language, file) : this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, language, this.outputDir);
+	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, source?: IOutputContentSource | IOutputContentSource[]): IOutputChannelModel {
+		return source ?
+			Array.isArray(source) ? this.instantiationService.createInstance(MultiFileOutputChannelModel, modelUri, language, source)
+				: this.instantiationService.createInstance(FileOutputChannelModel, modelUri, language, source)
+			: this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, language, this.outputLocation, this.outputDirPromise);
 	}
 
-	private _outputDir: Promise<URI> | null = null;
-	private get outputDir(): Promise<URI> {
+	private _outputDir: Promise<void> | null = null;
+	private get outputDirPromise(): Promise<void> {
 		if (!this._outputDir) {
-			this._outputDir = this.fileService.createFolder(this.outputLocation).then(() => this.outputLocation);
+			this._outputDir = this.fileService.createFolder(this.outputLocation).then(() => undefined);
 		}
 		return this._outputDir;
 	}

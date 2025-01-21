@@ -71,6 +71,7 @@ abstract class AbstractSettingsModel extends EditorModel {
 							setting,
 							matches: settingMatchResult && settingMatchResult.matches,
 							matchType: settingMatchResult?.matchType ?? SettingMatchType.None,
+							keyMatchSize: settingMatchResult?.keyMatchSize ?? 0,
 							score: settingMatchResult?.score ?? 0
 						});
 					}
@@ -899,6 +900,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 					setting: filteredMatch.setting,
 					score: filteredMatch.score,
 					matchType: filteredMatch.matchType,
+					keyMatchSize: filteredMatch.keyMatchSize,
 					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
 						return new Range(
 							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
