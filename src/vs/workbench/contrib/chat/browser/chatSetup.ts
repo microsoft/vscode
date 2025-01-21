@@ -74,8 +74,10 @@ const defaultChat = {
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	providerIds: [product.defaultChatAgent?.providerId ?? '', 'github-enterprise'],
+	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
+	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
+	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
@@ -356,6 +358,14 @@ interface IChatEntitlements {
 
 class ChatSetupRequests extends Disposable {
 
+	static providerId(configurationService: IConfigurationService): string {
+		if (configurationService.getValue<string | undefined>(defaultChat.providerSetting) === defaultChat.enterpriseProviderId) {
+			return defaultChat.enterpriseProviderId;
+		}
+
+		return defaultChat.providerId;
+	}
+
 	private state: IChatEntitlements = { entitlement: this.context.state.entitlement };
 
 	private pendingResolveCts = new CancellationTokenSource();
@@ -383,19 +393,19 @@ class ChatSetupRequests extends Disposable {
 		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.resolve()));
 
 		this._register(this.authenticationService.onDidChangeSessions(e => {
-			if (defaultChat.providerIds.includes(e.providerId)) {
+			if (e.providerId === ChatSetupRequests.providerId(this.configurationService)) {
 				this.resolve();
 			}
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => {
-			if (defaultChat.providerIds.includes(e.id)) {
+			if (e.id === ChatSetupRequests.providerId(this.configurationService)) {
 				this.resolve();
 			}
 		}));
 
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
-			if (defaultChat.providerIds.includes(e.id)) {
+			if (e.id === ChatSetupRequests.providerId(this.configurationService)) {
 				this.resolve();
 			}
 		}));
@@ -442,31 +452,15 @@ class ChatSetupRequests extends Disposable {
 	}
 
 	private async findMatchingProviderSession(token: CancellationToken): Promise<AuthenticationSession | undefined> {
-		const authProviders: string[] = [];
-		const configuredAuthProvider = this.configurationService.getValue<string | undefined>('github.copilot.advanced.authProvider');
-		if (configuredAuthProvider) {
-			authProviders.push(configuredAuthProvider);
-		} else {
-			authProviders.push(...defaultChat.providerIds);
+		const sessions = await this.doGetSessions(ChatSetupRequests.providerId(this.configurationService));
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
 
-		let sessions: ReadonlyArray<AuthenticationSession> = [];
-		for (const authProvider of authProviders) {
-			if (token.isCancellationRequested) {
-				return undefined;
-			}
-
-			sessions = await this.doGetSessions(authProvider);
-
-			if (token.isCancellationRequested) {
-				return undefined;
-			}
-
-			for (const session of sessions) {
-				for (const scopes of defaultChat.providerScopes) {
-					if (this.scopesMatch(session.scopes, scopes)) {
-						return session;
-					}
+		for (const session of sessions) {
+			for (const scopes of defaultChat.providerScopes) {
+				if (this.scopesMatch(session.scopes, scopes)) {
+					return session;
 				}
 			}
 		}
@@ -765,7 +759,8 @@ class ChatSetupController extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -808,13 +803,14 @@ class ChatSetupController extends Disposable {
 
 		let focusChatInput = false;
 		try {
+			const providerId = ChatSetupRequests.providerId(this.configurationService);
 			let session: AuthenticationSession | undefined;
 			let entitlement: ChatEntitlement | undefined;
 
 			// Entitlement Unknown: we need to sign-in user
 			if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 				this.setStep(ChatSetupStep.SigningIn);
-				const result = await this.signIn();
+				const result = await this.signIn(providerId);
 				if (!result.session) {
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined });
 					return;
@@ -836,7 +832,7 @@ class ChatSetupController extends Disposable {
 
 			// Install
 			this.setStep(ChatSetupStep.Installing);
-			await this.install(session, entitlement ?? this.context.state.entitlement, watch);
+			await this.install(session, entitlement ?? this.context.state.entitlement, providerId, watch);
 
 			const currentActiveElement = getActiveElement();
 			focusChatInput = activeElement === currentActiveElement || currentActiveElement === mainWindow.document.body;
@@ -850,16 +846,16 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	private async signIn(): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
+	private async signIn(providerId: string): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
 		let session: AuthenticationSession | undefined;
 		let entitlement: ChatEntitlement | undefined;
 		try {
 			showCopilotView(this.viewsService, this.layoutService);
 
-			session = await this.authenticationService.createSession(defaultChat.providerIds[0], defaultChat.providerScopes[0]);
+			session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0]);
 
-			this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, defaultChat.providerIds[0], session.account);
-			this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, defaultChat.providerIds[0], session.account);
+			this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
+			this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);
 
 			entitlement = await this.requests.forceResolveEntitlement(session);
 		} catch (e) {
@@ -874,14 +870,14 @@ class ChatSetupController extends Disposable {
 			});
 
 			if (confirmed) {
-				return this.signIn();
+				return this.signIn(providerId);
 			}
 		}
 
 		return { session, entitlement };
 	}
 
-	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, watch: StopWatch,): Promise<void> {
+	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch,): Promise<void> {
 		const wasInstalled = this.context.state.installed;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
@@ -891,7 +887,7 @@ class ChatSetupController extends Disposable {
 			if (entitlement !== ChatEntitlement.Limited && entitlement !== ChatEntitlement.Pro && entitlement !== ChatEntitlement.Unavailable) {
 				if (!session) {
 					try {
-						session = (await this.authenticationService.getSessions(defaultChat.providerIds[0])).at(0);
+						session = (await this.authenticationService.getSessions(providerId)).at(0);
 					} catch (error) {
 						// ignore - errors can throw if a provider is not registered
 					}
