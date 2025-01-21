@@ -32,6 +32,7 @@
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
+    "statusBarItemTooltip",
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
