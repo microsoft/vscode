@@ -7,7 +7,7 @@ import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js
 import { AsyncIterableSource } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -285,7 +285,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const chatModel = this._chatService.getOrRestoreSession(session.chatSessionId);
 		if (!chatModel) {
-			throw new Error(`Edit session was created for a non-existing chat session: ${session.chatSessionId}`);
+			throw new ErrorNoTelemetry(`Edit session was created for a non-existing chat session: ${session.chatSessionId}`);
 		}
 
 		const observerDisposables = new DisposableStore();

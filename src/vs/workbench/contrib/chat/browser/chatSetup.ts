@@ -49,7 +49,7 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidget, showChatView, showEditsView } from './chat.js';
+import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 import { IChatQuotasService } from './chatQuotasService.js';
@@ -785,7 +785,7 @@ class ChatSetupController extends Disposable {
 
 	async setup(): Promise<void> {
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
-		const badge = this.activityService.showViewContainerActivity(isCopilotEditsViewActive(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
+		const badge = this.activityService.showViewContainerActivity(preferCopilotEditsView(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
 			badge: new ProgressBadge(() => title),
 		});
 
@@ -866,7 +866,7 @@ class ChatSetupController extends Disposable {
 		if (!session) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
-				message: localize('unknownSignInError', "Signing in to Copilot was unsuccessful. Would you like to try again?"),
+				message: localize('unknownSignInError', "Unable to sign in to {0}. Would you like to try again?", defaultChat.providerName),
 				primaryButton: localize('retry', "Retry")
 			});
 
@@ -934,7 +934,7 @@ class ChatSetupController extends Disposable {
 				isMachineScoped: false,		// do not ask to sync
 				installEverywhere: true,	// install in local and remote
 				installPreReleaseVersion: this.productService.quality !== 'stable'
-			}, isCopilotEditsViewActive(this.viewsService) ? EditsViewId : ChatViewId);
+			}, preferCopilotEditsView(this.viewsService) ? EditsViewId : ChatViewId);
 		} catch (e) {
 			this.logService.error(`[chat setup] install: error ${error}`);
 			error = e;
@@ -1222,25 +1222,6 @@ class ChatSetupContext extends Disposable {
 }
 
 //#endregion
-
-function isCopilotEditsViewActive(viewsService: IViewsService): boolean {
-	return viewsService.getFocusedView()?.id === EditsViewId;
-}
-
-function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
-
-	// Ensure main window is in front
-	if (layoutService.activeContainer !== layoutService.mainContainer) {
-		layoutService.mainContainer.focus();
-	}
-
-	// Bring up the correct view
-	if (isCopilotEditsViewActive(viewsService)) {
-		return showEditsView(viewsService);
-	} else {
-		return showChatView(viewsService);
-	}
-}
 
 function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
