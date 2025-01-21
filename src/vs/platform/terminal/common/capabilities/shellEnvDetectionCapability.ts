@@ -24,9 +24,6 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 	readonly onDidChangeEnv = this._onDidChangeEnv.event;
 
 	setEnvironment(env: { [key: string]: string | undefined }, isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
 
 		if (equals(this._env, env)) {
 			return;
@@ -44,23 +41,14 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 	}
 
 	startEnvironmentSingleVar(isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
 		this._pendingEnv = new Map();
 	}
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
 		if (key !== undefined && value !== undefined) {
 			this._pendingEnv?.set(key, value);
 		}
 	}
 	endEnvironmentSingleVar(isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
 		if (!this._pendingEnv) {
 			return;
 		}
