@@ -282,8 +282,15 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				color = ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.get(this._backgroundColor.id);
 			}
 
-			const tooltip = MarkdownString.fromStrict(this._tooltip);
-			const hasTooltipProvider = typeof this._tooltip2 === 'function';
+			let tooltip;
+			let hasTooltipProvider;
+			if (typeof this._tooltip2 === 'function') {
+				tooltip = MarkdownString.fromStrict(this._tooltip);
+				hasTooltipProvider = true;
+			} else {
+				tooltip = this._tooltip2 ?? this._tooltip;
+				hasTooltipProvider = false;
+			}
 
 			// Set to status bar
 			this.#proxy.$setEntry(this._entryId, id, this._extension?.identifier.value, name, this._text, tooltip, hasTooltipProvider, this._command?.internal, color,
