@@ -44,6 +44,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         }
         if (!file.contents) {
             host.removeScriptSnapshot(file.path);
+            delete lastBuildVersion[normalize(file.path)];
         }
         else {
             host.addScriptSnapshot(file.path, new VinylScriptSnapshot(file));
