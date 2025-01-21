@@ -48,6 +48,16 @@ type QueuedBufferEvent = (
 
 export class FullFileRenderStrategy extends BaseRenderStrategy {
 
+	/**
+	 * The hard cap for line count that can be rendered by the GPU renderer.
+	 */
+	static readonly maxSupportedLines = 3000;
+
+	/**
+	 * The hard cap for line columns that can be rendered by the GPU renderer.
+	 */
+	static readonly maxSupportedColumns = 200;
+
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private _cellBindBuffer!: GPUBuffer;
@@ -83,7 +93,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	) {
 		super(context, viewGpuContext, device);
 
-		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
+		const bufferSize = FullFileRenderStrategy.maxSupportedLines * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
@@ -270,7 +280,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 		// Update cell data
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
-		const lineIndexCount = this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
+		const lineIndexCount = FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
 
 		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
 		let dirtyLineStart = 3000;
@@ -294,9 +304,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 				}
 				case ViewEventType.ViewLinesDeleted: {
 					// Shift content below deleted line up
-					const deletedLineContentStartIndex = (e.fromLineNumber - 1) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
-					const deletedLineContentEndIndex = (e.toLineNumber) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
-					const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
+					const deletedLineContentStartIndex = (e.fromLineNumber - 1) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
+					const deletedLineContentEndIndex = (e.toLineNumber) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
+					const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
 					cellBuffer.set(cellBuffer.subarray(deletedLineContentEndIndex), deletedLineContentStartIndex);
 
 					// Zero out content on lines that are no longer valid
@@ -315,8 +325,8 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 			// Only attempt to render lines that the GPU renderer can handle
 			if (!this._viewGpuContext.canRender(viewLineOptions, viewportData, y)) {
-				fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
-				fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
+				fillStartIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
+				fillEndIndex = (y * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
 				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 
 				dirtyLineStart = Math.min(dirtyLineStart, y);
@@ -354,7 +364,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
 					// TODO: This needs to move to a dynamic long line rendering strategy
-					if (x > this._viewGpuContext.maxGpuCols) {
+					if (x > FullFileRenderStrategy.maxSupportedColumns) {
 						break;
 					}
 					segment = contentSegmenter.getSegmentAtIndex(x);
@@ -422,7 +432,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 					if (chars === ' ' || chars === '\t') {
 						// Zero out glyph to ensure it doesn't get rendered
-						cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
+						cellIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
 						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
 						// Adjust xOffset for tab stops
 						if (chars === '\t') {
@@ -454,7 +464,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 						glyph.fontBoundingBoxAscent
 					);
 
-					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
+					cellIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
 					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
@@ -468,8 +478,8 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			}
 
 			// Clear to end of line
-			fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + tokenEndIndex) * Constants.IndicesPerCell;
-			fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
+			fillStartIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + tokenEndIndex) * Constants.IndicesPerCell;
+			fillEndIndex = (y * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
 			cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 
 			upToDateLines.add(y);
@@ -478,8 +488,8 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
 
 		// Only write when there is changed data
-		dirtyLineStart = Math.min(dirtyLineStart, this._viewGpuContext.maxGpuLines);
-		dirtyLineEnd = Math.min(dirtyLineEnd, this._viewGpuContext.maxGpuLines);
+		dirtyLineStart = Math.min(dirtyLineStart, FullFileRenderStrategy.maxSupportedLines);
+		dirtyLineEnd = Math.min(dirtyLineEnd, FullFileRenderStrategy.maxSupportedLines);
 		if (dirtyLineStart <= dirtyLineEnd) {
 			// Write buffer and swap it out to unblock writes
 			this._device.queue.writeBuffer(
@@ -507,7 +517,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			quadVertices.length / 2,
 			this._visibleObjectCount,
 			undefined,
-			(viewportData.startLineNumber - 1) * this._viewGpuContext.maxGpuCols
+			(viewportData.startLineNumber - 1) * FullFileRenderStrategy.maxSupportedColumns
 		);
 	}
 

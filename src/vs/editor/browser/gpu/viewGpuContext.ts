@@ -24,24 +24,20 @@ import { Event } from '../../../base/common/event.js';
 import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
 import { InlineDecorationType } from '../../common/viewModel.js';
 import { DecorationStyleCache } from './css/decorationStyleCache.js';
-
-const enum GpuRenderLimits {
-	maxGpuLines = 3000,
-	maxGpuCols = 200,
-}
+import { FullFileRenderStrategy } from './renderStrategy/fullFileRenderStrategy.js';
 
 export class ViewGpuContext extends Disposable {
 	/**
 	 * The temporary hard cap for lines rendered by the GPU renderer. This can be removed once more
 	 * dynamic allocation is implemented in https://github.com/microsoft/vscode/issues/227091
 	 */
-	readonly maxGpuLines = GpuRenderLimits.maxGpuLines;
+	readonly maxGpuLines = FullFileRenderStrategy.maxSupportedLines;
 
 	/**
 	 * The temporary hard cap for line columns rendered by the GPU renderer. This can be removed
 	 * once more dynamic allocation is implemented in https://github.com/microsoft/vscode/issues/227108
 	 */
-	readonly maxGpuCols = GpuRenderLimits.maxGpuCols;
+	readonly maxGpuCols = FullFileRenderStrategy.maxSupportedColumns;
 
 	readonly canvas: FastDomNode<HTMLCanvasElement>;
 	readonly ctx: GPUCanvasContext;
@@ -167,8 +163,8 @@ export class ViewGpuContext extends Disposable {
 		// Check if the line has simple attributes that aren't supported
 		if (
 			data.containsRTL ||
-			data.maxColumn > GpuRenderLimits.maxGpuCols ||
-			lineNumber >= GpuRenderLimits.maxGpuLines
+			data.maxColumn > this.maxGpuCols ||
+			lineNumber >= this.maxGpuLines
 		) {
 			return false;
 		}
@@ -213,7 +209,7 @@ export class ViewGpuContext extends Disposable {
 		if (data.containsRTL) {
 			reasons.push('containsRTL');
 		}
-		if (data.maxColumn > GpuRenderLimits.maxGpuCols) {
+		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
 		}
 		if (data.inlineDecorations.length > 0) {
@@ -256,7 +252,7 @@ export class ViewGpuContext extends Disposable {
 				reasons.push(`inlineDecorations with unsupported CSS selectors (${problemSelectors.map(e => `\`${e}\``).join(', ')})`);
 			}
 		}
-		if (lineNumber >= GpuRenderLimits.maxGpuLines) {
+		if (lineNumber >= this.maxGpuLines) {
 			reasons.push('lineNumber >= maxGpuLines');
 		}
 		return reasons;
