@@ -146,6 +146,30 @@ function __vsc_update_cwd --on-event fish_prompt
 	end
 end
 
+# WORKS
+# for line in (env)
+# 	printf "Processing environment variable...\n"
+# 	# printf "Name: %s\n" (echo $line | awk -F= '{print $1}')
+# 	# printf "Value: %s\n" (echo $line | awk -F= '{print $2}')
+# 	set myVar (echo $line | awk -F= '{print $1}')
+# 	set myVal (echo $line | awk -F= '{print $2}')
+# 	builtin printf "Name: %s\n" $myVar
+# 	builtin printf "Value: %s\n" $myVal
+# 	builtin printf "Im done bro"
+# end
+
+# shell integration.env is undefined with below... But above works.. Why?
+function __vsc_update_env --on-event fish_prompt
+	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
+	for line in (env)
+		set myVar (echo $line | awk -F= '{print $1}')
+		set myVal (echo $line | awk -F= '{print $2}')
+		set escapedVal (__vsc_escape_value "$myVal")
+		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$myVar" "$escapedVal" $__vsc_nonce
+	end
+	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
+end
+
 # Sent at the start of the prompt.
 # Marks the beginning of the prompt (and, implicitly, a new line).
 function __vsc_fish_prompt_start
