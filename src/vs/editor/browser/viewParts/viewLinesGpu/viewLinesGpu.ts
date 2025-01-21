@@ -14,7 +14,7 @@ import { Range } from '../../../common/core/range.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
-import { FullFileRenderStrategy } from '../../gpu/fullFileRenderStrategy.js';
+import { FullFileRenderStrategy } from '../../gpu/renderStrategy/fullFileRenderStrategy.js';
 import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
 import { GPULifecycle } from '../../gpu/gpuDisposable.js';
 import { quadVertices } from '../../gpu/gpuUtils.js';
