@@ -262,7 +262,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
-				detail: getFriendlyFolderPath(cwd, resourceRequestConfig.pathSeparator),
+				detail: getFriendlyPath(cwd, resourceRequestConfig.pathSeparator),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -317,7 +317,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					label,
 					provider,
 					kind,
-					detail: getFriendlyFolderPath(stat.resource, resourceRequestConfig.pathSeparator, kind === TerminalCompletionItemKind.File),
+					detail: getFriendlyPath(stat.resource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.File),
 					isDirectory,
 					isFile: kind === TerminalCompletionItemKind.File,
 					replacementIndex: cursorPosition - lastWord.length,
@@ -340,7 +340,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label: lastWordFolder + '..' + resourceRequestConfig.pathSeparator,
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: getFriendlyFolderPath(parentDir, resourceRequestConfig.pathSeparator),
+				detail: getFriendlyPath(parentDir, resourceRequestConfig.pathSeparator),
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: cursorPosition - lastWord.length,
@@ -352,10 +352,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 }
 
-function getFriendlyFolderPath(uri: URI, pathSeparator: string, isFile?: boolean): string {
+function getFriendlyPath(uri: URI, pathSeparator: string, kind?: TerminalCompletionItemKind): string {
 	let path = uri.fsPath;
 	// Ensure folders end with the path separator to differentiate presentation from files
-	if (!isFile && !path.endsWith(pathSeparator)) {
+	if (kind !== TerminalCompletionItemKind.File && !path.endsWith(pathSeparator)) {
 		path += pathSeparator;
 	}
 	// Ensure drive is capitalized on Windows
