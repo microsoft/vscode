@@ -282,3 +282,12 @@
 	top: 5px;
 	right: 4px;
 }
+
+/* CSS styles for bottom position of the Find dialog */
+.monaco-editor .find-widget.bottom {
+	transform: translateY(calc(100% + 10px)); /* shadow (10px) */
+	border-top: 1px solid var(--vscode-widget-border);
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	border-bottom: none;
+}
