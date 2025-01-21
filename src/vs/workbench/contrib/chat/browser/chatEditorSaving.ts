@@ -223,7 +223,8 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 					}
 
 					const session = await chatEditingService.getOrRestoreEditingSession();
-					if (!session) {
+					if (!session || session.isToolsAgentSession) {
+						// For now, don't prompt when in agent mode
 						return;
 					}
 					const entry = session.getEntry(workingCopy.resource);

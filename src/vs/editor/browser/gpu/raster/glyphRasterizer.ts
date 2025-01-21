@@ -5,6 +5,7 @@
 
 import { memoize } from '../../../../base/common/decorators.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
 import { ensureNonNullable } from '../gpuUtils.js';
@@ -43,6 +44,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	};
 	private _workGlyphConfig: { chars: string | undefined; tokenMetadata: number; decorationStyleSetId: number } = { chars: undefined, tokenMetadata: 0, decorationStyleSetId: 0 };
 
+	// TODO: Support workbench.fontAliasing correctly
+	private _antiAliasing: 'subpixel' | 'greyscale' = isMacintosh ? 'greyscale' : 'subpixel';
+
 	constructor(
 		readonly fontSize: number,
 		readonly fontFamily: string,
@@ -53,7 +57,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		const devicePixelFontSize = Math.ceil(this.fontSize * devicePixelRatio);
 		this._canvas = new OffscreenCanvas(devicePixelFontSize * 3, devicePixelFontSize * 3);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
-			willReadFrequently: true
+			willReadFrequently: true,
+			alpha: this._antiAliasing === 'greyscale',
 		}));
 		this._ctx.textBaseline = 'top';
 		this._ctx.fillStyle = '#FFFFFF';
@@ -61,7 +66,6 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		this._textMetrics = this._ctx.measureText('A');
 	}
 
-	// TODO: Support drawing multiple fonts and sizes
 	/**
 	 * Rasterizes a glyph. Note that the returned object is reused across different glyphs and
 	 * therefore is only safe for synchronous access.
@@ -108,10 +112,18 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 		this._ctx.save();
 
+		const bgId = TokenMetadata.getBackground(tokenMetadata);
+		const bg = colorMap[bgId];
+
 		const decorationStyleSet = ViewGpuContext.decorationStyleCache.getStyleSet(decorationStyleSetId);
 
-		// TODO: Support workbench.fontAliasing
-		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+		// When SPAA is used, the background color must be present to get the right glyph
+		if (this._antiAliasing === 'subpixel') {
+			this._ctx.fillStyle = bg;
+			this._ctx.fillRect(0, 0, this._canvas.width, this._canvas.height);
+		} else {
+			this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+		}
 
 		const fontSb = new StringBuilder(200);
 		const fontStyle = TokenMetadata.getFontStyle(tokenMetadata);
@@ -149,6 +161,13 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		this._ctx.restore();
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
+		if (this._antiAliasing === 'subpixel') {
+			const bgR = parseInt(bg.substring(1, 3), 16);
+			const bgG = parseInt(bg.substring(3, 5), 16);
+			const bgB = parseInt(bg.substring(5, 7), 16);
+			this._clearColor(imageData, bgR, bgG, bgB);
+			this._ctx.putImageData(imageData, 0, 0);
+		}
 		this._findGlyphBoundingBox(imageData, this._workGlyph.boundingBox);
 		// const offset = {
 		// 	x: textMetrics.actualBoundingBoxLeft,
@@ -202,6 +221,17 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 
 		return this._workGlyph;
+	}
+
+	private _clearColor(imageData: ImageData, r: number, g: number, b: number) {
+		for (let offset = 0; offset < imageData.data.length; offset += 4) {
+			// Check exact match
+			if (imageData.data[offset] === r &&
+				imageData.data[offset + 1] === g &&
+				imageData.data[offset + 2] === b) {
+				imageData.data[offset + 3] = 0;
+			}
+		}
 	}
 
 	// TODO: Does this even need to happen when measure text is used?
@@ -267,5 +297,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 				break;
 			}
 		}
+	}
+
+	public getTextMetrics(text: string): TextMetrics {
+		return this._ctx.measureText(text);
 	}
 }

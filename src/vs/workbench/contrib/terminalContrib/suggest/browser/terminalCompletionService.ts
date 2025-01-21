@@ -2,10 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -62,6 +64,7 @@ export interface TerminalResourceRequestConfig {
 	foldersRequested?: boolean;
 	cwd?: URI;
 	pathSeparator: string;
+	shouldNormalizePrefix?: boolean;
 }
 
 
@@ -199,6 +202,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string): Promise<ITerminalCompletion[] | undefined> {
+		if (resourceRequestConfig.shouldNormalizePrefix) {
+			// for tests, make sure the right path separator is used
+			promptValue = promptValue.replaceAll(/[\\/]/g, resourceRequestConfig.pathSeparator);
+		}
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
@@ -213,46 +220,128 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
-		const endsWithSpace = cursorPrefix.endsWith(' ');
-		const lastWord = endsWithSpace ? '' : cursorPrefix.split(' ').at(-1) ?? '';
 
-		for (const stat of fileStat.children) {
-			let kind: TerminalCompletionItemKind | undefined;
-			if (foldersRequested && stat.isDirectory) {
-				kind = TerminalCompletionItemKind.Folder;
-			}
-			if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
-				kind = TerminalCompletionItemKind.File;
-			}
-			if (kind === undefined) {
-				continue;
-			}
-			const isDirectory = kind === TerminalCompletionItemKind.Folder;
-			const fileName = basename(stat.resource.fsPath);
+		const useForwardSlash = !resourceRequestConfig.shouldNormalizePrefix && isWindows;
 
-			let label;
-			if (!lastWord.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWord.startsWith('..' + resourceRequestConfig.pathSeparator)) {
-				// add a dot to the beginning of the label if it doesn't already have one
-				label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
-			} else {
-				if (lastWord.endsWith(resourceRequestConfig.pathSeparator)) {
-					label = `${lastWord}${fileName}`;
-				} else {
-					label = `${lastWord}${resourceRequestConfig.pathSeparator}${fileName}`;
-				}
-				if (lastWord.length && lastWord.at(-1) !== resourceRequestConfig.pathSeparator && lastWord.at(-1) !== '.') {
-					label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
-				}
-			}
-			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
-				label = label + resourceRequestConfig.pathSeparator;
-			}
+		// The last word (or argument). When the cursor is following a space it will be the empty
+		// string
+		const lastWord = cursorPrefix.endsWith(' ') ? '' : cursorPrefix.split(' ').at(-1) ?? '';
+
+		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
+		// they are what triggers changes in the directory.
+		let lastSlashIndex: number;
+		if (useForwardSlash) {
+			lastSlashIndex = Math.max(lastWord.lastIndexOf('\\'), lastWord.lastIndexOf('/'));
+		} else {
+			lastSlashIndex = lastWord.lastIndexOf(resourceRequestConfig.pathSeparator);
+		}
+
+		// The _complete_ folder of the last word. For example if the last word is `./src/file`,
+		// this will be `./src/`. This also always ends in the path separator if it is not the empty
+		// string and path separators are normalized on Windows.
+		let lastWordFolder = lastSlashIndex === -1 ? '' : lastWord.slice(0, lastSlashIndex + 1);
+		if (isWindows) {
+			lastWordFolder = lastWordFolder.replaceAll('/', '\\');
+		}
+
+		const lastWordFolderHasDotPrefix = lastWordFolder.match(/^\.\.?[\\\/]/);
+
+		// Add current directory. This should be shown at the top because it will be an exact match
+		// and therefore highlight the detail, plus it improves the experience when runOnEnter is
+		// used.
+		//
+		// For example:
+		// - `|` -> `.`, this does not have the trailing `/` intentionally as it's common to
+		//   complete the current working directory and we do not want to complete `./` when
+		//   `runOnEnter` is used.
+		// - `./src/|` -> `./src/`
+		if (foldersRequested) {
 			resourceCompletions.push({
-				label,
+				label: lastWordFolder.length === 0 ? '.' : lastWordFolder,
 				provider,
-				kind,
-				isDirectory,
-				isFile: kind === TerminalCompletionItemKind.File,
+				kind: TerminalCompletionItemKind.Folder,
+				isDirectory: true,
+				isFile: false,
+				detail: getFriendlyFolderPath(cwd, resourceRequestConfig.pathSeparator),
+				replacementIndex: cursorPosition - lastWord.length,
+				replacementLength: lastWord.length
+			});
+		}
+
+		// Handle absolute paths differently to avoid adding `./` prefixes
+		// TODO: Deal with git bash case
+		const isAbsolutePath = useForwardSlash
+			? /^[a-zA-Z]:\\/.test(lastWord)
+			: lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator);
+
+		// Add all direct children files or folders
+		//
+		// For example:
+		// - `cd ./src/` -> `cd ./src/folder1`, ...
+		if (!isAbsolutePath) {
+			for (const stat of fileStat.children) {
+				let kind: TerminalCompletionItemKind | undefined;
+				if (foldersRequested && stat.isDirectory) {
+					kind = TerminalCompletionItemKind.Folder;
+				}
+				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
+					kind = TerminalCompletionItemKind.File;
+				}
+				if (kind === undefined) {
+					continue;
+				}
+				const isDirectory = kind === TerminalCompletionItemKind.Folder;
+				const resourceName = basename(stat.resource.fsPath);
+
+				let label = `${lastWordFolder}${resourceName}`;
+
+				// Normalize suggestion to add a ./ prefix to the start of the path if there isn't
+				// one already. We may want to change this behavior in the future to go with
+				// whatever format the user has
+				if (!lastWordFolderHasDotPrefix) {
+					label = `.${resourceRequestConfig.pathSeparator}${label}`;
+				}
+
+				// Ensure directories end with a path separator
+				if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
+					label = `${label}${resourceRequestConfig.pathSeparator}`;
+				}
+
+				// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
+				// suggestions should all use `\`
+				if (useForwardSlash) {
+					label = label.replaceAll('/', '\\');
+				}
+
+				resourceCompletions.push({
+					label,
+					provider,
+					kind,
+					isDirectory,
+					isFile: kind === TerminalCompletionItemKind.File,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
+		}
+
+		// Add parent directory to the bottom of the list because it's not as useful as other suggestions
+		//
+		// For example:
+		// - `|` -> `../`
+		// - `./src/|` -> `./src/../`
+		//
+		// On Windows, the path seprators are normalized to `\`:
+		// - `./src/|` -> `.\src\..\`
+		if (!isAbsolutePath && foldersRequested) {
+			const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
+			resourceCompletions.push({
+				label: lastWordFolder + '..' + resourceRequestConfig.pathSeparator,
+				provider,
+				kind: TerminalCompletionItemKind.Folder,
+				detail: getFriendlyFolderPath(parentDir, resourceRequestConfig.pathSeparator),
+				isDirectory: true,
+				isFile: false,
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -260,4 +349,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
+}
+
+function getFriendlyFolderPath(uri: URI, pathSeparator: string): string {
+	let path = uri.fsPath;
+	// Ensure folders end with the path separator to differentiate presentation from files
+	if (!path.endsWith(pathSeparator)) {
+		path += pathSeparator;
+	}
+	// Ensure drive is capitalized on Windows
+	if (pathSeparator === '\\' && path.match(/^[a-zA-Z]:\\/)) {
+		path = `${path[0].toUpperCase()}:${path.slice(2)}`;
+	}
+	return path;
 }

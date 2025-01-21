@@ -59,7 +59,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		const id = `extension-output-${extensionId}-#${idCounter}-${label}`;
 		const resource = URI.revive(file);
 
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, files: [resource], log: false, languageId, extensionId });
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, source: { resource }, log: false, languageId, extensionId });
 		this._register(toDisposable(() => this.$dispose(id)));
 		return id;
 	}

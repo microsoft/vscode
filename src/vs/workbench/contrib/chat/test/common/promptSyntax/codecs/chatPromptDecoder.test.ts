@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Range } from '../../../../../../editor/common/core/range.js';
-import { newWriteableStream } from '../../../../../../base/common/stream.js';
-import { TestDecoder } from '../../../../../../editor/test/common/utils/testDecoder.js';
-import { FileReference } from '../../../common/codecs/chatPromptCodec/tokens/fileReference.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { ChatPromptDecoder, TChatPromptToken } from '../../../common/codecs/chatPromptCodec/chatPromptDecoder.js';
+import { VSBuffer } from '../../../../../../../base/common/buffer.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { newWriteableStream } from '../../../../../../../base/common/stream.js';
+import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
+import { FileReference } from '../../../../common/promptSyntax/codecs/tokens/fileReference.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { MarkdownLink } from '../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
+import { ChatPromptDecoder, TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
 
 /**
  * A reusable test utility that asserts that a `ChatPromptDecoder` instance

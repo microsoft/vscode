@@ -20,7 +20,6 @@ import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService
 import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from '../../../services/textfile/common/textfiles.js';
 import { extname, basename, isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -245,31 +244,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
-
-		// Debounce the event by 1000 ms and merge all affected keys into one event
-		const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
-			const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
-			return { ...cur, affectedKeys: newAffectedKeys };
-		}, 1000, true);
-
-		this._register(debouncedConfigService(event => {
-			if (event.source !== ConfigurationTarget.DEFAULT) {
-				type UpdateConfigurationClassification = {
-					owner: 'sandy081';
-					comment: 'Event which fires when user updates settings';
-					configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
-					configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
-				};
-				type UpdateConfigurationEvent = {
-					configurationSource: string;
-					configurationKeys: string[];
-				};
-				telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
-					configurationSource: ConfigurationTargetToString(event.source),
-					configurationKeys: Array.from(event.affectedKeys)
-				});
-			}
-		}));
 
 		const { user, workspace } = configurationService.keys();
 		for (const setting of user) {

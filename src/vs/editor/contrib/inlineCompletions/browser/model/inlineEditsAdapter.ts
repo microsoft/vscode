@@ -79,6 +79,7 @@ export class InlineEditsAdapter extends Disposable {
 							};
 						}),
 						commands: definedEdits.flatMap(e => e.result.commands ?? []),
+						enableForwardStability: true,
 					};
 				},
 				handleRejection: (completions: InlineCompletions, item: InlineCompletionsAndEdits['items'][number]): void => {
