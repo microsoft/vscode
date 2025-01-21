@@ -492,15 +492,14 @@ suite('TokenStore', () => {
 
 		const tokens1 = store.getTokensInRange(36, 59);
 		assert.deepStrictEqual(tokens1, [
-			{ startOffsetInclusive: 36, length: 1, token: 32836 },
-			{ startOffsetInclusive: 37, length: 2, token: 32836 },
-			{ startOffsetInclusive: 39, length: 5, token: 196676 },
-			{ startOffsetInclusive: 44, length: 1, token: 32836 },
-			{ startOffsetInclusive: 45, length: 1, token: 557124 },
-			{ startOffsetInclusive: 46, length: 4, token: 32836 },
-			{ startOffsetInclusive: 50, length: 1, token: 32836 },
-			{ startOffsetInclusive: 51, length: 7, token: 196676 },
-			{ startOffsetInclusive: 58, length: 1, token: 32836 }
+			{ startOffsetInclusive: 36, length: 2, token: 32836 },
+			{ startOffsetInclusive: 38, length: 2, token: 32836 },
+			{ startOffsetInclusive: 40, length: 5, token: 196676 },
+			{ startOffsetInclusive: 45, length: 1, token: 32836 },
+			{ startOffsetInclusive: 46, length: 1, token: 557124 },
+			{ startOffsetInclusive: 47, length: 4, token: 32836 },
+			{ startOffsetInclusive: 51, length: 1, token: 32836 },
+			{ startOffsetInclusive: 52, length: 7, token: 196676 }
 		]);
 
 		// Delete the tab character
@@ -521,15 +520,15 @@ suite('TokenStore', () => {
 
 		const tokens2 = store.getTokensInRange(36, 59);
 		assert.deepStrictEqual(tokens2, [
-			{ startOffsetInclusive: 36, length: 2, token: 32836 },
-			{ startOffsetInclusive: 38, length: 5, token: 196676 },
-			{ startOffsetInclusive: 43, length: 1, token: 32836 },
-			{ startOffsetInclusive: 44, length: 1, token: 557124 },
-			{ startOffsetInclusive: 45, length: 4, token: 32836 },
-			{ startOffsetInclusive: 49, length: 1, token: 32836 },
-			{ startOffsetInclusive: 50, length: 7, token: 196676 },
-			{ startOffsetInclusive: 57, length: 1, token: 32836 },
-			{ startOffsetInclusive: 58, length: 1, token: 327748 }
+			{ startOffsetInclusive: 36, length: 1, token: 32836 },
+			{ startOffsetInclusive: 37, length: 2, token: 32836 },
+			{ startOffsetInclusive: 39, length: 5, token: 196676 },
+			{ startOffsetInclusive: 44, length: 1, token: 32836 },
+			{ startOffsetInclusive: 45, length: 1, token: 557124 },
+			{ startOffsetInclusive: 46, length: 4, token: 32836 },
+			{ startOffsetInclusive: 50, length: 1, token: 32836 },
+			{ startOffsetInclusive: 51, length: 7, token: 196676 },
+			{ startOffsetInclusive: 58, length: 1, token: 32836 }
 		]);
 
 	});
