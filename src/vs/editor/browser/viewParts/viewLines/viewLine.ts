@@ -69,6 +69,7 @@ export class ViewLine implements IVisibleLine {
 		return null;
 	}
 	public setDomNode(domNode: HTMLElement): void {
+		console.log('setDomNode domNode : ', domNode);
 		if (this._renderedViewLine) {
 			this._renderedViewLine.domNode = createFastDomNode(domNode);
 		} else {
@@ -98,6 +99,10 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+
+		console.log('ViewLine#renderLine');
+		console.log('lineNumber : ', lineNumber);
+
 		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
@@ -167,8 +172,19 @@ export class ViewLine implements IVisibleLine {
 			lineHeight
 		);
 
+		console.log('lineData : ', lineData);
+		console.log('lineData.content : ', lineData.content);
+		console.log('lineData.continuesWithWrappedLine : ', lineData.continuesWithWrappedLine);
+		console.log('lineHeight : ', lineHeight);
+		console.log('deltaTop : ', deltaTop);
+
+
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
 			// no need to do anything, we have the same render input
+			console.log('renderLineInput : ', renderLineInput);
+			console.log('this._renderedViewLine.input : ', this._renderedViewLine.input);
+			console.log('this._renderedViewLine.domNode : ', this._renderedViewLine.domNode?.domNode);
+			console.log('early return');
 			return false;
 		}
 
@@ -207,11 +223,14 @@ export class ViewLine implements IVisibleLine {
 		}
 
 		this._renderedViewLine = renderedViewLine;
-
+		console.log('renderedViewLine.domNode : ', renderedViewLine.domNode);
 		return true;
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
+		console.log('ViewLine#layoutLine');
+		console.log('lineNumber : ', lineNumber);
+		console.log('this._renderedViewLine.domNode : ', this._renderedViewLine?.domNode);
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);

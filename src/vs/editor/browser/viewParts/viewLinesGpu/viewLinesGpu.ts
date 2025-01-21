@@ -449,9 +449,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	}
 
 	linesVisibleRangesForRange(_range: Range, includeNewLines: boolean, print?: boolean): LineVisibleRanges[] | null {
-		if (print) {
-			console.log('ViewLineGpu#linesVisibleRangesForRange');
-		}
 		if (!this._lastViewportData) {
 			return null;
 		}

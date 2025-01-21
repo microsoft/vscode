@@ -251,7 +251,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._cursor.onLineMappingChanged(eventsCollector);
 			this._decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
-
+			this._recomputeSpecialLineHeights();
 			this._updateConfigurationViewLineCount.schedule();
 		}
 
@@ -420,12 +420,18 @@ export class ViewModel extends Disposable implements IViewModel {
 				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
 					return;
 				}
-				const lineNumber = change.lineNumber;
+				const modelLineNumber = change.lineNumber;
 				const lineHeight = change.lineHeight;
+				const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
+				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 				if (lineHeight !== null) {
-					this.viewLayout.addSpecialLineHeight(lineNumber, lineHeight);
+					for (let viewLineNumber = viewRange.startLineNumber; viewLineNumber <= viewRange.endLineNumber; viewLineNumber++) {
+						this.viewLayout.addSpecialLineHeight(modelLineNumber, viewLineNumber, lineHeight);
+					}
 				} else {
-					this.viewLayout.removeSpecialLineHeight(lineNumber);
+					for (let lineNumber = viewRange.startLineNumber; lineNumber <= viewRange.endLineNumber; lineNumber++) {
+						this.viewLayout.removeSpecialLineHeight(lineNumber);
+					}
 				}
 			});
 		}));
@@ -486,6 +492,19 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
 			this._eventDispatcher.emitOutgoingEvent(new ModelDecorationsChangedEvent(e));
 		}));
+	}
+
+	private _recomputeSpecialLineHeights(): void {
+		const specialLinesHeights = new Map(this.viewLayout.speciaLineHeights);
+		this.viewLayout.clearSpecialLineHeights();
+		for (const specialLineHeight of specialLinesHeights.values()) {
+			const modelLineNumber = specialLineHeight.modelLineNumber;
+			const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
+			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(modelRange);
+			for (let viewLineNumber = viewRange.startLineNumber; viewLineNumber <= viewRange.endLineNumber; viewLineNumber++) {
+				this.viewLayout.addSpecialLineHeight(modelLineNumber, viewLineNumber, specialLineHeight.height);
+			}
+		}
 	}
 
 	private readonly hiddenAreasModel = new HiddenAreasModel();

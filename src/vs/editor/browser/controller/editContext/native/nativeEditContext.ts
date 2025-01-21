@@ -100,15 +100,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
 
-		const uri = this._context.viewModel.model.uri;
-		this._register(addDisposableListener(this.domNode.domNode, 'focus', () => {
-			console.log('focus uri : ', uri);
-			console.log('this.domNode.domNode : ', this.domNode.domNode);
-		}));
-		this._register(addDisposableListener(this.domNode.domNode, 'blur', () => {
-			console.log('blur uri : ', uri);
-			console.log('this.domNode.domNode : ', this.domNode.domNode);
-		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
 			// Pretend here we touched the text area, as the `cut` event will most likely

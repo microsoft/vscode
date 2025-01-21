@@ -77,6 +77,11 @@ export class EditorWhitespace implements IEditorWhitespace {
 	}
 }
 
+export interface SpecialHeightChanged {
+	modelLineNumber: number;
+	height: number;
+}
+
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
  *
@@ -97,7 +102,7 @@ export class LinesLayout {
 	private _lineHeight: number;
 	private _paddingTop: number;
 	private _paddingBottom: number;
-	private _specialLineHeights = new Map<number, number>();
+	private _specialLineHeights = new Map<number, SpecialHeightChanged>();
 
 	constructor(lineCount: number, lineHeight: number, paddingTop: number, paddingBottom: number) {
 		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
@@ -398,8 +403,8 @@ export class LinesLayout {
 	/**
 	 * Add special line height
 	 */
-	public addSpecialLineHeight(lineNumber: number, height: number): void {
-		this._specialLineHeights.set(lineNumber, height);
+	public addSpecialLineHeight(modelLineNumber: number, viewLineNumber: number, height: number): void {
+		this._specialLineHeights.set(viewLineNumber, { modelLineNumber, height });
 	}
 
 	/**
@@ -407,6 +412,20 @@ export class LinesLayout {
 	 */
 	public removeSpecialLineHeight(lineNumber: number): void {
 		this._specialLineHeights.delete(lineNumber);
+	}
+
+	/**
+	 * Clear the special line heights
+	 */
+	public clearSpecialLineHeights(): void {
+		this._specialLineHeights.clear();
+	}
+
+	/**
+	 * Get the special line heights
+	 */
+	public get speciaLineHeights(): Map<number, SpecialHeightChanged> {
+		return this._specialLineHeights;
 	}
 
 	/**
@@ -426,9 +445,9 @@ export class LinesLayout {
 		const untilLineNumber = _untilLineNumber ?? this._lineCount;
 		let specialLinesHeight = 0;
 		let numberOfSpecialLines = 0;
-		this._specialLineHeights.forEach((height, lineNumber) => {
+		this._specialLineHeights.forEach((change, lineNumber) => {
 			if (lineNumber <= untilLineNumber) {
-				specialLinesHeight += height;
+				specialLinesHeight += change.height;
 				numberOfSpecialLines++;
 			}
 		});
@@ -529,7 +548,7 @@ export class LinesLayout {
 
 	public getLineHeightForLineNumber(lineNumber: number): number {
 		if (this._specialLineHeights.has(lineNumber)) {
-			return this._specialLineHeights.get(lineNumber)!;
+			return this._specialLineHeights.get(lineNumber)!.height;
 		}
 		return this._lineHeight;
 	}

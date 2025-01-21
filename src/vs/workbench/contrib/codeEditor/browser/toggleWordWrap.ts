@@ -181,6 +181,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 	}
 
 	private _applyWordWrapState(state: IWordWrapTransientState | null): void {
+		console.log('_applyWordWrapState');
 		const wordWrapOverride2 = state ? state.wordWrapOverride : 'inherit';
 		this._editor.updateOptions({
 			wordWrapOverride2: wordWrapOverride2

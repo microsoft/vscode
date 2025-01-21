@@ -81,9 +81,6 @@ export class Editor {
 		const line = `${editor} .view-lines > .view-line:nth-child(${lineNumber})`;
 		const editContext = `${editor} ${this._editContextSelector()}`;
 
-		console.log('line : ', line);
-		console.log('editContext : ', editContext);
-
 		await this.code.waitAndClick(line, 1, 1);
 		await this.code.waitForActiveElement(editContext);
 	}

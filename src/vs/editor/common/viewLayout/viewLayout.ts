@@ -9,7 +9,7 @@ import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility, INewScro
 import { ConfigurationChangedEvent, EditorOption } from '../config/editorOptions.js';
 import { ScrollType } from '../editorCommon.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { LinesLayout } from './linesLayout.js';
+import { LinesLayout, SpecialHeightChanged } from './linesLayout.js';
 import { IEditorWhitespace, IPartialViewLinesViewportData, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
 
@@ -202,12 +202,20 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._updateHeight();
 	}
 
-	public addSpecialLineHeight(lineNumber: number, height: number): void {
-		this._linesLayout.addSpecialLineHeight(lineNumber, height);
+	public addSpecialLineHeight(modelLineNumber: number, viewLineNumber: number, height: number): void {
+		this._linesLayout.addSpecialLineHeight(modelLineNumber, viewLineNumber, height);
 	}
 
 	public removeSpecialLineHeight(lineNumber: number): void {
 		this._linesLayout.removeSpecialLineHeight(lineNumber);
+	}
+
+	public clearSpecialLineHeights(): void {
+		this._linesLayout.clearSpecialLineHeights();
+	}
+
+	public get speciaLineHeights(): Map<number, SpecialHeightChanged> {
+		return this._linesLayout.speciaLineHeights;
 	}
 
 	private _configureSmoothScrollDuration(): void {

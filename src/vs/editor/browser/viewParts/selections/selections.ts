@@ -256,7 +256,6 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 
 	private _createSelectionPiece(top: number, bottom: number, className: string, left: number, width: number): string {
-		console.log('_createSelectionPiece : ', top, bottom, className, left, width);
 		return (
 			'<div class="cslr '
 			+ className

@@ -165,7 +165,7 @@ function renderOriginalLine(
 	sb: StringBuilder,
 	noExtra: boolean,
 ): number {
-
+	console.log('renderOriginalLine');
 	sb.appendString('<div class="view-line');
 	if (!noExtra && !hasCharChanges) {
 		// No char changes
