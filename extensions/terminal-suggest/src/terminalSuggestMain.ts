@@ -5,13 +5,17 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { ExecOptionsWithStringEncoding, execSync } from 'child_process';
+import { exec, ExecOptionsWithStringEncoding, execSync } from 'child_process';
 import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
 import codeInsidersCompletionSpec from './completions/code-insiders';
 import { osIsWindows } from './helpers/os';
 import { isExecutable } from './helpers/executable';
+
+const enum PwshCommandType {
+	Alias = 1
+}
 
 const isWindows = osIsWindows();
 let cachedAvailableCommandsPath: string | undefined;
@@ -29,7 +33,7 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
-function getBuiltinCommands(shell: string, existingCommands?: Set<string>): ICompletionResource[] | undefined {
+async function getBuiltinCommands(shell: string, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
 		const shellType = path.basename(shell, path.extname(shell));
 		const cachedCommands = cachedBuiltinCommands.get(shellType);
@@ -57,8 +61,18 @@ function getBuiltinCommands(shell: string, existingCommands?: Set<string>): ICom
 				break;
 			}
 			case 'pwsh': {
-				// TODO: Select `CommandType, DisplayName` and map to a rich type with kind and detail
-				const output = execSync('Get-Command -All | Select-Object Name | ConvertTo-Json', options);
+				const output = await new Promise<string>((resolve, reject) => {
+					exec('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
+						...options,
+						maxBuffer: 1024 * 1024 * 100 // This is a lot of content, increase buffer size
+					}, (error, stdout) => {
+						if (error) {
+							reject(error);
+							return;
+						}
+						resolve(stdout);
+					});
+				});
 				let json: any;
 				try {
 					json = JSON.parse(output);
@@ -66,8 +80,24 @@ function getBuiltinCommands(shell: string, existingCommands?: Set<string>): ICom
 					console.error('Error parsing pwsh output:', e);
 					return [];
 				}
-				commands = (json as any[]).map(e => e.Name);
-				break;
+				const commandResources = (json as any[]).map(e => {
+					switch (e.CommandType) {
+						case PwshCommandType.Alias: {
+							return {
+								label: e.Name,
+								detail: e.DisplayName,
+							};
+						}
+						default: {
+							return {
+								label: e.Name,
+								detail: e.Definition,
+							};
+						}
+					}
+				});
+				cachedBuiltinCommands.set(shellType, commandResources);
+				return commandResources;
 			}
 		}
 
@@ -96,7 +126,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
-			const builtinCommands = getBuiltinCommands(shellPath, commandsInPath?.labels) ?? [];
+			const builtinCommands = await getBuiltinCommands(shellPath, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				return;
 			}
@@ -188,7 +218,7 @@ function createCompletionItem(cursorPosition: number, prefix: string, commandRes
 	const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
 	return {
 		label: commandResource.label,
-		detail: description ?? commandResource.path ?? '',
+		detail: description ?? commandResource.detail ?? '',
 		replacementIndex: cursorPosition - lastWord.length,
 		replacementLength: lastWord.length,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
@@ -197,7 +227,7 @@ function createCompletionItem(cursorPosition: number, prefix: string, commandRes
 
 interface ICompletionResource {
 	label: string;
-	path?: string;
+	detail?: string;
 }
 async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 	const labels: Set<string> = new Set<string>();
@@ -234,7 +264,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			for (const [file, fileType] of files) {
 				const formattedPath = getFriendlyFilePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
 				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, cachedWindowsExecutableExtensions)) {
-					executables.add({ label: file, path: formattedPath });
+					executables.add({ label: file, detail: formattedPath });
 					labels.add(file);
 				}
 			}
