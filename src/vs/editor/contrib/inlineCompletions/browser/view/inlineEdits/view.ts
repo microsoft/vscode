@@ -142,7 +142,7 @@ export class InlineEditsView extends Disposable {
 		return {
 			modifiedText: new StringText(e.newText),
 			diff: e.diff,
-			mode: e.state.kind === 'collapsed' || e.state.kind === 'deletion' ? 'sideBySide' : e.state.kind,
+			mode: e.state.kind === 'collapsed' ? 'sideBySide' : e.state.kind,
 			modifiedCodeEditor: this._sideBySide.previewEditor,
 		};
 	});
