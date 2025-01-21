@@ -15,7 +15,7 @@ import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
 import { AbstractText } from '../../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
-import { IModelDeltaDecoration, ITextModel } from '../../../../../common/model.js';
+import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../../common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
 import { classNames } from './utils.js';
@@ -184,6 +184,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 				for (const i of m.innerChanges || []) {
 					// Don't show empty markers outside the line range
 					if (m.original.contains(i.originalRange.startLineNumber)) {
+						const replacedText = this._originalEditor.getModel()?.getValueInRange(i.originalRange, EndOfLinePreference.LF);
 						originalDecorations.push({
 							range: i.originalRange,
 							options: {
@@ -193,7 +194,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 									'inlineCompletions-char-delete',
 									i.originalRange.isSingleLine() && diff.mode === 'ghostText' && 'single-line-inline',
 									i.originalRange.isEmpty() && 'empty',
-									((i.originalRange.isEmpty() || diff.mode === 'deletion') && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
+									((i.originalRange.isEmpty() || diff.mode === 'deletion' && replacedText === '\n') && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
 								),
 								inlineClassName: useInlineDiff ? classNames('strike-through', 'inlineCompletions') : null,
 								zIndex: 1
