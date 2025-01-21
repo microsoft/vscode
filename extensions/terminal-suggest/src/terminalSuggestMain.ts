@@ -345,8 +345,7 @@ export async function getCompletionItemsFromSpecs(
 				|| !!firstCommand && specLabel.startsWith(firstCommand)
 			) {
 				// push it to the completion items
-				// TODO: when the detail and documentation can be shown separately, pass in separately
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, getDescription(spec) + ' ' + availableCommand.detail));
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, availableCommand.detail, getDescription(spec)));
 			}
 
 			if (!terminalContext.commandLine.startsWith(specLabel)) {
