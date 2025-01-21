@@ -773,7 +773,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
 		const lineData = this._lines.getViewLineData(lineNumber);
-		const affectedBySpecialFontInfo = this.model.affectedBySpecialFontInfo(lineNumber);
+		const modelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1));
+		const affectedBySpecialFontInfo = this.model.affectedBySpecialFontInfo(modelPosition.lineNumber);
 
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
