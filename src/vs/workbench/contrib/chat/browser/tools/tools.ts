@@ -161,7 +161,7 @@ class EditTool implements IToolImpl {
 		await this.textFileService.save(uri);
 
 		return {
-			content: [{ kind: 'text', value: 'Success' }]
+			content: [{ kind: 'text', value: 'The file was edited successfully' }]
 		};
 	}
 }
