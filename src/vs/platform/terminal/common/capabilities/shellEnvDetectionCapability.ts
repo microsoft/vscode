@@ -7,16 +7,21 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IShellEnvDetectionCapability, TerminalCapability } from './capabilities.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { equals } from '../../../../base/common/objects.js';
+// eslint-disable-next-line local/code-import-patterns
+import { TerminalShellIntegrationEnvironment } from 'vscode'; // Maybe illegal..
 
 export class ShellEnvDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
 	readonly type = TerminalCapability.ShellEnvDetection;
 
 	private _pendingEnv: Map<string, string> | undefined;
 	private _env: Map<string, string> = new Map();
-	get env(): Map<string, string> { return this._env; }
+	private _isTrusted: boolean = false;
+	get env(): { value: { [key: string]: string }; isTrusted: boolean } {
+		return { value: Object.fromEntries(this._env), isTrusted: this._isTrusted };
+	}
 
-	private readonly _onDidChangeEnv = this._register(new Emitter<Map<string, string>>());
-	readonly onDidChangeEnv = this._onDidChangeEnv.event;
+	private readonly _onDidChangeEnv = this._register(new Emitter<TerminalShellIntegrationEnvironment>());
+	readonly onDidChangeEnv = this._onDidChangeEnv.event; // TODO: Why type complains only here in this file? Firing seems fine.
 
 	setEnvironment(env: { [key: string]: string | undefined }, isTrusted: boolean): void {
 		if (!isTrusted) {
@@ -35,7 +40,7 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		}
 
 		// Convert to event and fire event
-		this._onDidChangeEnv.fire(this._env);
+		this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
 	}
 
 	startEnvironmentSingleVar(isTrusted: boolean): void {
@@ -61,6 +66,6 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		}
 		this._env = this._pendingEnv;
 		this._pendingEnv = undefined;
-		this._onDidChangeEnv.fire(this._env);
+		this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
 	}
 }

@@ -63,9 +63,12 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		// onDidChangeTerminalShellIntegration via env
 		const envChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.ShellEnvDetection, e => e.onDidChangeEnv));
 		this._store.add(envChangeEvent.event(e => {
-			const keysArr = Array.from(e.data.keys());
-			const valuesArr = Array.from(e.data.values());
-			this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr);
+			// Is there cleaner way to do this in typescript?
+			if (e.data.value && typeof e.data.value === 'object' && e.data.value instanceof Map) {
+				const keysArr = Array.from(e.data.value.keys()) as string[];
+				const valuesArr = Array.from(e.data.value.values()) as string[];
+				this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr, e.data.isTrusted);
+			}
 		}));
 
 		// onDidStartTerminalShellExecution

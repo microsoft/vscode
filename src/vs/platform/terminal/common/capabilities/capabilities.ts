@@ -9,6 +9,8 @@ import type { IPromptInputModel, ISerializedPromptInputModel } from './commandDe
 import { ICurrentPartialCommand } from './commandDetection/terminalCommand.js';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from '../terminal.js';
 import { ReplayEntry } from '../terminalProcess.js';
+// eslint-disable-next-line local/code-import-patterns
+import { TerminalShellIntegrationEnvironment } from 'vscode';
 
 interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
@@ -152,8 +154,8 @@ export interface ICwdDetectionCapability {
 
 export interface IShellEnvDetectionCapability {
 	readonly type: TerminalCapability.ShellEnvDetection;
-	readonly onDidChangeEnv: Event<Map<string, string>>;
-	get env(): Map<string, string>;
+	readonly onDidChangeEnv: Event<TerminalShellIntegrationEnvironment>;
+	get env(): TerminalShellIntegrationEnvironment;
 	setEnvironment(envs: { [key: string]: string | undefined } | undefined, isTrusted: boolean): void;
 	startEnvironmentSingleVar(isTrusted: boolean): void;
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
