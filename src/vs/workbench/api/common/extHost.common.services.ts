@@ -52,7 +52,7 @@ registerSingleton(IExtHostSearch, ExtHostSearch, InstantiationType.Eager);
 registerSingleton(IExtHostStorage, ExtHostStorage, InstantiationType.Eager);
 registerSingleton(IExtHostTask, WorkerExtHostTask, InstantiationType.Eager);
 registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService, InstantiationType.Eager);
-registerSingleton(IExtHostTerminalShellIntegration, ExtHostTerminalShellIntegration, InstantiationType.Eager);
+registerSingleton(IExtHostTerminalShellIntegration, ExtHostTerminalShellIntegration, InstantiationType.Eager); // Question: Why would there be error here?
 registerSingleton(IExtHostTunnelService, ExtHostTunnelService, InstantiationType.Eager);
 registerSingleton(IExtHostWindow, ExtHostWindow, InstantiationType.Eager);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace, InstantiationType.Eager);
