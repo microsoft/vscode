@@ -40,6 +40,8 @@ interface IChatHistory {
 	history: { [providerId: string]: IChatHistoryEntry[] };
 }
 
+export const ChatInputHistoryMaxEntries = 40;
+
 export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 	_serviceBrand: undefined;
 
@@ -78,7 +80,7 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 		}
 
 		const key = this.getKey(location);
-		this.viewState.history[key] = history;
+		this.viewState.history[key] = history.slice(-ChatInputHistoryMaxEntries);
 		this.memento.saveMemento();
 	}
 
