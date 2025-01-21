@@ -200,6 +200,10 @@
 	margin-bottom: 8px;
 }
 
+.interactive-item-container .value .rendered-markdown .codicon {
+	font-size: inherit;
+}
+
 .interactive-item-container .value .rendered-markdown blockquote {
 	margin: 0px;
 	padding: 0px 16px 0 10px;
@@ -940,9 +944,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context .chat-prompt-instructions-attachment .codicon {
 	color: inherit;
 	text-decoration: none;
-}
-.chat-attached-context .chat-prompt-instructions-attachment .monaco-icon-label::before {
-	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 .chat-attached-context .chat-prompt-instructions-attachment .chat-implicit-hint {
 	opacity: 0.7;

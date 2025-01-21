@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FuzzyScore } from '../../../../base/common/filters.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
@@ -24,6 +25,12 @@ export interface ISimpleCompletion {
 	 * The completion's detail which appears on the right of the list.
 	 */
 	detail?: string;
+
+	/**
+	 * A human-readable string that represents a doc-comment.
+	 */
+	documentation?: string | MarkdownString;
+
 	/**
 	 * Whether the completion is a file. Files with the same score will be sorted against each other
 	 * first by extension length and then certain extensions will get a boost based on the OS.

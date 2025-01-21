@@ -18,8 +18,10 @@ import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRend
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export function canExpandCompletionItem(item: SimpleCompletionItem | undefined): boolean {
-	return !!item && Boolean(item.completion.detail && item.completion.detail !== item.completion.label);
+	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
 }
+
+export const SuggestDetailsClassName = 'suggest-details';
 
 export class SimpleSuggestDetailsWidget {
 
@@ -102,10 +104,10 @@ export class SimpleSuggestDetailsWidget {
 	renderItem(item: SimpleCompletionItem, explainMode: boolean): void {
 		this._renderDisposeable.clear();
 
-		let { detail } = item.completion;
+		let { detail, documentation } = item.completion;
 
 		let md = '';
-		let documentation;
+
 		if (explainMode) {
 			md += `score: ${item.score[0]}\n`;
 			md += `prefix: ${item.word ?? '(no prefix)'}\n`;
@@ -158,7 +160,7 @@ export class SimpleSuggestDetailsWidget {
 			this._renderDisposeable.add(renderedContents);
 		}
 
-		// this.domNode.classList.toggle('detail-and-doc', !!documentation);
+		this.domNode.classList.toggle('detail-and-doc', !!detail && !!documentation);
 
 		this.domNode.style.userSelect = 'text';
 		this.domNode.tabIndex = -1;
@@ -175,7 +177,7 @@ export class SimpleSuggestDetailsWidget {
 
 		this._body.scrollTop = 0;
 
-		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
+		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight + 20);
 		this._onDidChangeContents.fire(this);
 	}
 

@@ -83,6 +83,7 @@ export interface IChatEditingSession {
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
 	readonly isVisible: boolean;
+	readonly isToolsAgentSession: boolean;
 	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
@@ -138,6 +139,10 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
+
+	reviewMode: IObservable<boolean>;
+	autoAcceptController: IObservable<{ remaining: number; cancel(): void } | undefined>;
+	enableReviewModeUntilSettled(): void;
 }
 
 export interface IChatEditingSessionStream {
