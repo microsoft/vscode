@@ -106,6 +106,7 @@ export interface IProductConfiguration {
 	};
 
 	readonly extensionPublisherOrgs?: readonly string[];
+	readonly trustedExtensionPublishers?: readonly string[];
 
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
