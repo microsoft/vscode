@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { ExecOptionsWithStringEncoding, execSync } from 'child_process';
+import { exec, ExecOptionsWithStringEncoding, execSync } from 'child_process';
 import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
@@ -13,9 +13,13 @@ import codeInsidersCompletionSpec from './completions/code-insiders';
 import { osIsWindows } from './helpers/os';
 import { isExecutable } from './helpers/executable';
 
+const enum PwshCommandType {
+	Alias = 1
+}
+
 const isWindows = osIsWindows();
 let cachedAvailableCommandsPath: string | undefined;
-let cachedWindowsExecutableExtensions: Object | undefined;
+let cachedWindowsExecutableExtensions: { [key: string]: boolean | undefined } | undefined;
 const cachedWindowsExecutableExtensionsSettingId = 'terminal.integrated.suggest.windowsExecutableExtensions';
 let cachedAvailableCommands: Set<ICompletionResource> | undefined;
 const cachedBuiltinCommands: Map<string, ICompletionResource[] | undefined> = new Map();
@@ -29,7 +33,7 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
-function getBuiltinCommands(shell: string, existingCommands?: Set<string>): ICompletionResource[] | undefined {
+async function getBuiltinCommands(shell: string, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
 		const shellType = path.basename(shell, path.extname(shell));
 		const cachedCommands = cachedBuiltinCommands.get(shellType);
@@ -57,8 +61,18 @@ function getBuiltinCommands(shell: string, existingCommands?: Set<string>): ICom
 				break;
 			}
 			case 'pwsh': {
-				// TODO: Select `CommandType, DisplayName` and map to a rich type with kind and detail
-				const output = execSync('Get-Command -All | Select-Object Name | ConvertTo-Json', options);
+				const output = await new Promise<string>((resolve, reject) => {
+					exec('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
+						...options,
+						maxBuffer: 1024 * 1024 * 100 // This is a lot of content, increase buffer size
+					}, (error, stdout) => {
+						if (error) {
+							reject(error);
+							return;
+						}
+						resolve(stdout);
+					});
+				});
 				let json: any;
 				try {
 					json = JSON.parse(output);
@@ -66,8 +80,24 @@ function getBuiltinCommands(shell: string, existingCommands?: Set<string>): ICom
 					console.error('Error parsing pwsh output:', e);
 					return [];
 				}
-				commands = (json as any[]).map(e => e.Name);
-				break;
+				const commandResources = (json as any[]).map(e => {
+					switch (e.CommandType) {
+						case PwshCommandType.Alias: {
+							return {
+								label: e.Name,
+								detail: e.DisplayName,
+							};
+						}
+						default: {
+							return {
+								label: e.Name,
+								detail: e.Definition,
+							};
+						}
+					}
+				});
+				cachedBuiltinCommands.set(shellType, commandResources);
+				return commandResources;
 			}
 		}
 
@@ -96,7 +126,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
-			const builtinCommands = getBuiltinCommands(shellPath, commandsInPath?.labels) ?? [];
+			const builtinCommands = await getBuiltinCommands(shellPath, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				return;
 			}
@@ -114,10 +144,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	}, '/', '\\'));
 
 	if (isWindows) {
-		cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration(cachedWindowsExecutableExtensionsSettingId);
+		cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration('terminal.integrated.suggest').get('windowsExecutableExtensions');
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(cachedWindowsExecutableExtensionsSettingId)) {
-				cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration(cachedWindowsExecutableExtensionsSettingId);
+				cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration('terminal.integrated.suggest').get('windowsExecutableExtensions');
 				cachedAvailableCommands = undefined;
 				cachedAvailableCommandsPath = undefined;
 			}
@@ -168,7 +198,12 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 	// If the prefix is not a folder, return the current cwd
 	return currentCwd;
 }
-
+function getDescription(spec: Fig.Spec): string {
+	if ('description' in spec) {
+		return spec.description ?? '';
+	}
+	return '';
+}
 
 function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] | undefined {
 	if (typeof spec === 'string') {
@@ -183,12 +218,13 @@ function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] 
 	return spec.name;
 }
 
-function createCompletionItem(cursorPosition: number, prefix: string, commandResource: ICompletionResource, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
+function createCompletionItem(cursorPosition: number, prefix: string, commandResource: ICompletionResource, detail?: string, documentation?: string | vscode.MarkdownString, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
 	const endsWithSpace = prefix.endsWith(' ');
 	const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
 	return {
 		label: commandResource.label,
-		detail: description ?? commandResource.path ?? '',
+		detail: detail ?? commandResource.detail ?? '',
+		documentation,
 		replacementIndex: cursorPosition - lastWord.length,
 		replacementLength: lastWord.length,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
@@ -197,7 +233,7 @@ function createCompletionItem(cursorPosition: number, prefix: string, commandRes
 
 interface ICompletionResource {
 	label: string;
-	path?: string;
+	detail?: string;
 }
 async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 	const labels: Set<string> = new Set<string>();
@@ -233,8 +269,8 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			const files = await vscode.workspace.fs.readDirectory(fileResource);
 			for (const [file, fileType] of files) {
 				const formattedPath = getFriendlyFilePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
-				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath), cachedWindowsExecutableExtensions) {
-					executables.add({ label: file, path: formattedPath });
+				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, cachedWindowsExecutableExtensions)) {
+					executables.add({ label: file, detail: formattedPath });
 					labels.add(file);
 				}
 			}
@@ -297,7 +333,8 @@ export async function getCompletionItemsFromSpecs(
 		}
 
 		for (const specLabel of specLabels) {
-			if (!availableCommands.find(command => command.label === specLabel) || (token && token.isCancellationRequested)) {
+			const availableCommand = availableCommands.find(command => command.label === specLabel);
+			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
 
@@ -308,7 +345,7 @@ export async function getCompletionItemsFromSpecs(
 				|| !!firstCommand && specLabel.startsWith(firstCommand)
 			) {
 				// push it to the completion items
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }));
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, availableCommand.detail, getDescription(spec)));
 			}
 
 			if (!terminalContext.commandLine.startsWith(specLabel)) {
@@ -344,7 +381,7 @@ export async function getCompletionItemsFromSpecs(
 		const labels = new Set(items.map((i) => i.label));
 		for (const command of availableCommands) {
 			if (!labels.has(command.label)) {
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
 			}
 		}
 	}
@@ -415,6 +452,7 @@ function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { com
 					prefix,
 					{ label: optionLabel },
 					option.description,
+					undefined,
 					vscode.TerminalCompletionItemKind.Flag
 				)
 			);
@@ -475,7 +513,7 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 					}
 					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const description = typeof suggestion !== 'string' ? suggestion.description : '';
-						items.push(createCompletionItem(terminalContext.cursorPosition, wordBefore ?? '', { label: suggestionLabel }, description, vscode.TerminalCompletionItemKind.Argument));
+						items.push(createCompletionItem(terminalContext.cursorPosition, wordBefore ?? '', { label: suggestionLabel }, description, undefined, vscode.TerminalCompletionItemKind.Argument));
 					}
 				}
 			}

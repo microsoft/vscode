@@ -8,14 +8,9 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-
-/**
- * Configuration setting name for the `prompt instructions` feature.
- * Set to `true` to enable the feature for yourself.
- */
-const PROMPT_INSTRUCTIONS_SETTING_NAME = 'chat.experimental.prompt-instructions.enabled';
 
 /**
  * Model for a collection of prompt instruction attachments.
@@ -141,24 +136,8 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 
 	/**
 	 * Checks if the prompt instructions feature is enabled in the user settings.
-	 * The setting can be set to `true`, `'true'`, `True`, `TRUE`, etc.
-	 * All other values are treated as the `false` value, which is the `default`.
 	 */
 	public get featureEnabled(): boolean {
-		const value = this.configService.getValue(PROMPT_INSTRUCTIONS_SETTING_NAME);
-
-		if (!value) {
-			return false;
-		}
-
-		if (value === true) {
-			return true;
-		}
-
-		if (typeof value === 'string' && value.toLowerCase().trim() === 'true') {
-			return true;
-		}
-
-		return false;
+		return BasePromptParser.promptSnippetsEnabled(this.configService);
 	}
 }

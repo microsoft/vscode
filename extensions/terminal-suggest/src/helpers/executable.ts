@@ -6,7 +6,7 @@
 import { osIsWindows } from './os';
 import * as fs from 'fs/promises';
 
-export async function isExecutable(filePath: string, configuredWindowsExecutableExtensions?: { [key: string]: boolean | undefined }): Promise<boolean> {
+export async function isExecutable(filePath: string, configuredWindowsExecutableExtensions?: { [key: string]: boolean | undefined } | undefined): Promise<boolean> {
 	if (osIsWindows()) {
 		const resolvedWindowsExecutableExtensions = resolveWindowsExecutableExtensions(configuredWindowsExecutableExtensions);
 		return resolvedWindowsExecutableExtensions.find(ext => filePath.endsWith(ext)) !== undefined;

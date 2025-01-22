@@ -266,13 +266,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// If input has been added
 			let sent = false;
 
-			// Quick suggestions
+			// Quick suggestions - Trigger whenever a new non-whitespace character is used
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
-					// TODO: Make the regex code generic
-					// TODO: Don't use `\[` in bash/zsh
-					// If first character or first character after a space (or `[` in pwsh), request completions
-					if (promptInputState.cursorIndex === 1 || promptInputState.prefix.match(/([\s\[])[^\s]$/)) {
+					if (promptInputState.prefix.match(/[^\s]$/)) {
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
 						if (!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/)) {

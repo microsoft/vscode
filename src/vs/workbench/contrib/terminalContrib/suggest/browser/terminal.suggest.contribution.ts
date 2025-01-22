@@ -158,7 +158,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
 			const focusedElement = e.relatedTarget as HTMLElement;
-			if (focusedElement.className === SuggestDetailsClassName) {
+			if (focusedElement?.className === SuggestDetailsClassName) {
 				// Don't hide the suggest widget if the focus is moving to the details
 				return;
 			}
