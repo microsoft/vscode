@@ -80,6 +80,7 @@ const defaultChat = {
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
+	enterpriseProviderName: product.defaultChatAgent?.enterpriseProviderName ?? '',
 	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
 	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
@@ -793,7 +794,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(): Promise<void> {
+	async setup(options?: { forceSignIn: boolean }): Promise<void> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(preferCopilotEditsView(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
@@ -805,13 +806,13 @@ class ChatSetupController extends Disposable {
 				location: ProgressLocation.Window,
 				command: TRIGGER_SETUP_COMMAND_ID,
 				title,
-			}, () => this.doSetup(watch));
+			}, () => this.doSetup(options?.forceSignIn ?? false, watch));
 		} finally {
 			badge.dispose();
 		}
 	}
 
-	private async doSetup(watch: StopWatch): Promise<void> {
+	private async doSetup(forceSignIn: boolean, watch: StopWatch): Promise<void> {
 		this.context.suspend();  // reduces flicker
 
 		let focusChatInput = false;
@@ -820,8 +821,8 @@ class ChatSetupController extends Disposable {
 			let session: AuthenticationSession | undefined;
 			let entitlement: ChatEntitlement | undefined;
 
-			// Entitlement Unknown: we need to sign-in user
-			if (this.context.state.entitlement === ChatEntitlement.Unknown) {
+			// Entitlement Unknown or `forceSignIn`: we need to sign-in user
+			if (this.context.state.entitlement === ChatEntitlement.Unknown || forceSignIn) {
 				this.setStep(ChatSetupStep.SigningIn);
 				const result = await this.signIn(providerId);
 				if (!result.session) {
@@ -1037,21 +1038,10 @@ class ChatSetupWelcomeContent extends Disposable {
 		const buttonContainer = this.element.appendChild($('p'));
 		buttonContainer.classList.add('button-container');
 		const button = this._register(new ButtonWithDropdown(buttonContainer, {
-			actions: {
-				getActions: () => {
-					if (this.context.state.entitlement === ChatEntitlement.Unknown) {
-						return [
-							toAction({ id: 'chatSetup.signInGh', label: localize('signInGh', "Sign in with a GitHub.com Account"), run: () => this.updateProvider(false) }),
-							toAction({ id: 'chatSetup.signInGhe', label: localize('signInGhe', "Sign in with a GHE.com Account"), run: () => this.updateProvider(true) }),
-						];
-					} else {
-						return [
-							toAction({ id: 'chatSetup.useGh', label: localize('useGh', "Use a GitHub.com Account"), run: () => this.updateProvider(false) }),
-							toAction({ id: 'chatSetup.useGhe', label: localize('useGhe', "Use a GHE.com Account"), run: () => this.updateProvider(true) }),
-						];
-					}
-				}
-			},
+			actions: [
+				toAction({ id: 'chatSetup.setupWithProvider', label: localize('setupWithProvider', "Sign in with a {0} Account", defaultChat.providerName), run: () => this.setupWithProvider(false) }),
+				toAction({ id: 'chatSetup.setupWithEnterpriseProvider', label: localize('setupWithEnterpriseProvider', "Sign in with a {0} Account", defaultChat.enterpriseProviderName), run: () => this.setupWithProvider(true) })
+			],
 			addPrimaryActionToDropdown: false,
 			contextMenuProvider: this.contextMenuService,
 			supportIcons: true,
@@ -1114,7 +1104,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		button.enabled = this.controller.step === ChatSetupStep.Initial;
 	}
 
-	private async updateProvider(useGhe: boolean): Promise<void> {
+	private async setupWithProvider(useEnterpriseProvider: boolean): Promise<void> {
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		registry.registerConfiguration({
 			'id': 'copilot.setup',
@@ -1129,9 +1119,9 @@ class ChatSetupWelcomeContent extends Disposable {
 			}
 		});
 
-		if (useGhe) {
+		if (useEnterpriseProvider) {
 			await this.configurationService.updateValue(defaultChat.providerSetting, defaultChat.enterpriseProviderId, ConfigurationTarget.USER);
-			const success = await this.handleGheUri();
+			const success = await this.handleEnterpriseInstance();
 			if (!success) {
 				return; // not properly configured, abort
 			}
@@ -1140,10 +1130,10 @@ class ChatSetupWelcomeContent extends Disposable {
 			await this.configurationService.updateValue(defaultChat.providerUriSetting, undefined, ConfigurationTarget.USER);
 		}
 
-		return this.controller.setup();
+		return this.controller.setup({ forceSignIn: true });
 	}
 
-	private async handleGheUri(): Promise<boolean /* success */> {
+	private async handleEnterpriseInstance(): Promise<boolean /* success */> {
 		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
 		if (uri) {
 			return true; // already setup
@@ -1151,8 +1141,8 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		let isSingleWord = false;
 		const result = await this.quickInputService.input({
-			prompt: localize('gheInstance', "What is your GHE.com instance?"),
-			placeHolder: localize('gheInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.enterpriseProviderName),
+			placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
 			validateInput: async value => {
 				isSingleWord = false;
 				if (!value) {
@@ -1169,7 +1159,7 @@ class ChatSetupWelcomeContent extends Disposable {
 					const regex = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
 					if (!regex.test(value)) {
 						return {
-							content: localize('invalidGheInstance', 'Please enter a valid GHE.com instance (i.e. "octocat" or "https://octocat.ghe.com")'),
+							content: localize('invalidEnterpriseInstance', 'Please enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.enterpriseProviderName),
 							severity: Severity.Error
 						};
 					}
@@ -1182,12 +1172,12 @@ class ChatSetupWelcomeContent extends Disposable {
 		if (!result) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
-				message: localize('gheSetupError', "The provided GHE.com instance is invalid. Would you like to enter it again?", defaultChat.providerName),
+				message: localize('enterpriseSetupError', "The provided {0} instance is invalid. Would you like to enter it again?", defaultChat.enterpriseProviderName),
 				primaryButton: localize('retry', "Retry")
 			});
 
 			if (confirmed) {
-				return this.handleGheUri();
+				return this.handleEnterpriseInstance();
 			}
 
 			return false;
