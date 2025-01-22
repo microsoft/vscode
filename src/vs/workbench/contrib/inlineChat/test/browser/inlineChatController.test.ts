@@ -34,7 +34,6 @@ import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../.
 import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { InlineChatController, State } from '../../browser/inlineChatController.js';
-import { Session } from '../../browser/inlineChatSession.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
@@ -61,7 +60,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
-import { IInlineChatSavingService } from '../../browser/inlineChatSavingService.js';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
@@ -166,11 +164,6 @@ suite('InlineChatController', function () {
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IChatEditingService, new class extends mock<IChatEditingService>() {
 				override currentEditingSessionObs: IObservable<IChatEditingSession | null> = observableValue(this, null);
-			}],
-			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
-				override markChanged(session: Session): void {
-					// noop
-				}
 			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {

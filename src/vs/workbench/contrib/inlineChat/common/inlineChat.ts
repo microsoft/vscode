@@ -14,7 +14,6 @@ import { diffInserted, diffRemoved, editorWidgetBackground, editorWidgetBorder, 
 
 export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
-	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	AccessibleDiffView = 'inlineChat.accessibleDiffView',
