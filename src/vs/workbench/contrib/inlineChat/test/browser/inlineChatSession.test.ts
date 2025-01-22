@@ -26,8 +26,7 @@ import { IViewDescriptorService } from '../../../../common/views.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
-import { IInlineChatSavingService } from '../../browser/inlineChatSavingService.js';
-import { HunkState, Session } from '../../browser/inlineChatSession.js';
+import { HunkState } from '../../browser/inlineChatSession.js';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -95,11 +94,6 @@ suite('InlineChatSession', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[ILanguageModelToolsService, new MockLanguageModelToolsService()],
-			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
-				override markChanged(session: Session): void {
-					// noop
-				}
-			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
 					return {
