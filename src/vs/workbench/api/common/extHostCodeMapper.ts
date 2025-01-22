@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import * as extHostProtocol from './extHost.protocol.js';
-import { TextEdit } from './extHostTypeConverters.js';
+import { TextEdit, ChatAgentResult } from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
 
 export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape {
@@ -50,7 +50,8 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 					resource: URI.revive(block.resource),
 					markdownBeforeBlock: block.markdownBeforeBlock
 				};
-			})
+			}),
+			result: internalRequest.result ? ChatAgentResult.to(internalRequest.result) : undefined
 		};
 
 		const result = await provider.provideMappedEdits(request, stream, token);

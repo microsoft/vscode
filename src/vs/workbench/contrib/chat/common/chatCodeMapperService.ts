@@ -8,6 +8,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatAgentResult } from './chatAgents.js';
 
 export interface ICodeMapperResponse {
 	textEdit: (resource: URI, textEdit: TextEdit[]) => void;
@@ -23,6 +24,7 @@ export interface ICodeMapperRequest {
 	readonly codeBlocks: ICodeMapperCodeBlock[];
 	readonly chatRequestId?: string;
 	readonly location?: string;
+	readonly result?: IChatAgentResult;
 }
 
 export interface ICodeMapperResult {

@@ -205,7 +205,7 @@ export class ApplyCodeBlockOperation {
 					{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
 					async progress => {
 						progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", codeMapper) });
-						const editsIterable = this.getEdits(codeBlock, cancellationTokenSource.token);
+						const editsIterable = this.getEdits(codeBlock, cancellationTokenSource.token, codeBlockContext);
 						return await this.waitForFirstElement(editsIterable);
 					},
 					() => cancellationTokenSource.cancel()
@@ -225,10 +225,15 @@ export class ApplyCodeBlockOperation {
 		};
 	}
 
-	private getEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken): AsyncIterable<TextEdit[]> {
+	private getEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken, codeBlockContext: ICodeBlockActionContext): AsyncIterable<TextEdit[]> {
 		return new AsyncIterableObject<TextEdit[]>(async executor => {
+			let chatResponseResult = undefined;
+			if (isResponseVM(codeBlockContext.element)) {
+				chatResponseResult = codeBlockContext.element;
+			}
 			const request: ICodeMapperRequest = {
-				codeBlocks: [codeBlock]
+				codeBlocks: [codeBlock],
+				result: chatResponseResult?.result
 			};
 			const response: ICodeMapperResponse = {
 				textEdit: (target: URI, edit: TextEdit[]) => {
