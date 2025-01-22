@@ -1,7 +1,8 @@
 {
 	"compilerOptions": {
-		"module": "es2022",
-		"moduleResolution": "node",
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"moduleDetection": "legacy",
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
 		"noImplicitOverride": true,
