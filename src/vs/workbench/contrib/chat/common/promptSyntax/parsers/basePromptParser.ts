@@ -20,40 +20,11 @@ import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { TrackedDisposable } from '../../../../../../base/common/trackedDisposable.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
+import { PROMP_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
-
-/**
- * {@linkcode DeferredPromise} extension that adds the public {@linkcode completed}
- * attribute that indicates if the promise has been already completed.
- *
- * TODO: @legomushroom - unit test this
- */
-class TrackedPromise<T = void> extends DeferredPromise<T> {
-	/**
-	 * Private attribute to track if the promise has been
-	 * already completed.
-	 */
-	private _completed: boolean = false;
-
-	/**
-	 * Flag that indicates if the promise has been completed.
-	 */
-	public get completed(): boolean {
-		return this._completed;
-	}
-
-	/**
-	 * Complete the promise with the provided value.
-	 */
-	public override complete(value: T): Promise<void> {
-		this._completed = true;
-
-		return super.complete(value);
-	}
-}
 
 /**
  * Well-known localized error messages.
@@ -71,11 +42,6 @@ const errorMessages = {
 export type TErrorCondition = FileOpenFailed | RecursiveReference | NonPromptSnippetFile;
 
 /**
- * File extension for the prompt snippets.
- */
-export const PROMP_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
-
-/**
  * Configuration key for the prompt snippets feature.
  */
 const PROMPT_SNIPPETS_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
@@ -85,7 +51,6 @@ const PROMPT_SNIPPETS_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
  * prompt parsers that are responsible for parsing chat prompt syntax.
  */
 export abstract class BasePromptParser<T extends IPromptContentsProvider> extends TrackedDisposable {
-
 	/**
 	 * List of file references in the current branch of the file reference tree.
 	 */
@@ -121,7 +86,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * Set to `undefined` if the `resolve` method hasn't been ever called yet.
 	 */
 	public get resolveFailed(): boolean | undefined {
-		if (!this.firstParseResult.completed) {
+		if (!this.firstParseResult.isCompleted) {
 			return undefined;
 		}
 
@@ -132,7 +97,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * The promise is resolved when at least one parse result (a stream or
 	 * an error) has been received from the prompt contents provider.
 	 */
-	private firstParseResult = new TrackedPromise();
+	private firstParseResult = new DeferredPromise();
 
 	/**
 	 * Returned promise is resolved when the parser process is settled.
@@ -142,8 +107,6 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * Furthermore, this function can be called multiple times and will
 	 * block until the latest prompt contents parsing logic is settled
 	 * (e.g., for every `onContentChanged` event of the prompt source).
-	 *
-	 * TODO: @legomushroom - add unit tests
 	 */
 	public async settled(): Promise<this> {
 		assert(
@@ -163,6 +126,22 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		);
 
 		await this.stream.settled;
+
+		return this;
+	}
+
+	/**
+	 * Same as {@linkcode settled} but also waits for all possible
+	 * nested child prompt references and their children to be settled.
+	 */
+	public async settledAll(): Promise<this> {
+		await this.settled();
+
+		await Promise.allSettled(
+			this.references.map((reference) => {
+				return reference.settledAll();
+			}),
+		);
 
 		return this;
 	}
@@ -187,7 +166,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 
 			this._errorCondition = new RecursiveReference(this.uri, seenReferences);
 			this._onUpdate.fire();
-			this.firstParseResult.complete();
+			this.firstParseResult.complete(void 0);
 
 			return this;
 		}
@@ -203,7 +182,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 				this.onContentsChanged(streamOrError, seenReferences);
 
 				// indicate that we've received at least one `onContentChanged` event
-				this.firstParseResult.complete();
+				this.firstParseResult.complete(void 0);
 			}),
 		);
 	}
@@ -307,11 +286,6 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		_stream: ChatPromptDecoder,
 		error?: Error,
 	): this {
-		// TODO: @legomushroom - remove?
-		// setTimeout(() => {
-		// 	stream.dispose();
-		// });
-
 		this.logService.warn(
 			`[prompt parser][${basename(this.uri)}]} received an error on the chat prompt decoder stream: ${error}`,
 		);
@@ -348,14 +322,14 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		}
 		this.started = true;
 
-		// TODO: @legomushroom - remove?
-		// // if already in error state, nothing to do
-		// if (this.errorCondition) {
-		// 	return this;
-		// }
+
+		// if already in the error state that could be set
+		// in the constructor, then nothing to do
+		if (this.errorCondition) {
+			return this;
+		}
 
 		this.promptContentsProvider.start();
-
 		return this;
 	}
 
@@ -579,6 +553,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		}
 
 		this.disposeReferences();
+		this.stream?.dispose();
 		this._onUpdate.fire();
 
 		super.dispose();
@@ -615,12 +590,17 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 	 * Get the range of the `link` part of the reference.
 	 */
 	public get linkRange(): IRange | undefined {
-		// we handle #file: references only for now
-		if (!(this.token instanceof FileReference)) {
-			return undefined;
+		// `#file:` references
+		if (this.token instanceof FileReference) {
+			return this.token.linkRange;
 		}
 
-		return this.token.linkRange;
+		// `markdown link` references
+		if (this.token instanceof MarkdownLink) {
+			return this.token.linkRange;
+		}
+
+		return undefined;
 	}
 
 	/**

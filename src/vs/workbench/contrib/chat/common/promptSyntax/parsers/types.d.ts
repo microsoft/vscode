@@ -99,6 +99,9 @@ export interface IPromptReference extends IDisposable {
 	 * issues that would make the reference resolve logic to fail.
 	 */
 	allValidReferences: readonly IPromptReference[];
+
+	settled(): Promise<this>;
+	settledAll(): Promise<this>;
 }
 
 /**

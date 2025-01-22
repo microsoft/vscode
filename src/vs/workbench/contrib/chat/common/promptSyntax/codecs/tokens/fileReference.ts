@@ -94,7 +94,8 @@ export class FileReference extends BaseToken {
 	}
 
 	/**
-	 * Get the range of the link part of the token.
+	 * Get the range of the `link part` of the token (e.g.,
+	 * the `/path/to/file.md` part of `#file:/path/to/file.md`).
 	 */
 	public get linkRange(): IRange | undefined {
 		if (this.path.length === 0) {
@@ -102,10 +103,12 @@ export class FileReference extends BaseToken {
 		}
 
 		const { range } = this;
-		return {
-			...range,
-			startColumn: range.startColumn + TOKEN_START.length,
-		};
+		return new Range(
+			range.startLineNumber,
+			range.startColumn + TOKEN_START.length,
+			range.endLineNumber,
+			range.endColumn,
+		);
 	}
 
 	/**
