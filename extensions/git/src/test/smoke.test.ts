@@ -174,4 +174,16 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
+
+	test('remotes are correctly resolved', async function () {
+		cp.execSync('git remote add origin alias', { cwd });
+		cp.execSync('git config url.https://example.com/.insteadOf alias', { cwd });
+
+		await repository.status();
+
+		assert.strictEqual(repository.state.remotes.length, 1);
+		assert.strictEqual(repository.state.remotes[0].name, 'origin');
+		assert.strictEqual(repository.state.remotes[0].fetchUrl, 'https://example.com/');
+		assert.strictEqual(repository.state.remotes[0].pushUrl, 'https://example.com/');
+	});
 });

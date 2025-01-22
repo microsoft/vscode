@@ -2642,18 +2642,22 @@ export class Repository {
 		const remotes: MutableRemote[] = [];
 
 		try {
-			// Attempt to parse the config file
-			remotes.push(...await this.getRemotesFS());
+			// Attempt to call git to get the remotes
+			remotes.push(...await this.getRemotesGit());
 
 			if (remotes.length === 0) {
-				this.logger.info('[Git][getRemotes] No remotes found in the git config file');
+				this.logger.info('[Git][getRemotes] No remotes returned from git');
 			}
 		}
 		catch (err) {
 			this.logger.warn(`[Git][getRemotes] Error: ${err.message}`);
 
-			// Fallback to using git to get the remotes
-			remotes.push(...await this.getRemotesGit());
+			// Fallback to parsing the config file
+			remotes.push(...await this.getRemotesFS());
+
+			if (remotes.length === 0) {
+				this.logger.info('[Git][getRemotes] No remotes found in the git config file');
+			}
 		}
 
 		for (const remote of remotes) {
