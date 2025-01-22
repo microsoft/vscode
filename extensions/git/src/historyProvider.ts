@@ -136,12 +136,27 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					historyItemRefName = this.repository.HEAD.name;
 
 					// Remote
-					this._currentHistoryItemRemoteRef = this.repository.HEAD.upstream ? {
-						id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-						name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-						revision: this.repository.HEAD.upstream.commit,
-						icon: new ThemeIcon('cloud')
-					} : undefined;
+					if (this.repository.HEAD.upstream) {
+						if (this.repository.HEAD.upstream.remote === '.') {
+							// Local branch
+							this._currentHistoryItemRemoteRef = {
+								id: `refs/heads/${this.repository.HEAD.upstream.name}`,
+								name: this.repository.HEAD.upstream.name,
+								revision: this.repository.HEAD.upstream.commit,
+								icon: new ThemeIcon('gi-branch')
+							};
+						} else {
+							// Remote branch
+							this._currentHistoryItemRemoteRef = {
+								id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+								name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+								revision: this.repository.HEAD.upstream.commit,
+								icon: new ThemeIcon('cloud')
+							};
+						}
+					} else {
+						this._currentHistoryItemRemoteRef = undefined;
+					}
 
 					// Base
 					if (this._HEAD?.name !== this.repository.HEAD.name) {
