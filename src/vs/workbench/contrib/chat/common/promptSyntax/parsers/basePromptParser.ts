@@ -286,9 +286,11 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		_stream: ChatPromptDecoder,
 		error?: Error,
 	): this {
-		this.logService.warn(
-			`[prompt parser][${basename(this.uri)}]} received an error on the chat prompt decoder stream: ${error}`,
-		);
+		if (error) {
+			this.logService.warn(
+				`[prompt parser][${basename(this.uri)}] received an error on the chat prompt decoder stream: ${error}`,
+			);
+		}
 
 		this._onUpdate.fire();
 

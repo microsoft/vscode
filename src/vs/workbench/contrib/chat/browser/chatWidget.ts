@@ -1012,7 +1012,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// the entire prompt instruction tree to be processed
 				const instructionsStarted = performance.now();
 				await promptInstructions.allSettled();
-				this.logService.debug(`instructions tree resolved in ${performance.now() - instructionsStarted}ms`);
+				// allow-any-unicode-next-line
+				this.logService.info(`[⏱] instructions tree resolved in ${performance.now() - instructionsStarted}ms`);
 			}
 
 			let attachedContext = this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
