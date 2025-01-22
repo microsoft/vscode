@@ -270,8 +270,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 						const model = this.replInput.getModel();
 						if (model) {
-							const word = model.getWordAtPosition(position);
-							const overwriteBefore = word ? word.word.length : 0;
+							const overwriteBefore = position.column;
 							const text = model.getValue();
 							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 							const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
@@ -297,7 +296,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 											insertText,
 											detail: item.detail,
 											kind: CompletionItemKinds.fromString(item.type || 'property'),
-											filterText: (item.start && item.length) ? text.substring(item.start, item.start + item.length).concat(item.label) : undefined,
+											filterText: item.start ? text.substring(item.start, item.start + (item.length ?? 0)).concat(item.label) : undefined,
 											range: computeRange(item.length || overwriteBefore),
 											sortText: item.sortText,
 											insertTextRules
