@@ -26,6 +26,8 @@ import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
+	CellBindBufferCapacityIncrement = 32,
+	CellBindBufferInitialCapacity = 63, // Will be rounded up to nearest increment
 }
 
 const enum CellBufferInfo {
@@ -51,7 +53,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	readonly type = 'viewport';
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
-	private _cellBindBufferLineCapacity = 25;
+	private _cellBindBufferLineCapacity = Constants.CellBindBufferInitialCapacity;
 	private _cellBindBuffer!: GPUBuffer;
 
 	/**
@@ -99,7 +101,10 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	private _rebuildCellBuffer(lineCount: number) {
 		this._cellBindBuffer?.destroy();
 
-		const bufferSize = lineCount * ViewportRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
+		// Increase in chunks so resizing a window by hand doesn't keep allocating and throwing away
+		const lineCountWithIncrement = (Math.floor(lineCount / Constants.CellBindBufferCapacityIncrement) + 1) * Constants.CellBindBufferCapacityIncrement;
+
+		const bufferSize = lineCountWithIncrement * ViewportRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
@@ -109,7 +114,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			new ArrayBuffer(bufferSize),
 			new ArrayBuffer(bufferSize),
 		];
-		this._cellBindBufferLineCapacity = lineCount;
+		this._cellBindBufferLineCapacity = lineCountWithIncrement;
 
 		this._onDidChangeBindGroupEntries.fire();
 	}
