@@ -139,43 +139,18 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
+		// TODO: Handle signature failures better
+
 		if (ExtensionManagementErrorCode.PackageNotSigned === (<ExtensionManagementErrorCode>this.error.name)) {
-			await this.dialogService.prompt({
-				type: 'error',
-				message: localize('not signed', "'{0}' is an extension from an unknown source. Are you sure you want to install?", this.extension.displayName),
-				detail: getErrorMessage(this.error),
-				buttons: [{
-					label: localize('install anyway', "Install Anyway"),
-					run: () => {
-						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
-						installAction.extension = this.extension;
-						return installAction.run();
-					}
-				}],
-				cancelButton: true
-			});
-			return;
+			const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
+			installAction.extension = this.extension;
+			return installAction.run();
 		}
 
 		if (ExtensionManagementErrorCode.SignatureVerificationFailed === (<ExtensionManagementErrorCode>this.error.name) || ExtensionManagementErrorCode.SignatureVerificationInternal === (<ExtensionManagementErrorCode>this.error.name)) {
-			await this.dialogService.prompt({
-				type: 'error',
-				message: localize('verification failed', "Cannot install '{0}' extension because {1} cannot verify the extension signature", this.extension.displayName, this.productService.nameLong),
-				detail: getErrorMessage(this.error),
-				buttons: [{
-					label: localize('learn more', "Learn More"),
-					run: () => this.openerService.open('https://code.visualstudio.com/docs/editor/extension-marketplace#_the-extension-signature-cannot-be-verified-by-vs-code')
-				}, {
-					label: localize('install donot verify', "Install Anyway (Don't Verify Signature)"),
-					run: () => {
-						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
-						installAction.extension = this.extension;
-						return installAction.run();
-					}
-				}],
-				cancelButton: true
-			});
-			return;
+			const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
+			installAction.extension = this.extension;
+			return installAction.run();
 		}
 
 		const operationMessage = this.installOperation === InstallOperation.Update ? localize('update operation', "Error while updating '{0}' extension.", this.extension.displayName || this.extension.identifier.id)
