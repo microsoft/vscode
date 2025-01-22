@@ -180,7 +180,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				const childEndLine = child.range.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
-					const lineHeight = this._editor.getLineHeightForLineNumber(childStartLine);
+					const lineHeight = this._editor.getLineHeightForModelLineNumber(childStartLine);
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1, topOfElement, lineHeight));
 					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, childStartLine, topOfElement + lineHeight);
 				}

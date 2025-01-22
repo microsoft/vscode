@@ -260,7 +260,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const indexToSumUntil = untilIndex ?? lineNumbers.length;
 		let totalHeight = 0;
 		for (let i = 0; i < indexToSumUntil; i++) {
-			totalHeight += this._editor.getLineHeightForLineNumber(lineNumbers[i]);
+			totalHeight += this._editor.getLineHeightForModelLineNumber(lineNumbers[i]);
 		}
 		return totalHeight;
 	}
@@ -315,7 +315,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			actualInlineDecorations = [];
 		}
 
-		const height = this._editor.getLineHeightForLineNumber(line);
+		const height = this._editor.getLineHeightForModelLineNumber(line);
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
@@ -413,7 +413,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		const isCollapsed = foldingRegions.isCollapsed(indexOfFoldingRegion);
-		const height = this._editor.getLineHeightForLineNumber(line);
+		const height = this._editor.getLineHeightForModelLineNumber(line);
 		const foldingIcon = new StickyFoldingIcon(isCollapsed, startLineNumber, foldingRegions.getEndLineNumber(indexOfFoldingRegion), new dom.Dimension(this._lineHeight, height));
 		foldingIcon.setVisible(this._isOnGlyphMargin ? true : (isCollapsed || showFoldingControls === 'always'));
 		foldingIcon.domNode.setAttribute(STICKY_IS_FOLDING_ICON_ATTR, '');

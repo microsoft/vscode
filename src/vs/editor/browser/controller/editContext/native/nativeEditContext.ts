@@ -421,7 +421,7 @@ export class NativeEditContext extends AbstractEditContext {
 		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		let height = 0;
 		for (let line = this._primarySelection.startLineNumber; line <= this._primarySelection.endLineNumber; line++) {
-			height += this._context.viewLayout.getLineHeightForLineNumber(line);
+			height += this._context.viewLayout.getLineHeightForModelLineNumber(line);
 		}
 		let left = parentBounds.left + contentLeft - this._scrollLeft;
 		let width: number;
@@ -473,7 +473,7 @@ export class NativeEditContext extends AbstractEditContext {
 					break;
 				}
 			}
-			const height = this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
+			const height = this._context.viewLayout.getLineHeightForModelLineNumber(lineNumber);
 			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - this._scrollLeft, top, width, height));
 		}
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);

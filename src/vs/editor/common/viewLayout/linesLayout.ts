@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorWhitespace, IPartialViewLinesViewportData, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
+import { ICoordinatesConverter, IEditorWhitespace, IPartialViewLinesViewportData, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
 import * as strings from '../../../base/common/strings.js';
+import { Range } from '../core/range.js';
+import { Position } from '../core/position.js';
 
 interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number }
 interface IPendingRemove { id: string }
@@ -77,11 +79,6 @@ export class EditorWhitespace implements IEditorWhitespace {
 	}
 }
 
-export interface SpecialHeightChanged {
-	modelLineNumber: number;
-	height: number;
-}
-
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
  *
@@ -102,9 +99,14 @@ export class LinesLayout {
 	private _lineHeight: number;
 	private _paddingTop: number;
 	private _paddingBottom: number;
-	private _specialLineHeights = new Map<number, SpecialHeightChanged>();
+	private _specialLineHeights = new Map<number, number>();
 
-	constructor(lineCount: number, lineHeight: number, paddingTop: number, paddingBottom: number) {
+	private _coordinatesConverter: ICoordinatesConverter;
+	private _getMaxColumn: (lineNumber: number) => number;
+
+	constructor(lineCount: number, lineHeight: number, paddingTop: number, paddingBottom: number, coordinatesConverter: ICoordinatesConverter, getMaxColumn: (lineNumber: number) => number) {
+		this._coordinatesConverter = coordinatesConverter;
+		this._getMaxColumn = getMaxColumn;
 		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
 		this._pendingChanges = new PendingChanges();
 		this._lastWhitespaceId = 0;
@@ -403,16 +405,16 @@ export class LinesLayout {
 	/**
 	 * Add special line height
 	 */
-	public addSpecialLineHeight(modelLineNumber: number, viewLineNumber: number, height: number): void {
-		this._specialLineHeights.set(viewLineNumber, { modelLineNumber, height });
+	public addSpecialLineHeight(modelLineNumber: number, height: number): void {
+		this._specialLineHeights.set(modelLineNumber, height);
 		console.log('this._specialLineHeights : ', JSON.stringify(Array.from(this._specialLineHeights.keys()).sort()));
 	}
 
 	/**
 	 * Remove special line height
 	 */
-	public removeSpecialLineHeight(viewLineNumber: number): void {
-		this._specialLineHeights.delete(viewLineNumber);
+	public removeSpecialLineHeight(modelLineNumber: number): void {
+		this._specialLineHeights.delete(modelLineNumber);
 		console.log('this._specialLineHeights : ', JSON.stringify(Array.from(this._specialLineHeights.keys()).sort()));
 	}
 
@@ -421,13 +423,6 @@ export class LinesLayout {
 	 */
 	public clearSpecialLineHeights(): void {
 		this._specialLineHeights.clear();
-	}
-
-	/**
-	 * Get the special line heights
-	 */
-	public get speciaLineHeights(): Map<number, SpecialHeightChanged> {
-		return this._specialLineHeights;
 	}
 
 	/**
@@ -447,10 +442,14 @@ export class LinesLayout {
 		const untilLineNumber = _untilLineNumber ?? this._lineCount;
 		let specialLinesHeight = 0;
 		let numberOfSpecialLines = 0;
-		this._specialLineHeights.forEach((change, lineNumber) => {
-			if (lineNumber <= untilLineNumber) {
-				specialLinesHeight += change.height;
-				numberOfSpecialLines++;
+		this._specialLineHeights.forEach((height, lineNumber) => {
+			const maxColumnForLineNumber = this._getMaxColumn(lineNumber);
+			const viewRange = this._coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, maxColumnForLineNumber));
+			for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
+				if (i <= untilLineNumber) {
+					specialLinesHeight += height;
+					numberOfSpecialLines++;
+				}
 			}
 		});
 		const nonSpecialLinesHeight = (untilLineNumber - numberOfSpecialLines) * this._lineHeight;
@@ -548,10 +547,14 @@ export class LinesLayout {
 		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
 	}
 
-	public getLineHeightForLineNumber(lineNumber: number): number {
-		console.log('this._specialLineHeights : ', JSON.stringify(Array.from(this._specialLineHeights.keys()).sort()));
-		if (this._specialLineHeights.has(lineNumber)) {
-			return this._specialLineHeights.get(lineNumber)!.height;
+	public getLineHeightForViewLineNumber(modelLineNumber: number): number {
+		const modelPosition = this._coordinatesConverter.convertViewPositionToModelPosition(new Position(modelLineNumber, 1));
+		return this.getLineHeightForModelLineNumber(modelPosition.lineNumber);
+	}
+
+	public getLineHeightForModelLineNumber(modelLineNumber: number): number {
+		if (this._specialLineHeights.has(modelLineNumber)) {
+			return this._specialLineHeights.get(modelLineNumber)!;
 		}
 		return this._lineHeight;
 	}
@@ -642,7 +645,7 @@ export class LinesLayout {
 		while (minLineNumber < maxLineNumber) {
 			const midLineNumber = ((minLineNumber + maxLineNumber) / 2) | 0;
 
-			const lineHeight = this.getLineHeightForLineNumber(midLineNumber);
+			const lineHeight = this.getLineHeightForViewLineNumber(midLineNumber);
 			const midLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(midLineNumber) | 0;
 
 			if (verticalOffset >= midLineNumberVerticalOffset + lineHeight) {
@@ -719,7 +722,7 @@ export class LinesLayout {
 
 		// Figure out how far the lines go
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const lineHeight = this.getLineHeightForLineNumber(lineNumber);
+			const lineHeight = this.getLineHeightForViewLineNumber(lineNumber);
 			if (centeredLineNumber === -1) {
 				const currentLineTop = currentVerticalOffset;
 				const currentLineBottom = currentVerticalOffset + lineHeight;
@@ -772,7 +775,7 @@ export class LinesLayout {
 			}
 		}
 		if (completelyVisibleStartLineNumber < completelyVisibleEndLineNumber) {
-			const endLineHeight = this.getLineHeightForLineNumber(endLineNumber);
+			const endLineHeight = this.getLineHeightForViewLineNumber(endLineNumber);
 			if (endLineNumberVerticalOffset + endLineHeight > verticalOffset2) {
 				completelyVisibleEndLineNumber--;
 			}

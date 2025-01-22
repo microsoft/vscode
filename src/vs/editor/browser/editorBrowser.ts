@@ -1071,7 +1071,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Get the line height for the line number.
 	 */
-	getLineHeightForLineNumber(lineNumber: number): number;
+	getLineHeightForModelLineNumber(lineNumber: number): number;
 
 	/**
 	 * Set the model ranges that will be hidden in the view.

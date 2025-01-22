@@ -6123,7 +6123,7 @@ declare namespace monaco.editor {
 		/**
 		 * Get the line height for the line number.
 		 */
-		getLineHeightForLineNumber(lineNumber: number): number;
+		getLineHeightForModelLineNumber(lineNumber: number): number;
 		/**
 		 * Write the screen reader content to be the current selection
 		 */

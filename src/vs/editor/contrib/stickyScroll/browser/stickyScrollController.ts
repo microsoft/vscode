@@ -625,8 +625,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
 					const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
 					const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
-					const heightOfEndLine = this._editor.getLineHeightForLineNumber(end);
-					const heightOfStartLine = this._editor.getLineHeightForLineNumber(start);
+					const heightOfEndLine = this._editor.getLineHeightForModelLineNumber(end);
+					const heightOfStartLine = this._editor.getLineHeightForModelLineNumber(start);
 					const delta = heightOfEndLine - heightOfStartLine;
 
 					if (topOfElementAtDepth > topOfEndLine + delta && topOfElementAtDepth <= bottomOfEndLine - delta) {

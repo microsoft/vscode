@@ -598,13 +598,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
 	}
 
-	public getLineHeightForLineNumber(lineNumber: number): number {
+	public getLineHeightForModelLineNumber(lineNumber: number): number {
 		if (!this._modelData) {
 			return -1;
 		}
 		const modelPosition = new Position(lineNumber, 1);
-		const viewPosition = this._modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
+		return this._modelData.viewModel.viewLayout.getLineHeightForModelLineNumber(modelPosition.lineNumber);
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
@@ -1608,8 +1607,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const top = CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, position.lineNumber, position.column) - this.getScrollTop();
 		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this.getScrollLeft();
-		const viewPosition = this._modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
-		const height = this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
+		const height = this._modelData.viewModel.viewLayout.getLineHeightForModelLineNumber(position.lineNumber);
 		return {
 			top: top,
 			left: left,

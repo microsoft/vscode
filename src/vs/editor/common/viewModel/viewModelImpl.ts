@@ -116,7 +116,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
 
-		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
+		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame, this.coordinatesConverter, (lineNumber: number) => this.model.getLineMaxColumn(lineNumber)));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {
@@ -251,7 +251,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._cursor.onLineMappingChanged(eventsCollector);
 			this._decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
-			this._recomputeSpecialLineHeights();
 			this._updateConfigurationViewLineCount.schedule();
 		}
 
@@ -422,26 +421,15 @@ export class ViewModel extends Disposable implements IViewModel {
 					return;
 				}
 				const modelLineNumber = change.lineNumber;
+				const lineHeight = change.lineHeight;
 				const lineContent = this.model.getLineContent(modelLineNumber);
 				console.log('lineContentBefore : ', this.model.getLineContent(modelLineNumber - 1));
 				console.log('lineContent : ', lineContent);
 				console.log('lineContentAfter : ', this.model.getLineContent(modelLineNumber + 1));
-
-				const lineHeight = change.lineHeight;
-				const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
-				console.log('modelRange : ', modelRange);
-				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(modelRange);
-				console.log('viewRange : ', viewRange);
 				if (lineHeight !== null) {
-					for (let viewLineNumber = viewRange.startLineNumber; viewLineNumber <= viewRange.endLineNumber; viewLineNumber++) {
-						console.log('addSpecialLineHeight modelLineNumber : ', modelLineNumber, ', viewLineNumber ', viewLineNumber, ' lineHeight : ', lineHeight);
-						this.viewLayout.addSpecialLineHeight(modelLineNumber, viewLineNumber, lineHeight);
-					}
+					this.viewLayout.addSpecialLineHeight(modelLineNumber, lineHeight);
 				} else {
-					for (let viewLineNumber = viewRange.startLineNumber; viewLineNumber <= viewRange.endLineNumber; viewLineNumber++) {
-						console.log('removeSpecialLineHeight modelLineNumber : ', modelLineNumber, ', viewLineNumber : ', viewLineNumber);
-						this.viewLayout.removeSpecialLineHeight(viewLineNumber);
-					}
+					this.viewLayout.removeSpecialLineHeight(modelLineNumber);
 				}
 			});
 		}));
@@ -502,21 +490,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
 			this._eventDispatcher.emitOutgoingEvent(new ModelDecorationsChangedEvent(e));
 		}));
-	}
-
-	private _recomputeSpecialLineHeights(): void {
-		console.log('_recomputeSpecialLineHeights');
-		const specialLinesHeights = new Map(this.viewLayout.speciaLineHeights);
-		this.viewLayout.clearSpecialLineHeights();
-		for (const specialLineHeight of specialLinesHeights.values()) {
-			const modelLineNumber = specialLineHeight.modelLineNumber;
-			const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
-			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(modelRange);
-			for (let viewLineNumber = viewRange.startLineNumber; viewLineNumber <= viewRange.endLineNumber; viewLineNumber++) {
-				console.log('addSpecialLineHeight modelLineNumber : ', modelLineNumber, ', viewLineNumber ', viewLineNumber, ' lineHeight : ', specialLineHeight.height);
-				this.viewLayout.addSpecialLineHeight(modelLineNumber, viewLineNumber, specialLineHeight.height);
-			}
-		}
 	}
 
 	private readonly hiddenAreasModel = new HiddenAreasModel();

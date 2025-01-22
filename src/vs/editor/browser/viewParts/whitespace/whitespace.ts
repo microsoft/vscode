@@ -150,7 +150,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		const fauxIndentLength = lineData.minColumn - 1;
 		const onlyBoundary = (this._options.renderWhitespace === 'boundary');
 		const onlyTrailing = (this._options.renderWhitespace === 'trailing');
-		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
+		const lineHeight = ctx.getLineHeightForViewLineNumber(lineNumber);
 		const canUseHalfwidthRightwardsArrow = this._options.canUseHalfwidthRightwardsArrow;
 
 		let result: string = '';
