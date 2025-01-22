@@ -39,7 +39,7 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
-const viewportHeight = 35;
+const viewportHeight = 100;
 
 /**
  * A render strategy that uploads the content of the entire viewport every frame.
@@ -49,7 +49,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	/**
 	 * The hard cap for line columns that can be rendered by the GPU renderer.
 	 */
-	static readonly maxSupportedColumns = 200;
+	static readonly maxSupportedColumns = 2000;
 
 	readonly type = 'viewport';
 	readonly wgsl: string = fullFileRenderStrategyWgsl;

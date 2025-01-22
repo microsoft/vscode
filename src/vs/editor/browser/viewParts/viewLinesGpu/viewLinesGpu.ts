@@ -28,6 +28,7 @@ import { createContentSegmenter, type IContentSegmenter } from '../../gpu/conten
 import { ViewportRenderStrategy } from '../../gpu/renderStrategy/viewportRenderStrategy.js';
 import { FullFileRenderStrategy } from '../../gpu/renderStrategy/fullFileRenderStrategy.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import type { ViewLineRenderingData } from '../../../common/viewModel.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -192,7 +193,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		// #region Storage buffers
 
 		this._renderStrategy.value = this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device);
-		// this._renderStrategy.value = this._register(this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device));
+		// this._renderStrategy.value = this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device);
 
 		this._glyphStorageBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
@@ -316,12 +317,22 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		if (this._renderStrategy.value?.type === 'viewport') {
 			return;
 		}
-		if (viewportData.endLineNumber < FullFileRenderStrategy.maxSupportedLines) {
+		if (viewportData.endLineNumber < FullFileRenderStrategy.maxSupportedLines && this._viewportMaxColumn(viewportData) < FullFileRenderStrategy.maxSupportedColumns) {
 			return;
 		}
-		this._logService.trace(`File is larger than ${FullFileRenderStrategy.maxSupportedLines} lines, switching to viewport render strategy`);
+		this._logService.trace(`File is larger than ${FullFileRenderStrategy.maxSupportedLines} lines or ${FullFileRenderStrategy.maxSupportedColumns} columns, switching to viewport render strategy`);
 		this._renderStrategy.value = this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device);
 		this._rebuildBindGroup?.();
+	}
+
+	private _viewportMaxColumn(viewportData: ViewportData): number {
+		let maxColumn = 0;
+		let lineData: ViewLineRenderingData;
+		for (let i = viewportData.startLineNumber; i <= viewportData.endLineNumber; i++) {
+			lineData = viewportData.getViewLineRenderingData(i);
+			maxColumn = Math.max(maxColumn, lineData.maxColumn);
+		}
+		return maxColumn;
 	}
 
 	private _updateAtlasStorageBufferAndTexture() {

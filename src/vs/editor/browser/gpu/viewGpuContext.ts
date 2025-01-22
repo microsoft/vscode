@@ -24,14 +24,13 @@ import { Event } from '../../../base/common/event.js';
 import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
 import { InlineDecorationType } from '../../common/viewModel.js';
 import { DecorationStyleCache } from './css/decorationStyleCache.js';
-import { FullFileRenderStrategy } from './renderStrategy/fullFileRenderStrategy.js';
+import { ViewportRenderStrategy } from './renderStrategy/viewportRenderStrategy.js';
 
 export class ViewGpuContext extends Disposable {
 	/**
-	 * The temporary hard cap for line columns rendered by the GPU renderer. This can be removed
-	 * once more dynamic allocation is implemented in https://github.com/microsoft/vscode/issues/227108
+	 * The hard cap for line columns rendered by the GPU renderer.
 	 */
-	readonly maxGpuCols = FullFileRenderStrategy.maxSupportedColumns;
+	readonly maxGpuCols = ViewportRenderStrategy.maxSupportedColumns;
 
 	readonly canvas: FastDomNode<HTMLCanvasElement>;
 	readonly ctx: GPUCanvasContext;
