@@ -35,6 +35,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				injectedTexts.push(injectedText);
 			},
 			finalize: () => {
+				// console.log('DomLineBreaksComputerFactory#finalize');
 				return createLineBreaks(assertIsDefined(this.targetWindow.deref()), requests, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak, injectedTexts);
 			}
 		};
@@ -42,6 +43,14 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 }
 
 function createLineBreaks(targetWindow: Window, requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', injectedTextsPerLine: (LineInjectedText[] | null)[]): (ModelLineProjectionData | null)[] {
+	// console.log('createLineBreaks');
+	// console.log('requests : ', requests);
+	// console.log('tabSize ; ', tabSize);
+	// console.log('firstLineBreakColumn : ', firstLineBreakColumn);
+	// console.log('wrappingIndent : ', wrappingIndent);
+	// console.log('wordBreak : ', wordBreak);
+	// console.log('injectedTextsPerLine : ', injectedTextsPerLine);
+
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = injectedTextsPerLine[requestIdx];
 		if (injectedTexts) {
@@ -193,6 +202,13 @@ const enum Constants {
 }
 
 function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number): [number[], number[]] {
+	// console.log('createLineBreaks#renderLine');
+	// console.log('lineNumber : ', lineNumber);
+	// console.log('lineContent : ', lineContent);
+	// console.log('initialVisibleColumn : ', initialVisibleColumn);
+	// console.log('tabSize : ', tabSize);
+	// console.log('width : ', width);
+	// console.log('wrappingIndentLength : ', wrappingIndentLength);
 
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
@@ -217,8 +233,13 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const visibleColumns: number[] = [];
 	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 
+	// const specialFontInfos = model.getSpecialFontInfos(lineNumber);
+	// console.log('specialFontInfos : ', specialFontInfos);
+
 	sb.appendString('<span>');
 	for (let charIndex = 0; charIndex < len; charIndex++) {
+		// need to add decorations to add special font sizes
+
 		if (charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
 			sb.appendString('</span><span>');
 		}
@@ -228,6 +249,28 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 		nextCharCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
 		let producedCharacters = 1;
 		let charWidth = 1;
+
+		// let specialFontInfo: undefined | {
+		// 	fontFamily: string;
+		// 	fontSize: number;
+		// 	fontWeight: string;
+		// };
+		// for (const specialFont of specialFontInfos) {
+		// 	const currentPosition = new Position(lineNumber, charIndex + 1);
+		// 	if (specialFont.range.containsPosition(currentPosition)) {
+		// 		specialFontInfo = {
+		// 			fontFamily: specialFont.fontFamily ?? fontInfo.fontFamily,
+		// 			fontSize: specialFont.fontSize ?? fontInfo.fontSize,
+		// 			fontWeight: specialFont.fontWeight ?? fontInfo.fontWeight,
+		// 		};
+		// 		break;
+		// 	}
+		// }
+
+		// console.log('specialFontInfo : ', specialFontInfo);
+		// if (specialFontInfo) {
+		// 	sb.appendString(`<span style="font-family: ${specialFontInfo.fontFamily}; font-size: ${specialFontInfo.fontSize}px; font-weight: ${specialFontInfo.fontWeight};">`);
+		// }
 		switch (charCode) {
 			case CharCode.Tab:
 				producedCharacters = (tabSize - (visibleColumn % tabSize));
@@ -282,6 +325,9 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 					sb.appendCharCode(charCode);
 				}
 		}
+		// if (specialFontInfo) {
+		// 	sb.appendString('</span>');
+		// }
 
 		charOffset += producedCharacters;
 		visibleColumn += charWidth;

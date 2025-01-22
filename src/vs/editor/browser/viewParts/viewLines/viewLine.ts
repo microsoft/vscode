@@ -69,7 +69,6 @@ export class ViewLine implements IVisibleLine {
 		return null;
 	}
 	public setDomNode(domNode: HTMLElement): void {
-		console.log('setDomNode domNode : ', domNode);
 		if (this._renderedViewLine) {
 			this._renderedViewLine.domNode = createFastDomNode(domNode);
 		} else {
@@ -228,9 +227,9 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
-		console.log('ViewLine#layoutLine');
-		console.log('lineNumber : ', lineNumber);
-		console.log('this._renderedViewLine.domNode : ', this._renderedViewLine?.domNode);
+		// console.log('ViewLine#layoutLine');
+		// console.log('lineNumber : ', lineNumber);
+		// console.log('this._renderedViewLine.domNode : ', this._renderedViewLine?.domNode);
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);

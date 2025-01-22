@@ -117,6 +117,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
+		// console.log('_constructLines');
 		this.modelLineProjections = [];
 
 		if (resetHiddenAreas) {
@@ -309,6 +310,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				? this._domLineBreaksComputerFactory
 				: this._monospaceLineBreaksComputerFactory
 		);
+		// need to pass in special font infos
 		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak);
 	}
 
@@ -333,6 +335,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public onModelLinesInserted(versionId: number | null, fromLineNumber: number, _toLineNumber: number, lineBreaks: (ModelLineProjectionData | null)[]): viewEvents.ViewLinesInsertedEvent | null {
+		// console.log('onModelLinesInserted');
 		if (!versionId || versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
@@ -369,6 +372,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
+		// console.log('onModelLineChanged lineNumber : ', lineNumber);
 		if (versionId !== null && versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
@@ -741,6 +745,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
+		// console.log('ViewModelLinesFromProjectedModel#getViewLineData');
 		const info = this.getViewLineInfo(viewLineNumber);
 		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineData(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
@@ -1146,6 +1151,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 				result.push(null);
 			},
 			finalize: () => {
+				// console.log('ViewModelLinesFromModelAsIs#finalize');
 				return result;
 			}
 		};
@@ -1211,6 +1217,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
+		// console.log('ViewModelLinesFromModelAsIs#getViewLineData');
 		const lineTokens = this.model.tokenization.getLineTokens(viewLineNumber);
 		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(

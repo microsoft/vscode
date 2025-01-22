@@ -48,6 +48,7 @@ export interface ISimpleModel {
 }
 
 export function createModelLineProjection(lineBreakData: ModelLineProjectionData | null, isVisible: boolean): IModelLineProjection {
+	// console.log('createModelLineProjection');
 	if (lineBreakData === null) {
 		// No mapping needed
 		if (isVisible) {
@@ -69,6 +70,7 @@ class ModelLineProjection implements IModelLineProjection {
 	private _isVisible: boolean;
 
 	constructor(lineBreakData: ModelLineProjectionData, isVisible: boolean) {
+		// console.log('constructor lineBreakData : ');
 		this._projectionData = lineBreakData;
 		this._isVisible = isVisible;
 	}
@@ -150,12 +152,15 @@ class ModelLineProjection implements IModelLineProjection {
 	 * Try using {@link getViewLinesData} instead.
 	*/
 	public getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
+		// console.log('ModelLineProjection#getViewLineData');
 		const arr = new Array<ViewLineData>();
 		this.getViewLinesData(model, modelLineNumber, outputLineIndex, 1, 0, [true], arr);
 		return arr[0];
 	}
 
 	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, outputLineIdx: number, lineCount: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
+		// console.log('getViewLinesData');
+		// console.log('lineCount : ', lineCount);
 		this._assertVisible();
 
 		const lineBreakData = this._projectionData;
@@ -251,12 +256,21 @@ class ModelLineProjection implements IModelLineProjection {
 	}
 
 	private _getViewLineData(lineWithInjections: LineTokens, inlineDecorations: null | SingleLineInlineDecoration[], outputLineIndex: number): ViewLineData {
+		// console.log('_getViewLineData');
+		// console.log('lineWithInjections : ', lineWithInjections);
+		// console.log('inlineDecorations : ', inlineDecorations);
+		// console.log('outputLineIndex : ', outputLineIndex);
+
 		this._assertVisible();
 		const lineBreakData = this._projectionData;
+		// console.log('lineBreakData : ', lineBreakData);
 		const deltaStartIndex = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
 
+		// console.log('deltaStartIndex : ', deltaStartIndex);
 		const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
+		// console.log('lineStartOffsetInInputWithInjections : ', lineStartOffsetInInputWithInjections);
 		const lineEndOffsetInInputWithInjections = lineBreakData.breakOffsets[outputLineIndex];
+		// console.log('lineEndOffsetInInputWithInjections ; ', lineEndOffsetInInputWithInjections);
 		const tokens = lineWithInjections.sliceAndInflate(lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections, deltaStartIndex);
 
 		let lineContent = tokens.getLineContent();
@@ -359,6 +373,7 @@ class IdentityModelLineProjection implements IModelLineProjection {
 	}
 
 	public getViewLineData(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): ViewLineData {
+		// console.log('IdentityModelLineProjection#getViewLineData');
 		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
 		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(

@@ -32,6 +32,7 @@ enum Status {
 	CANCELED
 }
 
+
 export interface IStickyModelProvider extends IDisposable {
 
 	/**

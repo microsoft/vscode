@@ -196,9 +196,9 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
-		console.log('wrappingInfo : ', wrappingInfo);
+		// console.log('wrappingInfo : ', wrappingInfo);
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
-		console.log('this._isViewportWrapping  : ', this._isViewportWrapping);
+		// console.log('this._isViewportWrapping  : ', this._isViewportWrapping);
 		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
 		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
 		this._cursorSurroundingLinesStyle = options.get(EditorOption.cursorSurroundingLinesStyle);

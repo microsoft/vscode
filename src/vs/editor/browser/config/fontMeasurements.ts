@@ -170,7 +170,6 @@ export class FontMeasurementsImpl extends Disposable {
 
 		const typicalHalfwidthCharacter = this._createRequest('n', CharWidthRequestType.Regular, all, monospace);
 		const typicalFullwidthCharacter = this._createRequest('\uff4d', CharWidthRequestType.Regular, all, null);
-		// space width is calculated here
 		const space = this._createRequest(' ', CharWidthRequestType.Regular, all, monospace);
 		const digit0 = this._createRequest('0', CharWidthRequestType.Regular, all, monospace);
 		const digit1 = this._createRequest('1', CharWidthRequestType.Regular, all, monospace);

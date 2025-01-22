@@ -405,13 +405,15 @@ export class LinesLayout {
 	 */
 	public addSpecialLineHeight(modelLineNumber: number, viewLineNumber: number, height: number): void {
 		this._specialLineHeights.set(viewLineNumber, { modelLineNumber, height });
+		console.log('this._specialLineHeights : ', JSON.stringify(Array.from(this._specialLineHeights.keys()).sort()));
 	}
 
 	/**
 	 * Remove special line height
 	 */
-	public removeSpecialLineHeight(lineNumber: number): void {
-		this._specialLineHeights.delete(lineNumber);
+	public removeSpecialLineHeight(viewLineNumber: number): void {
+		this._specialLineHeights.delete(viewLineNumber);
+		console.log('this._specialLineHeights : ', JSON.stringify(Array.from(this._specialLineHeights.keys()).sort()));
 	}
 
 	/**
@@ -547,6 +549,7 @@ export class LinesLayout {
 	}
 
 	public getLineHeightForLineNumber(lineNumber: number): number {
+		console.log('this._specialLineHeights : ', JSON.stringify(Array.from(this._specialLineHeights.keys()).sort()));
 		if (this._specialLineHeights.has(lineNumber)) {
 			return this._specialLineHeights.get(lineNumber)!.height;
 		}

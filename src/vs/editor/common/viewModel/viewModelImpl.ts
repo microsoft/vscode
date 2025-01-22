@@ -416,21 +416,31 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._register(this.model.onDidChangeSpecialLineHeight((e) => {
+			console.log('onDidChangeSpecialLineHeight');
 			e.changes.forEach((change) => {
 				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
 					return;
 				}
 				const modelLineNumber = change.lineNumber;
+				const lineContent = this.model.getLineContent(modelLineNumber);
+				console.log('lineContentBefore : ', this.model.getLineContent(modelLineNumber - 1));
+				console.log('lineContent : ', lineContent);
+				console.log('lineContentAfter : ', this.model.getLineContent(modelLineNumber + 1));
+
 				const lineHeight = change.lineHeight;
 				const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
+				console.log('modelRange : ', modelRange);
 				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(modelRange);
+				console.log('viewRange : ', viewRange);
 				if (lineHeight !== null) {
 					for (let viewLineNumber = viewRange.startLineNumber; viewLineNumber <= viewRange.endLineNumber; viewLineNumber++) {
+						console.log('addSpecialLineHeight modelLineNumber : ', modelLineNumber, ', viewLineNumber ', viewLineNumber, ' lineHeight : ', lineHeight);
 						this.viewLayout.addSpecialLineHeight(modelLineNumber, viewLineNumber, lineHeight);
 					}
 				} else {
-					for (let lineNumber = viewRange.startLineNumber; lineNumber <= viewRange.endLineNumber; lineNumber++) {
-						this.viewLayout.removeSpecialLineHeight(lineNumber);
+					for (let viewLineNumber = viewRange.startLineNumber; viewLineNumber <= viewRange.endLineNumber; viewLineNumber++) {
+						console.log('removeSpecialLineHeight modelLineNumber : ', modelLineNumber, ', viewLineNumber : ', viewLineNumber);
+						this.viewLayout.removeSpecialLineHeight(viewLineNumber);
 					}
 				}
 			});
@@ -495,6 +505,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _recomputeSpecialLineHeights(): void {
+		console.log('_recomputeSpecialLineHeights');
 		const specialLinesHeights = new Map(this.viewLayout.speciaLineHeights);
 		this.viewLayout.clearSpecialLineHeights();
 		for (const specialLineHeight of specialLinesHeights.values()) {
@@ -502,6 +513,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
 			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 			for (let viewLineNumber = viewRange.startLineNumber; viewLineNumber <= viewRange.endLineNumber; viewLineNumber++) {
+				console.log('addSpecialLineHeight modelLineNumber : ', modelLineNumber, ', viewLineNumber ', viewLineNumber, ' lineHeight : ', specialLineHeight.height);
 				this.viewLayout.addSpecialLineHeight(modelLineNumber, viewLineNumber, specialLineHeight.height);
 			}
 		}

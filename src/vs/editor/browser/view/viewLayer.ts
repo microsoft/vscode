@@ -623,6 +623,10 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _lineHeightForLineNumber(lineNumber: number): number {
-		return this._viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
+		console.log('_lineHeightForLineNumber');
+		console.log('lineNumber : ', lineNumber);
+		const height = this._viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
+		console.log('height : ', height);
+		return height;
 	}
 }

@@ -713,6 +713,17 @@ export interface ITextModel {
 	affectedBySpecialFontInfo(lineNumber: number): boolean;
 
 	/**
+	 * Get special font infos on line number
+	 */
+	getSpecialFontInfos(lineNumber: number): {
+		range: Range;
+		fontFamily: string | undefined;
+		fontSize: number | undefined;
+		fontWeight: string | undefined;
+		fontStyle: string | undefined;
+	}[];
+
+	/**
 	 * If true, the text model might contain LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 	 * If false, the text model definitely does not contain these.
 	 * @internal
