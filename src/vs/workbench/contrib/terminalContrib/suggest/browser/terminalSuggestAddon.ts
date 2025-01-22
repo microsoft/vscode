@@ -32,6 +32,7 @@ import { TerminalShellType } from '../../../../../platform/terminal/common/termi
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -408,7 +409,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._container!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
 				() => fontInfo,
-				{}
+				{ statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu },
 			));
 			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,

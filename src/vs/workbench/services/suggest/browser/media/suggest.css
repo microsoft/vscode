@@ -62,6 +62,18 @@
 	display: flex;
 }
 
+.monaco-workbench .workbench-suggest-widget .suggest-status-bar {
+	box-sizing: border-box;
+	display: none;
+	flex-flow: row nowrap;
+	justify-content: space-between;
+	width: 100%;
+	font-size: 80%;
+	padding: 0 4px 0 4px;
+	border-top: 1px solid var(--vscode-editorSuggestWidget-border);
+	overflow: hidden;
+}
+
 .monaco-workbench .workbench-suggest-widget .suggest-status-bar .left {
 	padding-right: 8px;
 }

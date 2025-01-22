@@ -30,6 +30,7 @@ import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
 import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { SuggestDetailsClassName } from '../../../../services/suggest/browser/simpleSuggestWidgetDetails.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -325,6 +326,9 @@ registerActiveInstanceAction({
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1
+	},
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
 });

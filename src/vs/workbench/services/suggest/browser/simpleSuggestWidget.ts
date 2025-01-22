@@ -109,7 +109,7 @@ export class SimpleSuggestWidget extends Disposable {
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
-		options: IWorkbenchSuggestWidgetOptions,
+		private readonly _options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -227,9 +227,10 @@ export class SimpleSuggestWidget extends Disposable {
 		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
 		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
 
-		if (options.statusBarMenuId) {
-			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
+		if (_options.statusBarMenuId) {
+			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
+			console.log(dom.$('.workbench-suggest-widget.with-status-bar').querySelector('.suggest-status-bar'));
 		}
 
 		this._register(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
@@ -470,27 +471,30 @@ export class SimpleSuggestWidget extends Disposable {
 				break;
 			case State.Open:
 				dom.hide(this._messageElement);
-				dom.show(this._listElement);
 				if (this._status) {
-					dom.show(this._status?.element);
+					dom.show(this._listElement, this._status?.element);
+				} else {
+					dom.show(this._listElement);
 				}
 				this._show();
 				break;
 			case State.Frozen:
 				dom.hide(this._messageElement);
-				dom.show(this._listElement);
 				if (this._status) {
-					dom.show(this._status?.element);
+					dom.show(this._listElement, this._status?.element);
+				} else {
+					dom.show(this._listElement);
 				}
 				this._show();
 				break;
 			case State.Details:
 				dom.hide(this._messageElement);
-				dom.show(this._listElement);
 				if (this._status) {
-					dom.show(this._status?.element);
+					dom.show(this._listElement, this._status?.element);
+				} else {
+					dom.show(this._listElement);
 				}
-				// this._details.show();
+				this._details.show();
 				this._show();
 				break;
 		}
@@ -628,7 +632,7 @@ export class SimpleSuggestWidget extends Disposable {
 
 		// status bar
 		if (this._status) {
-			this._status.element.style.lineHeight = `${info.itemHeight}px`;
+			this._status.element.style.height = `${info.itemHeight}px`;
 		}
 
 		// if (this._state === State.Empty || this._state === State.Loading) {
@@ -749,7 +753,7 @@ export class SimpleSuggestWidget extends Disposable {
 	private _getLayoutInfo() {
 		const fontInfo = this._getFontInfo();
 		const itemHeight = clamp(Math.ceil(fontInfo.lineHeight), 8, 1000);
-		const statusBarHeight = 0; //!this.editor.getOption(EditorOption.suggest).showStatusBar || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
+		const statusBarHeight = !this._options.statusBarMenuId || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
 		const borderWidth = 1; //this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
 
