@@ -3,21 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectCache } from '../objectCache.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { NonPromptSnippetFile } from '../../promptFileReferenceErrors.js';
+import { ObjectCache } from '../../../../../../base/common/objectCache.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { PROMP_SNIPPET_FILE_EXTENSION } from '../parsers/basePromptParser.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
+import { PROMP_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
+
+/**
+ * TODO: @legomushroom - list
+ *
+ *  - remove the decorators provider?
+ */
 
 /**
  * Prompt files language selector.
@@ -36,18 +43,13 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 	private readonly parserProvider: ObjectCache<TextModelPromptParser, ITextModel>;
 
 	constructor(
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService private readonly initService: IInstantiationService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 	) {
 		super();
 
 		this.languageService.linkProvider.register(languageSelector, this);
-		this.parserProvider = this._register(
-			initService.createInstance(
-				ObjectCache<TextModelPromptParser, ITextModel>,
-				this.createParser.bind(this),
-			),
-		);
+		this.parserProvider = this._register(new ObjectCache(this.createParser.bind(this)));
 	}
 
 	/**
@@ -58,9 +60,8 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 	 */
 	private createParser(
 		model: ITextModel,
-		initService: IInstantiationService,
 	): TextModelPromptParser & { disposed: false } {
-		const parser: TextModelPromptParser = initService.createInstance(
+		const parser: TextModelPromptParser = this.initService.createInstance(
 			TextModelPromptParser,
 			model,
 			[],
@@ -73,14 +74,17 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 		return parser;
 	}
 
+	/**
+	 * Provide list of links for the provided text model.
+	 */
 	public async provideLinks(
 		model: ITextModel,
 		token: CancellationToken,
 	): Promise<ILinksList> {
-		// TODO: @legomushroom - use the cancellation token more
-		if (token.isCancellationRequested) {
-			return { links: [] };
-		}
+		assert(
+			!token.isCancellationRequested,
+			new CancellationError(),
+		);
 
 		const parser = this.parserProvider.get(model);
 		assert(
@@ -93,6 +97,12 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 		const { references } = await parser
 			.start()
 			.settled();
+
+		// validate that the cancellation was not yet requested
+		assert(
+			!token.isCancellationRequested,
+			new CancellationError(),
+		);
 
 		// filter out references that are not valid links
 		const links: ILink[] = references

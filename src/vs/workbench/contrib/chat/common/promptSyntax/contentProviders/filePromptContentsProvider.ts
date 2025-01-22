@@ -5,6 +5,7 @@
 
 import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { assert } from '../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
@@ -55,9 +56,10 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 		_event: FileChangesEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<VSBufferReadableStream> {
-		if (cancellationToken?.isCancellationRequested) {
-			throw new CancellationError();
-		}
+		assert(
+			!cancellationToken?.isCancellationRequested,
+			new CancellationError(),
+		);
 
 		// get the binary stream of the file contents
 		let fileStream;

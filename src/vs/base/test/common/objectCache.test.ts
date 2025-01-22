@@ -5,13 +5,10 @@
 
 import assert from 'assert';
 import { spy } from 'sinon';
-import { assertDefined } from '../../../../../../base/common/types.js';
-import { wait } from '../../../../../../base/test/common/testUtils.js';
-import { ObjectCache } from '../../../common/promptSyntax/objectCache.js';
-import { TrackedDisposable } from '../../../../../../base/common/trackedDisposable.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ObjectCache } from '../../common/objectCache.js';
+import { wait } from '../../../base/test/common/testUtils.js';
+import { TrackedDisposable } from '../../../base/common/trackedDisposable.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 /**
  * Test object class.
@@ -34,11 +31,6 @@ class TestObject<TKey extends NonNullable<unknown> = string> extends TrackedDisp
 suite('ObjectCache', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let initService: IInstantiationService | undefined;
-	setup(function () {
-		initService = disposables.add(new TestInstantiationService());
-	});
-
 	suite('get', () => {
 		/**
 		 * Common test funtion to test core logic of the cache
@@ -48,21 +40,19 @@ suite('ObjectCache', function () {
 		 * @param key2 Test key2.
 		 */
 		const testCoreLogic = async <TKey extends NonNullable<unknown>>(key1: TKey, key2: TKey) => {
-			assertDefined(
-				initService,
-				'Instantiation service must be defined.',
-			);
-
 			const factory = spy((
 				key: TKey,
-				init: IInstantiationService,
 			) => {
-				return init.createInstance(TestObject, key);
+				const result: TestObject<TKey> = new TestObject(key);
+
+				result.assertNotDisposed(
+					'Object must not be disposed.',
+				);
+
+				return result;
 			});
 
-			const cache = disposables.add(
-				initService.createInstance(ObjectCache<TestObject<TKey>, TKey>, factory),
-			);
+			const cache = disposables.add(new ObjectCache(factory));
 
 			/**
 			 * Test the core logic of the cache using 2 objects.
@@ -70,7 +60,7 @@ suite('ObjectCache', function () {
 
 			const obj1 = cache.get(key1);
 			assert(
-				factory.calledOnceWithExactly(key1, initService),
+				factory.calledOnceWithExactly(key1),
 				'[obj1] Must be called once with the correct arguments.',
 			);
 
@@ -81,7 +71,7 @@ suite('ObjectCache', function () {
 
 			const obj2 = cache.get(key1);
 			assert(
-				factory.calledOnceWithExactly(key1, initService),
+				factory.calledOnceWithExactly(key1),
 				'[obj2] Must be called once with the correct arguments.',
 			);
 
@@ -99,7 +89,7 @@ suite('ObjectCache', function () {
 
 			const obj3 = cache.get(key2);
 			assert(
-				factory.calledOnceWithExactly(key2, initService),
+				factory.calledOnceWithExactly(key2),
 				'[obj3] Must be called once with the correct arguments.',
 			);
 
@@ -163,7 +153,7 @@ suite('ObjectCache', function () {
 
 			const obj6 = cache.get(key2);
 			assert(
-				factory.calledOnceWithExactly(key2, initService),
+				factory.calledOnceWithExactly(key2),
 				'[obj6] Must be called once with the correct arguments.',
 			);
 
@@ -202,21 +192,20 @@ suite('ObjectCache', function () {
 			key2: TKey,
 			disposeOnRemove: boolean,
 		) => {
-			assertDefined(
-				initService,
-				'Instantiation service must be defined.',
-			);
-
 			const factory = spy((
 				key: TKey,
-				init: IInstantiationService,
 			) => {
-				return init.createInstance(TestObject, key);
+				const result: TestObject<TKey> = new TestObject(key);
+
+				result.assertNotDisposed(
+					'Object must not be disposed.',
+				);
+
+				return result;
 			});
 
-			const cache = disposables.add(
-				initService.createInstance(ObjectCache<TestObject<TKey>, TKey>, factory),
-			);
+			// ObjectCache<TestObject<TKey>, TKey>
+			const cache = disposables.add(new ObjectCache(factory));
 
 			/**
 			 * Test the core logic of the cache.
@@ -224,7 +213,7 @@ suite('ObjectCache', function () {
 
 			const obj1 = cache.get(key1);
 			assert(
-				factory.calledOnceWithExactly(key1, initService),
+				factory.calledOnceWithExactly(key1),
 				'[obj1] Must be called once with the correct arguments.',
 			);
 
@@ -237,7 +226,7 @@ suite('ObjectCache', function () {
 
 			const obj2 = cache.get(key2);
 			assert(
-				factory.calledOnceWithExactly(key2, initService),
+				factory.calledOnceWithExactly(key2),
 				'[obj2] Must be called once with the correct arguments.',
 			);
 
@@ -316,16 +305,10 @@ suite('ObjectCache', function () {
 	});
 
 	test('throws if factory returns a disposed object', async function () {
-		assertDefined(
-			initService,
-			'Instantiation service must be defined.',
-		);
-
 		const factory = (
 			key: string,
-			init: IInstantiationService,
 		) => {
-			const result = init.createInstance(TestObject, key);
+			const result = new TestObject(key);
 
 			if (key === 'key2') {
 				result.dispose();
@@ -335,9 +318,8 @@ suite('ObjectCache', function () {
 			return result as TestObject<string> & { disposed: false };
 		};
 
-		const cache = disposables.add(
-			initService.createInstance(ObjectCache<TestObject>, factory),
-		);
+		// ObjectCache<TestObject>
+		const cache = disposables.add(new ObjectCache(factory));
 
 		assert.doesNotThrow(() => {
 			cache.get('key1');
