@@ -7,20 +7,20 @@ import { spy } from 'sinon';
 import { wait, waitRandom } from './testUtils.js';
 import { Disposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { assertNotDisposed, TrackedDisposable } from '../../common/trackedDisposable.js';
+import { assertNotDisposed, ObservableDisposable } from '../../common/observableDisposable.js';
 
-suite('TrackedDisposable', () => {
+suite('ObservableDisposable', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('tracks disposable state', () => {
-		// TrackedDisposable is an abstract class, so we have
-		// to create an anonymous class that extends it here
-		const object = new class extends TrackedDisposable { }();
+	test('tracks `disposed` state', () => {
+		// this is an abstract class, so we have to create
+		// an anonymous class that extends it
+		const object = new class extends ObservableDisposable { }();
 		disposables.add(object);
 
 		assert(
-			object instanceof TrackedDisposable,
-			'Object must be instance of TrackedDisposable.',
+			object instanceof ObservableDisposable,
+			'Object must be instance of ObservableDisposable.',
 		);
 
 		assert(
@@ -43,9 +43,9 @@ suite('TrackedDisposable', () => {
 
 	suite('onDispose', () => {
 		test('fires the event on dispose', async () => {
-			// TrackedDisposable is an abstract class, so we have
-			// to create an anonymous class that extends it here
-			const object = new class extends TrackedDisposable { }();
+			// this is an abstract class, so we have to create
+			// an anonymous class that extends it
+			const object = new class extends ObservableDisposable { }();
 			disposables.add(object);
 
 			assert(
@@ -107,9 +107,9 @@ suite('TrackedDisposable', () => {
 		});
 
 		test('executes callback immediately if already disposed', async () => {
-			// TrackedDisposable is an abstract class, so we have
-			// to create an anonymous class that extends it here
-			const object = new class extends TrackedDisposable { }();
+			// this is an abstract class, so we have to create
+			// an anonymous class that extends it
+			const object = new class extends ObservableDisposable { }();
 			disposables.add(object);
 
 			// dispose object and wait for the event to be fired/received
@@ -145,10 +145,10 @@ suite('TrackedDisposable', () => {
 	});
 
 	suite('asserts', () => {
-		test('assert not disposed (method)', async () => {
-			// TrackedDisposable is an abstract class, so we have
-			// to create an anonymous class that extends it here
-			const object: TrackedDisposable = new class extends TrackedDisposable { }();
+		test('not disposed (method)', async () => {
+			// this is an abstract class, so we have to create
+			// an anonymous class that extends it
+			const object: ObservableDisposable = new class extends ObservableDisposable { }();
 			disposables.add(object);
 
 			assert.doesNotThrow(() => {
@@ -176,10 +176,10 @@ suite('TrackedDisposable', () => {
 			});
 		});
 
-		test('assert not disposed (function)', async () => {
-			// TrackedDisposable is an abstract class, so we have
-			// to create an anonymous class that extends it here
-			const object: TrackedDisposable = new class extends TrackedDisposable { }();
+		test('not disposed (function)', async () => {
+			// this is an abstract class, so we have to create
+			// an anonymous class that extends it
+			const object: ObservableDisposable = new class extends ObservableDisposable { }();
 			disposables.add(object);
 
 			assert.doesNotThrow(() => {

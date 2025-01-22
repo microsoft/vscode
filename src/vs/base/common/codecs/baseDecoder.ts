@@ -9,7 +9,7 @@ import { IDisposable } from '../lifecycle.js';
 import { ReadableStream } from '../stream.js';
 import { DeferredPromise } from '../async.js';
 import { AsyncDecoder } from './asyncDecoder.js';
-import { TrackedDisposable } from '../trackedDisposable.js';
+import { ObservableDisposable } from '../observableDisposable.js';
 
 /**
  * Event names of {@link ReadableStream} stream.
@@ -25,7 +25,7 @@ export type TStreamListenerNames = 'data' | 'error' | 'end';
 export abstract class BaseDecoder<
 	T extends NonNullable<unknown>,
 	K extends NonNullable<unknown> = NonNullable<unknown>,
-> extends TrackedDisposable implements ReadableStream<T> {
+> extends ObservableDisposable implements ReadableStream<T> {
 	/**
 	 * Private attribute to track if the stream has ended.
 	 */

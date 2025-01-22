@@ -39,7 +39,7 @@ export function assertNever(value: never, message = 'Unreachable'): never {
  */
 export function assert(
 	condition: boolean,
-	messageOrError: string | NonNullable<Error> = 'unexpected state',
+	messageOrError: string | Error = 'unexpected state',
 ): asserts condition {
 	if (!condition) {
 		// if error instance is provided, use it, otherwise create a new one

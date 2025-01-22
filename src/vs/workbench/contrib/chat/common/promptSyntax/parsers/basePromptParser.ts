@@ -18,7 +18,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { TrackedDisposable } from '../../../../../../base/common/trackedDisposable.js';
+import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 import { PROMP_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -50,7 +50,7 @@ const PROMPT_SNIPPETS_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
  * Base prompt parser class that provides a common interface for all
  * prompt parsers that are responsible for parsing chat prompt syntax.
  */
-export abstract class BasePromptParser<T extends IPromptContentsProvider> extends TrackedDisposable {
+export abstract class BasePromptParser<T extends IPromptContentsProvider> extends ObservableDisposable {
 	/**
 	 * List of file references in the current branch of the file reference tree.
 	 */

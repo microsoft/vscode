@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from './event.js';
-import { Disposable } from '../../base/common/lifecycle.js';
+import { Disposable } from './lifecycle.js';
 
 /**
  * Disposable object that tracks its {@linkcode disposed} state
  * as a public attribute and provides the {@linkcode onDispose}
  * event to subscribe to.
  */
-export abstract class TrackedDisposable extends Disposable {
+export abstract class ObservableDisposable extends Disposable {
 	/**
 	 * Private emitter for the `onDispose` event.
 	 */
@@ -69,7 +69,7 @@ export abstract class TrackedDisposable extends Disposable {
 	 * @param error Error message or error object to throw if assertion fails.
 	 */
 	public assertNotDisposed(
-		error: string | NonNullable<Error>,
+		error: string | Error,
 	): asserts this is TNotDisposed<this> {
 		assertNotDisposed(this, error);
 	}
@@ -78,7 +78,7 @@ export abstract class TrackedDisposable extends Disposable {
 /**
  * Type for a non-disposed object `TObject`.
  */
-export type TNotDisposed<TObject extends NonNullable<{}>> = TObject & { disposed: false };
+type TNotDisposed<TObject extends { disposed: boolean }> = TObject & { disposed: false };
 
 /**
  * Asserts that a provided `object` is not `disposed` yet,
@@ -89,7 +89,7 @@ export type TNotDisposed<TObject extends NonNullable<{}>> = TObject & { disposed
  */
 export function assertNotDisposed<TObject extends { disposed: boolean }>(
 	object: TObject,
-	error: string | NonNullable<Error>,
+	error: string | Error,
 ): asserts object is TNotDisposed<TObject> {
 	if (!object.disposed) {
 		return;
@@ -101,4 +101,3 @@ export function assertNotDisposed<TObject extends { disposed: boolean }>(
 
 	throw errorToThrow;
 }
-

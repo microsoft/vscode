@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap } from '../../base/common/lifecycle.js';
-import { TNotDisposed, TrackedDisposable, assertNotDisposed } from '../../base/common/trackedDisposable.js';
+import { ObservableDisposable, assertNotDisposed } from './observableDisposable.js';
 
 /**
  * Generic cache for object instances. Guarantees to return only non-disposed
@@ -23,7 +23,7 @@ import { TNotDisposed, TrackedDisposable, assertNotDisposed } from '../../base/c
  * class KeyObject {}
  *
  * // a class for testing purposes
- * class TestObject extends TrackedDisposable {
+ * class TestObject extends ObservableDisposable {
  *   constructor(
  *     public readonly id: KeyObject,
  *   ) {}
@@ -76,14 +76,14 @@ import { TNotDisposed, TrackedDisposable, assertNotDisposed } from '../../base/c
  * ```
  */
 export class ObjectCache<
-	TValue extends TrackedDisposable,
+	TValue extends ObservableDisposable,
 	TKey extends NonNullable<unknown> = string,
 > extends Disposable {
 	private readonly cache: DisposableMap<TKey, TValue> =
 		this._register(new DisposableMap());
 
 	constructor(
-		private readonly factory: (key: TKey) => TNotDisposed<TValue>,
+		private readonly factory: (key: TKey) => TValue & { disposed: false },
 	) {
 		super();
 	}
@@ -96,7 +96,7 @@ export class ObjectCache<
 	 * @throws if {@linkcode factory} callback returns a disposed object.
 	 * @param key - ID of the object in the cache
 	 */
-	public get(key: TKey): TNotDisposed<TValue> {
+	public get(key: TKey): TValue & { disposed: false } {
 		let object = this.cache.get(key);
 
 		// if object is already disposed, remove it from the cache

@@ -7,13 +7,13 @@ import assert from 'assert';
 import { spy } from 'sinon';
 import { ObjectCache } from '../../common/objectCache.js';
 import { wait } from '../../../base/test/common/testUtils.js';
-import { TrackedDisposable } from '../../../base/common/trackedDisposable.js';
+import { ObservableDisposable } from '../../common/observableDisposable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 /**
  * Test object class.
  */
-class TestObject<TKey extends NonNullable<unknown> = string> extends TrackedDisposable {
+class TestObject<TKey extends NonNullable<unknown> = string> extends ObservableDisposable {
 	constructor(
 		public readonly ID: TKey,
 	) {
