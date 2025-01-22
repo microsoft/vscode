@@ -5,9 +5,9 @@
 
 import './media/chatViewSetup.css';
 import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
-import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
+import { ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
+import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { Barrier, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -873,7 +873,8 @@ class ChatSetupController extends Disposable {
 		if (!session) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
-				message: localize('unknownSignInError', "Unable to sign in to {0}. Would you like to try again?", defaultChat.providerName),
+				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", defaultChat.providerName),
+				detail: localize('unknownSignInErrorDetail', "You must be signed in to use Copilot."),
 				primaryButton: localize('retry', "Retry")
 			});
 
@@ -1026,17 +1027,24 @@ class ChatSetupWelcomeContent extends Disposable {
 		freeContainer.appendChild(this._register(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element);
 
 		// Setup Button
-		const actions: IAction[] = [
-			toAction({ id: 'chatSetup.signInGh', label: localize('signInGh', "Sign in with a GitHub.com Account"), run: () => this.updateProvider(false) }),
-			toAction({ id: 'chatSetup.signInGhe', label: localize('signInGhe', "Sign in with a GHE.com Account"), run: () => this.updateProvider(true) }),
-		];
 		const buttonContainer = this.element.appendChild($('p'));
 		buttonContainer.classList.add('button-container');
-		const button = this._register(actions.length === 0 ? new Button(buttonContainer, {
-			supportIcons: true,
-			...defaultButtonStyles
-		}) : new ButtonWithDropdown(buttonContainer, {
-			actions,
+		const button = this._register(new ButtonWithDropdown(buttonContainer, {
+			actions: {
+				getActions: () => {
+					if (this.context.state.entitlement === ChatEntitlement.Unknown) {
+						return [
+							toAction({ id: 'chatSetup.signInGh', label: localize('signInGh', "Sign in with a GitHub.com Account"), run: () => this.updateProvider(false) }),
+							toAction({ id: 'chatSetup.signInGhe', label: localize('signInGhe', "Sign in with a GHE.com Account"), run: () => this.updateProvider(true) }),
+						];
+					} else {
+						return [
+							toAction({ id: 'chatSetup.useGh', label: localize('useGh', "Use a GitHub.com Account"), run: () => this.updateProvider(false) }),
+							toAction({ id: 'chatSetup.useGhe', label: localize('useGhe', "Use a GHE.com Account"), run: () => this.updateProvider(true) }),
+						];
+					}
+				}
+			},
 			addPrimaryActionToDropdown: false,
 			contextMenuProvider: this.contextMenuService,
 			supportIcons: true,
@@ -1057,7 +1065,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(freeContainer, settingsContainer, button)));
 	}
 
-	private update(freeContainer: HTMLElement, settingsContainer: HTMLElement, button: Button | ButtonWithDropdown): void {
+	private update(freeContainer: HTMLElement, settingsContainer: HTMLElement, button: ButtonWithDropdown): void {
 		const showSettings = this.telemetryService.telemetryLevel !== TelemetryLevel.NONE;
 		let showFree: boolean;
 		let buttonLabel: string;
