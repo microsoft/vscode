@@ -19,7 +19,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
-import { wait, waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
+import { waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -118,9 +118,8 @@ class TestPromptFileReference extends Disposable {
 			),
 		).start();
 
-		// nested child references are resolved asynchronously in
-		// the background and the process can take some time to complete
-		await wait(50);
+		// wait until entire prompts tree is resolved
+		await rootReference.settledAll();
 
 		// resolve the root file reference including all nested references
 		const resolvedReferences: readonly (IPromptFileReference | undefined)[] = rootReference.allReferences;

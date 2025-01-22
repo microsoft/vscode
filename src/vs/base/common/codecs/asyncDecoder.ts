@@ -69,7 +69,7 @@ export class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<
 			}
 
 			// if no data available and stream ended, we're done
-			if (this.decoder.isEnded) {
+			if (this.decoder.ended) {
 				this.dispose();
 
 				return null;

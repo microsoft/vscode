@@ -126,7 +126,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined> {
-		if (!this._providers || !this._providers.values) {
+		if (!this._providers || !this._providers.values || cursorPosition < 0) {
 			return undefined;
 		}
 
@@ -262,7 +262,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
-				detail: getFriendlyFolderPath(cwd, resourceRequestConfig.pathSeparator),
+				detail: getFriendlyPath(cwd, resourceRequestConfig.pathSeparator),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -317,6 +317,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					label,
 					provider,
 					kind,
+					detail: getFriendlyPath(stat.resource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.File),
 					isDirectory,
 					isFile: kind === TerminalCompletionItemKind.File,
 					replacementIndex: cursorPosition - lastWord.length,
@@ -339,7 +340,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label: lastWordFolder + '..' + resourceRequestConfig.pathSeparator,
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: getFriendlyFolderPath(parentDir, resourceRequestConfig.pathSeparator),
+				detail: getFriendlyPath(parentDir, resourceRequestConfig.pathSeparator),
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: cursorPosition - lastWord.length,
@@ -351,10 +352,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 }
 
-function getFriendlyFolderPath(uri: URI, pathSeparator: string): string {
+function getFriendlyPath(uri: URI, pathSeparator: string, kind?: TerminalCompletionItemKind): string {
 	let path = uri.fsPath;
 	// Ensure folders end with the path separator to differentiate presentation from files
-	if (!path.endsWith(pathSeparator)) {
+	if (kind !== TerminalCompletionItemKind.File && !path.endsWith(pathSeparator)) {
 		path += pathSeparator;
 	}
 	// Ensure drive is capitalized on Windows

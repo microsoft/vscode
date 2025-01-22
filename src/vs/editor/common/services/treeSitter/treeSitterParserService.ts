@@ -158,7 +158,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		public /** exposed for tests **/ readonly language: Parser.Language,
 		private readonly _logService: ILogService,
 		private readonly _telemetryService: ITelemetryService) {
-		this.parser.setTimeoutMicros(5 * 1000); // 5 ms
+		this.parser.setTimeoutMicros(50 * 1000); // 50 ms
 		this.parser.setLanguage(language);
 	}
 	dispose(): void {

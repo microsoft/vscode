@@ -207,17 +207,18 @@ export class TokenStore implements IDisposable {
 	 * @param update all the tokens for the document in sequence
 	 */
 	buildStore(tokens: TokenUpdate[]) {
-		this._root = this.createFromUpdates(tokens);
+		this._root = this.createFromUpdates(tokens, true);
 	}
 
-	private createFromUpdates(tokens: TokenUpdate[]): Node {
+	private createFromUpdates(tokens: TokenUpdate[], isNew?: boolean): Node {
 		let newRoot: Node = {
 			length: tokens[0].length,
 			token: tokens[0].token,
-			height: 0
+			height: 0,
+			needsRefresh: isNew
 		};
 		for (let j = 1; j < tokens.length; j++) {
-			newRoot = append(newRoot, { length: tokens[j].length, token: tokens[j].token, height: 0 });
+			newRoot = append(newRoot, { length: tokens[j].length, token: tokens[j].token, height: 0, needsRefresh: isNew });
 		}
 		return newRoot;
 	}

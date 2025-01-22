@@ -8,7 +8,6 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITextModel } from '../../../../editor/common/model.js';
 import { LogLevel } from '../../../../platform/log/common/log.js';
 import { Range } from '../../../../editor/common/core/range.js';
 
@@ -147,22 +146,36 @@ export enum OutputChannelUpdateMode {
 	Clear
 }
 
+export interface ILogEntry {
+	readonly range: Range;
+	readonly timestamp: number;
+	readonly timestampRange: Range;
+	readonly logLevel: LogLevel;
+	readonly logLevelRange: Range;
+	readonly source: string | undefined;
+}
+
 export interface IOutputChannel {
 
 	/**
 	 * Identifier of the output channel.
 	 */
-	id: string;
+	readonly id: string;
 
 	/**
 	 * Label of the output channel to be displayed to the user.
 	 */
-	label: string;
+	readonly label: string;
 
 	/**
 	 * URI of the output channel.
 	 */
-	uri: URI;
+	readonly uri: URI;
+
+	/**
+	 * Log entries of the output channel.
+	 */
+	getLogEntries(): readonly ILogEntry[];
 
 	/**
 	 * Appends output to the channel.
@@ -305,104 +318,3 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
-
-const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(\[(info|trace|debug|error|warning)\])\s(\[(.*?)\]\s)?/;
-
-export interface ILogEntry {
-	readonly range: Range;
-	readonly timestamp: number;
-	readonly timestampRange: Range;
-	readonly logLevel: LogLevel;
-	readonly logLevelRange: Range;
-	readonly source?: string;
-}
-
-/**
- * Parses log entries from a given text model starting from a specified line.
- *
- * @param model - The text model containing the log entries.
- * @param fromLine - The line number to start parsing from (default is 1).
- * @returns An array of log entries, each containing the log level and the range of lines it spans.
- */
-export function parseLogEntries(model: ITextModel, fromLine: number = 1): ILogEntry[] {
-	const logEntries: ILogEntry[] = [];
-	for (let lineNumber = fromLine; lineNumber <= model.getLineCount(); lineNumber++) {
-		const logEntry = parseLogEntryAt(model, lineNumber);
-		if (logEntry) {
-			logEntries.push(logEntry);
-			lineNumber = logEntry.range.endLineNumber;
-		}
-	}
-	return logEntries;
-}
-
-
-/**
- * Parses a log entry at the specified line number in the given text model.
- *
- * @param model - The text model containing the log entries.
- * @param lineNumber - The line number at which to start parsing the log entry.
- * @returns An object representing the parsed log entry, or `null` if no log entry is found at the specified line.
- *
- * The returned log entry object contains:
- * - `timestamp`: The timestamp of the log entry as a number.
- * - `logLevel`: The log level of the log entry.
- * - `range`: The range of lines that the log entry spans.
- */
-export function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | null {
-	const lineContent = model.getLineContent(lineNumber);
-	const match = LOG_ENTRY_REGEX.exec(lineContent);
-	if (match) {
-		const timestamp = new Date(match[1]).getTime();
-		const timestampRange = new Range(lineNumber, 1, lineNumber, match[1].length);
-		const logLevel = parseLogLevel(match[3]);
-		const logLevelRange = new Range(lineNumber, timestampRange.endColumn + 1, lineNumber, timestampRange.endColumn + 1 + match[2].length);
-		const source = match[5];
-		const startLine = lineNumber;
-		let endLine = lineNumber;
-
-		while (endLine < model.getLineCount()) {
-			const nextLineContent = model.getLineContent(endLine + 1);
-			if (model.getLineFirstNonWhitespaceColumn(endLine + 1) === 0 || LOG_ENTRY_REGEX.test(nextLineContent)) {
-				break;
-			}
-			endLine++;
-		}
-		return { range: new Range(startLine, 1, endLine, model.getLineMaxColumn(endLine)), timestamp, timestampRange, logLevel, logLevelRange, source };
-	}
-	return null;
-}
-
-/**
- * Iterator for log entries from a model with a processing function.
- *
- * @param model - The text model containing the log entries.
- * @param process - A function to process each log entry.
- * @returns An iterable iterator for processed log entries.
- */
-export function* logEntryIterator<T>(model: ITextModel, process: (logEntry: ILogEntry) => T): IterableIterator<T> {
-	for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
-		const logEntry = parseLogEntryAt(model, lineNumber);
-		if (logEntry) {
-			yield process(logEntry);
-			lineNumber = logEntry.range.endLineNumber;
-		}
-	}
-}
-
-function parseLogLevel(level: string): LogLevel {
-	switch (level.toLowerCase()) {
-		case 'trace':
-			return LogLevel.Trace;
-		case 'debug':
-			return LogLevel.Debug;
-		case 'info':
-			return LogLevel.Info;
-		case 'warning':
-			return LogLevel.Warning;
-		case 'error':
-			return LogLevel.Error;
-		default:
-			throw new Error(`Unknown log level: ${level}`);
-	}
-}
