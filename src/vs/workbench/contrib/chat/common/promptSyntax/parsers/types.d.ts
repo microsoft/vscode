@@ -100,7 +100,20 @@ export interface IPromptReference extends IDisposable {
 	 */
 	allValidReferences: readonly IPromptReference[];
 
+	/**
+	 * Returns a promise that resolves when the reference contents
+	 * are completely parsed and all existing tokens are returned.
+	 */
 	settled(): Promise<this>;
+
+	/**
+	 * Returns a promise that resolves when the reference contents,
+	 * and contents for all possible nested child references are
+	 * completely parsed and entire tree of references is built.
+	 *
+	 * The same as {@linkcode settled} but for all prompts in
+	 * the reference tree.
+	 */
 	settledAll(): Promise<this>;
 }
 

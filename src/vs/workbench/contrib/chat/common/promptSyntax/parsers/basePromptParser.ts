@@ -86,7 +86,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * Set to `undefined` if the `resolve` method hasn't been ever called yet.
 	 */
 	public get resolveFailed(): boolean | undefined {
-		if (!this.firstParseResult.isCompleted) {
+		if (!this.firstParseResult.gotFirstResult) {
 			return undefined;
 		}
 
@@ -97,7 +97,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * The promise is resolved when at least one parse result (a stream or
 	 * an error) has been received from the prompt contents provider.
 	 */
-	private firstParseResult = new DeferredPromise();
+	private firstParseResult = new FirstParseResult();
 
 	/**
 	 * Returned promise is resolved when the parser process is settled.
@@ -114,7 +114,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			'Cannot wait on the parser that did not start yet.',
 		);
 
-		await this.firstParseResult.p;
+		await this.firstParseResult.promise;
 
 		if (this.errorCondition) {
 			return this;
@@ -166,7 +166,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 
 			this._errorCondition = new RecursiveReference(this.uri, seenReferences);
 			this._onUpdate.fire();
-			this.firstParseResult.complete(void 0);
+			this.firstParseResult.complete();
 
 			return this;
 		}
@@ -182,7 +182,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 				this.onContentsChanged(streamOrError, seenReferences);
 
 				// indicate that we've received at least one `onContentChanged` event
-				this.firstParseResult.complete(void 0);
+				this.firstParseResult.complete();
 			}),
 		);
 	}
@@ -624,5 +624,39 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 		}
 
 		return super.getErrorMessage(error);
+	}
+}
+
+/**
+ * A tiny utility object that helps us to track existance
+ * of at least one parse result from the content provider.
+ */
+class FirstParseResult extends DeferredPromise<void> {
+	/**
+	 * Private attribute to track if we have
+	 * received at least one result.
+	 */
+	private _gotResult = false;
+
+	/**
+	 * Whether we've received at least one result.
+	 */
+	public get gotFirstResult(): boolean {
+		return this._gotResult;
+	}
+
+	/**
+	 * Get underlying promise reference.
+	 */
+	public get promise(): Promise<void> {
+		return this.p;
+	}
+
+	/**
+	 * Complete the underlying promise.
+	 */
+	public override complete() {
+		this._gotResult = true;
+		return super.complete(void 0);
 	}
 }
