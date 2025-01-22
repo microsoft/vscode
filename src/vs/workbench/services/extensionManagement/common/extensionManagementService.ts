@@ -791,7 +791,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		};
 
 		const customMessage = new MarkdownString('', { supportThemeIcons: true });
-		customMessage.appendMarkdown(localize('message1', "The extension {0} is published by {1}. It is the first time you install an extension from this publisher.", `[${extension.displayName}](${this.productService.extensionsGallery!.itemUrl}?itemName=${extension.identifier.id})`, `[${extension.publisherDisplayName}](${joinPath(URI.parse(this.productService.extensionsGallery!.publisherUrl), extension.publisher)})`));
+		customMessage.appendMarkdown(localize('message1', "The extension {0} is published by {1}. This is the first extension you're installing from this publisher.", `[${extension.displayName}](${this.productService.extensionsGallery!.itemUrl}?itemName=${extension.identifier.id})`, `[${extension.publisherDisplayName}](${joinPath(URI.parse(this.productService.extensionsGallery!.publisherUrl), extension.publisher)})`));
 		customMessage.appendText('\n');
 		if (extension.publisherDomain?.verified) {
 			const publisherVerifiedMessage = localize('verifiedPublisher', "This publisher has verified ownership of {0}.", `[${URI.parse(extension.publisherDomain.link).authority}](${extension.publisherDomain.link})`);
