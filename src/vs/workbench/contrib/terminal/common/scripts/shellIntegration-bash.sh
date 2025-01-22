@@ -10,6 +10,9 @@ fi
 
 VSCODE_SHELL_INTEGRATION=1
 
+vsc_env_keys=()
+vsc_env_values=()
+
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
 	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
@@ -214,34 +217,37 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
+
+updateEnvCache() {
+	local key="$1"
+	local value="$2"
+	local updated=false
+
+	for i in "${!vsc_env_keys[@]}"; do
+		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
+			if [[ "${vsc_env_values[$i]}" != "$value" ]]; then
+				vsc_env_values[$i]="$value"
+				updated=true
+				# printf "Updated value for %s\n" "$key"
+				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			fi
+			return
+		fi
+	done
+
+	vsc_env_keys+=("$key")
+	vsc_env_values+=("$value")
+	updated=true
+	# printf "Added new variable %s\n" "$key"
+	builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+}
+
 __vsc_update_env() {
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
-	# for var in $(compgen -v); do
-	# 	if printenv "$var" >/dev/null 2>&1; then
-	# 		value=$(builtin printf '%s' "${!var}")
-	# 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
-	# 	fi
-	# done
 
-	## Faster than above
-	# for var in $(compgen -v); do
-	# 	value="${!var}"
-	# 	if [ -n "$value" ]; then
-	# 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
-	# 	fi
-	# done
-
-	## Faster than above
-	# while IFS='=' read -r var value; do
-	# 	if [ -n "$value" ]; then
-	# 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
-	# 	fi
-	# done < <(env)
-
-	## Slighly faster than above
-	env | grep '=' | while IFS='=' read -r var value; do
-		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-	done
+		while IFS='=' read -r key value; do
+			updateEnvCache "$key" "$value"
+		done < <(env)
 
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 }
