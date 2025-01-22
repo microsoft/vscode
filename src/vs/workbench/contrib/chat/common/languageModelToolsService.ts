@@ -34,6 +34,7 @@ export interface IToolInvocation {
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
+	chatRequestId?: string;
 }
 
 export interface IToolInvocationContext {

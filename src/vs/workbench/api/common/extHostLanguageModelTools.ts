@@ -68,6 +68,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				parameters: options.input,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
+				chatRequestId: options.chatRequestId,
 			}, token);
 			return typeConvert.LanguageModelToolResult.to(result);
 		} finally {
@@ -100,7 +101,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions<Object> = { input: dto.parameters, toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined };
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
+			input: dto.parameters,
+			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
+			chatRequestId: dto.chatRequestId,
+		};
 		if (dto.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
