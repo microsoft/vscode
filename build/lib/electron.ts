@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vfs from 'vinyl-fs';
-import * as filter from 'gulp-filter';
+import fs from 'fs';
+import path from 'path';
+import vfs from 'vinyl-fs';
+import filter from 'gulp-filter';
 import * as util from './util';
 import { getVersion } from './getVersion';
 
