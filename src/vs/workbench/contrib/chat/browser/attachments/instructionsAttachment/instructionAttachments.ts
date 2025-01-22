@@ -36,8 +36,8 @@ export class InstructionAttachmentsWidget extends Disposable {
 	}
 
 	/**
-	 * Get the list of all prompt instruction attachments, including all nested
-	 * child references of each attachment explicitelly attached by user.
+	 * Get the list of all prompt instruction attachment variables, including all
+	 * nested child references of each attachment explicitly attached by user.
 	 */
 	public get chatAttachments() {
 		return this.model.chatAttachments;
