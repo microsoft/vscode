@@ -34,7 +34,7 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 				const extHostRequest: ICodeMapperRequestDto = {
 					requestId,
 					codeBlocks: uiRequest.codeBlocks,
-					chatRequestId: uiRequest.chatRequestId,
+					chatRequestMetadata: uiRequest.chatRequestMetadata,
 					location: uiRequest.location
 				};
 				try {

@@ -68,7 +68,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				parameters: options.input,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
-				chatRequestId: options.chatRequestId,
+				chatRequestMetadata: options.chatRequestMetadata ?? options.chatRequestId !== undefined ? { $chatRequestId: options.chatRequestId } : undefined,
 			}, token);
 			return typeConvert.LanguageModelToolResult.to(result);
 		} finally {
@@ -104,7 +104,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
 			input: dto.parameters,
 			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
-			chatRequestId: dto.chatRequestId,
+			chatRequestMetadata: dto.chatRequestMetadata,
 		};
 		if (dto.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
