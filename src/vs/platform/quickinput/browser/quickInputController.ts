@@ -343,7 +343,8 @@ export class QuickInputController extends Disposable {
 					node: headerContainer,
 					includeChildren: false
 				}
-			]
+			],
+			this.viewState
 		));
 
 		// DnD update layout
@@ -666,6 +667,7 @@ export class QuickInputController extends Disposable {
 
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.dndController?.layoutContainer();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
 	}
@@ -904,16 +906,30 @@ class QuickInputDragAndDropController extends Disposable {
 		private _container: HTMLElement,
 		private readonly _quickInputContainer: HTMLElement,
 		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean }[],
+		initialViewState: QuickInputViewState | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 		this._registerLayoutListener();
 		this.registerMouseListeners();
+		this.dndViewState.set({ ...initialViewState, done: true }, undefined);
 	}
 
 	reparentUI(container: HTMLElement): void {
 		this._container = container;
+	}
+
+	layoutContainer(dimension = this._layoutService.activeContainerDimension): void {
+		const state = this.dndViewState.get();
+		const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
+		if (state?.top && state?.left) {
+			const a = Math.round(state.left * 1e2) / 1e2;
+			const b = dimension.width;
+			const c = dragAreaRect.width;
+			const d = a * b - c / 2;
+			this._layout(state.top * dimension.height, d);
+		}
 	}
 
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }, done = true): void {
@@ -938,20 +954,7 @@ class QuickInputDragAndDropController extends Disposable {
 	}
 
 	private _registerLayoutListener() {
-		this._layoutService.onDidLayoutContainer((e) => {
-			if (e.container !== this._container) {
-				return;
-			}
-			const state = this.dndViewState.get();
-			const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
-			if (state?.top && state?.left) {
-				const a = Math.round(state.left * 1e2) / 1e2;
-				const b = e.dimension.width;
-				const c = dragAreaRect.width;
-				const d = a * b - c / 2;
-				this._layout(state.top * e.dimension.height, d);
-			}
-		});
+		this._register(Event.filter(this._layoutService.onDidLayoutContainer, e => e.container === this._container)((e) => this.layoutContainer(e.dimension)));
 	}
 
 	private registerMouseListeners(): void {
