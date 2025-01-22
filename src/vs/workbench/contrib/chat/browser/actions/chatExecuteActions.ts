@@ -90,7 +90,7 @@ export class ToggleAgentModeAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleAgentModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode"),
+			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode (Experimental)"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
@@ -100,7 +100,7 @@ export class ToggleAgentModeAction extends Action2 {
 			toggled: {
 				condition: ChatContextKeys.Editing.agentMode,
 				icon: Codicon.tools,
-				tooltip: localize('agentEnabled', "Agent Mode Enabled"),
+				tooltip: localize('agentEnabled', "Agent Mode Enabled (Experimental)"),
 			},
 			tooltip: localize('agentDisabled', "Agent Mode Disabled"),
 			keybinding: {
