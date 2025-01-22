@@ -216,12 +216,27 @@ __vsc_update_cwd() {
 
 __vsc_update_env() {
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
-	for var in $(compgen -v); do
-		if printenv "$var" >/dev/null 2>&1; then
-			value=$(builtin printf '%s' "${!var}")
+	# for var in $(compgen -v); do
+	# 	if printenv "$var" >/dev/null 2>&1; then
+	# 		value=$(builtin printf '%s' "${!var}")
+	# 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
+	# 	fi
+	# done
+
+	## Faster than above
+	# for var in $(compgen -v); do
+	# 	value="${!var}"
+	# 	if [ -n "$value" ]; then
+	# 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
+	# 	fi
+	# done
+
+	## Faster than above
+	while IFS='=' read -r var value; do
+		if [ -n "$value" ]; then
 			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
 		fi
-	done
+	done < <(env)
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 }
 
