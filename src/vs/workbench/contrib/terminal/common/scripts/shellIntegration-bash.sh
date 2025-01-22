@@ -245,9 +245,9 @@ updateEnvCache() {
 __vsc_update_env() {
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
-		while IFS='=' read -r key value; do
-			updateEnvCache "$key" "$value"
-		done < <(env)
+	while IFS='=' read -r key value; do
+		updateEnvCache "$key" "$value"
+	done < <(env)
 
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 }
