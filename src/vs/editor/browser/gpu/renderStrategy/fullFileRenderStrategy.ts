@@ -6,7 +6,6 @@
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { Color } from '../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
@@ -96,8 +95,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		context: ViewContext,
 		viewGpuContext: ViewGpuContext,
 		device: GPUDevice,
+		glyphRasterizer: { value: GlyphRasterizer },
 	) {
-		super(context, viewGpuContext, device);
+		super(context, viewGpuContext, device, glyphRasterizer);
 
 		const bufferSize = FullFileRenderStrategy.maxSupportedLines * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
@@ -132,18 +132,6 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
 		this._invalidateAllLines();
 		this._queueBufferUpdate(e);
-
-		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
-		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
-		const devicePixelRatio = this._viewGpuContext.devicePixelRatio.get();
-		if (
-			this._glyphRasterizer.value.fontFamily !== fontFamily ||
-			this._glyphRasterizer.value.fontSize !== fontSize ||
-			this._glyphRasterizer.value.devicePixelRatio !== devicePixelRatio
-		) {
-			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio);
-		}
-
 		return true;
 	}
 
@@ -380,7 +368,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					chars = segment;
 
 					if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
-						charWidth = this._glyphRasterizer.value.getTextMetrics(chars).width;
+						charWidth = this.glyphRasterizer.getTextMetrics(chars).width;
 					}
 
 					decorationStyleSetColor = undefined;
@@ -455,7 +443,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					}
 
 					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
+					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId);
 
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)

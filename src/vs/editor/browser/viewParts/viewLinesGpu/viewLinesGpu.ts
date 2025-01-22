@@ -29,6 +29,7 @@ import { ViewportRenderStrategy } from '../../gpu/renderStrategy/viewportRenderS
 import { FullFileRenderStrategy } from '../../gpu/renderStrategy/fullFileRenderStrategy.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import type { ViewLineRenderingData } from '../../../common/viewModel.js';
+import { GlyphRasterizer } from '../../gpu/raster/glyphRasterizer.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -63,7 +64,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private _initialized = false;
 
-	private readonly _renderStrategy: MutableDisposable<IGpuRenderStrategy> = new MutableDisposable();
+	private readonly _glyphRasterizer: MutableDisposable<GlyphRasterizer> = this._register(new MutableDisposable());
+	private readonly _renderStrategy: MutableDisposable<IGpuRenderStrategy> = this._register(new MutableDisposable());
 	private _rebuildBindGroup?: () => void;
 
 	constructor(
@@ -192,7 +194,15 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		// #region Storage buffers
 
-		this._renderStrategy.value = this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device);
+		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
+		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
+		this._glyphRasterizer.value = this._register(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get()));
+		this._register(runOnChange(this._viewGpuContext.devicePixelRatio, () => {
+			this._refreshGlyphRasterizer();
+		}));
+
+
+		this._renderStrategy.value = this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device, this._glyphRasterizer as { value: GlyphRasterizer });
 		// this._renderStrategy.value = this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device);
 
 		this._glyphStorageBuffer = this._register(GPULifecycle.createBuffer(this._device, {
@@ -321,7 +331,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			return;
 		}
 		this._logService.trace(`File is larger than ${FullFileRenderStrategy.maxSupportedLines} lines or ${FullFileRenderStrategy.maxSupportedColumns} columns, switching to viewport render strategy`);
-		this._renderStrategy.value = this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device);
+		this._renderStrategy.value = this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device, this._glyphRasterizer as { value: GlyphRasterizer });
 		this._rebuildBindGroup?.();
 	}
 
@@ -410,7 +420,10 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	// from that side. Luckily rendering is cheap, it's only when uploaded data changes does it
 	// start to cost.
 
-	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean { return true; }
+	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		this._refreshGlyphRasterizer();
+		return true;
+	}
 	override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean { return true; }
 	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
 	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
@@ -425,6 +438,23 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean { return true; }
 
 	// #endregion
+
+	private _refreshGlyphRasterizer() {
+		const glyphRasterizer = this._glyphRasterizer.value;
+		if (!glyphRasterizer) {
+			return;
+		}
+		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
+		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
+		const devicePixelRatio = this._viewGpuContext.devicePixelRatio.get();
+		if (
+			glyphRasterizer.fontFamily !== fontFamily ||
+			glyphRasterizer.fontSize !== fontSize ||
+			glyphRasterizer.devicePixelRatio !== devicePixelRatio
+		) {
+			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio);
+		}
+	}
 
 	public renderText(viewportData: ViewportData): void {
 		if (this._initialized) {

@@ -6,7 +6,6 @@
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { Color } from '../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
@@ -80,8 +79,9 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		context: ViewContext,
 		viewGpuContext: ViewGpuContext,
 		device: GPUDevice,
+		glyphRasterizer: { value: GlyphRasterizer },
 	) {
-		super(context, viewGpuContext, device);
+		super(context, viewGpuContext, device, glyphRasterizer);
 
 		const bufferSize = viewportHeight * ViewportRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
@@ -114,17 +114,6 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	//    cleared and uploaded to the GPU.
 
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
-		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
-		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
-		const devicePixelRatio = this._viewGpuContext.devicePixelRatio.get();
-		if (
-			this._glyphRasterizer.value.fontFamily !== fontFamily ||
-			this._glyphRasterizer.value.fontSize !== fontSize ||
-			this._glyphRasterizer.value.devicePixelRatio !== devicePixelRatio
-		) {
-			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio);
-		}
-
 		return true;
 	}
 
@@ -263,7 +252,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 					chars = segment;
 
 					if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
-						charWidth = this._glyphRasterizer.value.getTextMetrics(chars).width;
+						charWidth = this.glyphRasterizer.getTextMetrics(chars).width;
 					}
 
 					decorationStyleSetColor = undefined;
@@ -338,7 +327,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 					}
 
 					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
+					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId);
 
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)
