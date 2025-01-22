@@ -357,7 +357,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 				tokenMetadata = tokens.getMetadata(tokenIndex);
 
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
-					// TODO: This needs to move to a dynamic long line rendering strategy
+					// Only render lines that do not exceed maximum columns
 					if (x > FullFileRenderStrategy.maxSupportedColumns) {
 						break;
 					}
