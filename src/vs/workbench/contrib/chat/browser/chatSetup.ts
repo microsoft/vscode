@@ -22,7 +22,7 @@ import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRend
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -45,7 +45,7 @@ import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticatio
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
@@ -64,6 +64,8 @@ import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extension
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -78,6 +80,7 @@ const defaultChat = {
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
 	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
+	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
@@ -974,8 +977,10 @@ class ChatSetupWelcomeContent extends Disposable {
 		private readonly context: ChatSetupContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -1021,11 +1026,10 @@ class ChatSetupWelcomeContent extends Disposable {
 		freeContainer.appendChild(this._register(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element);
 
 		// Setup Button
-		const actions: IAction[] = [];
-		if (this.context.state.installed) {
-			actions.push(toAction({ id: 'chatSetup.signInGh', label: localize('signInGh', "Sign in with a GitHub.com Account"), run: () => this.commandService.executeCommand('github.copilotChat.signIn') }));
-			actions.push(toAction({ id: 'chatSetup.signInGhe', label: localize('signInGhe', "Sign in with a GHE.com Account"), run: () => this.commandService.executeCommand('github.copilotChat.signInGHE') }));
-		}
+		const actions: IAction[] = [
+			toAction({ id: 'chatSetup.signInGh', label: localize('signInGh', "Sign in with a GitHub.com Account"), run: () => this.updateProvider(false) }),
+			toAction({ id: 'chatSetup.signInGhe', label: localize('signInGhe', "Sign in with a GHE.com Account"), run: () => this.updateProvider(true) }),
+		];
 		const buttonContainer = this.element.appendChild($('p'));
 		buttonContainer.classList.add('button-container');
 		const button = this._register(actions.length === 0 ? new Button(buttonContainer, {
@@ -1094,6 +1098,101 @@ class ChatSetupWelcomeContent extends Disposable {
 		button.label = buttonLabel;
 		button.enabled = this.controller.step === ChatSetupStep.Initial;
 	}
+
+	private async updateProvider(useGhe: boolean): Promise<void> {
+		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		registry.registerConfiguration({
+			'id': 'copilot.setup',
+			'type': 'object',
+			'properties': {
+				[defaultChat.providerSetting]: {
+					'type': 'string'
+				},
+				[defaultChat.providerUriSetting]: {
+					'type': 'string'
+				}
+			}
+		});
+
+		if (useGhe) {
+			await this.configurationService.updateValue(defaultChat.providerSetting, defaultChat.enterpriseProviderId, ConfigurationTarget.USER);
+			const success = await this.handleGheUri();
+			if (!success) {
+				return; // not properly configured, abort
+			}
+		} else {
+			await this.configurationService.updateValue(defaultChat.providerSetting, undefined, ConfigurationTarget.USER);
+			await this.configurationService.updateValue(defaultChat.providerUriSetting, undefined, ConfigurationTarget.USER);
+		}
+
+		return this.controller.setup();
+	}
+
+	private async handleGheUri(): Promise<boolean /* success */> {
+		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
+		if (uri) {
+			return true; // already setup
+		}
+
+		let isSingleWord = false;
+		const result = await this.quickInputService.input({
+			prompt: localize('gheInstance', "What is your GHE.com instance?"),
+			placeHolder: localize('gheInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			validateInput: async value => {
+				isSingleWord = false;
+				if (!value) {
+					return undefined;
+				}
+
+				if (/^[a-zA-Z\-_]+$/.test(value)) {
+					isSingleWord = true;
+					return {
+						content: localize('willResolveTo', "Will resolve to {0}", `https://${value}.ghe.com`),
+						severity: Severity.Info
+					};
+				} else {
+					const regex = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
+					if (!regex.test(value)) {
+						return {
+							content: localize('invalidGheInstance', 'Please enter a valid GHE.com instance (i.e. "octocat" or "https://octocat.ghe.com")'),
+							severity: Severity.Error
+						};
+					}
+				}
+
+				return undefined;
+			}
+		});
+
+		if (!result) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Error,
+				message: localize('gheSetupError', "The provided GHE.com instance is invalid. Would you like to enter it again?", defaultChat.providerName),
+				primaryButton: localize('retry', "Retry")
+			});
+
+			if (confirmed) {
+				return this.handleGheUri();
+			}
+
+			return false;
+		}
+
+		let resolvedUri = result;
+		if (isSingleWord) {
+			resolvedUri = `https://${resolvedUri}.ghe.com`;
+		} else {
+			const normalizedUri = result.toLowerCase();
+			const hasHttps = normalizedUri.startsWith('https://');
+			if (!hasHttps) {
+				resolvedUri = `https://${result}`;
+			}
+		}
+
+		await this.configurationService.updateValue(defaultChat.providerUriSetting, resolvedUri, ConfigurationTarget.USER);
+
+		return true;
+	}
 }
 
 //#endregion
@@ -1145,11 +1244,11 @@ class ChatSetupContext extends Disposable {
 
 	private async checkExtensionInstallation(): Promise<void> {
 
-		// Await extensions to be ready to be queries
+		// Await extensions to be ready to be queried
 		await this.extensionsWorkbenchService.queryLocal();
 
 		// Listen to change and process extensions once
-		this._register(Event.runAndSubscribe(this.extensionsWorkbenchService.onChange, (e) => {
+		this._register(Event.runAndSubscribe<IExtension | undefined>(this.extensionsWorkbenchService.onChange, e => {
 			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.extensionId)) {
 				return; // unrelated event
 			}
