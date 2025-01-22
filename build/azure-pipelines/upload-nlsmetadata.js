@@ -3,11 +3,47 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const es = require("event-stream");
-const vfs = require("vinyl-fs");
-const merge = require("gulp-merge-json");
-const gzip = require("gulp-gzip");
+const es = __importStar(require("event-stream"));
+const vfs = __importStar(require("vinyl-fs"));
+const gulp_merge_json_1 = __importDefault(require("gulp-merge-json"));
+const gulp_gzip_1 = __importDefault(require("gulp-gzip"));
 const identity_1 = require("@azure/identity");
 const path = require("path");
 const fs_1 = require("fs");
@@ -21,7 +57,7 @@ function main() {
         // it includes metadata for translators for `keys`. but for our purpose
         // we want only the `keys` and `messages` as `string`.
         es.merge(vfs.src('out-build/nls.keys.json', { base: 'out-build' }), vfs.src('out-build/nls.messages.json', { base: 'out-build' }))
-            .pipe(merge({
+            .pipe((0, gulp_merge_json_1.default)({
             fileName: 'vscode.json',
             jsonSpace: '',
             concatArrays: true,
@@ -37,7 +73,7 @@ function main() {
             }
         })), 
         // extensions
-        vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' })).pipe(merge({
+        vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' })).pipe((0, gulp_merge_json_1.default)({
             fileName: 'combined.nls.metadata.json',
             jsonSpace: '',
             concatArrays: true,
@@ -95,7 +131,7 @@ function main() {
         }));
         const nlsMessagesJs = vfs.src('out-build/nls.messages.js', { base: 'out-build' });
         es.merge(combinedMetadataJson, nlsMessagesJs)
-            .pipe(gzip({ append: false }))
+            .pipe((0, gulp_gzip_1.default)({ append: false }))
             .pipe(vfs.dest('./nlsMetadata'))
             .pipe(es.through(function (data) {
             console.log(`Uploading ${data.path}`);

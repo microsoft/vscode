@@ -3,14 +3,50 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nls = nls;
-const lazy = require("lazy.js");
+const lazy_js_1 = __importDefault(require("lazy.js"));
 const event_stream_1 = require("event-stream");
-const File = require("vinyl");
-const sm = require("source-map");
-const path = require("path");
-const sort = require("gulp-sort");
+const vinyl_1 = __importDefault(require("vinyl"));
+const sm = __importStar(require("source-map"));
+const path = __importStar(require("path"));
+const gulp_sort_1 = __importDefault(require("gulp-sort"));
 var CollectStepResult;
 (function (CollectStepResult) {
     CollectStepResult[CollectStepResult["Yes"] = 0] = "Yes";
@@ -46,7 +82,7 @@ function nls(options) {
     let base;
     const input = (0, event_stream_1.through)();
     const output = input
-        .pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
+        .pipe((0, gulp_sort_1.default)()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
         .pipe((0, event_stream_1.through)(function (f) {
         if (!f.sourceMap) {
             return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
@@ -67,7 +103,7 @@ function nls(options) {
         this.emit('data', _nls.patchFile(f, typescript, options));
     }, function () {
         for (const file of [
-            new File({
+            new vinyl_1.default({
                 contents: Buffer.from(JSON.stringify({
                     keys: _nls.moduleToNLSKeys,
                     messages: _nls.moduleToNLSMessages,
@@ -75,17 +111,17 @@ function nls(options) {
                 base,
                 path: `${base}/nls.metadata.json`
             }),
-            new File({
+            new vinyl_1.default({
                 contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
                 base,
                 path: `${base}/nls.messages.json`
             }),
-            new File({
+            new vinyl_1.default({
                 contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
                 base,
                 path: `${base}/nls.keys.json`
             }),
-            new File({
+            new vinyl_1.default({
                 contents: Buffer.from(`/*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
@@ -111,7 +147,7 @@ var _nls;
     _nls.allNLSModulesAndKeys = [];
     let allNLSMessagesIndex = 0;
     function fileFrom(file, contents, path = file.path) {
-        return new File({
+        return new vinyl_1.default({
             contents: Buffer.from(contents),
             base: file.base,
             cwd: file.cwd,
@@ -163,7 +199,7 @@ var _nls;
         const service = ts.createLanguageService(serviceHost);
         const sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
         // all imports
-        const imports = lazy(collect(ts, sourceFile, n => isImportNode(ts, n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));
+        const imports = (0, lazy_js_1.default)(collect(ts, sourceFile, n => isImportNode(ts, n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));
         // import nls = require('vs/nls');
         const importEqualsDeclarations = imports
             .filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
@@ -188,7 +224,7 @@ var _nls;
             .filter(r => !r.isWriteAccess)
             // find the deepest call expressions AST nodes that contain those references
             .map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
-            .map(a => lazy(a).last())
+            .map(a => (0, lazy_js_1.default)(a).last())
             .filter(n => !!n)
             .map(n => n)
             // only `localize` calls
@@ -214,7 +250,7 @@ var _nls;
         const localizeCallExpressions = localizeReferences
             .concat(namedLocalizeReferences)
             .map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
-            .map(a => lazy(a).last())
+            .map(a => (0, lazy_js_1.default)(a).last())
             .filter(n => !!n)
             .map(n => n);
         // collect everything
@@ -281,14 +317,14 @@ var _nls;
             }
         }
         toString() {
-            return lazy(this.lines).zip(this.lineEndings)
+            return (0, lazy_js_1.default)(this.lines).zip(this.lineEndings)
                 .flatten().toArray().join('');
         }
     }
     function patchJavascript(patches, contents) {
         const model = new TextModel(contents);
         // patch the localize calls
-        lazy(patches).reverse().each(p => model.apply(p));
+        (0, lazy_js_1.default)(patches).reverse().each(p => model.apply(p));
         return model.toString();
     }
     function patchSourcemap(patches, rsm, smc) {
@@ -349,7 +385,7 @@ var _nls;
             const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
             return { span: { start, end }, content: c.content };
         };
-        const localizePatches = lazy(localizeCalls)
+        const localizePatches = (0, lazy_js_1.default)(localizeCalls)
             .map(lc => (options.preserveEnglish ? [
             { range: lc.keySpan, content: `${allNLSMessagesIndex++}` } // localize('key', "message") => localize(<index>, "message")
         ] : [
@@ -358,7 +394,7 @@ var _nls;
         ]))
             .flatten()
             .map(toPatch);
-        const localize2Patches = lazy(localize2Calls)
+        const localize2Patches = (0, lazy_js_1.default)(localize2Calls)
             .map(lc => ({ range: lc.keySpan, content: `${allNLSMessagesIndex++}` } // localize2('key', "message") => localize(<index>, "message")
         ))
             .map(toPatch);
