@@ -14,7 +14,6 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 	private _pendingEnv: Map<string, string> | undefined;
 	private _env: Map<string, string> = new Map();
 	get env(): Map<string, string> { return this._env; }
-
 	private readonly _onDidChangeEnv = this._register(new Emitter<Map<string, string>>());
 	readonly onDidChangeEnv = this._onDidChangeEnv.event;
 
@@ -59,8 +58,34 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		if (!this._pendingEnv) {
 			return;
 		}
-		this._env = this._pendingEnv;
+		const didDiffer = this.applyEnvironmentDiff(this._pendingEnv, isTrusted);
+		if (didDiffer) {
+			this._env = this._pendingEnv;
+		}
 		this._pendingEnv = undefined;
-		this._onDidChangeEnv.fire(this._env);
+	}
+	// Returns true if the environment differs, and was updated.
+	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): boolean {
+		if (!isTrusted) {
+			return false;
+		}
+
+		let envDiffers: boolean = false;
+
+		for (const [key, value] of env.entries()) {
+			if (this._env.has(key) && this._env.get(key) === value) {
+				// Do nothing
+			} else if (value !== undefined) {
+				this._env.set(key, value);
+				envDiffers = true;
+			}
+		}
+
+		if (envDiffers) {
+			this._onDidChangeEnv.fire(this._env);
+			return true;
+		}
+
+		return false;
 	}
 }
