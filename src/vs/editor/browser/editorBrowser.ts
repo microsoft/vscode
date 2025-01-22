@@ -244,7 +244,17 @@ export const enum OverlayWidgetPositionPreference {
 	/**
 	 * Position the overlay widget in the bottom center
 	 */
-	BOTTOM_CENTER
+	BOTTOM_CENTER,
+
+	/**
+	 * Position the overlay widget in the left center
+	 */
+	LEFT_CENTER,
+
+	/**
+	 * Position the overlay widget in the right center
+	 */
+	RIGHT_CENTER
 }
 
 

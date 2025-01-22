@@ -303,14 +303,24 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	public getPosition(): IOverlayWidgetPosition | null {
 		if (this._isVisible) {
 			const dialogPosition = this._codeEditor.getOption(EditorOption.find).dialogPosition;
-			if (dialogPosition === 'bottom') {
-				return {
-					preference: OverlayWidgetPositionPreference.BOTTOM_CENTER
-				};
+			switch (dialogPosition) {
+				case 'bottom':
+					return {
+						preference: OverlayWidgetPositionPreference.BOTTOM_CENTER
+					};
+				case 'left':
+					return {
+						preference: OverlayWidgetPositionPreference.LEFT_CENTER
+					};
+				case 'right':
+					return {
+						preference: OverlayWidgetPositionPreference.RIGHT_CENTER
+					};
+				default:
+					return {
+						preference: OverlayWidgetPositionPreference.TOP_RIGHT_CORNER
+					};
 			}
-			return {
-				preference: OverlayWidgetPositionPreference.TOP_RIGHT_CORNER
-			};
 		}
 		return null;
 	}
