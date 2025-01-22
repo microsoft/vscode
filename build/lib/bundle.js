@@ -224,7 +224,7 @@ function removeAllDuplicateTSBoilerplate(destFiles) {
     return destFiles;
 }
 function removeAllTSBoilerplate(source) {
-    const seen = new Array(BOILERPLATE.length).fill(true, 0, 10);
+    const seen = new Array(BOILERPLATE.length).fill(true, 0, BOILERPLATE.length);
     return removeDuplicateTSBoilerplate(source, seen);
 }
 // Taken from typescript compiler => emitFiles
@@ -239,6 +239,8 @@ const BOILERPLATE = [
     { start: /^var __createBinding/, end: /^}\)\);$/ },
     { start: /^var __setModuleDefault/, end: /^}\);$/ },
     { start: /^var __importStar/, end: /^};$/ },
+    { start: /^var __addDisposableResource/, end: /^};$/ },
+    { start: /^var __disposeResources/, end: /^}\);$/ },
 ];
 function removeDuplicateTSBoilerplate(source, SEEN_BOILERPLATE = []) {
     const lines = source.split(/\r\n|\n|\r/);
