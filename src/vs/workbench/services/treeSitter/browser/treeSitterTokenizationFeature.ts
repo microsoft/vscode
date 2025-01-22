@@ -7,7 +7,7 @@ import type { Parser } from '@vscode/tree-sitter-wasm';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
-import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
+import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSupport, QueryCapture, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, TreeUpdateEvent, RangeChange } from '../../../../editor/common/services/treeSitterParserService.js';
 import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
@@ -132,11 +132,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		}));
 	}
 
-	private _firstTreeUpdate(textModel: ITextModel, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[]) {
-		const modelEndOffset = textModel.getValueLength();
-		const editorEndPosition = textModel.getPositionAt(modelEndOffset);
-		const captures = this._getTreeAndCaptures(new Range(1, 1, editorEndPosition.lineNumber, editorEndPosition.column), textModel);
-		// Make empty tokens to populate the store
+	private _createEmptyTokens(captures: { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] }, modelEndOffset: number) {
 		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 		const emptyToken = this._emptyToken(languageId);
 		const capturedTokens = this._createTokensFromCaptures(captures.tree, captures.captures, 0, modelEndOffset);
@@ -144,7 +140,15 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			return;
 		}
 		const emptyTokens: EndOffsetToken[] = capturedTokens.endOffsets.map(capture => ({ endOffset: capture.endOffset, metadata: emptyToken }));
-		const tokens: TokenUpdate[] = this._rangeTokensAsUpdates(0, emptyTokens);
+		return this._rangeTokensAsUpdates(0, emptyTokens);
+	}
+
+	private _firstTreeUpdate(textModel: ITextModel, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[]) {
+		const modelEndOffset = textModel.getValueLength();
+		const editorEndPosition = textModel.getPositionAt(modelEndOffset);
+		const captures = this._getTreeAndCaptures(new Range(1, 1, editorEndPosition.lineNumber, editorEndPosition.column), textModel);
+		// Make empty tokens to populate the store
+		const tokens: TokenUpdate[] = this._createEmptyTokens(captures, modelEndOffset) ?? [];
 
 		this._tokenizationStoreService.setTokens(textModel, tokens);
 		this._setViewPortTokens(textModel);
@@ -156,14 +160,14 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		const modelEndOffset = textModel.getValueLength();
 
 		// Go in 10000 offset chunks to avoid long operations
-		const chunkSize = 1000;
+		const chunkSize = 10000;
 		let chunkEnd = modelEndOffset > chunkSize ? chunkSize : modelEndOffset;
 		let chunkStart = 0;
 		let chunkStartingPosition = new Position(1, 1);
 		const rangeChanges: RangeChange[] = [];
 		do {
 			const chunkEndPosition = textModel.getPositionAt(chunkEnd);
-			const chunkRange = Range.fromPositions(chunkStartingPosition, new Position(chunkEndPosition.lineNumber, chunkEndPosition.column));
+			const chunkRange = Range.fromPositions(chunkStartingPosition, chunkEndPosition);
 
 			rangeChanges.push({
 				newRange: chunkRange,
@@ -209,27 +213,49 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId: textModel.getVersionId() }, ranges);
 	}
 
+	/**
+	 * Do not await in this method, it will cause a race
+	 */
 	private _handleTreeUpdate(e: TreeUpdateEvent, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[]) {
 		// Get the captures immediately too while the text model is correct
 		const captures = e.ranges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
-
 		// Don't block
 		this._updateTreeForRanges(e, ranges, captures);
 	}
 
-	private async _updateTreeForRanges(e: TreeUpdateEvent, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[], captures: { tree: ITreeSitterParseResult | undefined; captures: Parser.QueryCapture[] }[]) {
-		const tokenUpdates: { oldRangeLength: number; newTokens: TokenUpdate[] }[] = new Array(e.ranges.length);
+	private _clipRangeChangeToFileLength(range: RangeChange, textModel: ITextModel) {
+		const valueLength = textModel.getValueLength();
+		const startPosition = range.newRange.getStartPosition();
+		const endPosition = range.newRangeEndOffset > valueLength ? textModel.getPositionAt(valueLength) : range.newRange.getEndPosition();
+		const endOffset = textModel.getOffsetAt(endPosition);
+		const newRangeChange = {
+			oldRangeLength: endOffset - range.newRangeStartOffset,
+			newRangeEndOffset: endOffset,
+			newRangeStartOffset: textModel.getOffsetAt(startPosition),
+			newRange: Range.fromPositions(startPosition, endPosition)
+		};
+		return newRangeChange;
+	}
+
+	private async _updateTreeForRanges(e: TreeUpdateEvent, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[], captures: { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] }[]) {
+		let tokenUpdate: { oldRangeLength: number; newTokens: TokenUpdate[] } | undefined;
 		for (let i = 0; i < e.ranges.length; i++) {
-			const range = e.ranges[i];
-			const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset, captures[i]);
-			if (updates) {
-				tokenUpdates[i] = { oldRangeLength: range.oldRangeLength, newTokens: updates };
-			} else {
-				tokenUpdates[i] = { oldRangeLength: range.oldRangeLength, newTokens: [] };
+			let capture = captures[i];
+			let range = e.ranges[i];
+			if (e.versionId < e.textModel.getVersionId()) {
+				// Our captures have become invalid and we need to re-capture
+				range = this._clipRangeChangeToFileLength(range, e.textModel);
+				capture = this._getTreeAndCaptures(range.newRange, e.textModel);
 			}
+			const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset, capture);
+			if (updates) {
+				tokenUpdate = { oldRangeLength: range.oldRangeLength, newTokens: updates };
+			} else {
+				tokenUpdate = { oldRangeLength: range.oldRangeLength, newTokens: [] };
+			}
+			this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, [tokenUpdate]);
 			await new Promise<void>(resolve => setTimeout0(resolve));
 		}
-		this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, tokenUpdates);
 		this._onDidChangeTokens.fire({
 			textModel: e.textModel,
 			changes: {
@@ -252,7 +278,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return updates;
 	}
 
-	public getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number, captures?: { tree: ITreeSitterParseResult | undefined; captures: Parser.QueryCapture[] }): TokenUpdate[] | undefined {
+	public getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number, captures?: { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] }): TokenUpdate[] | undefined {
 		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 
 		const tokens = captures ? this._tokenizeCapturesWithMetadata(captures.tree, captures.captures, languageId, rangeStartOffset, rangeEndOffset) : this._tokenize(languageId, range, rangeStartOffset, rangeEndOffset, textModel);
@@ -286,25 +312,34 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		this._colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
 	}
 
-	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): Parser.QueryCapture[] {
+	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): QueryCapture[] {
 		const tree = this._getTree(textModel);
 		const captures = this._captureAtRange(new Range(lineNumber, column, lineNumber, column + 1), tree?.tree);
 		return captures;
 	}
 
-	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[] {
+	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): QueryCapture[] {
 		const captures = this._captureAtRange(new Range(lineNumber, column, lineNumber, column + 1), tree);
 		return captures;
 	}
 
 
-	private _captureAtRange(range: Range, tree: Parser.Tree | undefined): Parser.QueryCapture[] {
+	private _captureAtRange(range: Range, tree: Parser.Tree | undefined): QueryCapture[] {
 		const query = this._ensureQuery();
 		if (!tree || !query) {
 			return [];
 		}
 		// Tree sitter row is 0 based, column is 0 based
-		return query.captures(tree.rootNode, { startPosition: { row: range.startLineNumber - 1, column: range.startColumn - 1 }, endPosition: { row: range.endLineNumber - 1, column: range.endColumn - 1 } });
+		return query.captures(tree.rootNode, { startPosition: { row: range.startLineNumber - 1, column: range.startColumn - 1 }, endPosition: { row: range.endLineNumber - 1, column: range.endColumn - 1 } }).map(capture => (
+			{
+				name: capture.name,
+				text: capture.node.text,
+				node: {
+					startIndex: capture.node.startIndex,
+					endIndex: capture.node.endIndex
+				}
+			}
+		));
 	}
 
 	/**
@@ -322,7 +357,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._tokenizeEncoded(lineNumber, textModel);
 	}
 
-	private _getTreeAndCaptures(range: Range, textModel: ITextModel): { tree: ITreeSitterParseResult | undefined; captures: Parser.QueryCapture[] } {
+	private _getTreeAndCaptures(range: Range, textModel: ITextModel): { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] } {
 		const tree = this._getTree(textModel);
 		const captures = this._captureAtRange(range, tree?.tree);
 		return { tree, captures };
@@ -333,7 +368,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._tokenizeCapturesWithMetadata(tree, captures, encodedLanguageId, rangeStartOffset, rangeEndOffset);
 	}
 
-	private _createTokensFromCaptures(tree: ITreeSitterParseResult | undefined, captures: Parser.QueryCapture[], rangeStartOffset: number, rangeEndOffset: number): { endOffsets: { endOffset: number; scopes: string[] }[]; captureTime: number } | undefined {
+	private _createTokensFromCaptures(tree: ITreeSitterParseResult | undefined, captures: QueryCapture[], rangeStartOffset: number, rangeEndOffset: number): { endOffsets: { endOffset: number; scopes: string[] }[]; captureTime: number } | undefined {
 		const stopwatch = StopWatch.create();
 		const rangeLength = rangeEndOffset - rangeStartOffset;
 
@@ -356,10 +391,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
-			const tokenEndIndex = capture.node.endIndex < rangeStartOffset + rangeLength ? capture.node.endIndex : rangeStartOffset + rangeLength;
-			const tokenStartIndex = capture.node.startIndex < rangeStartOffset ? rangeStartOffset : capture.node.startIndex;
+			const tokenEndIndex = capture.node.endIndex < rangeEndOffset ? ((capture.node.endIndex < rangeStartOffset) ? rangeStartOffset : capture.node.endIndex) : rangeEndOffset;
+			const tokenStartIndex = capture.node.startIndex < rangeStartOffset ? rangeStartOffset : ((capture.node.startIndex > tokenEndIndex) ? tokenEndIndex : capture.node.startIndex);
 
 			const lineRelativeOffset = tokenEndIndex - rangeStartOffset;
+
 			// Not every character will get captured, so we need to make sure that our current capture doesn't bleed toward the start of the line and cover characters that it doesn't apply to.
 			// We do this by creating a new token in the array if the previous token ends before the current token starts.
 			let previousTokenEnd: number;
@@ -441,7 +477,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	}
 
-	private _tokenizeCapturesWithMetadata(tree: ITreeSitterParseResult | undefined, captures: Parser.QueryCapture[], encodedLanguageId: LanguageId, rangeStartOffset: number, rangeEndOffset: number): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
+	private _tokenizeCapturesWithMetadata(tree: ITreeSitterParseResult | undefined, captures: QueryCapture[], encodedLanguageId: LanguageId, rangeStartOffset: number, rangeEndOffset: number): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
 		const stopwatch = StopWatch.create();
 		const emptyTokens = this._createTokensFromCaptures(tree, captures, rangeStartOffset, rangeEndOffset);
 		if (!emptyTokens) {

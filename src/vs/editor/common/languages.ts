@@ -86,6 +86,17 @@ export class EncodedTokenizationResult {
 	}
 }
 
+export interface SyntaxNode {
+	startIndex: number;
+	endIndex: number;
+}
+
+export interface QueryCapture {
+	name: string;
+	text?: string;
+	node: SyntaxNode;
+}
+
 /**
  * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
  * @internal
@@ -96,8 +107,8 @@ export interface ITreeSitterTokenizationSupport {
 	 */
 	getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
-	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
-	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
+	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
+	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
