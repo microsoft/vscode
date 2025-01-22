@@ -827,12 +827,12 @@ export class AttachContextAction extends Action2 {
 		}
 
 		// if the `prompt instructions` feature is enabled, add
-		// the `Prompt Instructions` attachment type to the list
+		// the `Instructions` attachment type to the list
 		if (widget.attachmentModel.promptInstructions.featureEnabled) {
 			quickPickItems.push({
 				kind: 'prompt-instructions',
 				id: 'prompt-instructions',
-				label: localize('chatContext.promptInstructions', 'Prompt Instructions'),
+				label: localize('chatContext.promptInstructions', 'Instructions'),
 				iconClass: ThemeIcon.asClassName(Codicon.lightbulbSparkle),
 			});
 		}
