@@ -43,6 +43,20 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	}
 
 	/**
+	 * Promise that resolves when parsing of all attached prompt instruction
+	 * files completes, including parsing of all its possible child references.
+	 */
+	public async allSettled(): Promise<void> {
+		const attachments = [...this.attachments.values()];
+
+		await Promise.allSettled(
+			attachments.map((attachment) => {
+				return attachment.allSettled;
+			}),
+		);
+	}
+
+	/**
 	 * Event that fires then this model is updated.
 	 *
 	 * See {@linkcode onUpdate}.

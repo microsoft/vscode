@@ -48,6 +48,14 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	}
 
 	/**
+	 * Promise that resolves when the prompt is fully parsed,
+	 * including all its possible nested child references.
+	 */
+	public get allSettled(): Promise<FilePromptParser> {
+		return this.reference.settledAll();
+	}
+
+	/**
 	 * Get the top-level error of the prompt instructions
 	 * reference, if any.
 	 */
