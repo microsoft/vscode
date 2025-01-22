@@ -1046,18 +1046,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// add prompt instruction references to the attached context, if enabled
 				if (instructionsEnabled) {
-					for (const reference of promptInstructions.references) {
-						editingSessionAttachedContext.push({
-							id: reference.toString(),
-							name: reference.fsPath,
-							value: reference,
-							isSelection: false,
-							enabled: true,
-							isFile: true,
-							isDynamic: true,
-							isMarkedReadonly: true,
-						});
-					}
+					editingSessionAttachedContext
+						.push(...promptInstructions.chatAttachments);
 				}
 
 				for (const file of uniqueWorkingSetEntries) {

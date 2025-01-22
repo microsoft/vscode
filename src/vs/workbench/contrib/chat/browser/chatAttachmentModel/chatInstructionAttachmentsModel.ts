@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
@@ -40,6 +41,26 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Get the list of all prompt instruction attachments, including all nested
+	 * child references of each attachment explicitelly attached by user.
+	 */
+	public get chatAttachments(): readonly IChatRequestVariableEntry[] {
+		return this.references
+			.map((uri) => {
+				return {
+					id: 'vscode.prompt.instructions',
+					name: uri.fsPath,
+					value: uri,
+					isSelection: false,
+					enabled: true,
+					isFile: true,
+					isDynamic: true,
+					isMarkedReadonly: true,
+				};
+			});
 	}
 
 	/**
