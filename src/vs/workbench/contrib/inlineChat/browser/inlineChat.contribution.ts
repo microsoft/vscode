@@ -13,9 +13,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { InlineChatNotebookContribution } from './inlineChatNotebook.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
-import { InlineChatSavingServiceImpl } from './inlineChatSavingServiceImpl.js';
 import { InlineChatAccessibleView } from './inlineChatAccessibleView.js';
-import { IInlineChatSavingService } from './inlineChatSavingService.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatEnabler, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -30,7 +28,6 @@ import { InlineChatExpandLineAction, InlineChatHintsController, HideInlineChatHi
 // --- browser
 
 registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
-registerSingleton(IInlineChatSavingService, InlineChatSavingServiceImpl, InstantiationType.Delayed);
 
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
