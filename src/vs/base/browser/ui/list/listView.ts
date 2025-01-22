@@ -87,6 +87,7 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly transformOptimization?: boolean;
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
+	readonly scrollToActiveElement?: boolean;
 }
 
 const DefaultOptions = {
@@ -443,9 +444,11 @@ export class ListView<T> implements IListView<T> {
 		this.disposables.add(addDisposableListener(this.scrollableElement.getDomNode(), 'scroll', e => {
 			// Make sure the active element is scrolled into view
 			const element = (e.target as HTMLElement);
-			const scrollValue = element.scrollTop;
 			element.scrollTop = 0;
-			this.setScrollTop(this.scrollTop + scrollValue);
+			if (options.scrollToActiveElement) {
+				const scrollValue = element.scrollTop;
+				this.setScrollTop(this.scrollTop + scrollValue);
+			}
 		}));
 
 		this.disposables.add(addDisposableListener(this.domNode, 'dragover', e => this.onDragOver(this.toDragEvent(e))));
@@ -465,7 +468,9 @@ export class ListView<T> implements IListView<T> {
 		this.dnd = options.dnd ?? this.disposables.add(DefaultOptions.dnd);
 
 		this.layout(options.initialSize?.height, options.initialSize?.width);
-		this._setupFocusObserver(container);
+		if (options.scrollToActiveElement) {
+			this._setupFocusObserver(container);
+		}
 	}
 
 	private _setupFocusObserver(container: HTMLElement): void {
