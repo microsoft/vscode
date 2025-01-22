@@ -1624,7 +1624,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (specialLineHeights && specialLineHeights.size > 0) {
 			const affectedLinesByLineHeightChange = Array.from(specialLineHeights);
-			console.log('affectedLinesByLineHeightChange : ', affectedLinesByLineHeightChange);
 			const lineHeightChangeEvent = affectedLinesByLineHeightChange.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.lineNumber, this._getLineHeightForLine(specialLineHeightChange.lineNumber)));
 			this._onDidChangeSpecialLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
 		}
