@@ -304,7 +304,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	public dispose(): void {
 		this.hide();
-		this.onDispose?.();
+		this._onDispose?.();
 		this._disposed = true;
 	}
 }
