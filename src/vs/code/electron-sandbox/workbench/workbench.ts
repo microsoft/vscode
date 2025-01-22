@@ -10,10 +10,10 @@
 	// Add a perf entry right from the top
 	performance.mark('code/didStartRenderer');
 
-	type INativeWindowConfiguration = import('vs/platform/window/common/window.ts').INativeWindowConfiguration;
-	type IBootstrapWindow = import('vs/platform/window/electron-sandbox/window.js').IBootstrapWindow;
-	type IMainWindowSandboxGlobals = import('vs/base/parts/sandbox/electron-sandbox/globals.js').IMainWindowSandboxGlobals;
-	type IDesktopMain = import('vs/workbench/electron-sandbox/desktop.main.js').IDesktopMain;
+	type INativeWindowConfiguration = import('../../../platform/window/common/window.ts').INativeWindowConfiguration;
+	type IBootstrapWindow = import('../../../platform/window/electron-sandbox/window.js').IBootstrapWindow;
+	type IMainWindowSandboxGlobals = import('../../../base/parts/sandbox/electron-sandbox/globals.js').IMainWindowSandboxGlobals;
+	type IDesktopMain = import('../../../workbench/electron-sandbox/desktop.main.js').IDesktopMain;
 
 	const bootstrapWindow: IBootstrapWindow = (window as any).MonacoBootstrapWindow; 	// defined by bootstrap-window.ts
 	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; 			// defined by preload.ts
