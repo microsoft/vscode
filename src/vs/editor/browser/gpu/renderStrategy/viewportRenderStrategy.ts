@@ -6,6 +6,7 @@
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { Color } from '../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
@@ -38,13 +39,10 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
-const viewportHeight = 100;
-
 /**
  * A render strategy that uploads the content of the entire viewport every frame.
  */
 export class ViewportRenderStrategy extends BaseRenderStrategy {
-	// TODO: Can this be removed?
 	/**
 	 * The hard cap for line columns that can be rendered by the GPU renderer.
 	 */
@@ -53,6 +51,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	readonly type = 'viewport';
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
+	private _cellBindBufferLineCapacity = 25;
 	private _cellBindBuffer!: GPUBuffer;
 
 	/**
@@ -75,6 +74,9 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		];
 	}
 
+	private readonly _onDidChangeBindGroupEntries = this._register(new Emitter<void>());
+	readonly onDidChangeBindGroupEntries = this._onDidChangeBindGroupEntries.event;
+
 	constructor(
 		context: ViewContext,
 		viewGpuContext: ViewGpuContext,
@@ -83,7 +85,21 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	) {
 		super(context, viewGpuContext, device, glyphRasterizer);
 
-		const bufferSize = viewportHeight * ViewportRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
+		this._rebuildCellBuffer(this._cellBindBufferLineCapacity);
+
+		const scrollOffsetBufferSize = 2;
+		this._scrollOffsetBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
+			label: 'Monaco scroll offset buffer',
+			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		})).object;
+		this._scrollOffsetValueBuffer = new Float32Array(scrollOffsetBufferSize);
+	}
+
+	private _rebuildCellBuffer(lineCount: number) {
+		this._cellBindBuffer?.destroy();
+
+		const bufferSize = lineCount * ViewportRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
@@ -93,14 +109,9 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			new ArrayBuffer(bufferSize),
 			new ArrayBuffer(bufferSize),
 		];
+		this._cellBindBufferLineCapacity = lineCount;
 
-		const scrollOffsetBufferSize = 2;
-		this._scrollOffsetBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco scroll offset buffer',
-			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		})).object;
-		this._scrollOffsetValueBuffer = new Float32Array(scrollOffsetBufferSize);
+		this._onDidChangeBindGroupEntries.fire();
 	}
 
 	// #region Event handlers
@@ -208,7 +219,10 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			this._scrollInitialized = true;
 		}
 
-		// Zero out cell buffer
+		// Zero out cell buffer or rebuild if needed
+		if (this._cellBindBufferLineCapacity < viewportData.endLineNumber - viewportData.startLineNumber + 1) {
+			this._rebuildCellBuffer(viewportData.endLineNumber - viewportData.startLineNumber + 1);
+		}
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
 		cellBuffer.fill(0);
 
@@ -382,10 +396,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		if (this._visibleObjectCount <= 0) {
 			throw new BugIndicatingError('Attempt to draw 0 objects');
 		}
-		pass.draw(
-			quadVertices.length / 2,
-			this._visibleObjectCount,
-		);
+		pass.draw(quadVertices.length / 2, this._visibleObjectCount);
 	}
 }
 
