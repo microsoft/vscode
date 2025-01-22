@@ -92,19 +92,17 @@ class GitBlameInformationCache {
 	}
 
 	get(repository: Repository, resource: Uri, commit: string): BlameInformation[] | undefined {
-		return this._cache.get(repository)?.get(this._getCacheKey(resource, commit));
+		const key = this._getCacheKey(resource, commit);
+		return this._cache.get(repository)?.get(key);
 	}
 
 	set(repository: Repository, resource: Uri, commit: string, blameInformation: BlameInformation[]): void {
-		if (!repository.HEAD?.commit) {
-			return;
-		}
-
 		if (!this._cache.has(repository)) {
 			this._cache.set(repository, new LRUCache<string, BlameInformation[]>(100));
 		}
 
-		this._cache.get(repository)!.set(this._getCacheKey(resource, commit), blameInformation);
+		const key = this._getCacheKey(resource, commit);
+		this._cache.get(repository)!.set(key, blameInformation);
 	}
 
 	private _getCacheKey(resource: Uri, commit: string): string {
