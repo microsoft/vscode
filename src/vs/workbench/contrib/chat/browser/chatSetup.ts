@@ -879,7 +879,7 @@ class ChatSetupController extends Disposable {
 		if (!session && !this.willShutdown) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
-				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", defaultChat.providerName),
+				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", ChatSetupRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName),
 				detail: localize('unknownSignInErrorDetail', "You must be signed in to use Copilot."),
 				primaryButton: localize('retry', "Retry")
 			});
@@ -1090,7 +1090,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		switch (this.controller.step) {
 			case ChatSetupStep.SigningIn:
-				buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName);
+				buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", ChatSetupRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName);
 				break;
 			case ChatSetupStep.Installing:
 				buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot Ready...");
