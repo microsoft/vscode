@@ -221,13 +221,11 @@ __vsc_update_cwd() {
 updateEnvCache() {
 	local key="$1"
 	local value="$2"
-	local updated=false
 
 	for i in "${!vsc_env_keys[@]}"; do
 		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
 			if [[ "${vsc_env_values[$i]}" != "$value" ]]; then
 				vsc_env_values[$i]="$value"
-				updated=true
 				# printf "Updated value for %s\n" "$key"
 				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 			fi
@@ -237,12 +235,15 @@ updateEnvCache() {
 
 	vsc_env_keys+=("$key")
 	vsc_env_values+=("$value")
-	updated=true
 	# printf "Added new variable %s\n" "$key"
 	builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 }
 
 __vsc_update_env() {
+
+	start_time=$(date +%s)
+	builtin printf "Start time: %s\n" "$start_time"
+
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
 	while IFS='=' read -r key value; do
@@ -250,6 +251,12 @@ __vsc_update_env() {
 	done < <(env)
 
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
+
+	end_time=$(date +%s)
+	elapsed_time=$(($end_time - $start_time))
+
+	builtin printf "Time taken: $elapsed_time seconds\n"
+
 }
 
 __vsc_command_output_start() {
