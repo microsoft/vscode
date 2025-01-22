@@ -3,21 +3,57 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const fs = require("fs");
-const path = require("path");
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const stream_1 = require("stream");
 const promises_1 = require("node:stream/promises");
-const yauzl = require("yauzl");
-const crypto = require("crypto");
+const yauzl_1 = __importDefault(require("yauzl"));
+const crypto_1 = __importDefault(require("crypto"));
 const retry_1 = require("./retry");
 const cosmos_1 = require("@azure/cosmos");
-const cp = require("child_process");
-const os = require("os");
+const child_process_1 = __importDefault(require("child_process"));
+const os_1 = __importDefault(require("os"));
 const node_worker_threads_1 = require("node:worker_threads");
 const msal_node_1 = require("@azure/msal-node");
 const storage_blob_1 = require("@azure/storage-blob");
-const jws = require("jws");
+const jws = __importStar(require("jws"));
 const node_timers_1 = require("node:timers");
 function e(name) {
     const result = process.env[name];
@@ -28,7 +64,7 @@ function e(name) {
 }
 function hashStream(hashName, stream) {
     return new Promise((c, e) => {
-        const shasum = crypto.createHash(hashName);
+        const shasum = crypto_1.default.createHash(hashName);
         stream
             .on('data', shasum.update.bind(shasum))
             .on('error', e)
@@ -50,38 +86,38 @@ function getCertificateBuffer(input) {
 }
 function getThumbprint(input, algorithm) {
     const buffer = getCertificateBuffer(input);
-    return crypto.createHash(algorithm).update(buffer).digest();
+    return crypto_1.default.createHash(algorithm).update(buffer).digest();
 }
 function getKeyFromPFX(pfx) {
-    const pfxCertificatePath = path.join(os.tmpdir(), 'cert.pfx');
-    const pemKeyPath = path.join(os.tmpdir(), 'key.pem');
+    const pfxCertificatePath = path_1.default.join(os_1.default.tmpdir(), 'cert.pfx');
+    const pemKeyPath = path_1.default.join(os_1.default.tmpdir(), 'key.pem');
     try {
         const pfxCertificate = Buffer.from(pfx, 'base64');
-        fs.writeFileSync(pfxCertificatePath, pfxCertificate);
-        cp.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nocerts -nodes -out "${pemKeyPath}" -passin pass:`);
-        const raw = fs.readFileSync(pemKeyPath, 'utf-8');
+        fs_1.default.writeFileSync(pfxCertificatePath, pfxCertificate);
+        child_process_1.default.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nocerts -nodes -out "${pemKeyPath}" -passin pass:`);
+        const raw = fs_1.default.readFileSync(pemKeyPath, 'utf-8');
         const result = raw.match(/-----BEGIN PRIVATE KEY-----[\s\S]+?-----END PRIVATE KEY-----/g)[0];
         return result;
     }
     finally {
-        fs.rmSync(pfxCertificatePath, { force: true });
-        fs.rmSync(pemKeyPath, { force: true });
+        fs_1.default.rmSync(pfxCertificatePath, { force: true });
+        fs_1.default.rmSync(pemKeyPath, { force: true });
     }
 }
 function getCertificatesFromPFX(pfx) {
-    const pfxCertificatePath = path.join(os.tmpdir(), 'cert.pfx');
-    const pemCertificatePath = path.join(os.tmpdir(), 'cert.pem');
+    const pfxCertificatePath = path_1.default.join(os_1.default.tmpdir(), 'cert.pfx');
+    const pemCertificatePath = path_1.default.join(os_1.default.tmpdir(), 'cert.pem');
     try {
         const pfxCertificate = Buffer.from(pfx, 'base64');
-        fs.writeFileSync(pfxCertificatePath, pfxCertificate);
-        cp.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nokeys -out "${pemCertificatePath}" -passin pass:`);
-        const raw = fs.readFileSync(pemCertificatePath, 'utf-8');
+        fs_1.default.writeFileSync(pfxCertificatePath, pfxCertificate);
+        child_process_1.default.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nokeys -out "${pemCertificatePath}" -passin pass:`);
+        const raw = fs_1.default.readFileSync(pemCertificatePath, 'utf-8');
         const matches = raw.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
         return matches ? matches.reverse() : [];
     }
     finally {
-        fs.rmSync(pfxCertificatePath, { force: true });
-        fs.rmSync(pemCertificatePath, { force: true });
+        fs_1.default.rmSync(pfxCertificatePath, { force: true });
+        fs_1.default.rmSync(pemCertificatePath, { force: true });
     }
 }
 class ESRPReleaseService {
@@ -122,7 +158,7 @@ class ESRPReleaseService {
         this.containerClient = containerClient;
     }
     async createRelease(version, filePath, friendlyFileName) {
-        const correlationId = crypto.randomUUID();
+        const correlationId = crypto_1.default.randomUUID();
         const blobClient = this.containerClient.getBlockBlobClient(correlationId);
         this.log(`Uploading ${filePath} to ${blobClient.url}`);
         await blobClient.uploadFile(filePath);
@@ -161,8 +197,8 @@ class ESRPReleaseService {
         }
     }
     async submitRelease(version, filePath, friendlyFileName, correlationId, blobClient) {
-        const size = fs.statSync(filePath).size;
-        const hash = await hashStream('sha256', fs.createReadStream(filePath));
+        const size = fs_1.default.statSync(filePath).size;
+        const hash = await hashStream('sha256', fs_1.default.createReadStream(filePath));
         const message = {
             customerCorrelationId: correlationId,
             esrpCorrelationId: correlationId,
@@ -192,7 +228,7 @@ class ESRPReleaseService {
                 intent: 'filedownloadlinkgeneration'
             },
             files: [{
-                    name: path.basename(filePath),
+                    name: path_1.default.basename(filePath),
                     friendlyFileName,
                     tenantFileLocation: blobClient.url,
                     tenantFileLocationType: 'AzureBlob',
@@ -268,19 +304,19 @@ class State {
     set = new Set();
     constructor() {
         const pipelineWorkspacePath = e('PIPELINE_WORKSPACE');
-        const previousState = fs.readdirSync(pipelineWorkspacePath)
+        const previousState = fs_1.default.readdirSync(pipelineWorkspacePath)
             .map(name => /^artifacts_processed_(\d+)$/.exec(name))
             .filter((match) => !!match)
             .map(match => ({ name: match[0], attempt: Number(match[1]) }))
             .sort((a, b) => b.attempt - a.attempt)[0];
         if (previousState) {
-            const previousStatePath = path.join(pipelineWorkspacePath, previousState.name, previousState.name + '.txt');
-            fs.readFileSync(previousStatePath, 'utf8').split(/\n/).filter(name => !!name).forEach(name => this.set.add(name));
+            const previousStatePath = path_1.default.join(pipelineWorkspacePath, previousState.name, previousState.name + '.txt');
+            fs_1.default.readFileSync(previousStatePath, 'utf8').split(/\n/).filter(name => !!name).forEach(name => this.set.add(name));
         }
         const stageAttempt = e('SYSTEM_STAGEATTEMPT');
-        this.statePath = path.join(pipelineWorkspacePath, `artifacts_processed_${stageAttempt}`, `artifacts_processed_${stageAttempt}.txt`);
-        fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-        fs.writeFileSync(this.statePath, [...this.set.values()].map(name => `${name}\n`).join(''));
+        this.statePath = path_1.default.join(pipelineWorkspacePath, `artifacts_processed_${stageAttempt}`, `artifacts_processed_${stageAttempt}.txt`);
+        fs_1.default.mkdirSync(path_1.default.dirname(this.statePath), { recursive: true });
+        fs_1.default.writeFileSync(this.statePath, [...this.set.values()].map(name => `${name}\n`).join(''));
     }
     get size() {
         return this.set.size;
@@ -290,7 +326,7 @@ class State {
     }
     add(name) {
         this.set.add(name);
-        fs.appendFileSync(this.statePath, `${name}\n`);
+        fs_1.default.appendFileSync(this.statePath, `${name}\n`);
     }
     [Symbol.iterator]() {
         return this.set[Symbol.iterator]();
@@ -336,7 +372,7 @@ async function downloadArtifact(artifact, downloadPath) {
         if (!res.ok) {
             throw new Error(`Unexpected status code: ${res.status}`);
         }
-        await (0, promises_1.pipeline)(stream_1.Readable.fromWeb(res.body), fs.createWriteStream(downloadPath));
+        await (0, promises_1.pipeline)(stream_1.Readable.fromWeb(res.body), fs_1.default.createWriteStream(downloadPath));
     }
     finally {
         clearTimeout(timeout);
@@ -344,7 +380,7 @@ async function downloadArtifact(artifact, downloadPath) {
 }
 async function unzip(packagePath, outputPath) {
     return new Promise((resolve, reject) => {
-        yauzl.open(packagePath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
+        yauzl_1.default.open(packagePath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
             if (err) {
                 return reject(err);
             }
@@ -358,9 +394,9 @@ async function unzip(packagePath, outputPath) {
                         if (err) {
                             return reject(err);
                         }
-                        const filePath = path.join(outputPath, entry.fileName);
-                        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-                        const ostream = fs.createWriteStream(filePath);
+                        const filePath = path_1.default.join(outputPath, entry.fileName);
+                        fs_1.default.mkdirSync(path_1.default.dirname(filePath), { recursive: true });
+                        const ostream = fs_1.default.createWriteStream(filePath);
                         ostream.on('finish', () => {
                             result.push(filePath);
                             zipfile.readEntry();
@@ -523,7 +559,7 @@ async function processArtifact(artifact, filePath) {
     const { cosmosDBAccessToken, blobServiceAccessToken } = JSON.parse(e('PUBLISH_AUTH_TOKENS'));
     const quality = e('VSCODE_QUALITY');
     const version = e('BUILD_SOURCEVERSION');
-    const friendlyFileName = `${quality}/${version}/${path.basename(filePath)}`;
+    const friendlyFileName = `${quality}/${version}/${path_1.default.basename(filePath)}`;
     const blobServiceClient = new storage_blob_1.BlobServiceClient(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, { getToken: async () => blobServiceAccessToken });
     const leasesContainerClient = blobServiceClient.getContainerClient('leases');
     await leasesContainerClient.createIfNotExists();
@@ -546,8 +582,8 @@ async function processArtifact(artifact, filePath) {
         const isLegacy = artifact.name.includes('_legacy');
         const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
         const type = getRealType(unprocessedType);
-        const size = fs.statSync(filePath).size;
-        const stream = fs.createReadStream(filePath);
+        const size = fs_1.default.statSync(filePath).size;
+        const stream = fs_1.default.createReadStream(filePath);
         const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
         const asset = { platform, type, url, hash: hash.toString('hex'), sha256hash: sha256hash.toString('hex'), size, supportsFastUpdate: true };
         log('Creating asset...');
@@ -627,12 +663,12 @@ async function main() {
                 continue;
             }
             console.log(`[${artifact.name}] Found new artifact`);
-            const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
+            const artifactZipPath = path_1.default.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
             await (0, retry_1.retry)(async (attempt) => {
                 const start = Date.now();
                 console.log(`[${artifact.name}] Downloading (attempt ${attempt})...`);
                 await downloadArtifact(artifact, artifactZipPath);
-                const archiveSize = fs.statSync(artifactZipPath).size;
+                const archiveSize = fs_1.default.statSync(artifactZipPath).size;
                 const downloadDurationS = (Date.now() - start) / 1000;
                 const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
                 console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);

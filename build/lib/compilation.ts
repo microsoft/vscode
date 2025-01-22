@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as fs from 'fs';
-import * as gulp from 'gulp';
-import * as path from 'path';
+import es from 'event-stream';
+import fs from 'fs';
+import gulp from 'gulp';
+import path from 'path';
 import * as monacodts from './monaco-api';
 import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as os from 'os';
-import * as File from 'vinyl';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import os from 'os';
+import File from 'vinyl';
 import * as task from './task';
 import { Mangler } from './mangle/index';
 import { RawSourceMap } from 'source-map';
