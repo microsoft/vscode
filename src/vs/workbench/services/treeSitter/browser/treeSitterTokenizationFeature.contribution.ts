@@ -7,7 +7,7 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { TreeSitterTextModelService } from '../../../../editor/common/services/treeSitter/treeSitterParserService.js';
 import { ITreeSitterParserService } from '../../../../editor/common/services/treeSitterParserService.js';
-import { ITreeSitterTokenizationFeature } from '../common/treeSitterTokenizationFeature.js';
+import { ITreeSitterTokenizationFeature } from './treeSitterTokenizationFeature.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { URI } from '../../../../base/common/uri.js';
