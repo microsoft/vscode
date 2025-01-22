@@ -2,6 +2,7 @@
 
 set -e
 
+# Comment out if pearai submodule does not need to be recompiled. Speeds things up.
 cd extensions/pearai-submodule
 ./scripts/install-and-build.sh
 cd ../..
