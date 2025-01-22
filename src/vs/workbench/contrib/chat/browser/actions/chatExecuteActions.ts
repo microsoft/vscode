@@ -47,8 +47,8 @@ export class ChatSubmitAction extends SubmitAction {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
+			// if the input has prompt instructions file attached, allow submitting requests
+			// even without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			ChatContextKeys.requestInProgress.negate(),
 			ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
@@ -90,7 +90,7 @@ export class ToggleAgentModeAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleAgentModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode"),
+			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode (Experimental)"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
@@ -100,7 +100,7 @@ export class ToggleAgentModeAction extends Action2 {
 			toggled: {
 				condition: ChatContextKeys.Editing.agentMode,
 				icon: Codicon.tools,
-				tooltip: localize('agentEnabled', "Agent Mode Enabled"),
+				tooltip: localize('agentEnabled', "Agent Mode Enabled (Experimental)"),
 			},
 			tooltip: localize('agentDisabled', "Agent Mode Disabled"),
 			keybinding: {
@@ -133,13 +133,21 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			// if the input has prompt instructions file attached, allow submitting requests
+			// even without text present - having instructions is enough context for a request
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+			applyingChatEditsContextKey.toNegated(),
+		);
+
 		super({
 			id: ChatEditingSessionSubmitAction.ID,
 			title: localize2('edits.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()),
+			precondition,
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
@@ -167,18 +175,23 @@ class SubmitWithoutDispatchingAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.submitWithoutDispatching';
 
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			// if the input has prompt instructions file attached, allow submitting requests
+			// even without text present - having instructions is enough context for a request
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ChatContextKeys.requestInProgress.negate(),
+			ContextKeyExpr.and(ContextKeyExpr.or(
+				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
+			)),
+		);
+
 		super({
 			id: SubmitWithoutDispatchingAction.ID,
 			title: localize2('interactive.submitWithoutDispatch.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.inputHasText,
-				ChatContextKeys.requestInProgress.negate(),
-				ContextKeyExpr.and(ContextKeyExpr.or(
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
-				))),
+			precondition,
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
@@ -270,6 +283,8 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 
 class SendToChatEditingAction extends Action2 {
 	constructor() {
+		// TODO: @legomushroom - support this too?
+
 		super({
 			id: 'workbench.action.chat.sendToChatEditing',
 			title: localize2('chat.sendToChatEditing.label', "Send to Copilot Edits"),

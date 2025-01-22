@@ -1033,6 +1033,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 
+				const { promptInstructions } = this.inputPart.attachmentModel;
+				await promptInstructions.allSettled();
+
+				const { references } = promptInstructions;
+				for (const reference of references) {
+					editingSessionAttachedContext.push({
+						kind: 'link',
+						id: reference.toString(),
+						name: reference.fsPath,
+						value: reference,
+						isFile: true,
+						isDynamic: true,
+						isMarkedReadonly: true,
+					});
+				}
+
+
 				for (const file of uniqueWorkingSetEntries) {
 					// Make sure that any files that we sent are part of the working set
 					// but do not permanently add file variables from previous requests to the working set

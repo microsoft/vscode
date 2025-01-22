@@ -114,7 +114,7 @@ export interface IPromptReference extends IDisposable {
 	 * The same as {@linkcode settled} but for all prompts in
 	 * the reference tree.
 	 */
-	settledAll(): Promise<this>;
+	allSettled(): Promise<this>;
 }
 
 /**

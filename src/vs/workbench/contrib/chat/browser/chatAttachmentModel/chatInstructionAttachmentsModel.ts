@@ -34,6 +34,20 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 		this._register(new DisposableMap());
 
 	/**
+	 * Promise that resolves when parsing of all attached prompt instruction
+	 * files completes, including parsing of all its possible child references.
+	 */
+	public async allSettled(): Promise<void> {
+		const attachments = [...this.attachments.values()];
+
+		await Promise.allSettled(
+			attachments.map((attachment) => {
+				return attachment.allSettled;
+			}),
+		);
+	}
+
+	/**
 	 * Get all `URI`s of all valid references, including all
 	 * the possible references nested inside the children.
 	 */

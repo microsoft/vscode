@@ -26,6 +26,14 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	}
 
 	/**
+	 * Promise that resolves when the prompt is fully parsed,
+	 * including all its possible nested child references.
+	 */
+	public get allSettled(): Promise<FilePromptParser> {
+		return this.reference.allSettled();
+	}
+
+	/**
 	 * Get `URI` for the main reference and `URI`s of all valid
 	 * child references it may contain.
 	 */
