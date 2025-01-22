@@ -146,13 +146,11 @@ function __vsc_update_cwd --on-event fish_prompt
 	end
 end
 
-function __vsc_update_env
+function __vsc_update_env --on-event fish_prompt
 	__vsc_esc EnvSingleStart
 	for line in (env)
 		set myVar (echo $line | awk -F= '{print $1}')
 		set myVal (echo $line | awk -F= '{print $2}')
-		# 	set escapedVal (__vsc_escape_value "$myVal")
-		# 	builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$myVar" "$escapedVal" $__vsc_nonce
 		__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
 	end
 	__vsc_esc EnvSingleEnd

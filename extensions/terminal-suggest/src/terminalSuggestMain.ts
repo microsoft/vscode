@@ -128,7 +128,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env?.value as { [key: string]: string | undefined });
 			const builtinCommands = await getBuiltinCommands(shellPath, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
-
 				return;
 			}
 			const commands = [...commandsInPath.completionResources, ...builtinCommands];
