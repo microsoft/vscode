@@ -358,7 +358,7 @@ function removeAllDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[
 }
 
 export function removeAllTSBoilerplate(source: string) {
-	const seen = new Array<boolean>(BOILERPLATE.length).fill(true, 0, 10);
+	const seen = new Array<boolean>(BOILERPLATE.length).fill(true, 0, BOILERPLATE.length);
 	return removeDuplicateTSBoilerplate(source, seen);
 }
 
@@ -374,6 +374,8 @@ const BOILERPLATE = [
 	{ start: /^var __createBinding/, end: /^}\)\);$/ },
 	{ start: /^var __setModuleDefault/, end: /^}\);$/ },
 	{ start: /^var __importStar/, end: /^};$/ },
+	{ start: /^var __addDisposableResource/, end: /^};$/ },
+	{ start: /^var __disposeResources/, end: /^}\);$/ },
 ];
 
 function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {
