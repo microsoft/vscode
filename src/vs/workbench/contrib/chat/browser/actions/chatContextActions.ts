@@ -329,7 +329,8 @@ class AttachSelectionToChatAction extends Action2 {
 				const selection = activeEditor?.getSelection();
 				if (selection) {
 					(await showChatView(accessor.get(IViewsService)))?.focusInput();
-					variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.Panel);
+					const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
+					variablesService.attachContext('file', { uri: activeUri, range }, ChatAgentLocation.Panel);
 				}
 			}
 		}
@@ -401,7 +402,8 @@ class AttachSelectionToEditingSessionAction extends Action2 {
 			const selection = activeEditor?.getSelection();
 			if (selection) {
 				(await showEditsView(accessor.get(IViewsService)))?.focusInput();
-				variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.EditingSession);
+				const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
+				variablesService.attachContext('file', { uri: activeUri, range }, ChatAgentLocation.EditingSession);
 			}
 		}
 	}
