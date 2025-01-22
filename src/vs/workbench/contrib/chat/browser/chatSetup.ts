@@ -64,6 +64,7 @@ import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extension
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -749,6 +750,8 @@ class ChatSetupController extends Disposable {
 	private _step = ChatSetupStep.Initial;
 	get step(): ChatSetupStep { return this._step; }
 
+	private willShutdown = false;
+
 	constructor(
 		private readonly context: ChatSetupContext,
 		private readonly requests: ChatSetupRequests,
@@ -765,7 +768,8 @@ class ChatSetupController extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -774,6 +778,7 @@ class ChatSetupController extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.context.onDidChange(() => this._onDidChange.fire()));
+		this._register(this.lifecycleService.onWillShutdown(() => this.willShutdown = true));
 	}
 
 	private setStep(step: ChatSetupStep): void {
@@ -866,7 +871,7 @@ class ChatSetupController extends Disposable {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
 		}
 
-		if (!session) {
+		if (!session && !this.willShutdown) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
 				message: localize('unknownSignInError', "Unable to sign in to {0}. Would you like to try again?", defaultChat.providerName),
@@ -944,15 +949,17 @@ class ChatSetupController extends Disposable {
 		}
 
 		if (error) {
-			const { confirmed } = await this.dialogService.confirm({
-				type: Severity.Error,
-				message: localize('unknownSetupError', "An error occurred while setting up Copilot. Would you like to try again?"),
-				detail: error && !isCancellationError(error) ? toErrorMessage(error) : undefined,
-				primaryButton: localize('retry', "Retry")
-			});
+			if (!this.willShutdown) {
+				const { confirmed } = await this.dialogService.confirm({
+					type: Severity.Error,
+					message: localize('unknownSetupError', "An error occurred while setting up Copilot. Would you like to try again?"),
+					detail: error && !isCancellationError(error) ? toErrorMessage(error) : undefined,
+					primaryButton: localize('retry', "Retry")
+				});
 
-			if (confirmed) {
-				return this.doInstall();
+				if (confirmed) {
+					return this.doInstall();
+				}
 			}
 
 			throw error;
