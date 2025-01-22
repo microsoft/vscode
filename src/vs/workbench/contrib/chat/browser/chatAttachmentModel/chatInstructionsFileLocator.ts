@@ -8,6 +8,7 @@ import { dirname, extUri } from '../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { PROMP_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
 
 /**
  * Configuration setting name for the prompt instructions source folder paths.
@@ -18,11 +19,6 @@ const PROMPT_FILES_LOCATION_SETTING_NAME = 'chat.experimental.prompt-files.locat
  * Default prompt instructions source folder paths.
  */
 const PROMPT_FILES_DEFAULT_LOCATION = ['.copilot/prompts'];
-
-/**
- * Extension of the prompt instructions files.
- */
-const INSTRUCTIONS_FILE_EXTENSION = '.md';
 
 /**
  * Class to locate prompt instructions files.
@@ -164,7 +160,7 @@ export class ChatInstructionsFileLocator {
 					continue;
 				}
 
-				if (!name.endsWith(INSTRUCTIONS_FILE_EXTENSION)) {
+				if (!name.endsWith(PROMP_SNIPPET_FILE_EXTENSION)) {
 					continue;
 				}
 
