@@ -74,9 +74,9 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 					VSBuffer.fromString(this.model.getLineContent(i)),
 				);
 
-				if (i >= 1) {
-					// TODO: @legomushroom - get the real EOL of the line?
-					// TODO: @legomushroom - skip this for the last line, if the real EOL is not present
+				// for all lines exept the last one, write the EOL character
+				// to separate the lines in the stream
+				if (i !== linesCount) {
 					stream.write(
 						VSBuffer.fromString(this.model.getEOL()),
 					);

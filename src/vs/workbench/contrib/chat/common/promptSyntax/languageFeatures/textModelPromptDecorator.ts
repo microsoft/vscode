@@ -130,8 +130,10 @@ export class TextModelPromptDecorator extends TrackedDisposable {
 		const { references } = this.parser;
 
 		for (const reference of references) {
+			const { range } = reference;
+
 			result.push({
-				range: reference.range,
+				range,
 				options: this.getDecorationFor(reference),
 			});
 		}

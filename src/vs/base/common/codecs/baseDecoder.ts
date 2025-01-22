@@ -78,8 +78,6 @@ export abstract class BaseDecoder<
 	 *
 	 * @throws If the stream was not yet started to prevent this
 	 * 		   promise to block the consumer calls indefinitely.
-	 *
-	 * TODO: @legomushroom - unit test this
 	 */
 	public get settled(): Promise<void> {
 		// if the stream has not started yet, the promise might
@@ -103,13 +101,10 @@ export abstract class BaseDecoder<
 	 * @throws if the decoder stream has already ended.
 	 */
 	public start(): this {
-		// TODO: @legomushroom - unit test this
 		assert(
 			!this._ended,
 			'Cannot start stream that has already ended.',
 		);
-
-		// TODO: @legomushroom - unit test this
 		assert(
 			!this.disposed,
 			'Cannot start stream that has already disposed.',

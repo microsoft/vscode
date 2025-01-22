@@ -1624,6 +1624,12 @@ export class DeferredPromise<T> {
 	private errorCallback!: (err: unknown) => void;
 	private outcome?: { outcome: DeferredOutcome.Rejected; value: any } | { outcome: DeferredOutcome.Resolved; value: T };
 
+	/**
+	 * Private attribute to track if the promise has been
+	 * already completed.
+	 */
+	private _completed: boolean = false;
+
 	public get isRejected() {
 		return this.outcome?.outcome === DeferredOutcome.Rejected;
 	}
@@ -1634,6 +1640,20 @@ export class DeferredPromise<T> {
 
 	public get isSettled() {
 		return !!this.outcome;
+	}
+
+	/**
+	 * Flag that indicates if the promise has been completed.
+	 *
+	 * Note! This flag does not guarantee that the {@linkcode value} field or
+	 * any of the state flags (e.g., {@linkcode isRejected}, {@linkcode isResolved},
+	 * {@linkcode isSettled}) are set correctly, but rather merely indicates that
+	 * the {@linkcode complete} method has been already called. Please ensure to
+	 * `await` on the {@linkcode complete} call before accessing those fields if
+	 * you need to retrieve their accurate values.
+	 */
+	public get isCompleted(): boolean {
+		return this._completed;
 	}
 
 	public get value() {
@@ -1650,6 +1670,12 @@ export class DeferredPromise<T> {
 	}
 
 	public complete(value: T) {
+		// if already completed, nothing to do
+		if (this._completed) {
+			return;
+		}
+		this._completed = true;
+
 		return new Promise<void>(resolve => {
 			this.completeCallback(value);
 			this.outcome = { outcome: DeferredOutcome.Resolved, value };
