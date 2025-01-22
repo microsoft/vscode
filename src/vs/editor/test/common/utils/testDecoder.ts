@@ -7,22 +7,11 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { randomInt } from '../../../../base/common/numbers.js';
 import { BaseToken } from '../../../common/codecs/baseToken.js';
+import { assertDefined } from '../../../../base/common/types.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { WriteableStream } from '../../../../base/common/stream.js';
+import { randomBoolean } from '../../../../base/test/common/testUtils.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-
-/**
- * (pseudo)Random boolean generator.
- *
- * ## Examples
- *
- * ```typsecript
- * randomBoolean(); // generates either `true` or `false`
- * ```
- */
-const randomBoolean = (): boolean => {
-	return Math.random() > 0.5;
-};
 
 /**
  * A reusable test utility that asserts that the given decoder
@@ -61,9 +50,15 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 	 * that the decoder produces the `expectedTokens` sequence of tokens.
 	 */
 	public async run(
-		inputData: string,
+		inputData: string | string[],
 		expectedTokens: readonly T[],
 	): Promise<void> {
+		// if input data was passed as an array of lines,
+		// join them into a single string with newlines
+		if (Array.isArray(inputData)) {
+			inputData = inputData.join('\n');
+		}
+
 		// write the data to the stream after a short delay to ensure
 		// that the the data is sent after the reading loop below
 		setTimeout(() => {
@@ -99,6 +94,11 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 		for (let i = 0; i < expectedTokens.length; i++) {
 			const expectedToken = expectedTokens[i];
 			const receivedtoken = receivedTokens[i];
+
+			assertDefined(
+				receivedtoken,
+				`Expected token '${i}' to be '${expectedToken}', got 'undefined'.`,
+			);
 
 			assert(
 				receivedtoken.equals(expectedToken),

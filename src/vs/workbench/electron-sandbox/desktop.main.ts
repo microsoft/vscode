@@ -85,7 +85,12 @@ export class DesktopMain extends Disposable {
 		// Apply custom title override to defaults if any
 		if (isLinux && product.quality === 'stable' && this.configuration.overrideDefaultTitlebarStyle === 'custom') {
 			const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-			configurationRegistry.registerDefaultConfigurations([{ overrides: { 'window.titleBarStyle': 'custom' } }]);
+			configurationRegistry.registerDefaultConfigurations([{
+				overrides: {
+					'window.titleBarStyle': 'custom',
+					'window.customTitleBarVisibility': 'auto'
+				}
+			}]);
 		}
 	}
 

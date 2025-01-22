@@ -5511,7 +5511,7 @@ declare module 'vscode' {
 	 */
 	export enum InlayHintKind {
 		/**
-		 * An inlay hint that for a type annotation.
+		 * An inlay hint that is for a type annotation.
 		 */
 		Type = 1,
 		/**
@@ -6091,7 +6091,7 @@ declare module 'vscode' {
 	/**
 	 * Identifies a {@linkcode DocumentDropEdit} or {@linkcode DocumentPasteEdit}
 	 */
-	class DocumentDropOrPasteEditKind {
+	export class DocumentDropOrPasteEditKind {
 		static readonly Empty: DocumentDropOrPasteEditKind;
 
 		/**
@@ -6287,7 +6287,7 @@ declare module 'vscode' {
 	/**
 	 * Provider invoked when the user copies or pastes in a {@linkcode TextDocument}.
 	 */
-	interface DocumentPasteEditProvider<T extends DocumentPasteEdit = DocumentPasteEdit> {
+	export interface DocumentPasteEditProvider<T extends DocumentPasteEdit = DocumentPasteEdit> {
 
 		/**
 		 * Optional method invoked after the user copies from a {@link TextEditor text editor}.
@@ -6344,7 +6344,7 @@ declare module 'vscode' {
 	/**
 	 * An edit the applies a paste operation.
 	 */
-	class DocumentPasteEdit {
+	export class DocumentPasteEdit {
 
 		/**
 		 * Human readable label that describes the edit.
@@ -6388,7 +6388,7 @@ declare module 'vscode' {
 	/**
 	 * Provides additional metadata about how a {@linkcode DocumentPasteEditProvider} works.
 	 */
-	interface DocumentPasteProviderMetadata {
+	export interface DocumentPasteProviderMetadata {
 		/**
 		 * List of {@link DocumentDropOrPasteEditKind kinds} that the provider may return in {@linkcode DocumentPasteEditProvider.provideDocumentPasteEdits provideDocumentPasteEdits}.
 		 *
@@ -7939,7 +7939,7 @@ declare module 'vscode' {
 	/**
 	 * The confidence of a {@link TerminalShellExecutionCommandLine} value.
 	 */
-	enum TerminalShellExecutionCommandLineConfidence {
+	export enum TerminalShellExecutionCommandLineConfidence {
 		/**
 		 * The command line value confidence is low. This means that the value was read from the
 		 * terminal buffer using markers reported by the shell integration script. Additionally one
@@ -9182,7 +9182,7 @@ declare module 'vscode' {
 	 *
 	 * This interface is not intended to be implemented.
 	 */
-	interface TaskStartEvent {
+	export interface TaskStartEvent {
 		/**
 		 * The task item representing the task that got started.
 		 */
@@ -9194,7 +9194,7 @@ declare module 'vscode' {
 	 *
 	 * This interface is not intended to be implemented.
 	 */
-	interface TaskEndEvent {
+	export interface TaskEndEvent {
 		/**
 		 * The task item representing the task that finished.
 		 */
@@ -9986,7 +9986,7 @@ declare module 'vscode' {
 	/**
 	 * A panel that contains a webview.
 	 */
-	interface WebviewPanel {
+	export interface WebviewPanel {
 		/**
 		 * Identifies the type of the webview panel, such as `'markdown.preview'`.
 		 */
@@ -10116,7 +10116,7 @@ declare module 'vscode' {
 	 *
 	 * @param T Type of the webview's state.
 	 */
-	interface WebviewPanelSerializer<T = unknown> {
+	export interface WebviewPanelSerializer<T = unknown> {
 		/**
 		 * Restore a webview panel from its serialized `state`.
 		 *
@@ -10207,7 +10207,7 @@ declare module 'vscode' {
 	 *
 	 * @param T Type of the webview's state.
 	 */
-	interface WebviewViewResolveContext<T = unknown> {
+	export interface WebviewViewResolveContext<T = unknown> {
 		/**
 		 * Persisted state from the webview content.
 		 *
@@ -10297,7 +10297,7 @@ declare module 'vscode' {
 	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a `CustomDocument` is
 	 * managed by the editor. When no more references remain to a `CustomDocument`, it is disposed of.
 	 */
-	interface CustomDocument {
+	export interface CustomDocument {
 		/**
 		 * The associated uri for this document.
 		 */
@@ -10317,7 +10317,7 @@ declare module 'vscode' {
 	 *
 	 * @see {@linkcode CustomEditorProvider.onDidChangeCustomDocument}.
 	 */
-	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
+	export interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
 
 		/**
 		 * The document that the edit is for.
@@ -10356,7 +10356,7 @@ declare module 'vscode' {
 	 *
 	 * @see {@linkcode CustomEditorProvider.onDidChangeCustomDocument}.
 	 */
-	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
+	export interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
 		/**
 		 * The document that the change is for.
 		 */
@@ -10366,7 +10366,7 @@ declare module 'vscode' {
 	/**
 	 * A backup for an {@linkcode CustomDocument}.
 	 */
-	interface CustomDocumentBackup {
+	export interface CustomDocumentBackup {
 		/**
 		 * Unique identifier for the backup.
 		 *
@@ -10386,7 +10386,7 @@ declare module 'vscode' {
 	/**
 	 * Additional information used to implement {@linkcode CustomDocumentBackup}.
 	 */
-	interface CustomDocumentBackupContext {
+	export interface CustomDocumentBackupContext {
 		/**
 		 * Suggested file location to write the new backup.
 		 *
@@ -10402,7 +10402,7 @@ declare module 'vscode' {
 	/**
 	 * Additional information about the opening custom document.
 	 */
-	interface CustomDocumentOpenContext {
+	export interface CustomDocumentOpenContext {
 		/**
 		 * The id of the backup to restore the document from or `undefined` if there is no backup.
 		 *
@@ -12477,7 +12477,7 @@ declare module 'vscode' {
 	/**
 	 * Defines the interface of a terminal pty, enabling extensions to control a terminal.
 	 */
-	interface Pseudoterminal {
+	export interface Pseudoterminal {
 		/**
 		 * An event that when fired will write data to the terminal. Unlike
 		 * {@link Terminal.sendText} which sends text to the underlying child

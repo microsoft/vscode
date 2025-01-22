@@ -4198,10 +4198,7 @@ export interface IInlineSuggestOptions {
 			enabled?: boolean;
 			useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
-			useWordInsertionView?: 'never' | 'whenPossible';
-			useWordReplacementView?: 'never' | 'whenPossible';
 
-			onlyShowWhenCloseToCursor?: boolean;
 			useGutterIndicator?: boolean;
 		};
 	};
@@ -4234,9 +4231,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enabled: true,
 					useMixedLinesDiff: 'forStableInsertions',
 					useInterleavedLinesDiff: 'never',
-					useWordInsertionView: 'whenPossible',
-					useWordReplacementView: 'whenPossible',
-					onlyShowWhenCloseToCursor: true,
 					useGutterIndicator: true,
 				},
 			},
@@ -4293,23 +4287,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.experimental.useInterleavedLinesDiff', "Controls whether to enable experimental interleaved lines diff in inline suggestions."),
 					enum: ['never', 'always', 'afterJump'],
 				},
-				'editor.inlineSuggest.edits.experimental.useWordInsertionView': {
-					type: 'string',
-					default: defaults.edits.experimental.useWordInsertionView,
-					description: nls.localize('inlineSuggest.edits.experimental.useWordInsertionView', "Controls whether to enable experimental word insertion view in inline suggestions."),
-					enum: ['never', 'whenPossible'],
-				},
-				'editor.inlineSuggest.edits.experimental.useWordReplacementView': {
-					type: 'string',
-					default: defaults.edits.experimental.useWordReplacementView,
-					description: nls.localize('inlineSuggest.edits.experimental.useWordReplacementView', "Controls whether to enable experimental word replacement view in inline suggestions."),
-					enum: ['never', 'whenPossible'],
-				},
-				'editor.inlineSuggest.edits.experimental.onlyShowWhenCloseToCursor': {
-					type: 'boolean',
-					default: defaults.edits.experimental.onlyShowWhenCloseToCursor,
-					description: nls.localize('inlineSuggest.edits.experimental.onlyShowWhenCloseToCursor', "Controls whether to only show inline suggestions when the cursor is close to the suggestion.")
-				},
 				'editor.inlineSuggest.edits.experimental.useGutterIndicator': {
 					type: 'boolean',
 					default: defaults.edits.experimental.useGutterIndicator,
@@ -4337,9 +4314,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
 					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
 					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
-					useWordInsertionView: stringSet(input.edits?.experimental?.useWordInsertionView, this.defaultValue.edits.experimental.useWordInsertionView, ['never', 'whenPossible']),
-					useWordReplacementView: stringSet(input.edits?.experimental?.useWordReplacementView, this.defaultValue.edits.experimental.useWordReplacementView, ['never', 'whenPossible']),
-					onlyShowWhenCloseToCursor: boolean(input.edits?.experimental?.onlyShowWhenCloseToCursor, this.defaultValue.edits.experimental.onlyShowWhenCloseToCursor),
 					useGutterIndicator: boolean(input.edits?.experimental?.useGutterIndicator, this.defaultValue.edits.experimental.useGutterIndicator),
 				},
 			},
@@ -5835,12 +5809,12 @@ export const EditorOptions = {
 		'off' as 'off' | 'on',
 		['off', 'on'] as const,
 		{
-			included: false, // Hide the setting from users while it's unstable
+			tags: ['experimental'],
 			enumDescriptions: [
 				nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
 				nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
 			],
-			description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the (very) experimental GPU acceleration to render the editor.")
+			description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the experimental GPU acceleration to render the editor.")
 		}
 	)),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(

@@ -46,13 +46,21 @@ export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
 
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			// if the input has prompt instructions attached, allow submitting requests even
+			// without text present - having instructions is enough context for a request
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ChatContextKeys.requestInProgress.negate(),
+			ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+		);
+
 		super({
 			id: ChatSubmitAction.ID,
 			title: localize2('interactive.submit.label', "Send and Dispatch"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
+			precondition,
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
@@ -82,7 +90,7 @@ export class ToggleAgentModeAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleAgentModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode"),
+			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode (Experimental)"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
@@ -92,7 +100,7 @@ export class ToggleAgentModeAction extends Action2 {
 			toggled: {
 				condition: ChatContextKeys.Editing.agentMode,
 				icon: Codicon.tools,
-				tooltip: localize('agentEnabled', "Agent Mode Enabled"),
+				tooltip: localize('agentEnabled', "Agent Mode Enabled (Experimental)"),
 			},
 			tooltip: localize('agentDisabled', "Agent Mode Disabled"),
 			keybinding: {

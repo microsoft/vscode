@@ -1098,7 +1098,7 @@ function parseGitBlame(data: string): BlameInformation[] {
 			authorName = line.substring('author '.length);
 		}
 		if (commitHash && line.startsWith('author-mail ')) {
-			authorEmail = line.substring('author-mail '.length);
+			authorEmail = line.substring('author-mail <'.length, line.length - 1);
 		}
 		if (commitHash && line.startsWith('author-time ')) {
 			authorTime = Number(line.substring('author-time '.length)) * 1000;
@@ -1592,8 +1592,14 @@ export class Repository {
 		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
 
-	async diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
-		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR', treeish1];
+	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<Change[]> {
+		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR'];
+
+		if (options?.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		args.push(treeish1);
 
 		if (treeish2) {
 			args.push(treeish2);
@@ -2846,6 +2852,15 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
+	}
+
+	async revList(ref1: string, ref2: string): Promise<string[]> {
+		const result = await this.exec(['rev-list', `${ref1}..${ref2}`]);
+		if (result.stderr) {
+			return [];
+		}
+
+		return result.stdout.trim().split('\n');
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {

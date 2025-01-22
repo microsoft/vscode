@@ -246,9 +246,6 @@ import './contrib/mergeEditor/browser/mergeEditor.contribution.js';
 // Multi Diff Editor
 import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
 
-// Mapped Edits
-import './contrib/mappedEdits/common/mappedEdits.contribution.js';
-
 // Commands
 import './contrib/commands/common/commands.contribution.js';
 
