@@ -104,6 +104,8 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 				}
 			}
 
+			console.log('classRanges : ', classRanges);
+
 			activeTextEditor.setDecorations(this._classLineHeightDecorationType, classRanges);
 			activeTextEditor.setDecorations(this._interfaceLineHeightDecorationType, interfaceRanges);
 			activeTextEditor.setDecorations(this._methodLineHeightDecorationType, functionRanges);

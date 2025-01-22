@@ -71,6 +71,7 @@ export class ViewLine implements IVisibleLine {
 	public setDomNode(domNode: HTMLElement): void {
 		if (this._renderedViewLine) {
 			this._renderedViewLine.domNode = createFastDomNode(domNode);
+			this._ensureMaxFontSize(this._renderedViewLine.input.lineHeight);
 		} else {
 			throw new Error('I have no rendered view line to set the dom node to...');
 		}
@@ -171,18 +172,19 @@ export class ViewLine implements IVisibleLine {
 			lineHeight
 		);
 
-		console.log('lineData : ', lineData);
-		console.log('lineData.content : ', lineData.content);
-		console.log('lineData.continuesWithWrappedLine : ', lineData.continuesWithWrappedLine);
-		console.log('lineHeight : ', lineHeight);
-		console.log('deltaTop : ', deltaTop);
+		// console.log('lineData : ', lineData);
+		// console.log('lineData.content : ', lineData.content);
+		// console.log('lineData.continuesWithWrappedLine : ', lineData.continuesWithWrappedLine);
+		// console.log('lineHeight : ', lineHeight);
+		// console.log('deltaTop : ', deltaTop);
 
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
 			// no need to do anything, we have the same render input
-			console.log('renderLineInput : ', renderLineInput);
-			console.log('this._renderedViewLine.input : ', this._renderedViewLine.input);
-			console.log('this._renderedViewLine.domNode : ', this._renderedViewLine.domNode?.domNode);
+			// console.log('renderLineInput : ', renderLineInput);
+			// console.log('this._renderedViewLine.input : ', this._renderedViewLine.input);
+			// console.log('this._renderedViewLine.domNode.domNode : ', this._renderedViewLine.domNode?.domNode);
+			// console.log('renderedViewLine.domNode.domNode.style : ', this._renderedViewLine.domNode?.domNode.style);
 			console.log('early return');
 			return false;
 		}
@@ -222,7 +224,7 @@ export class ViewLine implements IVisibleLine {
 		}
 
 		this._renderedViewLine = renderedViewLine;
-		console.log('renderedViewLine.domNode : ', renderedViewLine.domNode);
+		this._ensureMaxFontSize(lineHeight);
 		return true;
 	}
 
@@ -233,7 +235,15 @@ export class ViewLine implements IVisibleLine {
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);
+			this._ensureMaxFontSize(lineHeight);
 		}
+	}
+
+	private _ensureMaxFontSize(height: number): void {
+		if (!this._renderedViewLine || !this._renderedViewLine.domNode) {
+			return;
+		}
+		this._renderedViewLine.domNode.domNode.style.setProperty('--vscode-max-font-size', `${height}px`);
 	}
 
 	// --- end IVisibleLineData

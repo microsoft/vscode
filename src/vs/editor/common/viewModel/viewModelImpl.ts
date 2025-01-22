@@ -251,6 +251,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._cursor.onLineMappingChanged(eventsCollector);
 			this._decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
+
 			this._updateConfigurationViewLineCount.schedule();
 		}
 
@@ -415,20 +416,17 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._register(this.model.onDidChangeSpecialLineHeight((e) => {
-			console.log('onDidChangeSpecialLineHeight');
 			e.changes.forEach((change) => {
 				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
 					return;
 				}
 				const modelLineNumber = change.lineNumber;
 				const lineHeight = change.lineHeight;
-				const lineContent = this.model.getLineContent(modelLineNumber);
-				console.log('lineContentBefore : ', this.model.getLineContent(modelLineNumber - 1));
-				console.log('lineContent : ', lineContent);
-				console.log('lineContentAfter : ', this.model.getLineContent(modelLineNumber + 1));
 				if (lineHeight !== null) {
+					console.log('addSpecialLineHeight', modelLineNumber, lineHeight);
 					this.viewLayout.addSpecialLineHeight(modelLineNumber, lineHeight);
 				} else {
+					console.log('removeSpecialLineHeight', modelLineNumber);
 					this.viewLayout.removeSpecialLineHeight(modelLineNumber);
 				}
 			});

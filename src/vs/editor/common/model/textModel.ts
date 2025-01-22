@@ -1451,6 +1451,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean): void | model.IValidEditOperation[] {
+		console.log('_doApplyEdits');
+		console.log('rawOperations : ', rawOperations);
 
 		const oldLineCount = this._buffer.getLineCount();
 		const linesWithSpecialHeightsAffectedByEdits: { startLine: number; endLine: number }[] = [];
@@ -1593,11 +1595,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			);
 
 			const specialLineHeightChanges: ModelLineHeightChanged[] = [];
+			console.log('linesWithSpecialHeightsAffectedByEdits : ', linesWithSpecialHeightsAffectedByEdits);
 			linesWithSpecialHeightsAffectedByEdits.forEach(range => {
 				for (let lineNumber = range.startLine; lineNumber <= range.endLine; lineNumber++) {
 					specialLineHeightChanges.push(new ModelLineHeightChanged(0, lineNumber, this._getLineHeightForLine(lineNumber)));
 				}
 			});
+			console.log('linesWithSpecialHeightsAfterEdits : ', linesWithSpecialHeightsAfterEdits);
 			linesWithSpecialHeightsAfterEdits.forEach(range => {
 				for (let lineNumber = range.startLine; lineNumber <= range.endLine; lineNumber++) {
 					specialLineHeightChanges.push(new ModelLineHeightChanged(0, lineNumber, this._getLineHeightForLine(lineNumber)));
@@ -1825,9 +1829,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _getLineHeightForLine(lineNumber: number): number | null {
+		console.log('_getLineHeightForLine lineNumber : ', lineNumber);
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
-		return this._decorationsTree.getLineHeightInInterval(this, startOffset, endOffset, 0);
+		const height = this._decorationsTree.getLineHeightInInterval(this, startOffset, endOffset, 0);
+		console.log('height : ', height);
+		return height;
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {

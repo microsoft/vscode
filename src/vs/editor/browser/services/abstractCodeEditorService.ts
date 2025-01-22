@@ -599,6 +599,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
 	fontSize: 'font-size:{0};',
+	clippedFontSize: 'font-size:min({0}, var(--vscode-max-font-size, {0}));',
 	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
@@ -769,7 +770,7 @@ class DecorationCSSRules {
 		}
 		const cssTextArr: string[] = [];
 		if (typeof opts.fontSize === 'number') {
-			cssTextArr.push(strings.format(_CSS_MAP.fontSize, opts.fontSize + 'px'));
+			cssTextArr.push(strings.format(_CSS_MAP.clippedFontSize, opts.fontSize + 'px'));
 		}
 		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {

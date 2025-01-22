@@ -161,7 +161,8 @@ export class ViewOverlayLine implements IVisibleLine {
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
-		// console.log('ViewOverlayLine#renderLine');
+		console.log('ViewOverlayLine#renderLine');
+
 		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			const dynamicOverlay = this._dynamicOverlays[i];
