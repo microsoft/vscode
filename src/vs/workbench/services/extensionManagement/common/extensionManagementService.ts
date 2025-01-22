@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event, EventMultiplexer } from '../../../../base/common/event.js';
+import './media/extensionManagement.css';
 import {
 	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo,
 	IProductVersion,
@@ -45,6 +46,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { joinPath } from '../../../../base/common/resources.js';
+import { verifiedPublisherIcon } from './extensionsIcons.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 function isGalleryExtension(extension: IResourceExtension | IGalleryExtension): extension is IGalleryExtension {
 	return extension.type === 'gallery';
@@ -774,7 +777,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		const installButton: IPromptButton<void> = {
-			label: localize({ key: 'install', comment: ['&& denotes a mnemonic'] }, "&&Install"),
+			label: localize({ key: 'trust and install', comment: ['&& denotes a mnemonic'] }, "Trust Publisher & &&Install"),
 			run: async () => {
 				await this.allowedExtensionsService.trustPublishers(extension.publisher);
 			}
@@ -787,28 +790,29 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			}
 		};
 
-		const customMessage = new MarkdownString();
+		const customMessage = new MarkdownString('', { supportThemeIcons: true });
 		customMessage.appendMarkdown(localize('message1', "The extension {0} is published by {1}. It is the first time you install an extension from this publisher.", `[${extension.displayName}](${this.productService.extensionsGallery!.itemUrl}?itemName=${extension.identifier.id})`, `[${extension.publisherDisplayName}](${joinPath(URI.parse(this.productService.extensionsGallery!.publisherUrl), extension.publisher)})`));
 		customMessage.appendText('\n');
 		if (extension.publisherDomain?.verified) {
-			customMessage.appendMarkdown(localize('verifiedPublisher', "This publisher has verified ownership of {0}.", `[${URI.parse(extension.publisherDomain.link).authority}](${extension.publisherDomain.link})`));
+			const publisherVerifiedMessage = localize('verifiedPublisher', "This publisher has verified ownership of {0}.", `[${URI.parse(extension.publisherDomain.link).authority}](${extension.publisherDomain.link})`);
+			customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
 		} else {
-			customMessage.appendMarkdown(localize('unverifiedPublisher', "This publisher is not verified."));
+			customMessage.appendMarkdown(`$(${Codicon.close.id})&nbsp;${localize('unverifiedPublisher', "This publisher is not verified.")}`);
 		}
 
 		customMessage.appendText('\n');
-		customMessage.appendMarkdown(localize('message2', "{0} is not responsible for behavior of third-party extensions, including processing of your personal data. Only proceed if you trust the publisher.", this.productService.nameLong));
+		customMessage.appendMarkdown(localize('message2', "{0} cannot guarantee the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publisher.", this.productService.nameLong));
 
 		await this.dialogService.prompt({
-			message: localize('checkTrustedPublisherTitle', "Third-Party Publisher Notice"),
+			message: localize('checkTrustedPublisherTitle', "Do you trust the publisher {0}?", extension.publisherDisplayName),
 			type: Severity.Warning,
 			buttons: [installButton, learnMoreButton],
 			cancelButton: {
 				run: () => { throw new CancellationError(); }
 			},
 			custom: {
-				markdownDetails: [{ markdown: customMessage }],
-				closeOnLinkClick: true
+				markdownDetails: [{ markdown: customMessage, classes: ['extensions-management-publisher-trust-dialog'] }],
+				closeOnLinkClick: true,
 			}
 		});
 
