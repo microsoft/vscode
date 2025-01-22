@@ -493,6 +493,11 @@ class ChatSetupRequests extends Disposable {
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IChatEntitlements | undefined> {
+		if (ChatSetupRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
+			this.logService.trace('[chat setup] entitlement: enterprise provider, assuming Pro');
+			return { entitlement: ChatEntitlement.Pro };
+		}
+
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -885,7 +890,6 @@ class ChatSetupController extends Disposable {
 			showCopilotView(this.viewsService, this.layoutService);
 
 			if (
-				providerId === defaultChat.providerId &&	// Copilot Free is only available for non-enterprise providers
 				entitlement !== ChatEntitlement.Limited &&	// User is not signed up to Copilot Free
 				entitlement !== ChatEntitlement.Pro &&		// User is not signed up to Copilot Pro
 				entitlement !== ChatEntitlement.Unavailable	// User is eligible for Copilot Free
