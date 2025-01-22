@@ -3268,7 +3268,7 @@
         },
         "git.blame.statusBarItem.enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%config.blameStatusBarItem.enabled%"
         },
         "git.blame.statusBarItem.template": {
