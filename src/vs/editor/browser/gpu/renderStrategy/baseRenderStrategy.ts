@@ -14,9 +14,11 @@ import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
 import type { ViewGpuContext } from '../viewGpuContext.js';
 
 export abstract class BaseRenderStrategy extends ViewEventHandler implements IGpuRenderStrategy {
+
 	protected readonly _glyphRasterizer: MandatoryMutableDisposable<GlyphRasterizer>;
 	get glyphRasterizer() { return this._glyphRasterizer.value; }
 
+	abstract type: string;
 	abstract wgsl: string;
 	abstract bindGroupEntries: GPUBindGroupEntry[];
 
@@ -37,5 +39,5 @@ export abstract class BaseRenderStrategy extends ViewEventHandler implements IGp
 
 	abstract reset(): void;
 	abstract update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number;
-	abstract draw?(pass: GPURenderPassEncoder, viewportData: ViewportData): void;
+	abstract draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void;
 }

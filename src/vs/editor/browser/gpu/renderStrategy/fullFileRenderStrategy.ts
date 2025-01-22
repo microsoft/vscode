@@ -63,6 +63,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	 */
 	static readonly maxSupportedColumns = 200;
 
+	readonly type = 'fullfile';
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private _cellBindBuffer!: GPUBuffer;

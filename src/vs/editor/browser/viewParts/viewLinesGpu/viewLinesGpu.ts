@@ -27,6 +27,7 @@ import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
 import { createContentSegmenter, type IContentSegmenter } from '../../gpu/contentSegmenter.js';
 import { ViewportRenderStrategy } from '../../gpu/renderStrategy/viewportRenderStrategy.js';
 import { FullFileRenderStrategy } from '../../gpu/renderStrategy/fullFileRenderStrategy.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -61,7 +62,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private _initialized = false;
 
-	private _renderStrategy!: IGpuRenderStrategy;
+	private readonly _renderStrategy: MutableDisposable<IGpuRenderStrategy> = new MutableDisposable();
+	private _rebuildBindGroup?: () => void;
 
 	constructor(
 		context: ViewContext,
@@ -106,7 +108,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			this._atlasGpuTextureVersions.length = 0;
 			this._atlasGpuTextureVersions[0] = 0;
 			this._atlasGpuTextureVersions[1] = 0;
-			this._renderStrategy.reset();
+			this._renderStrategy.value!.reset();
 		}));
 
 		const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -189,8 +191,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		// #region Storage buffers
 
-		// this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device));
-		this._renderStrategy = this._register(this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device));
+		this._renderStrategy.value = this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device);
+		// this._renderStrategy.value = this._register(this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device));
 
 		this._glyphStorageBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
@@ -227,7 +229,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const module = this._device.createShaderModule({
 			label: 'Monaco shader module',
-			code: this._renderStrategy.wgsl,
+			code: this._renderStrategy.value!.wgsl,
 		});
 
 		// #endregion Shader module
@@ -272,25 +274,28 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		// #region Bind group
 
-		this._bindGroup = this._device.createBindGroup({
-			label: 'Monaco bind group',
-			layout: this._pipeline.getBindGroupLayout(0),
-			entries: [
-				// TODO: Pass in generically as array?
-				{ binding: BindingId.GlyphInfo, resource: { buffer: this._glyphStorageBuffer } },
-				{
-					binding: BindingId.TextureSampler, resource: this._device.createSampler({
-						label: 'Monaco atlas sampler',
-						magFilter: 'nearest',
-						minFilter: 'nearest',
-					})
-				},
-				{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
-				{ binding: BindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
-				{ binding: BindingId.AtlasDimensionsUniform, resource: { buffer: atlasInfoUniformBuffer } },
-				...this._renderStrategy.bindGroupEntries
-			],
-		});
+		this._rebuildBindGroup = () => {
+			this._bindGroup = this._device.createBindGroup({
+				label: 'Monaco bind group',
+				layout: this._pipeline.getBindGroupLayout(0),
+				entries: [
+					// TODO: Pass in generically as array?
+					{ binding: BindingId.GlyphInfo, resource: { buffer: this._glyphStorageBuffer } },
+					{
+						binding: BindingId.TextureSampler, resource: this._device.createSampler({
+							label: 'Monaco atlas sampler',
+							magFilter: 'nearest',
+							minFilter: 'nearest',
+						})
+					},
+					{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
+					{ binding: BindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
+					{ binding: BindingId.AtlasDimensionsUniform, resource: { buffer: atlasInfoUniformBuffer } },
+					...this._renderStrategy.value!.bindGroupEntries
+				],
+			});
+		};
+		this._rebuildBindGroup();
 
 		// endregion Bind group
 
@@ -305,6 +310,18 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			}
 			this._initViewportData = undefined;
 		}
+	}
+
+	private _refreshRenderStrategy(viewportData: ViewportData) {
+		if (this._renderStrategy.value?.type === 'viewport') {
+			return;
+		}
+		if (viewportData.endLineNumber < FullFileRenderStrategy.maxSupportedLines) {
+			return;
+		}
+		this._logService.trace(`File is larger than ${FullFileRenderStrategy.maxSupportedLines} lines, switching to viewport render strategy`);
+		this._renderStrategy.value = this._instantiationService.createInstance(ViewportRenderStrategy, this._context, this._viewGpuContext, this._device);
+		this._rebuildBindGroup?.();
 	}
 
 	private _updateAtlasStorageBufferAndTexture() {
@@ -400,6 +417,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	public renderText(viewportData: ViewportData): void {
 		if (this._initialized) {
+			this._refreshRenderStrategy(viewportData);
 			return this._renderText(viewportData);
 		} else {
 			this._initViewportData = this._initViewportData ?? [];
@@ -412,7 +430,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const options = new ViewLineOptions(this._context.configuration, this._context.theme.type);
 
-		const visibleObjectCount = this._renderStrategy.update(viewportData, options);
+		this._renderStrategy.value!.update(viewportData, options);
 
 		this._updateAtlasStorageBufferAndTexture();
 
@@ -429,11 +447,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		pass.setBindGroup(0, this._bindGroup);
 
-		if (this._renderStrategy?.draw) {
-			this._renderStrategy.draw(pass, viewportData);
-		} else {
-			pass.draw(quadVertices.length / 2, visibleObjectCount);
-		}
+		this._renderStrategy.value!.draw(pass, viewportData);
 
 		pass.end();
 
@@ -541,7 +555,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				if (chars === undefined) {
 					continue;
 				}
-				resolvedStartCssPixelOffset += (this._renderStrategy.glyphRasterizer.getTextMetrics(chars).width / getActiveWindow().devicePixelRatio) - viewLineOptions.spaceWidth;
+				resolvedStartCssPixelOffset += (this._renderStrategy.value!.glyphRasterizer.getTextMetrics(chars).width / getActiveWindow().devicePixelRatio) - viewLineOptions.spaceWidth;
 			}
 			if (chars === '\t') {
 				resolvedStartColumn = CursorColumns.nextRenderTabStop(resolvedStartColumn, lineData.tabSize);
@@ -559,7 +573,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				if (chars === undefined) {
 					continue;
 				}
-				resolvedEndCssPixelOffset += (this._renderStrategy.glyphRasterizer.getTextMetrics(chars).width / getActiveWindow().devicePixelRatio) - viewLineOptions.spaceWidth;
+				resolvedEndCssPixelOffset += (this._renderStrategy.value!.glyphRasterizer.getTextMetrics(chars).width / getActiveWindow().devicePixelRatio) - viewLineOptions.spaceWidth;
 			}
 			if (chars === '\t') {
 				resolvedEndColumn = CursorColumns.nextRenderTabStop(resolvedEndColumn, lineData.tabSize);
@@ -641,7 +655,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			} else if (lineData.isBasicASCII && this._lastViewLineOptions.useMonospaceOptimizations) {
 				charWidth = spaceWidthDevicePixels;
 			} else {
-				charWidth = this._renderStrategy.glyphRasterizer.getTextMetrics(chars).width;
+				charWidth = this._renderStrategy.value!.glyphRasterizer.getTextMetrics(chars).width;
 			}
 
 			if (mouseContentHorizontalOffsetDevicePixels < widthSoFar + charWidth / 2) {

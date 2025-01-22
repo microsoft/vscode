@@ -39,14 +39,19 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
-// TODO: Handle these dynamically
-const viewportWidth = 500;
 const viewportHeight = 35;
 
 /**
  * A render strategy that uploads the content of the entire viewport every frame.
  */
 export class ViewportRenderStrategy extends BaseRenderStrategy {
+	// TODO: Can this be removed?
+	/**
+	 * The hard cap for line columns that can be rendered by the GPU renderer.
+	 */
+	static readonly maxSupportedColumns = 200;
+
+	readonly type = 'viewport';
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private _cellBindBuffer!: GPUBuffer;
@@ -78,7 +83,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	) {
 		super(context, viewGpuContext, device);
 
-		const bufferSize = viewportHeight * viewportWidth * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
+		const bufferSize = viewportHeight * ViewportRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
@@ -218,7 +223,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
 		cellBuffer.fill(0);
 
-		const lineIndexCount = viewportWidth * Constants.IndicesPerCell;
+		const lineIndexCount = ViewportRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
 
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
 
@@ -248,7 +253,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
 					// TODO: This needs to move to a dynamic long line rendering strategy
-					if (x > viewportWidth) {
+					if (x > ViewportRenderStrategy.maxSupportedColumns) {
 						break;
 					}
 					segment = contentSegmenter.getSegmentAtIndex(x);
@@ -316,7 +321,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 					if (chars === ' ' || chars === '\t') {
 						// Zero out glyph to ensure it doesn't get rendered
-						cellIndex = ((y - 1) * viewportWidth + x) * Constants.IndicesPerCell;
+						cellIndex = ((y - 1) * ViewportRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
 						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
 						// Adjust xOffset for tab stops
 						if (chars === '\t') {
@@ -348,7 +353,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 						glyph.fontBoundingBoxAscent
 					);
 
-					cellIndex = ((y - viewportData.startLineNumber) * viewportWidth + x) * Constants.IndicesPerCell;
+					cellIndex = ((y - viewportData.startLineNumber) * ViewportRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
 					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
@@ -362,8 +367,8 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			}
 
 			// Clear to end of line
-			fillStartIndex = ((y - viewportData.startLineNumber) * viewportWidth + tokenEndIndex) * Constants.IndicesPerCell;
-			fillEndIndex = ((y - viewportData.startLineNumber) * viewportWidth) * Constants.IndicesPerCell;
+			fillStartIndex = ((y - viewportData.startLineNumber) * ViewportRenderStrategy.maxSupportedColumns + tokenEndIndex) * Constants.IndicesPerCell;
+			fillEndIndex = ((y - viewportData.startLineNumber) * ViewportRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
 			cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 		}
 

@@ -28,12 +28,6 @@ import { FullFileRenderStrategy } from './renderStrategy/fullFileRenderStrategy.
 
 export class ViewGpuContext extends Disposable {
 	/**
-	 * The temporary hard cap for lines rendered by the GPU renderer. This can be removed once more
-	 * dynamic allocation is implemented in https://github.com/microsoft/vscode/issues/227091
-	 */
-	readonly maxGpuLines = 10000;//FullFileRenderStrategy.maxSupportedLines;
-
-	/**
 	 * The temporary hard cap for line columns rendered by the GPU renderer. This can be removed
 	 * once more dynamic allocation is implemented in https://github.com/microsoft/vscode/issues/227108
 	 */
@@ -163,8 +157,7 @@ export class ViewGpuContext extends Disposable {
 		// Check if the line has simple attributes that aren't supported
 		if (
 			data.containsRTL ||
-			data.maxColumn > this.maxGpuCols ||
-			lineNumber >= this.maxGpuLines
+			data.maxColumn > this.maxGpuCols
 		) {
 			return false;
 		}
@@ -251,9 +244,6 @@ export class ViewGpuContext extends Disposable {
 			if (problemSelectors.length > 0) {
 				reasons.push(`inlineDecorations with unsupported CSS selectors (${problemSelectors.map(e => `\`${e}\``).join(', ')})`);
 			}
-		}
-		if (lineNumber >= this.maxGpuLines) {
-			reasons.push('lineNumber >= maxGpuLines');
 		}
 		return reasons;
 	}
