@@ -65,6 +65,7 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		this._pendingEnv = undefined;
 	}
 	// Returns true if the environment differs, and was updated.
+	// This way we only fire an event if the environment actually changed.
 	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): boolean {
 		if (!isTrusted) {
 			return false;
