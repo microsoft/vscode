@@ -444,9 +444,9 @@ export class ListView<T> implements IListView<T> {
 		this.disposables.add(addDisposableListener(this.scrollableElement.getDomNode(), 'scroll', e => {
 			// Make sure the active element is scrolled into view
 			const element = (e.target as HTMLElement);
+			const scrollValue = element.scrollTop;
 			element.scrollTop = 0;
 			if (options.scrollToActiveElement) {
-				const scrollValue = element.scrollTop;
 				this.setScrollTop(this.scrollTop + scrollValue);
 			}
 		}));
