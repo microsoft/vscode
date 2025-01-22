@@ -21,12 +21,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
 
 /**
- * TODO: @legomushroom - list
- *
- *  - remove the decorators provider?
- */
-
-/**
  * Prompt files language selector.
  */
 const languageSelector = {
