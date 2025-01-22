@@ -232,11 +232,17 @@ __vsc_update_env() {
 	# done
 
 	## Faster than above
-	while IFS='=' read -r var value; do
-		if [ -n "$value" ]; then
-			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
-		fi
-	done < <(env)
+	# while IFS='=' read -r var value; do
+	# 	if [ -n "$value" ]; then
+	# 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" $__vsc_nonce
+	# 	fi
+	# done < <(env)
+
+	## Slighly faster than above
+	env | grep '=' | while IFS='=' read -r var value; do
+		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$var" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+	done
+
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 }
 
