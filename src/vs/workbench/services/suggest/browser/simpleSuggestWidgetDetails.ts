@@ -12,10 +12,10 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import * as nls from '../../../../nls.js';
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
 
 export function canExpandCompletionItem(item: SimpleCompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -48,7 +48,7 @@ export class SimpleSuggestDetailsWidget {
 	private _size = new dom.Dimension(330, 0);
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		this.domNode = dom.$('.suggest-details');
@@ -81,7 +81,7 @@ export class SimpleSuggestDetailsWidget {
 	}
 
 	getLayoutInfo() {
-		const lineHeight = this._configurationService.getValue<number>('editor.lineHeight');
+		const lineHeight = this._getFontInfo().lineHeight;
 		const borderWidth = this._borderWidth;
 		const borderHeight = borderWidth * 2;
 		return {
@@ -177,7 +177,7 @@ export class SimpleSuggestDetailsWidget {
 
 		this._body.scrollTop = 0;
 
-		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight + 20);
+		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight + this.getLayoutInfo().verticalPadding);
 		this._onDidChangeContents.fire(this);
 	}
 
