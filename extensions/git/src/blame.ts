@@ -14,6 +14,7 @@ import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
+import { LRUCache } from './cache';
 
 const AVATAR_SIZE = 20;
 
@@ -172,6 +173,7 @@ export class GitBlameController {
 		this._onDidChangeBlameInformation.fire();
 	}
 
+	private readonly _commitInformationCache = new LRUCache<string, Commit>(100);
 	private readonly _repositoryBlameCache = new GitBlameInformationCache();
 
 	private _editorDecoration: GitBlameEditorDecoration | undefined;
@@ -216,7 +218,11 @@ export class GitBlameController {
 		if (repository) {
 			try {
 				// Commit details
-				commitInformation = await repository.getCommit(blameInformation.hash);
+				commitInformation = this._commitInformationCache.get(blameInformation.hash);
+				if (!commitInformation) {
+					commitInformation = await repository.getCommit(blameInformation.hash);
+					this._commitInformationCache.set(blameInformation.hash, commitInformation);
+				}
 
 				// Avatar
 				const avatarQuery = {
