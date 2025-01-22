@@ -250,7 +250,7 @@ export class SimpleSuggestDetailsOverlay {
 	private _anchorBox?: dom.IDomNodePagePosition;
 	// private _preferAlignAtTop: boolean = true;
 	private _userSize?: dom.Dimension;
-	// private _topLeft?: TopLeftPosition;
+	private _topLeft?: TopLeftPosition;
 
 	constructor(
 		readonly widget: SimpleSuggestDetailsWidget,
@@ -262,43 +262,43 @@ export class SimpleSuggestDetailsOverlay {
 		this._resizable.domNode.appendChild(widget.domNode);
 		this._resizable.enableSashes(false, true, true, false);
 
-		// let topLeftNow: TopLeftPosition | undefined;
-		// let sizeNow: dom.Dimension | undefined;
-		// let deltaTop: number = 0;
-		// let deltaLeft: number = 0;
-		// this._disposables.add(this._resizable.onDidWillResize(() => {
-		// 	topLeftNow = this._topLeft;
-		// 	sizeNow = this._resizable.size;
-		// }));
+		let topLeftNow: TopLeftPosition | undefined;
+		let sizeNow: dom.Dimension | undefined;
+		let deltaTop: number = 0;
+		let deltaLeft: number = 0;
+		this._disposables.add(this._resizable.onDidWillResize(() => {
+			topLeftNow = this._topLeft;
+			sizeNow = this._resizable.size;
+		}));
 
-		// this._disposables.add(this._resizable.onDidResize(e => {
-		// 	if (topLeftNow && sizeNow) {
-		// 		this.widget.layout(e.dimension.width, e.dimension.height);
+		this._disposables.add(this._resizable.onDidResize(e => {
+			if (topLeftNow && sizeNow) {
+				this.widget.layout(e.dimension.width, e.dimension.height);
 
-		// 		let updateTopLeft = false;
-		// 		if (e.west) {
-		// 			deltaLeft = sizeNow.width - e.dimension.width;
-		// 			updateTopLeft = true;
-		// 		}
-		// 		if (e.north) {
-		// 			deltaTop = sizeNow.height - e.dimension.height;
-		// 			updateTopLeft = true;
-		// 		}
-		// 		if (updateTopLeft) {
-		// 			this._applyTopLeft({
-		// 				top: topLeftNow.top + deltaTop,
-		// 				left: topLeftNow.left + deltaLeft,
-		// 			});
-		// 		}
-		// 	}
-		// 	if (e.done) {
-		// 		topLeftNow = undefined;
-		// 		sizeNow = undefined;
-		// 		deltaTop = 0;
-		// 		deltaLeft = 0;
-		// 		this._userSize = e.dimension;
-		// 	}
-		// }));
+				let updateTopLeft = false;
+				if (e.west) {
+					deltaLeft = sizeNow.width - e.dimension.width;
+					updateTopLeft = true;
+				}
+				if (e.north) {
+					deltaTop = sizeNow.height - e.dimension.height;
+					updateTopLeft = true;
+				}
+				if (updateTopLeft) {
+					this._applyTopLeft({
+						top: topLeftNow.top + deltaTop,
+						left: topLeftNow.left + deltaLeft,
+					});
+				}
+			}
+			if (e.done) {
+				topLeftNow = undefined;
+				sizeNow = undefined;
+				deltaTop = 0;
+				deltaLeft = 0;
+				this._userSize = e.dimension;
+			}
+		}));
 
 		this._disposables.add(this.widget.onDidChangeContents(() => {
 			if (this._anchorBox) {
@@ -439,10 +439,15 @@ export class SimpleSuggestDetailsOverlay {
 	}
 
 	private _applyTopLeft(topLeft: { left: number; top: number }): void {
-		// this._topLeft = topLeft;
+		this._topLeft = topLeft;
 		// this._editor.layoutOverlayWidget(this);
 		this._resizable.domNode.style.top = `${topLeft.top}px`;
 		this._resizable.domNode.style.left = `${topLeft.left}px`;
 		this._resizable.domNode.style.position = 'absolute';
 	}
+}
+
+interface TopLeftPosition {
+	top: number;
+	left: number;
 }
