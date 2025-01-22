@@ -801,7 +801,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		customMessage.appendText('\n');
-		customMessage.appendMarkdown(localize('message2', "{0} cannot guarantee the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publisher.", this.productService.nameLong));
+		customMessage.appendMarkdown(localize('message2', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publisher.", this.productService.nameLong));
 
 		await this.dialogService.prompt({
 			message: localize('checkTrustedPublisherTitle', "Do you trust the publisher {0}?", extension.publisherDisplayName),
