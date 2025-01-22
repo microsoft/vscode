@@ -763,7 +763,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
 				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
-				enableImplicitContext: this.viewOptions.enableImplicitContext
+				enableImplicitContext: this.viewOptions.enableImplicitContext,
+				enableWorkingSet: this.viewOptions.enableWorkingSet
 			},
 			this.styles,
 			() => this.collectInputState()
