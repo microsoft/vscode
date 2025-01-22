@@ -158,7 +158,6 @@ export interface IShellEnvDetectionCapability {
 	startEnvironmentSingleVar(isTrusted: boolean): void;
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
 	endEnvironmentSingleVar(isTrusted: boolean): void;
-	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): boolean;
 }
 
 export const enum CommandInvalidationReason {

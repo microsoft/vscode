@@ -467,7 +467,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				if (arg0 !== undefined) {
 					try {
 						const env = JSON.parse(deserializeMessage(arg0));
-						this._createOrGetShellEnvDetection().applyEnvironmentDiff(env, arg1 === this._nonce);
+						this._createOrGetShellEnvDetection().setEnvironment(env, arg1 === this._nonce);
 					} catch (e) {
 						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
 					}
