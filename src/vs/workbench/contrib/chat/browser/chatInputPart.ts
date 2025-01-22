@@ -381,7 +381,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.getInputState = (): IChatInputState => {
 			return {
 				...getContribsInputState(),
-				chatContextAttachments: this._attachmentModel.attachments,
+				chatContextAttachments: this._attachmentModel.attachments.filter(attachment => !attachment.isImage),
 			};
 		};
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
