@@ -3,16 +3,52 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CancellationToken = void 0;
 exports.createTypeScriptBuilder = createTypeScriptBuilder;
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
-const utils = require("./utils");
-const colors = require("ansi-colors");
-const ts = require("typescript");
-const Vinyl = require("vinyl");
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const crypto_1 = __importDefault(require("crypto"));
+const utils = __importStar(require("./utils"));
+const ansi_colors_1 = __importDefault(require("ansi-colors"));
+const typescript_1 = __importDefault(require("typescript"));
+const vinyl_1 = __importDefault(require("vinyl"));
 const source_map_1 = require("source-map");
 var CancellationToken;
 (function (CancellationToken) {
@@ -28,7 +64,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
     const host = new LanguageServiceHost(cmd, projectFile, _log);
     const outHost = new LanguageServiceHost({ ...cmd, options: { ...cmd.options, sourceRoot: cmd.options.outDir } }, cmd.options.outDir ?? '', _log);
     let lastCycleCheckVersion;
-    const service = ts.createLanguageService(host, ts.createDocumentRegistry());
+    const service = typescript_1.default.createLanguageService(host, typescript_1.default.createDocumentRegistry());
     const lastBuildVersion = Object.create(null);
     const lastDtsHash = Object.create(null);
     const userWantsDeclarations = cmd.options.declaration;
@@ -92,7 +128,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                     if (/\.d\.ts$/.test(fileName)) {
                         // if it's already a d.ts file just emit it signature
                         const snapshot = host.getScriptSnapshot(fileName);
-                        const signature = crypto.createHash('sha256')
+                        const signature = crypto_1.default.createHash('sha256')
                             .update(snapshot.getText(0, snapshot.getLength()))
                             .digest('base64');
                         return resolve({
@@ -109,7 +145,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                             continue;
                         }
                         if (/\.d\.ts$/.test(file.name)) {
-                            signature = crypto.createHash('sha256')
+                            signature = crypto_1.default.createHash('sha256')
                                 .update(file.text)
                                 .digest('base64');
                             if (!userWantsDeclarations) {
@@ -117,7 +153,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                                 continue;
                             }
                         }
-                        const vinyl = new Vinyl({
+                        const vinyl = new vinyl_1.default({
                             path: file.name,
                             contents: Buffer.from(file.text),
                             base: !config._emitWithoutBasePath && baseFor(host.getScriptSnapshot(fileName)) || undefined
@@ -125,9 +161,9 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         if (!emitSourceMapsInStream && /\.js$/.test(file.name)) {
                             const sourcemapFile = output.outputFiles.filter(f => /\.js\.map$/.test(f.name))[0];
                             if (sourcemapFile) {
-                                const extname = path.extname(vinyl.relative);
-                                const basename = path.basename(vinyl.relative, extname);
-                                const dirname = path.dirname(vinyl.relative);
+                                const extname = path_1.default.extname(vinyl.relative);
+                                const basename = path_1.default.basename(vinyl.relative, extname);
+                                const dirname = path_1.default.dirname(vinyl.relative);
                                 const tsname = (dirname === '.' ? '' : dirname + '/') + basename + '.ts';
                                 let sourceMap = JSON.parse(sourcemapFile.text);
                                 sourceMap.sources[0] = tsname.replace(/\\/g, '/');
@@ -359,7 +395,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
             delete oldErrors[projectFile];
             if (oneCycle) {
                 const cycleError = {
-                    category: ts.DiagnosticCategory.Error,
+                    category: typescript_1.default.DiagnosticCategory.Error,
                     code: 1,
                     file: undefined,
                     start: undefined,
@@ -383,7 +419,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
             // print stats
             const headNow = process.memoryUsage().heapUsed;
             const MB = 1024 * 1024;
-            _log('[tsb]', `time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`);
+            _log('[tsb]', `time:  ${ansi_colors_1.default.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${ansi_colors_1.default.cyan(Math.ceil(headNow / MB) + 'MB')} ${ansi_colors_1.default.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`);
             headUsed = headNow;
         });
     }
@@ -480,11 +516,11 @@ class LanguageServiceHost {
         let result = this._snapshots[filename];
         if (!result && resolve) {
             try {
-                result = new VinylScriptSnapshot(new Vinyl({
+                result = new VinylScriptSnapshot(new vinyl_1.default({
                     path: filename,
-                    contents: fs.readFileSync(filename),
+                    contents: fs_1.default.readFileSync(filename),
                     base: this.getCompilationSettings().outDir,
-                    stat: fs.statSync(filename)
+                    stat: fs_1.default.statSync(filename)
                 }));
                 this.addScriptSnapshot(filename, result);
             }
@@ -529,16 +565,16 @@ class LanguageServiceHost {
         return delete this._snapshots[filename];
     }
     getCurrentDirectory() {
-        return path.dirname(this._projectPath);
+        return path_1.default.dirname(this._projectPath);
     }
     getDefaultLibFileName(options) {
-        return ts.getDefaultLibFilePath(options);
+        return typescript_1.default.getDefaultLibFilePath(options);
     }
-    directoryExists = ts.sys.directoryExists;
-    getDirectories = ts.sys.getDirectories;
-    fileExists = ts.sys.fileExists;
-    readFile = ts.sys.readFile;
-    readDirectory = ts.sys.readDirectory;
+    directoryExists = typescript_1.default.sys.directoryExists;
+    getDirectories = typescript_1.default.sys.getDirectories;
+    fileExists = typescript_1.default.sys.fileExists;
+    readFile = typescript_1.default.sys.readFile;
+    readDirectory = typescript_1.default.sys.readDirectory;
     // ---- dependency management
     collectDependents(filename, target) {
         while (this._dependenciesRecomputeList.length) {
@@ -570,18 +606,18 @@ class LanguageServiceHost {
             this._log('processFile', `Missing snapshot for: ${filename}`);
             return;
         }
-        const info = ts.preProcessFile(snapshot.getText(0, snapshot.getLength()), true);
+        const info = typescript_1.default.preProcessFile(snapshot.getText(0, snapshot.getLength()), true);
         // (0) clear out old dependencies
         this._dependencies.resetNode(filename);
         // (1) ///-references
         info.referencedFiles.forEach(ref => {
-            const resolvedPath = path.resolve(path.dirname(filename), ref.fileName);
+            const resolvedPath = path_1.default.resolve(path_1.default.dirname(filename), ref.fileName);
             const normalizedPath = normalize(resolvedPath);
             this._dependencies.inertEdge(filename, normalizedPath);
         });
         // (2) import-require statements
         info.importedFiles.forEach(ref => {
-            if (!ref.fileName.startsWith('.') || path.extname(ref.fileName) === '') {
+            if (!ref.fileName.startsWith('.') || path_1.default.extname(ref.fileName) === '') {
                 // node module?
                 return;
             }
@@ -589,8 +625,8 @@ class LanguageServiceHost {
             let dirname = filename;
             let found = false;
             while (!found && dirname.indexOf(stopDirname) === 0) {
-                dirname = path.dirname(dirname);
-                let resolvedPath = path.resolve(dirname, ref.fileName);
+                dirname = path_1.default.dirname(dirname);
+                let resolvedPath = path_1.default.resolve(dirname, ref.fileName);
                 if (resolvedPath.endsWith('.js')) {
                     resolvedPath = resolvedPath.slice(0, -3);
                 }

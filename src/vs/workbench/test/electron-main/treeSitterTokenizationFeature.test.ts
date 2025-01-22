@@ -18,9 +18,10 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { ModelService } from '../../../editor/common/services/modelService.js';
-import { TreeSitterTokenizationFeature, TreeSitterTokenizationSupport } from '../../services/treeSitter/common/treeSitterTokenizationFeature.js';
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { TreeSitterTokenizationFeature } from '../../services/treeSitter/browser/treeSitterTokenizationFeature.js';
 import { ITreeSitterParserService, TreeUpdateEvent } from '../../../editor/common/services/treeSitterParserService.js';
-import { TreeSitterTokenizationRegistry } from '../../../editor/common/languages.js';
+import { ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../editor/common/languages.js';
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../platform/files/node/diskFileSystemProvider.js';
@@ -107,7 +108,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 	const environmentService: IEnvironmentService = {} as IEnvironmentService;
 	const tokenStoreService: ITreeSitterTokenizationStoreService = new MockTokenStoreService();
 	let treeSitterParserService: TreeSitterTextModelService;
-	let treeSitterTokenizationSupport: TreeSitterTokenizationSupport;
+	let treeSitterTokenizationSupport: ITreeSitterTokenizationSupport;
 
 	let disposables: DisposableStore;
 
@@ -148,7 +149,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 		treeSitterParserService.isTest = true;
 		instantiationService.set(ITreeSitterParserService, treeSitterParserService);
 		disposables.add(instantiationService.createInstance(TreeSitterTokenizationFeature));
-		treeSitterTokenizationSupport = disposables.add(await TreeSitterTokenizationRegistry.getOrCreate('typescript') as TreeSitterTokenizationSupport);
+		treeSitterTokenizationSupport = disposables.add(await TreeSitterTokenizationRegistry.getOrCreate('typescript') as (ITreeSitterTokenizationSupport & IDisposable));
 	});
 
 	teardown(() => {

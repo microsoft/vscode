@@ -5,10 +5,10 @@
 
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as byline from 'byline';
+import path from 'path';
+import byline from 'byline';
 import { rgPath } from '@vscode/ripgrep';
-import * as Parser from 'tree-sitter';
+import Parser from 'tree-sitter';
 const { typescript } = require('tree-sitter-typescript');
 const product = require('../../product.json');
 const packageJson = require('../../package.json');

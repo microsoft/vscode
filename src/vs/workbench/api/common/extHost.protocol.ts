@@ -692,7 +692,7 @@ export type StatusBarItemDto = {
 };
 
 export interface ExtHostStatusBarShape {
-	$acceptStaticEntries(added?: StatusBarItemDto[], removed?: string): void;
+	$acceptStaticEntries(added?: StatusBarItemDto[]): void;
 	$provideTooltip(entryId: string, cancellation: CancellationToken): Promise<string | IMarkdownString | undefined>;
 }
 
