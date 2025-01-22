@@ -797,7 +797,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			const publisherVerifiedMessage = localize('verifiedPublisher', "This publisher has verified ownership of {0}.", `[${URI.parse(extension.publisherDomain.link).authority}](${extension.publisherDomain.link})`);
 			customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
 		} else {
-			customMessage.appendMarkdown(`$(${Codicon.close.id})&nbsp;${localize('unverifiedPublisher', "This publisher is not verified.")}`);
+			customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisher', "This publisher is **not** verified.")}`);
 		}
 
 		customMessage.appendText('\n');
