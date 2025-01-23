@@ -10,7 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -320,7 +320,7 @@ registerActiveInstanceAction({
 
 registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.AcceptSelectedSuggestion,
-	title: localize2('workbench.action.terminal.acceptSelectedSuggestion', 'Accept Selected Suggestion'),
+	title: localize2('workbench.action.terminal.acceptSelectedSuggestion', 'Insert'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
@@ -329,7 +329,9 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	menu: {
-		id: MenuId.MenubarTerminalSuggestStatusMenu
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		order: 1,
+		group: 'left'
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
 });
@@ -363,7 +365,7 @@ registerActiveInstanceAction({
 
 registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.ConfigureSettings,
-	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure Suggest Settings'),
+	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
@@ -371,7 +373,9 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	menu: {
-		id: MenuId.MenubarTerminalSuggestStatusMenu
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'right',
+		order: 1
 	},
 	run: (activeInstance, c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
 });
