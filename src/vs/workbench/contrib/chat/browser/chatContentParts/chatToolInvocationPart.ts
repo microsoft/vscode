@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Relay } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -43,6 +43,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 			const subPart = partStore.add(instantiationService.createInstance(ChatToolInvocationSubPart, toolInvocation, context, renderer));
 			this.domNode.appendChild(subPart.domNode);
+			partStore.add(subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			partStore.add(subPart.onNeedsRerender(() => {
 				render();
 				this._onDidChangeHeight.fire();
@@ -66,6 +67,9 @@ class ChatToolInvocationSubPart extends Disposable {
 	private _onNeedsRerender = this._register(new Emitter<void>());
 	public readonly onNeedsRerender = this._onNeedsRerender.event;
 
+	private _onDidChangeHeight = this._register(new Relay<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,
@@ -86,6 +90,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			this._register(confirmWidget.onDidClick(button => {
 				toolInvocation.confirmed.complete(button.data);
 			}));
+			this._onDidChangeHeight.input = confirmWidget.onDidChangeHeight;
 			toolInvocation.confirmed.p.then(() => this._onNeedsRerender.fire());
 		} else {
 			const content = typeof toolInvocation.invocationMessage === 'string' ?

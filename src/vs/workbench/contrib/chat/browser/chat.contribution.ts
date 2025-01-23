@@ -82,6 +82,7 @@ import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from 
 import { BuiltinToolsContribution } from './tools/tools.js';
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatEditorOverlayController } from './chatEditorOverlay.js';
+import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

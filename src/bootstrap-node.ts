@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'node:module';
-import type { IProductConfiguration } from './vs/base/common/product';
+import type { IProductConfiguration } from './vs/base/common/product.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

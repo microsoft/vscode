@@ -10,7 +10,7 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { TrackedDisposable } from '../../../../../../base/common/trackedDisposable.js';
+import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FailedToResolveContentsStream, ParseError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
 
@@ -35,7 +35,7 @@ export const PROMP_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
  */
 export abstract class PromptContentsProviderBase<
 	TChangeEvent extends NonNullable<unknown>,
-> extends TrackedDisposable implements IPromptContentsProvider {
+> extends ObservableDisposable implements IPromptContentsProvider {
 	/**
 	 * Internal event emitter for the prompt contents change event. Classes that extend
 	 * this abstract class are responsible to use this emitter to fire the contents change

@@ -26,7 +26,6 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -88,21 +87,28 @@ type ExtensionUrlHandlerClassification = {
 };
 
 export interface IExtensionUrlHandlerOverride {
+	canHandleURL(uri: URI): boolean;
 	handleURL(uri: URI): Promise<boolean>;
 }
 
 export class ExtensionUrlHandlerOverrideRegistry {
 
-	private static readonly handlers = new ResourceMap<IExtensionUrlHandlerOverride>();
+	private static readonly handlers = new Set<IExtensionUrlHandlerOverride>();
 
-	static registerHandler(uri: URI, handler: IExtensionUrlHandlerOverride): IDisposable {
-		this.handlers.set(uri, handler);
+	static registerHandler(handler: IExtensionUrlHandlerOverride): IDisposable {
+		this.handlers.add(handler);
 
-		return toDisposable(() => this.handlers.delete(uri));
+		return toDisposable(() => this.handlers.delete(handler));
 	}
 
 	static getHandler(uri: URI): IExtensionUrlHandlerOverride | undefined {
-		return this.handlers.get(uri);
+		for (const handler of this.handlers) {
+			if (handler.canHandleURL(uri)) {
+				return handler;
+			}
+		}
+
+		return undefined;
 	}
 }
 

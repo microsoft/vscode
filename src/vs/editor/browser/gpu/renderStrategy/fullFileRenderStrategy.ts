@@ -6,7 +6,6 @@
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { Color } from '../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
@@ -46,8 +45,24 @@ type QueuedBufferEvent = (
 	ViewZonesChangedEvent
 );
 
+/**
+ * A render strategy that tracks a large buffer, uploading only dirty lines as they change and
+ * leveraging heavy caching. This is the most performant strategy but has limitations around long
+ * lines and too many lines.
+ */
 export class FullFileRenderStrategy extends BaseRenderStrategy {
 
+	/**
+	 * The hard cap for line count that can be rendered by the GPU renderer.
+	 */
+	static readonly maxSupportedLines = 3000;
+
+	/**
+	 * The hard cap for line columns that can be rendered by the GPU renderer.
+	 */
+	static readonly maxSupportedColumns = 200;
+
+	readonly type = 'fullfile';
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private _cellBindBuffer!: GPUBuffer;
@@ -80,10 +95,11 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		context: ViewContext,
 		viewGpuContext: ViewGpuContext,
 		device: GPUDevice,
+		glyphRasterizer: { value: GlyphRasterizer },
 	) {
-		super(context, viewGpuContext, device);
+		super(context, viewGpuContext, device, glyphRasterizer);
 
-		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
+		const bufferSize = FullFileRenderStrategy.maxSupportedLines * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
@@ -116,18 +132,6 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
 		this._invalidateAllLines();
 		this._queueBufferUpdate(e);
-
-		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
-		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
-		const devicePixelRatio = this._viewGpuContext.devicePixelRatio.get();
-		if (
-			this._glyphRasterizer.value.fontFamily !== fontFamily ||
-			this._glyphRasterizer.value.fontSize !== fontSize ||
-			this._glyphRasterizer.value.devicePixelRatio !== devicePixelRatio
-		) {
-			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio);
-		}
-
 		return true;
 	}
 
@@ -270,7 +274,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 		// Update cell data
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
-		const lineIndexCount = this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
+		const lineIndexCount = FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
 
 		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
 		let dirtyLineStart = 3000;
@@ -294,9 +298,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 				}
 				case ViewEventType.ViewLinesDeleted: {
 					// Shift content below deleted line up
-					const deletedLineContentStartIndex = (e.fromLineNumber - 1) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
-					const deletedLineContentEndIndex = (e.toLineNumber) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
-					const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
+					const deletedLineContentStartIndex = (e.fromLineNumber - 1) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
+					const deletedLineContentEndIndex = (e.toLineNumber) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
+					const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
 					cellBuffer.set(cellBuffer.subarray(deletedLineContentEndIndex), deletedLineContentStartIndex);
 
 					// Zero out content on lines that are no longer valid
@@ -315,8 +319,8 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 			// Only attempt to render lines that the GPU renderer can handle
 			if (!this._viewGpuContext.canRender(viewLineOptions, viewportData, y)) {
-				fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
-				fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
+				fillStartIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
+				fillEndIndex = (y * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
 				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 
 				dirtyLineStart = Math.min(dirtyLineStart, y);
@@ -353,8 +357,8 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 				tokenMetadata = tokens.getMetadata(tokenIndex);
 
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
-					// TODO: This needs to move to a dynamic long line rendering strategy
-					if (x > this._viewGpuContext.maxGpuCols) {
+					// Only render lines that do not exceed maximum columns
+					if (x > FullFileRenderStrategy.maxSupportedColumns) {
 						break;
 					}
 					segment = contentSegmenter.getSegmentAtIndex(x);
@@ -364,7 +368,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					chars = segment;
 
 					if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
-						charWidth = this._glyphRasterizer.value.getTextMetrics(chars).width;
+						charWidth = this.glyphRasterizer.getTextMetrics(chars).width;
 					}
 
 					decorationStyleSetColor = undefined;
@@ -422,7 +426,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 					if (chars === ' ' || chars === '\t') {
 						// Zero out glyph to ensure it doesn't get rendered
-						cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
+						cellIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
 						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
 						// Adjust xOffset for tab stops
 						if (chars === '\t') {
@@ -439,7 +443,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					}
 
 					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, decorationStyleSetId);
+					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId);
 
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)
@@ -454,7 +458,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 						glyph.fontBoundingBoxAscent
 					);
 
-					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
+					cellIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
 					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
@@ -468,8 +472,8 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			}
 
 			// Clear to end of line
-			fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + tokenEndIndex) * Constants.IndicesPerCell;
-			fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
+			fillStartIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + tokenEndIndex) * Constants.IndicesPerCell;
+			fillEndIndex = (y * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
 			cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 
 			upToDateLines.add(y);
@@ -478,8 +482,8 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
 
 		// Only write when there is changed data
-		dirtyLineStart = Math.min(dirtyLineStart, this._viewGpuContext.maxGpuLines);
-		dirtyLineEnd = Math.min(dirtyLineEnd, this._viewGpuContext.maxGpuLines);
+		dirtyLineStart = Math.min(dirtyLineStart, FullFileRenderStrategy.maxSupportedLines);
+		dirtyLineEnd = Math.min(dirtyLineEnd, FullFileRenderStrategy.maxSupportedLines);
 		if (dirtyLineStart <= dirtyLineEnd) {
 			// Write buffer and swap it out to unblock writes
 			this._device.queue.writeBuffer(
@@ -507,7 +511,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			quadVertices.length / 2,
 			this._visibleObjectCount,
 			undefined,
-			(viewportData.startLineNumber - 1) * this._viewGpuContext.maxGpuCols
+			(viewportData.startLineNumber - 1) * FullFileRenderStrategy.maxSupportedColumns
 		);
 	}
 
