@@ -31,6 +31,7 @@ import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpl
 import { SuggestDetailsClassName } from '../../../../services/suggest/browser/simpleSuggestWidgetDetails.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -358,6 +359,21 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget()
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ConfigureSuggestSettings,
+	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure Suggest Settings'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu
+	},
+	run: (activeInstance, c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
 });
 
 registerActiveInstanceAction({
