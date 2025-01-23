@@ -205,17 +205,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		for (const uri of this.instructionAttachmentsPart.references) {
-			contextArr.push({
-				id: 'vscode.prompt.instructions',
-				name: basename(uri.path),
-				value: uri,
-				isSelection: false,
-				enabled: true,
-				isFile: true,
-				isDynamic: true,
-			});
-		}
+		contextArr
+			.push(...this.instructionAttachmentsPart.chatAttachments);
 
 		return contextArr;
 	}

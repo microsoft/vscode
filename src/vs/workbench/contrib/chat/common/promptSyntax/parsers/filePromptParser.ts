@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../../base/common/uri.js';
 import { BasePromptParser } from './basePromptParser.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';

@@ -26,8 +26,8 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	}
 
 	/**
-	 * Get `URI` for the main reference and `URI`s of all valid
-	 * child references it may contain.
+	 * Get `URI` for the main reference and `URI`s of all valid child
+	 * references it may contain, including reference of this model itself.
 	 */
 	public get references(): readonly URI[] {
 		const { reference } = this;
@@ -45,6 +45,14 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 			...reference.allValidReferencesUris,
 			reference.uri,
 		];
+	}
+
+	/**
+	 * Promise that resolves when the prompt is fully parsed,
+	 * including all its possible nested child references.
+	 */
+	public get allSettled(): Promise<FilePromptParser> {
+		return this.reference.settledAll();
 	}
 
 	/**
