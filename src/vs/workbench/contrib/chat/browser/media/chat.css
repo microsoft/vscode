@@ -1561,3 +1561,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 }
+
+.chat-input-toolbars {
+	.monaco-action-bar .actions-container.highlight-toggled .action-label {
+		border: 1px solid transparent;
+
+		&.checked {
+			color: var(--vscode-inputOption-activeForeground);
+			border-color: var(--vscode-inputOption-activeBorder);
+			background-color: var(--vscode-inputOption-activeBackground) !important;
+		}
+	}
+}

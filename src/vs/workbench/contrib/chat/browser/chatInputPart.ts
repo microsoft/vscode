@@ -17,6 +17,7 @@ import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../..
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Promises } from '../../../../base/common/async.js';
@@ -89,7 +90,7 @@ import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatModelPickerActionId, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatModelPickerActionId, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { InstructionAttachmentsWidget } from './attachments/instructionsAttachment/instructionAttachments.js';
 import { IChatWidget } from './chat.js';
@@ -772,6 +773,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
+			highlightToggledItems: true,
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
 				shouldForwardArgs: true
@@ -801,6 +803,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						};
 						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate, { hoverDelegate: options.hoverDelegate, keybinding: options.keybinding ?? undefined });
 					}
+				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
+					// return this.instantiationService.createInstance(ToggleAgentActionViewItem, action, options as IMenuEntryActionViewItemOptions);
 				}
 
 				return undefined;
@@ -1582,6 +1586,31 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 interface ModelPickerDelegate {
 	onDidChangeModel: Event<string>;
 	setModel(selectedModelId: string): void;
+}
+
+class ToggleAgentActionViewItem extends MenuEntryActionViewItem {
+	constructor(
+		action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
+	) {
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
+	}
+
+	public override render(container: HTMLElement): void {
+		const checkbox = this._register(new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', ...unthemedToggleStyles }));
+		checkbox.checked = !!this.action.checked;
+		container.appendChild(checkbox.domNode);
+		container.appendChild($('span', undefined, 'Agent'));
+		this._register(checkbox.onChange(() => {
+			this.action.run();
+		}));
+	}
 }
 
 class ModelPickerActionViewItem extends MenuEntryActionViewItem {
