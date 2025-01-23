@@ -407,7 +407,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				letterSpacing: font.letterSpacing
 			};
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily')) {
+				if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily')) {
 					this._onDidFontConfigurationChange.fire();
 				}
 			}

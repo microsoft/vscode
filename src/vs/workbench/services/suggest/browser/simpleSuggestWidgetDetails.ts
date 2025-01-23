@@ -80,7 +80,6 @@ export class SimpleSuggestDetailsWidget {
 	}
 
 	private _configureFont(): void {
-
 		const fontInfo = this._getFontInfo();
 		const fontFamily = fontInfo.fontFamily;
 
