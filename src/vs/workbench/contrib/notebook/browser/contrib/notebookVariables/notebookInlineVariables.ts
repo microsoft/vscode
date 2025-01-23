@@ -47,6 +47,8 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 	private cellDecorationIds = new Map<ICellViewModel, string[]>();
 	private cellContentListeners = new ResourceMap<IDisposable>();
 
+	private currentCancellationTokenSource: CancellationTokenSource | null = null;
+
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
@@ -69,6 +71,15 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 	}
 
 	private async updateInlineVariables(event: ICellExecutionStateChangedEvent): Promise<void> {
+		// Cancel any ongoing request
+		if (this.currentCancellationTokenSource) {
+			this.currentCancellationTokenSource.cancel();
+		}
+
+		// Create a new CancellationTokenSource for the new request
+		this.currentCancellationTokenSource = new CancellationTokenSource();
+		const token = this.currentCancellationTokenSource.token;
+
 		if (this.debugService.state !== State.Inactive) {
 			this._clearNotebookInlineDecorations();
 			return;
@@ -93,7 +104,6 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 		this.clearCellInlineDecorations(cell);
 
-		const cts = new CancellationTokenSource();
 		const inlineDecorations: IModelDeltaDecoration[] = [];
 
 		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
@@ -110,7 +120,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 			const fullCellRange = new Range(1, 1, lastLine, lastColumn);
 
-			const promises = providers.flatMap(provider => Promise.resolve(provider.provideInlineValues(model, fullCellRange, ctx, cts.token)).then(async (result) => {
+			const promises = providers.flatMap(provider => Promise.resolve(provider.provideInlineValues(model, fullCellRange, ctx, token)).then(async (result) => {
 				if (result) {
 
 					let kernel: INotebookKernelMatchResult;
@@ -120,7 +130,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 							return; // should not happen, a cell will be executed
 						}
 						kernel = this.notebookKernelService.getMatchingKernel(this.notebookEditor.textModel);
-						const variables = kernel.selected?.provideVariables(event.notebook, undefined, 'named', 0, cts.token);
+						const variables = kernel.selected?.provideVariables(event.notebook, undefined, 'named', 0, token);
 						if (!variables) {
 							return;
 						}
@@ -318,6 +328,9 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 	override dispose(): void {
 		super.dispose();
 		this._clearNotebookInlineDecorations();
+		if (this.currentCancellationTokenSource) {
+			this.currentCancellationTokenSource.cancel();
+		}
 	}
 }
 
