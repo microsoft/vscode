@@ -1006,13 +1006,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}
 		return provider.resolveDocumentOnDropFileData(requestId, dataId);
 	}
-
-	// --- mapped edits
-
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
-		const provider = new MainThreadMappedEditsProvider(displayName, handle, this._proxy, this._uriIdentService);
-		this._registrations.set(handle, this._languageFeaturesService.mappedEditsProvider.register(selector, provider));
-	}
 }
 
 class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider {
@@ -1249,17 +1242,3 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 	}
 }
 
-export class MainThreadMappedEditsProvider implements languages.MappedEditsProvider {
-
-	constructor(
-		public readonly displayName: string,
-		private readonly _handle: number,
-		private readonly _proxy: ExtHostLanguageFeaturesShape,
-		private readonly _uriService: IUriIdentityService,
-	) { }
-
-	async provideMappedEdits(document: ITextModel, codeBlocks: string[], context: languages.MappedEditsContext, token: CancellationToken): Promise<languages.WorkspaceEdit | null> {
-		const res = await this._proxy.$provideMappedEdits(this._handle, document.uri, codeBlocks, context, token);
-		return res ? reviveWorkspaceEditDto(res, this._uriService) : null;
-	}
-}

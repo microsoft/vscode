@@ -176,7 +176,6 @@ module.exports.copyrightFilter = [
 	'!extensions/typescript-language-features/node-maintainer/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
-	'!src/vs/editor/test/node/classification/typescript-test.ts',
 ];
 
 module.exports.tsFormattingFilter = [

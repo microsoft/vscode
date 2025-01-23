@@ -9,15 +9,15 @@ import { CancellationError } from './errors.js';
 import { ISplice } from './sequence.js';
 
 /**
- * Returns the last element of an array.
- * @param array The array.
- * @param n Which element from the end (default is zero).
+ * Returns the last entry and the initial N-1 entries of the array, as a tuple of [rest, last].
+ *
+ * The array must have at least one element.
+ *
+ * @param arr The input array
+ * @returns A tuple of [rest, last] where rest is all but the last element and last is the last element
+ * @throws Error if the array is empty
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
-	return array[array.length - (1 + n)];
-}
-
-export function tail2<T>(arr: T[]): [T[], T] {
+export function tail<T>(arr: T[]): [T[], T] {
 	if (arr.length === 0) {
 		throw new Error('Invalid tail call');
 	}

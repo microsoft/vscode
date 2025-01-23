@@ -2,25 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getWindow } from '../../../../../../base/browser/dom.js';
+import { $, getWindow } from '../../../../../../base/browser/dom.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { diffInserted, diffRemoved, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -30,7 +29,7 @@ import { ITextModel } from '../../../../../common/model.js';
 import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionContextKeys } from '../../controller/inlineCompletionContextKeys.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
-import { PathBuilder, StatusBarViewItem, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
+import { PathBuilder, StatusBarViewItem, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
 import { localize } from '../../../../../../nls.js';
 
@@ -77,10 +76,10 @@ export const modifiedChangedTextOverlayColor = registerColor(
 export const originalBorder = registerColor(
 	'inlineEdit.originalBorder',
 	{
-		light: darken(editorLineHighlightBorder, 0.15),
-		dark: lighten(editorLineHighlightBorder, 0.50),
-		hcDark: editorLineHighlightBorder,
-		hcLight: editorLineHighlightBorder
+		light: editorHoverBorder,
+		dark: editorHoverBorder,
+		hcDark: editorHoverBorder,
+		hcLight: editorHoverBorder
 	},
 	localize('inlineEdit.originalBorder', 'Border color for the original text in inline edits.')
 );
@@ -88,10 +87,10 @@ export const originalBorder = registerColor(
 export const modifiedBorder = registerColor(
 	'inlineEdit.modifiedBorder',
 	{
-		light: darken(editorLineHighlightBorder, 0.15),
-		dark: lighten(editorLineHighlightBorder, 0.50),
-		hcDark: editorLineHighlightBorder,
-		hcLight: editorLineHighlightBorder
+		light: editorHoverBorder,
+		dark: editorHoverBorder,
+		hcDark: editorHoverBorder,
+		hcLight: editorHoverBorder
 	},
 	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
 );
@@ -99,12 +98,12 @@ export const modifiedBorder = registerColor(
 export const acceptedDecorationBackgroundColor = registerColor(
 	'inlineEdit.acceptedBackground',
 	{
-		light: transparent(modifiedChangedTextOverlayColor, 0.5),
-		dark: transparent(modifiedChangedTextOverlayColor, 0.5),
+		light: transparent(modifiedChangedTextOverlayColor, 0.75),
+		dark: transparent(modifiedChangedTextOverlayColor, 0.75),
 		hcDark: modifiedChangedTextOverlayColor,
 		hcLight: modifiedChangedTextOverlayColor
 	},
-	localize('inlineEdit.acceptedBackground', 'Background color for the accepted text after appying an inline edit.'),
+	localize('inlineEdit.acceptedBackground', 'Background color for the accepted text after applying an inline edit.'),
 	true
 );
 
@@ -159,13 +158,13 @@ export class InlineEditsSideBySideDiff extends Disposable {
 				return;
 			}
 
-			const topEdit = layoutInfo.edit1;
-			const bottomEdit = layoutInfo.edit2;
+			const editorTopLeft = layoutInfo.editStart1.deltaY(layoutInfo.padding);
+			const editorBottomLeft = layoutInfo.editStart2.deltaY(-layoutInfo.padding);
 
-			this.previewEditor.layout({ height: bottomEdit.y - topEdit.y, width: layoutInfo.previewEditorWidth });
-			this.previewEditor.updateOptions({ padding: { top: layoutInfo.padding, bottom: layoutInfo.padding } });
-			this._editorContainer.element.style.top = `${topEdit.y}px`;
-			this._editorContainer.element.style.left = `${topEdit.x}px`;
+			this.previewEditor.layout({ height: editorBottomLeft.y - editorTopLeft.y, width: layoutInfo.previewEditorWidth + 15 /* Make sure editor does not scroll horizontally */ });
+			this._editorContainer.element.style.top = `${editorTopLeft.y}px`;
+			this._editorContainer.element.style.left = `${editorTopLeft.x}px`;
+			this._editorContainer.element.style.width = `${layoutInfo.previewEditorWidth}px`; // Set width to clip view zone
 		}));
 
 		/*const toolbarDropdownVisible = observableFromEvent(this, this._toolbar.onDidChangeDropdownVisibility, (e) => e ?? false);
@@ -182,8 +181,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 			this._previewEditorObs.editor.setScrollLeft(layoutInfo.desiredPreviewEditorScrollLeft);
 		}));
-
-		this._editorContainerTopLeft.set(this._previewEditorLayoutInfo.map(i => i?.edit1), undefined);
 	}
 
 	private readonly _display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
@@ -191,11 +188,9 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly previewRef = n.ref<HTMLDivElement>();
 	private readonly toolbarRef = n.ref<HTMLDivElement>();
 
-	private readonly _editorContainerTopLeft = observableValue<IObservable<Point | undefined> | undefined>(this, undefined);
-
 	private readonly _editorContainer = n.div({
 		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.experimental.useGutterIndicator && 'showHover')],
-		style: { position: 'absolute' },
+		style: { position: 'absolute', overflow: 'hidden' },
 	}, [
 		n.div({ class: 'preview', style: {}, ref: this.previewRef }),
 		n.div({ class: 'toolbar', style: {}, ref: this.toolbarRef }),
@@ -299,6 +294,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 	private readonly _previewEditorObs = observableCodeEditor(this.previewEditor);
 
+	private _activeViewZones: string[] = [];
 	private readonly _updatePreviewEditor = derived(reader => {
 		this._editorContainer.readEffect(reader);
 
@@ -331,6 +327,24 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 		this.previewEditor.setHiddenAreas(hiddenAreas, undefined, true);
 
+		// TODO: is this the proper way to handle viewzones?
+		const previousViewZones = [...this._activeViewZones];
+		this._activeViewZones = [];
+
+		const reducedLinesCount = (range.endLineNumberExclusive - range.startLineNumber) - uiState.newTextLineCount;
+		this.previewEditor.changeViewZones((changeAccessor) => {
+			previousViewZones.forEach(id => changeAccessor.removeZone(id));
+
+			if (reducedLinesCount > 0) {
+				this._activeViewZones.push(changeAccessor.addZone({
+					afterLineNumber: range.startLineNumber + uiState.newTextLineCount - 1,
+					heightInLines: reducedLinesCount,
+					showInHiddenAreas: true,
+					domNode: $('div.diagonal-fill.inline-edits-view-zone'),
+				}));
+			}
+		});
+
 	}).recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _previewEditorWidth = derived(this, reader => {
@@ -338,7 +352,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		if (!edit) { return 0; }
 		this._updatePreviewEditor.read(reader);
 
-		return maxContentWidthInRange(this._previewEditorObs, edit.modifiedLineRange, reader) + 10;
+		return maxContentWidthInRange(this._previewEditorObs, edit.modifiedLineRange, reader);
 	});
 
 	private readonly _cursorPosIfTouchesEdit = derived(this, reader => {
@@ -409,7 +423,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const cursorPos = this._cursorPosIfTouchesEdit.read(reader);
 
 		const maxPreviewEditorLeft = Math.max(
-			// We're starting from the content area right and moving it left by IN_EDITOR_DISPLACEMENT and also by an ammount to ensure some mimum desired width
+			// We're starting from the content area right and moving it left by IN_EDITOR_DISPLACEMENT and also by an amount to ensure some minimum desired width
 			editorContentAreaWidth + horizontalScrollOffset - IN_EDITOR_DISPLACEMENT - Math.max(0, desiredMinimumWidth - maximumAvailableWidth),
 			// But we don't want that the moving left ends up covering the cursor, so this will push it to the right again
 			Math.min(
@@ -438,27 +452,50 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 		const codeLeft = editorLayout.contentLeft;
 
-		const code1 = new Point(left, selectionTop);
-		const codeStart1 = new Point(codeLeft, selectionTop);
-		const code2 = new Point(left, selectionBottom);
-		const codeStart2 = new Point(codeLeft, selectionBottom);
-		const codeHeight = selectionBottom - selectionTop;
+		let code1 = new Point(left, selectionTop);
+		let codeStart1 = new Point(codeLeft, selectionTop);
+		let code2 = new Point(left, selectionBottom);
+		let codeStart2 = new Point(codeLeft, selectionBottom);
 
-		const codeEditDistRange = inlineEdit.modifiedLineRange.length === inlineEdit.originalLineRange.length
+		const editHeight = this._editor.getOption(EditorOption.lineHeight) * inlineEdit.modifiedLineRange.length;
+		const codeHeight = selectionBottom - selectionTop;
+		const previewEditorHeight = Math.max(codeHeight, editHeight);
+
+		const editIsSameHeight = codeHeight === previewEditorHeight;
+		const codeEditDistRange = editIsSameHeight
 			? new OffsetRange(4, 61)
 			: new OffsetRange(60, 61);
 
 		const clipped = dist === 0;
+		const PADDING = 4;
 
-		const codeEditDist = codeEditDistRange.clip(dist);
-		const editHeight = this._editor.getOption(EditorOption.lineHeight) * inlineEdit.modifiedLineRange.length;
+		const codeEditDist = editIsSameHeight ? PADDING : codeEditDistRange.clip(dist); // TODO: Is there a better way to specify the distance?
 
 		const previewEditorWidth = Math.min(previewContentWidth, remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist);
 
-		const PADDING = 4;
+		let editStart1 = new Point(left + codeEditDist, selectionTop);
+		let edit1 = editStart1.deltaX(previewEditorWidth);
+		let editStart2 = new Point(left + codeEditDist, selectionTop + previewEditorHeight);
+		let edit2 = editStart2.deltaX(previewEditorWidth);
 
-		const edit1 = new Point(left + codeEditDist, selectionTop);
-		const edit2 = new Point(left + codeEditDist, selectionTop + editHeight + PADDING * 2);
+		// padding
+		const isInsertion = codeHeight === 0;
+		if (!isInsertion) {
+			codeStart1 = codeStart1.deltaY(-PADDING).deltaX(-PADDING);
+			code1 = code1.deltaY(-PADDING);
+			codeStart2 = codeStart2.deltaY(PADDING).deltaX(-PADDING);
+			code2 = code2.deltaY(PADDING);
+
+			editStart1 = editStart1.deltaY(-PADDING);
+			edit1 = edit1.deltaY(-PADDING).deltaX(PADDING);
+			editStart2 = editStart2.deltaY(PADDING);
+			edit2 = edit2.deltaY(PADDING).deltaX(PADDING);
+		} else {
+			// Align top of edit with insertion line
+			edit1 = edit1.deltaX(PADDING);
+			editStart2 = editStart2.deltaY(2 * PADDING);
+			edit2 = edit2.deltaY(2 * PADDING).deltaX(PADDING);
+		}
 
 		return {
 			code1,
@@ -466,8 +503,11 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			code2,
 			codeStart2,
 			codeHeight,
+			codeScrollLeft: horizontalScrollOffset,
 
+			editStart1,
 			edit1,
+			editStart2,
 			edit2,
 			editHeight,
 			maxContentWidth,
@@ -503,32 +543,19 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _extendedModifiedPath = derived(reader => {
 		const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 		if (!layoutInfo) { return undefined; }
-		const width = layoutInfo.previewEditorWidth + layoutInfo.padding;
 
+		const extendedModifiedPathBuilder = createRectangle(
+			{ topLeft: layoutInfo.editStart1, width: layoutInfo.edit1.x - layoutInfo.editStart1.x, height: layoutInfo.editStart2.y - layoutInfo.editStart1.y },
+			0,
+			{ topLeft: 0, bottomLeft: 0, topRight: layoutInfo.borderRadius, bottomRight: layoutInfo.borderRadius },
+			{ hideLeft: true }
+		);
 
-		const topLeft = layoutInfo.edit1;
-		const topRight = layoutInfo.edit1.deltaX(width);
-		const topRightBefore = topRight.deltaX(-layoutInfo.borderRadius);
-		const topRightAfter = topRight.deltaY(layoutInfo.borderRadius);
-
-		const bottomLeft = layoutInfo.edit2;
-		const bottomRight = bottomLeft.deltaX(width);
-		const bottomRightBefore = bottomRight.deltaY(-layoutInfo.borderRadius);
-		const bottomRightAfter = bottomRight.deltaX(-layoutInfo.borderRadius);
-
-		const extendedModifiedPathBuilder = new PathBuilder()
-			.moveTo(layoutInfo.code1)
-			.lineTo(topLeft)
-			.lineTo(topRightBefore)
-			.curveTo(topRight, topRightAfter)
-			.lineTo(bottomRightBefore)
-			.curveTo(bottomRight, bottomRightAfter)
-			.lineTo(bottomLeft);
-
-		if (layoutInfo.edit2.y !== layoutInfo.code2.y) {
-			extendedModifiedPathBuilder.curveTo2(layoutInfo.edit2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
+		if (layoutInfo.editStart2.y !== layoutInfo.code2.y) {
+			extendedModifiedPathBuilder.moveTo(layoutInfo.editStart2);
+			extendedModifiedPathBuilder.curveTo2(layoutInfo.editStart2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
 		}
-		extendedModifiedPathBuilder.lineTo(layoutInfo.code2);
+		extendedModifiedPathBuilder.lineTo(layoutInfo.code2).moveTo(layoutInfo.code1).lineTo(layoutInfo.editStart1);
 		return extendedModifiedPathBuilder.build();
 	});
 
@@ -602,13 +629,12 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		return [
 			n.svgElem('path', {
 				class: 'originalOverlay',
-				d: layoutInfoObs.map(layoutInfo => new PathBuilder()
-					.moveTo(layoutInfo.code2)
-					.lineTo(layoutInfo.codeStart2)
-					.lineTo(layoutInfo.codeStart1)
-					.lineTo(layoutInfo.code1)
-					.build()
-				),
+				d: layoutInfoObs.map(layoutInfo => createRectangle(
+					{ topLeft: layoutInfo.codeStart1, width: layoutInfo.code1.x - layoutInfo.codeStart1.x, height: layoutInfo.code2.y - layoutInfo.code1.y },
+					0,
+					{ topLeft: layoutInfo.borderRadius, bottomLeft: layoutInfo.borderRadius, topRight: 0, bottomRight: 0 },
+					{ hideRight: true, hideLeft: layoutInfo.codeScrollLeft !== 0 }
+				).build()),
 				style: {
 					fill: 'var(--vscode-inlineEdit-originalBackground, transparent)',
 					stroke: 'var(--vscode-inlineEdit-originalBorder)',

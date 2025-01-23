@@ -33,7 +33,9 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 				this._responseMap.set(requestId, response);
 				const extHostRequest: ICodeMapperRequestDto = {
 					requestId,
-					codeBlocks: uiRequest.codeBlocks
+					codeBlocks: uiRequest.codeBlocks,
+					chatRequestId: uiRequest.chatRequestId,
+					location: uiRequest.location
 				};
 				try {
 					return await this._proxy.$mapCode(handle, extHostRequest, token).then((result) => result ?? undefined);

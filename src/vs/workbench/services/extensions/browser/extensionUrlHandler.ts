@@ -26,7 +26,6 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
@@ -88,18 +87,6 @@ type ExtensionUrlHandlerClassification = {
 	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
 };
 
-interface ExtensionUrlReloadHandlerEvent {
-	readonly extensionId: string;
-	readonly isRemote: boolean;
-}
-
-type ExtensionUrlReloadHandlerClassification = {
-	owner: 'sandy081';
-	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
-	readonly isRemote: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Whether the current window is a remote window' };
-	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
-};
-
 export interface IExtensionUrlHandlerOverride {
 	handleURL(uri: URI): Promise<boolean>;
 }
@@ -148,7 +135,6 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
@@ -311,7 +297,6 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		/* Extension cannot be added and require window reload */
 		else {
-			this.telemetryService.publicLog2<ExtensionUrlReloadHandlerEvent, ExtensionUrlReloadHandlerClassification>('uri_invoked/install_extension/reload', { extensionId, isRemote: !!this.workbenchEnvironmentService.remoteAuthority });
 			const result = await this.dialogService.confirm({
 				message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extensionId),
 				primaryButton: localize({ key: 'reloadAndOpen', comment: ['&& denotes a mnemonic'] }, "&&Reload Window and Open")

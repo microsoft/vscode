@@ -28,6 +28,8 @@ import { ExtensionIdentifier } from '../../platform/extensions/common/extensions
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { IModelTokensChangedEvent } from './textModelEvents.js';
 import type { Parser } from '@vscode/tree-sitter-wasm';
+import { ITextModel } from './model.js';
+import { TokenUpdate } from './model/tokenStore.js';
 
 /**
  * @internal
@@ -84,14 +86,29 @@ export class EncodedTokenizationResult {
 	}
 }
 
+export interface SyntaxNode {
+	startIndex: number;
+	endIndex: number;
+}
+
+export interface QueryCapture {
+	name: string;
+	text?: string;
+	node: SyntaxNode;
+}
+
 /**
  * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
  * @internal
  */
 export interface ITreeSitterTokenizationSupport {
+	/**
+	 * exposed for testing
+	 */
+	getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
-	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
-	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
+	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
+	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
@@ -2339,62 +2356,6 @@ export interface DocumentDropEditProvider {
 
 	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
-}
-
-export interface DocumentContextItem {
-	readonly uri: URI;
-	readonly version: number;
-	readonly ranges: IRange[];
-}
-
-export interface MappedEditsContext {
-	/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
-	readonly documents: DocumentContextItem[][];
-	/**
-	 * @internal
-	 */
-	readonly conversation?: (ConversationRequest | ConversationResponse)[];
-}
-
-/**
- * @internal
- */
-export interface ConversationRequest {
-	readonly type: 'request';
-	readonly message: string;
-}
-
-/**
- * @internal
- */
-export interface ConversationResponse {
-	readonly type: 'response';
-	readonly message: string;
-	readonly references?: DocumentContextItem[];
-}
-
-export interface MappedEditsProvider {
-	/**
-	 * @internal
-	 */
-	readonly displayName: string; // internal
-
-	/**
-	 * Provider maps code blocks from the chat into a workspace edit.
-	 *
-	 * @param document The document to provide mapped edits for.
-	 * @param codeBlocks Code blocks that come from an LLM's reply.
-	 * 						"Apply in Editor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
-	 * @param context The context for providing mapped edits.
-	 * @param token A cancellation token.
-	 * @returns A provider result of text edits.
-	 */
-	provideMappedEdits(
-		document: model.ITextModel,
-		codeBlocks: string[],
-		context: MappedEditsContext,
-		token: CancellationToken
-	): Promise<WorkspaceEdit | null>;
 }
 
 export interface IInlineEdit {

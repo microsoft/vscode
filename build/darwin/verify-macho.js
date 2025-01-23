@@ -3,9 +3,45 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const assert = require("assert");
-const path = require("path");
+const assert_1 = __importDefault(require("assert"));
+const path = __importStar(require("path"));
 const promises_1 = require("fs/promises");
 const cross_spawn_promise_1 = require("@malept/cross-spawn-promise");
 const MACHO_PREFIX = 'Mach-O ';
@@ -78,7 +114,7 @@ async function checkMachOFiles(appPath, arch) {
                     }
                     else if (header_magic === MACHO_UNIVERSAL_MAGIC_LE) {
                         const num_binaries = header.readUInt32BE(4);
-                        assert.equal(num_binaries, 2);
+                        assert_1.default.equal(num_binaries, 2);
                         const file_entries_size = file_header_entry_size * num_binaries;
                         const file_entries = Buffer.alloc(file_entries_size);
                         read(p, file_entries, 0, file_entries_size, 8).then(_ => {
@@ -103,8 +139,8 @@ async function checkMachOFiles(appPath, arch) {
     return invalidFiles;
 }
 const archToCheck = process.argv[2];
-assert(process.env['APP_PATH'], 'APP_PATH not set');
-assert(archToCheck === 'x64' || archToCheck === 'arm64' || archToCheck === 'universal', `Invalid architecture ${archToCheck} to check`);
+(0, assert_1.default)(process.env['APP_PATH'], 'APP_PATH not set');
+(0, assert_1.default)(archToCheck === 'x64' || archToCheck === 'arm64' || archToCheck === 'universal', `Invalid architecture ${archToCheck} to check`);
 checkMachOFiles(process.env['APP_PATH'], archToCheck).then(invalidFiles => {
     if (invalidFiles.length > 0) {
         console.error('\x1b[31mThe following files are built for the wrong architecture:\x1b[0m');

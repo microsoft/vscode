@@ -157,30 +157,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return 'inactive' as const;
 	});
 
-	private readonly _onClickAction = derived(this, reader => {
-		if (this._layout.map(d => d && d.docked).read(reader)) {
-			return {
-				selectionOverride: 'accept' as const,
-				action: () => {
-					this._editorObs.editor.focus();
-					this._model.get()?.accept();
-				}
-			};
-		} else {
-			return {
-				selectionOverride: 'jump' as const,
-				action: () => {
-					this._editorObs.editor.focus();
-					this._model.get()?.jump();
-				}
-			};
-		}
-	});
-
 	private readonly _iconRef = n.ref<HTMLDivElement>();
 	private _hoverVisible: boolean = false;
 	private readonly _isHoveredOverIcon = observableValue(this, false);
-	private readonly _hoverSelectionOverride = derived(this, reader => this._isHoveredOverIcon.read(reader) ? this._onClickAction.read(reader).selectionOverride : undefined);
 
 	private _showHover(): void {
 		if (this._hoverVisible) {
@@ -190,7 +169,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const displayName = derived(this, reader => {
 			const state = this._model.read(reader)?.inlineEditState;
 			const item = state?.read(reader);
-			const completionSource = item?.inlineCompletion?.inlineCompletion.source;
+			const completionSource = item?.inlineCompletion?.source;
 			// TODO: expose the provider (typed) and expose the provider the edit belongs totyping and get correct edit
 			const displayName = (completionSource?.inlineCompletions as any).edits[0]?.provider?.displayName ?? localize('inlineEdit', "Inline Edit");
 			return displayName;
@@ -200,14 +179,14 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const content = disposableStore.add(this._instantiationService.createInstance(
 			GutterIndicatorMenuContent,
 			displayName,
-			this._hoverSelectionOverride,
+			this._tabAction,
 			(focusEditor) => {
 				if (focusEditor) {
 					this._editorObs.editor.focus();
 				}
 				h?.dispose();
 			},
-			this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.inlineCompletion.source.inlineCompletions.commands),
+			this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.source.inlineCompletions.commands),
 		).toDisposableLiveElement());
 
 		const focusTracker = disposableStore.add(trackFocus(content.element));
@@ -232,7 +211,17 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _indicator = n.div({
 		class: 'inline-edits-view-gutter-indicator',
-		onclick: () => this._onClickAction.get().action(),
+		onclick: () => {
+			const model = this._model.get();
+			if (!model) { return; }
+			const docked = this._layout.map(l => l && l.docked).get();
+			this._editorObs.editor.focus();
+			if (docked) {
+				model.accept();
+			} else {
+				model.jump();
+			}
+		},
 		tabIndex: 0,
 		style: {
 			position: 'absolute',
@@ -293,7 +282,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					transition: 'rotate 0.2s ease-in-out',
 				}
 			}, [
-				renderIcon(Codicon.arrowRight)
+				renderIcon(Codicon.arrowRight) // TODO: allow setting css here, is this already supported?
 			])
 		]),
 	])).keepUpdated(this._store);

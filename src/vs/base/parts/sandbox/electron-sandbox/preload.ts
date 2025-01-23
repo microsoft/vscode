@@ -9,7 +9,7 @@
 
 	const { ipcRenderer, webFrame, contextBridge, webUtils } = require('electron');
 
-	type ISandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes.js').ISandboxConfiguration;
+	type ISandboxConfiguration = import('../common/sandboxTypes.js').ISandboxConfiguration;
 
 	//#region Utilities
 

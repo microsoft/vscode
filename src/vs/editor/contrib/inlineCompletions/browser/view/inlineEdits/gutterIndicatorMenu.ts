@@ -21,7 +21,7 @@ import { ChildNode, FirstFnArg, LiveElement, n } from './utils.js';
 export class GutterIndicatorMenuContent {
 	constructor(
 		private readonly _menuTitle: IObservable<string>,
-		private readonly _selectionOverride: IObservable<'jump' | 'accept' | undefined>,
+		private readonly _tabAction: IObservable<'jump' | 'accept' | 'inactive'>,
 		private readonly _close: (focusEditor: boolean) => void,
 		private readonly _extensionCommands: IObservable<readonly Command[] | undefined>,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -36,18 +36,17 @@ export class GutterIndicatorMenuContent {
 
 	private _createHoverContent() {
 		const activeElement = observableValue<string | undefined>('active', undefined);
-		const activeElementOrDefault = derived(reader => this._selectionOverride.read(reader) ?? activeElement.read(reader));
 
-		const createOptionArgs = (options: { id: string; title: string; icon: ThemeIcon; commandId: string; commandArgs?: unknown[] }): FirstFnArg<typeof option> => {
+		const createOptionArgs = (options: { id: string; title: string; icon: IObservable<ThemeIcon> | ThemeIcon; commandId: string | IObservable<string>; commandArgs?: unknown[] }): FirstFnArg<typeof option> => {
 			return {
 				title: options.title,
 				icon: options.icon,
-				keybinding: this._getKeybinding(options.commandArgs ? undefined : options.commandId),
-				isActive: activeElementOrDefault.map(v => v === options.id),
+				keybinding: typeof options.commandId === 'string' ? this._getKeybinding(options.commandArgs ? undefined : options.commandId) : derived(reader => typeof options.commandId === 'string' ? undefined : this._getKeybinding(options.commandArgs ? undefined : options.commandId.read(reader)).read(reader)),
+				isActive: activeElement.map(v => v === options.id),
 				onHoverChange: v => activeElement.set(v ? options.id : undefined, undefined),
 				onAction: () => {
 					this._close(true);
-					return this._commandService.executeCommand(options.commandId, ...(options.commandArgs ?? []));
+					return this._commandService.executeCommand(typeof options.commandId === 'string' ? options.commandId : options.commandId.get(), ...(options.commandArgs ?? []));
 				},
 			};
 		};
@@ -55,8 +54,7 @@ export class GutterIndicatorMenuContent {
 		// TODO make this menu contributable!
 		return hoverContent([
 			header(this._menuTitle),
-			option(createOptionArgs({ id: 'jump', title: localize('goto', "Go To"), icon: Codicon.arrowRight, commandId: new JumpToNextInlineEdit().id })),
-			option(createOptionArgs({ id: 'accept', title: localize('accept', "Accept"), icon: Codicon.check, commandId: new AcceptInlineCompletion().id })),
+			option(createOptionArgs({ id: 'gotoAndAccept', title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`, icon: this._tabAction.map(action => action === 'accept' ? Codicon.check : Codicon.arrowRight), commandId: this._tabAction.map(action => action === 'accept' ? new AcceptInlineCompletion().id : new JumpToNextInlineEdit().id) })),
 			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: new HideInlineCompletion().id })),
 			separator(),
 			this._extensionCommands?.map(c => c && c.length > 0 ? [
@@ -100,7 +98,7 @@ function header(title: string | IObservable<string>) {
 
 function option(props: {
 	title: string;
-	icon: ThemeIcon;
+	icon: IObservable<ThemeIcon> | ThemeIcon;
 	keybinding: IObservable<ResolvedKeybinding | undefined>;
 	isActive?: IObservable<boolean>;
 	onHoverChange?: (isHovered: boolean) => void;
@@ -123,7 +121,7 @@ function option(props: {
 				fontSize: 16,
 				display: 'flex',
 			}
-		}, [renderIcon(props.icon)]),
+		}, [ThemeIcon.isThemeIcon(props.icon) ? renderIcon(props.icon) : props.icon.map(icon => renderIcon(icon))]),
 		n.elem('span', {}, [props.title]),
 		n.div({
 			style: { marginLeft: 'auto', opacity: '0.6' },

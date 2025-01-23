@@ -5,16 +5,16 @@
 
 import * as es from 'event-stream';
 import * as gulp from 'gulp';
-import * as filter from 'gulp-filter';
+import filter from 'gulp-filter';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as pump from 'pump';
-import * as VinylFile from 'vinyl';
+import pump from 'pump';
+import VinylFile from 'vinyl';
 import * as bundle from './bundle';
 import { gulpPostcss } from './postcss';
 import * as esbuild from 'esbuild';
 import * as sourcemaps from 'gulp-sourcemaps';
-import * as fancyLog from 'fancy-log';
+import fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');

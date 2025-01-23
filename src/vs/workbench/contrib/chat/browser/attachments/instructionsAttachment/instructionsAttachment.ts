@@ -97,10 +97,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this.renderDisposables.clear();
 		this.domNode.classList.remove('warning', 'error', 'disabled');
 
-		const { enabled, resolveIssue: errorCondition } = this.model;
-		if (!enabled) {
-			this.domNode.classList.add('disabled');
-		}
+		const { topError } = this.model;
 
 		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 		const file = this.model.reference.uri;
@@ -112,19 +109,21 @@ export class InstructionsAttachmentWidget extends Disposable {
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Prompt instructions");
-		const inactive = localize('enableHint', "disabled");
-		const currentFileHint = currentFile + (enabled ? '' : ` (${inactive})`);
 
-		let title = `${currentFileHint} ${uriLabel}`;
+		let title = `${currentFile} ${uriLabel}`;
 
 		// if there are some errors/warning during the process of resolving
 		// attachment references (including all the nested child references),
 		// add the issue details in the hover title for the attachment
-		if (errorCondition) {
-			const { type, message: details } = errorCondition;
-			this.domNode.classList.add(type);
+		if (topError) {
+			const { isRootError, message: details } = topError;
+			const isWarning = !isRootError;
 
-			const errorCaption = type === 'warning'
+			this.domNode.classList.add(
+				(isWarning) ? 'error' : 'warning',
+			);
+
+			const errorCaption = (isWarning)
 				? localize('warning', "Warning")
 				: localize('error', "Error");
 
@@ -145,18 +144,6 @@ export class InstructionsAttachmentWidget extends Disposable {
 		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, localize('instructions', 'Instructions')));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
-		// create `toggle` enabled state button
-		const toggleButtonMsg = enabled
-			? localize('disable', "Disable")
-			: localize('enable', "Enable");
-
-		const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: toggleButtonMsg }));
-		toggleButton.icon = enabled ? Codicon.eye : Codicon.eyeClosed;
-		this.renderDisposables.add(toggleButton.onDidClick((e) => {
-			e.stopPropagation();
-			this.model.toggle();
-		}));
-
 		// create the `remove` button
 		const removeButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: localize('remove', "Remove") }));
 		removeButton.icon = Codicon.x;
@@ -165,7 +152,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 			this.model.dispose();
 		}));
 
-		// Context menu
+		// context menu
 		const scopedContextKeyService = this.renderDisposables.add(this.contextKeyService.createScoped(this.domNode));
 
 		const resourceContextKey = this.renderDisposables.add(

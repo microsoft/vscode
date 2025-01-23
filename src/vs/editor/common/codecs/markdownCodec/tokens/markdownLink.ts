@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseToken } from '../../baseToken.js';
-import { Range } from '../../../core/range.js';
 import { MarkdownToken } from './markdownToken.js';
+import { IRange, Range } from '../../../core/range.js';
 import { assert } from '../../../../../base/common/assert.js';
 
 /**
@@ -13,6 +13,11 @@ import { assert } from '../../../../../base/common/assert.js';
  * value reflects the position of the token in the original data.
  */
 export class MarkdownLink extends MarkdownToken {
+	/**
+	 * Check if this `markdown link` points to a valid URL address.
+	 */
+	public readonly isURL: boolean;
+
 	constructor(
 		/**
 		 * The starting line number of the link (1-based indexing).
@@ -23,7 +28,7 @@ export class MarkdownLink extends MarkdownToken {
 		 */
 		columnNumber: number,
 		/**
-		 * The caprtion of the link, including the square brackets.
+		 * The caption of the link, including the square brackets.
 		 */
 		private readonly caption: string,
 		/**
@@ -64,6 +69,14 @@ export class MarkdownLink extends MarkdownToken {
 				columnNumber + caption.length + reference.length,
 			),
 		);
+
+		// set up the `isURL` flag based on the current
+		try {
+			new URL(this.path);
+			this.isURL = true;
+		} catch {
+			this.isURL = false;
+		}
 	}
 
 	public override get text(): string {
@@ -90,6 +103,28 @@ export class MarkdownLink extends MarkdownToken {
 		}
 
 		return this.text === other.text;
+	}
+
+	/**
+	 * Get the range of the `link part` of the token.
+	 */
+	public get linkRange(): IRange | undefined {
+		if (this.path.length === 0) {
+			return undefined;
+		}
+
+		const { range } = this;
+
+		// note! '+1' for openning `(` of the link
+		const startColumn = range.startColumn + this.caption.length + 1;
+		const endColumn = startColumn + this.path.length;
+
+		return new Range(
+			range.startLineNumber,
+			startColumn,
+			range.endLineNumber,
+			endColumn,
+		);
 	}
 
 	/**
