@@ -582,7 +582,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (!transient) {
 			const inputState = this.getInputState();
-			inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
+			inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage) ?? [];
 			this.saveCurrentValue(inputState);
 		}
 	}
