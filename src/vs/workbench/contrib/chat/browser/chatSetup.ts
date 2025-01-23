@@ -67,6 +67,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -306,9 +307,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerUrlLinkHandler(): void {
-		this._register(ExtensionUrlHandlerOverrideRegistry.registerHandler(URI.parse(`${this.productService.urlProtocol}://${defaultChat.chatExtensionId}`), {
-			handleURL: async () => {
-				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: TRIGGER_SETUP_COMMAND_ID, from: 'url' });
+		this._register(ExtensionUrlHandlerOverrideRegistry.registerHandler({
+			canHandleURL: url => {
+				return url.scheme === this.productService.urlProtocol && equalsIgnoreCase(url.authority, defaultChat.chatExtensionId);
+			},
+			handleURL: async url => {
+				const params = new URLSearchParams(url.query);
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: TRIGGER_SETUP_COMMAND_ID, from: params.get('referrer') ?? 'url' });
 
 				await this.commandService.executeCommand(TRIGGER_SETUP_COMMAND_ID);
 
