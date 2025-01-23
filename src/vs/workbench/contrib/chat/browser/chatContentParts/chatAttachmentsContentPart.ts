@@ -147,7 +147,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 							this.openResource(attachment.references[0].reference, false, undefined);
 						}
 					};
-					dom.addDisposableListener(widget, 'click', clickHandler);
+					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'click', clickHandler));
 				}
 
 				if (isAttachmentPartialOrOmitted) {

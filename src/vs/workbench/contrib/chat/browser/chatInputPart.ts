@@ -952,7 +952,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.openResource(attachment.references[0].reference, false, undefined);
 						}
 					};
-					addDisposableListener(widget, 'click', clickHandler);
+					store.add(addDisposableListener(widget, 'click', clickHandler));
 				}
 
 				if (!supportsVision) {
