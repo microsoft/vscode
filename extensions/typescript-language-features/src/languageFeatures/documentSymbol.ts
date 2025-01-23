@@ -116,9 +116,10 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 	private _getRanges(activeTextEditor: vscode.TextEditor, symbols: vscode.DocumentSymbol[], kind: vscode.SymbolKind, rangesForLineHeight: vscode.Range[], rangesForFontSize1: vscode.Range[], rangesForFontSize2: vscode.Range[]) {
 		for (const symbol of symbols) {
 			if (symbol.kind === kind) {
-				rangesForLineHeight.push(new vscode.Range(symbol.range.start.line, 0, symbol.range.start.line, 0));
-				rangesForFontSize1.push(activeTextEditor.document.validateRange(new vscode.Range(symbol.range.start.line, 0, symbol.range.start.line, 15)));
-				rangesForFontSize2.push(activeTextEditor.document.validateRange(new vscode.Range(symbol.range.start.line, 10, symbol.range.start.line, Infinity)));
+				const line = symbol.range.start.line;
+				rangesForLineHeight.push(new vscode.Range(line, 0, line, 0));
+				rangesForFontSize1.push(activeTextEditor.document.validateRange(new vscode.Range(line, 0, line, 15)));
+				rangesForFontSize2.push(activeTextEditor.document.validateRange(new vscode.Range(line, 10, line, Infinity)));
 			}
 			this._getRanges(activeTextEditor, symbol.children, kind, rangesForLineHeight, rangesForFontSize1, rangesForFontSize2);
 		}
