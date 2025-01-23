@@ -210,10 +210,6 @@
 	}
 }
 
-.monaco-editor .inline-completion-accepted {
-	background-color: var(--vscode-inlineEdit-acceptedBackground);
-}
-
 .inline-edits-view-gutter-indicator .codicon{
 	margin-top: 1px; /* TODO: Move into gutter DOM initialization */
 }
