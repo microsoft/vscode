@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
@@ -13,8 +14,41 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
+ * Common instructions attachment variable identifier.
+ */
+type TInstructionsId = 'vscode.prompt.instructions';
+
+/**
+ * Instructions attachment variable identifier for
+ * the `root` reference.
+ */
+type TInstructionsRootId = `${TInstructionsId}.root`;
+
+/**
+ * Well-defined instructions attachment variable identifiers.
+ */
+type TInstructionsVariableIds = TInstructionsId | TInstructionsRootId;
+
+/**
+ * Utility to convert a reference `URI` to a chat variable
+ * entry with the specified variable {@linkcode id}.
+ */
+const toChatVariable = (id: TInstructionsVariableIds, uri: URI): IChatRequestVariableEntry => {
+	return {
+		id: `${id}__${uri}`,
+		name: uri.fsPath,
+		value: uri,
+		isSelection: false,
+		enabled: true,
+		isFile: true,
+		isDynamic: true,
+		isMarkedReadonly: true,
+	};
+};
+
+/**
  * Model for a collection of prompt instruction attachments.
- * See {@linkcode ChatInstructionsAttachmentModel}.
+ * See {@linkcode ChatInstructionsAttachmentModel} for individual attachment.
  */
 export class ChatInstructionAttachmentsModel extends Disposable {
 	/**
@@ -40,6 +74,48 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Get the list of all prompt instruction attachment variables, including all
+	 * nested child references of each attachment explicitly attached by user.
+	 */
+	public get chatAttachments(): readonly IChatRequestVariableEntry[] {
+		const result = [];
+		const attachments = [...this.attachments.values()];
+
+		for (const attachment of attachments) {
+			const { reference } = attachment;
+
+			// the usual URIs list of prompt instructions is `bottom-up`, therefore
+			// we do the same herfe - first add all child references of the model
+			result.push(
+				...reference.allValidReferencesUris.map((uri) => {
+					return toChatVariable('vscode.prompt.instructions', uri);
+				}),
+			);
+
+			// then add the root reference of the model itself
+			result.push(
+				toChatVariable('vscode.prompt.instructions.root', reference.uri),
+			);
+		}
+
+		return result;
+	}
+
+	/**
+	 * Promise that resolves when parsing of all attached prompt instruction
+	 * files completes, including parsing of all its possible child references.
+	 */
+	public async allSettled(): Promise<void> {
+		const attachments = [...this.attachments.values()];
+
+		await Promise.allSettled(
+			attachments.map((attachment) => {
+				return attachment.allSettled;
+			}),
+		);
 	}
 
 	/**
