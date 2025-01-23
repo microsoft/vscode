@@ -343,7 +343,7 @@ class RevealWidget extends AbstractInlineChatAction {
 					CTX_HAS_SESSION,
 					ctxIsGlobalEditingSession.negate(),
 				),
-				group: 'z',
+				group: 'navigate',
 				order: 4,
 			}
 		});
