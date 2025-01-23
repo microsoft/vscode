@@ -159,7 +159,6 @@ export class RenderedContentHover extends Disposable {
 	}
 }
 
-
 interface IRenderedContentHoverPart {
 	/**
 	 * Type of rendered part

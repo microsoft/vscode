@@ -132,7 +132,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return new GlobalStyleSheet(domStylesheets.createStyleSheet());
 	}
 
-	private _getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
+	public getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
 		if (!editor) {
 			return this._getOrCreateGlobalStyleSheet();
 		}
@@ -155,7 +155,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): IDisposable {
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
-			const styleSheet = this._getOrCreateStyleSheet(editor);
+			const styleSheet = this.getOrCreateStyleSheet(editor);
 			const providerArgs: ProviderArguments = {
 				styleSheet: styleSheet,
 				key: key,
@@ -318,7 +318,7 @@ export class ModelTransientSettingWatcher {
 	}
 }
 
-class RefCountedStyleSheet {
+export class RefCountedStyleSheet {
 
 	private readonly _parent: AbstractCodeEditorService;
 	private readonly _editorId: string;
@@ -798,6 +798,9 @@ class DecorationCSSRules {
 				const escaped = truncated.replace(/['\\]/g, '\\$&');
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
+			}
+			if (typeof opts.fontSize === 'number') {
+				cssTextArr.push(strings.format(_CSS_MAP.clippedFontSize, opts.fontSize + 'px'));
 			}
 			this.collectCSSText(opts, ['verticalAlign', 'fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {

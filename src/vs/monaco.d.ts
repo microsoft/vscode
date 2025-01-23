@@ -6125,6 +6125,14 @@ declare namespace monaco.editor {
 		 */
 		getLineHeightForModelLineNumber(lineNumber: number): number;
 		/**
+		 * Get special font info at position
+		 */
+		getSpecialFontInfoForPosition(pos: Position): {
+			fontFamily?: string;
+			fontWeight?: string;
+			fontSize?: number;
+		} | null;
+		/**
 		 * Write the screen reader content to be the current selection
 		 */
 		writeScreenReaderContent(reason: string): void;

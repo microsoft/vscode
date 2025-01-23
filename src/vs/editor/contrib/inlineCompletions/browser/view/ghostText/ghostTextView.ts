@@ -11,6 +11,7 @@ import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
+import { ICodeEditorService } from '../../../../../browser/services/codeEditorService.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
 import { OffsetEdit, SingleOffsetEdit } from '../../../../../common/core/offsetEdit.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -40,6 +41,7 @@ export class GhostTextView extends Disposable {
 		private readonly _editor: ICodeEditor,
 		private readonly _model: IGhostTextWidgetModel,
 		@ILanguageService private readonly _languageService: ILanguageService,
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 	) {
 		super();
 
@@ -91,7 +93,9 @@ export class GhostTextView extends Disposable {
 
 		const decorations: IModelDeltaDecoration[] = [];
 
-		const extraClassName = uiState.syntaxHighlightingEnabled ? ' syntax-highlighted' : '';
+		const extraClassNameBase = 'syntax-highlighted';
+		const extraClassName = uiState.syntaxHighlightingEnabled ? ` ${extraClassNameBase}` : '';
+		const extraClassNameSelector = uiState.syntaxHighlightingEnabled ? ` .${extraClassNameBase}` : '';
 
 		if (uiState.replacedRange) {
 			decorations.push({
@@ -108,6 +112,40 @@ export class GhostTextView extends Disposable {
 		}
 
 		for (const p of uiState.inlineTexts) {
+			const position = new Position(uiState.lineNumber, p.column);
+			const specialFontInfo = this._editor.getSpecialFontInfoForPosition(position);
+			let inlineClassName: string;
+			let inlineClassNameSelector: string;
+			if (p.preview) {
+				const className = 'ghost-text-decoration-preview';
+				inlineClassName = className;
+				inlineClassNameSelector = `.${className}`;
+			} else {
+				const className = 'ghost-text-decoration';
+				inlineClassName = className + extraClassName;
+				inlineClassNameSelector = `.${className}` + extraClassNameSelector;
+			}
+			const styleSheet = this._editorService.getOrCreateStyleSheet(this._editor);
+
+			if (specialFontInfo) {
+				let rule = '';
+				if (specialFontInfo.fontFamily) {
+					rule += `font-family: ${specialFontInfo.fontFamily};`;
+				}
+				if (specialFontInfo.fontWeight) {
+					rule += `font-weight: ${specialFontInfo.fontWeight};`;
+				}
+				if (specialFontInfo.fontSize) {
+					rule += `font-size: ${specialFontInfo.fontSize}px;`;
+				}
+				console.log('rule : ', rule);
+				if (rule) {
+					styleSheet.insertRule(inlineClassNameSelector, rule);
+				}
+			} else {
+				styleSheet.removeRulesContainingSelector(inlineClassNameSelector);
+			}
+
 			decorations.push({
 				range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
 				options: {
@@ -115,7 +153,7 @@ export class GhostTextView extends Disposable {
 					after: {
 						content: p.text,
 						tokens: p.tokens,
-						inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' + extraClassName,
+						inlineClassName,
 						cursorStops: InjectedTextCursorStops.Left
 					},
 					showIfCollapsed: true,
