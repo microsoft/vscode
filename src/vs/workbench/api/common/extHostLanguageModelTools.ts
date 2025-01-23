@@ -68,7 +68,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				parameters: options.input,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
-				chatRequestMetadata: options.chatRequestMetadata ?? options.chatRequestId !== undefined ? { $chatRequestId: options.chatRequestId } : undefined,
+				chatRequestMetadata: options.chatRequestMetadata,
 			}, token);
 			return typeConvert.LanguageModelToolResult.to(result);
 		} finally {
