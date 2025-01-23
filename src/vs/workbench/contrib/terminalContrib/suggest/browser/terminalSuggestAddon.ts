@@ -395,17 +395,21 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
+	private _getFontInfo(): ISimpleSuggestWidgetFontInfo {
+		const c = this._terminalConfigurationService.config;
+		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
+		const fontInfo: ISimpleSuggestWidgetFontInfo = {
+			fontFamily: font.fontFamily,
+			fontSize: font.fontSize,
+			lineHeight: Math.ceil(1.5 * font.fontSize),
+			fontWeight: c.fontWeight.toString(),
+			letterSpacing: font.letterSpacing
+		};
+		return fontInfo;
+	}
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
 		if (!this._suggestWidget) {
-			const c = this._terminalConfigurationService.config;
-			const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
-			const fontInfo: ISimpleSuggestWidgetFontInfo = {
-				fontFamily: font.fontFamily,
-				fontSize: font.fontSize,
-				lineHeight: Math.ceil(1.5 * font.fontSize),
-				fontWeight: c.fontWeight.toString(),
-				letterSpacing: font.letterSpacing
-			};
+
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily')) {
 					this._onDidFontConfigurationChange.fire();
@@ -416,7 +420,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				SimpleSuggestWidget,
 				this._container!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
-				() => fontInfo,
+				this._getFontInfo.bind(this),
 				this.onDidFontConfigurationChange,
 				{
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
