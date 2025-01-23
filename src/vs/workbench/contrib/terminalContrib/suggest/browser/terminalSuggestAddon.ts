@@ -401,6 +401,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const fontInfo: ISimpleSuggestWidgetFontInfo = {
 			fontFamily: font.fontFamily,
 			fontSize: font.fontSize,
+			// In the editor's world, lineHeight is the pixels between the baselines of two lines of text
+			// In the terminal's world, lineHeight is the multiplier of the font size
+			// 1.5 is needed so that it's taller than a 16px icon
 			lineHeight: Math.ceil(c.lineHeight * font.fontSize * 1.5),
 			fontWeight: c.fontWeight.toString(),
 			letterSpacing: font.letterSpacing
