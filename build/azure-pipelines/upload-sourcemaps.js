@@ -67,7 +67,7 @@ function main() {
         const vs = src('out-vscode-min'); // client source-maps only
         sources.push(vs);
         const productionDependencies = dependencies_1.default.getProductionDependencies(root);
-        const productionDependenciesSrc = productionDependencies.map(d => path_1.default.relative(root, d)).map(d => `./${d}/**/*.map`);
+        const productionDependenciesSrc = productionDependencies.map((d) => path_1.default.relative(root, d)).map((d) => `./${d}/**/*.map`);
         const nodeModules = vinyl_fs_1.default.src(productionDependenciesSrc, { base: '.' })
             .pipe(util.cleanNodeModules(path_1.default.join(root, 'build', '.moduleignore')))
             .pipe(util.cleanNodeModules(path_1.default.join(root, 'build', `.moduleignore.${process.platform}`)));
