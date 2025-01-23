@@ -5,11 +5,12 @@
 
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { FontInfo } from '../../../../common/config/fontInfo.js';
+import { BareFontInfo, FontInfo } from '../../../../common/config/fontInfo.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -135,6 +136,23 @@ export class ScreenReaderSupport {
 	}
 
 	private _doRender(top: number, left: number, width: number, height: number): void {
+
+		let fontInfo: BareFontInfo = this._fontInfo;
+		const specialFontInfo = this._context.viewModel.getSpecialFontInfoForPosition(this._primarySelection.getPosition());
+		if (specialFontInfo && (
+			specialFontInfo.fontFamily !== this._fontInfo.fontFamily
+			|| specialFontInfo.fontWeight !== this._fontInfo.fontWeight
+			|| specialFontInfo.fontSize !== this._fontInfo.fontSize
+		)) {
+			const targetWindow = getActiveWindow();
+			fontInfo = BareFontInfo.createFromRawSettings({
+				fontFamily: specialFontInfo.fontFamily,
+				fontWeight: specialFontInfo.fontWeight,
+				fontSize: specialFontInfo.fontSize,
+				lineHeight: height
+			}, PixelRatio.getInstance(targetWindow).value);
+		}
+
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 		this._domNode.setLineHeight(height);

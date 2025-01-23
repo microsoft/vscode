@@ -856,10 +856,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 				|| specialFontInfo.fontSize !== this._fontInfo.fontSize
 			)) {
 				const targetWindow = getActiveWindow();
+				const fontSize = specialFontInfo.fontSize ? (renderData.height > specialFontInfo.fontSize ? specialFontInfo.fontSize : renderData.height) : undefined;
 				fontInfo = BareFontInfo.createFromRawSettings({
 					fontFamily: specialFontInfo.fontFamily,
 					fontWeight: specialFontInfo.fontWeight,
-					fontSize: specialFontInfo.fontSize,
+					fontSize,
 					lineHeight: renderData.height
 				}, PixelRatio.getInstance(targetWindow).value);
 			}
