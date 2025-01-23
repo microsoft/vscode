@@ -387,6 +387,22 @@ export class TokenStore implements IDisposable {
 		return needsRefresh;
 	}
 
+	getNeedsRefresh(): { startOffset: number; endOffset: number }[] {
+		const result: { startOffset: number; endOffset: number }[] = [];
+
+		this.traverseInOrderInRange(0, this._textModel.getValueLength(), (node, offset) => {
+			if (isLeaf(node) && node.needsRefresh) {
+				if ((result.length > 0) && (result[result.length - 1].endOffset === offset)) {
+					result[result.length - 1].endOffset += node.length;
+				} else {
+					result.push({ startOffset: offset, endOffset: offset + node.length });
+				}
+			}
+			return false;
+		});
+		return result;
+	}
+
 	public deepCopy(): TokenStore {
 		const newStore = new TokenStore(this._textModel);
 		newStore._root = this._copyNodeIterative(this._root);

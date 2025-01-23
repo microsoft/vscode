@@ -24,7 +24,6 @@ import { LanguageId } from '../../../../editor/common/encodedTokenAttributes.js'
 import { TokenUpdate } from '../../../../editor/common/model/tokenStore.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { Position } from '../../../../editor/common/core/position.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
@@ -116,12 +115,15 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		super();
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
+			if (e.versionId !== e.textModel.getVersionId()) {
+				return;
+			}
 			const maxLine = e.textModel.getLineCount();
 			const ranges = e.ranges.map(range => ({ fromLineNumber: range.newRange.startLineNumber, toLineNumber: range.newRange.endLineNumber < maxLine ? range.newRange.endLineNumber : maxLine }));
 
 			// First time we see a tree we need to build a token store.
 			if (!this._tokenizationStoreService.hasTokens(e.textModel)) {
-				this._firstTreeUpdate(e.textModel, ranges);
+				this._firstTreeUpdate(e.textModel, e.versionId, ranges);
 			} else {
 				// Mark the range for refresh immediately
 				for (const range of e.ranges) {
@@ -143,7 +145,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._rangeTokensAsUpdates(0, emptyTokens);
 	}
 
-	private _firstTreeUpdate(textModel: ITextModel, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[]) {
+	private _firstTreeUpdate(textModel: ITextModel, versionId: number, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[]) {
+		if (versionId !== textModel.getVersionId()) {
+			return;
+		}
 		const modelEndOffset = textModel.getValueLength();
 		const editorEndPosition = textModel.getPositionAt(modelEndOffset);
 		const captures = this._getTreeAndCaptures(new Range(1, 1, editorEndPosition.lineNumber, editorEndPosition.column), textModel);
@@ -151,43 +156,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		const tokens: TokenUpdate[] = this._createEmptyTokens(captures, modelEndOffset) ?? [];
 
 		this._tokenizationStoreService.setTokens(textModel, tokens);
-		this._setViewPortTokens(textModel);
-		this._tokenizeEntireDocument(textModel, ranges);
-
+		this._setViewPortTokens(textModel, versionId);
 	}
 
-	private _tokenizeEntireDocument(textModel: ITextModel, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[] = []) {
-		const modelEndOffset = textModel.getValueLength();
-
-		// Go in 10000 offset chunks to avoid long operations
-		const chunkSize = 10000;
-		let chunkEnd = modelEndOffset > chunkSize ? chunkSize : modelEndOffset;
-		let chunkStart = 0;
-		let chunkStartingPosition = new Position(1, 1);
-		const rangeChanges: RangeChange[] = [];
-		do {
-			const chunkEndPosition = textModel.getPositionAt(chunkEnd);
-			const chunkRange = Range.fromPositions(chunkStartingPosition, chunkEndPosition);
-
-			rangeChanges.push({
-				newRange: chunkRange,
-				newRangeStartOffset: chunkStart,
-				newRangeEndOffset: chunkEnd,
-				oldRangeLength: chunkEnd - chunkStart
-			});
-
-			chunkStart = chunkEnd;
-			if (chunkEnd < modelEndOffset && chunkEnd + chunkSize > modelEndOffset) {
-				chunkEnd = modelEndOffset;
-			} else {
-				chunkEnd = chunkEnd + chunkSize;
-			}
-			chunkStartingPosition = chunkEndPosition;
-		} while (chunkEnd <= modelEndOffset);
-		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId: textModel.getVersionId() }, ranges);
-	}
-
-	private _setViewPortTokens(textModel: ITextModel) {
+	private _setViewPortTokens(textModel: ITextModel, versionId: number) {
 		const maxLine = textModel.getLineCount();
 		const editor = this._codeEditorService.listCodeEditors().find(editor => editor.getModel() === textModel);
 		if (!editor) {
@@ -210,59 +182,113 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				oldRangeLength: newRangeEndOffset - newRangeStartOffset
 			};
 		}
-		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId: textModel.getVersionId() }, ranges);
+		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId }, ranges, 'viewport');
 	}
 
 	/**
 	 * Do not await in this method, it will cause a race
 	 */
-	private _handleTreeUpdate(e: TreeUpdateEvent, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[]) {
-		// Get the captures immediately too while the text model is correct
-		const captures = e.ranges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
-		// Don't block
-		this._updateTreeForRanges(e, ranges, captures);
-	}
+	private _handleTreeUpdate(e: TreeUpdateEvent, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[], note?: string) {
+		let rangeChanges: RangeChange[] = [];
+		const chunkSize = 10000;
 
-	private _clipRangeChangeToFileLength(range: RangeChange, textModel: ITextModel) {
-		const valueLength = textModel.getValueLength();
-		const startPosition = range.newRange.getStartPosition();
-		const endPosition = range.newRangeEndOffset > valueLength ? textModel.getPositionAt(valueLength) : range.newRange.getEndPosition();
-		const endOffset = textModel.getOffsetAt(endPosition);
-		const newRangeChange = {
-			oldRangeLength: endOffset - range.newRangeStartOffset,
-			newRangeEndOffset: endOffset,
-			newRangeStartOffset: textModel.getOffsetAt(startPosition),
-			newRange: Range.fromPositions(startPosition, endPosition)
-		};
-		return newRangeChange;
-	}
-
-	private async _updateTreeForRanges(e: TreeUpdateEvent, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[], captures: { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] }[]) {
-		let tokenUpdate: { oldRangeLength: number; newTokens: TokenUpdate[] } | undefined;
 		for (let i = 0; i < e.ranges.length; i++) {
-			let capture = captures[i];
-			let range = e.ranges[i];
-			if (e.versionId < e.textModel.getVersionId()) {
-				// Our captures have become invalid and we need to re-capture
-				range = this._clipRangeChangeToFileLength(range, e.textModel);
-				capture = this._getTreeAndCaptures(range.newRange, e.textModel);
+			const rangeLength = e.ranges[i].newRangeEndOffset - e.ranges[i].newRangeStartOffset;
+			if (e.ranges[i].oldRangeLength === rangeLength) {
+				if (rangeLength > chunkSize) {
+					// Split the range into chunks to avoid long operations
+					const fullRangeEndOffset = e.ranges[i].newRangeEndOffset;
+					let chunkStart = e.ranges[i].newRangeStartOffset;
+					let chunkEnd = chunkStart + chunkSize;
+					let chunkStartingPosition = e.ranges[i].newRange.getStartPosition();
+					do {
+						const chunkEndPosition = e.textModel.getPositionAt(chunkEnd);
+						const chunkRange = Range.fromPositions(chunkStartingPosition, chunkEndPosition);
+
+						rangeChanges.push({
+							newRange: chunkRange,
+							newRangeStartOffset: chunkStart,
+							newRangeEndOffset: chunkEnd,
+							oldRangeLength: chunkEnd - chunkStart
+						});
+
+						chunkStart = chunkEnd;
+						if (chunkEnd < fullRangeEndOffset && chunkEnd + chunkSize > fullRangeEndOffset) {
+							chunkEnd = fullRangeEndOffset;
+						} else {
+							chunkEnd = chunkEnd + chunkSize;
+						}
+						chunkStartingPosition = chunkEndPosition;
+					} while (chunkEnd <= fullRangeEndOffset);
+				} else {
+					rangeChanges.push(e.ranges[i]);
+				}
+			} else {
+				rangeChanges = e.ranges;
+				break;
 			}
-			const updates = this.getTokensInRange(e.textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset, capture);
+		}
+
+		// Get the captures immediately while the text model is correct
+		const captures = rangeChanges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
+		// Don't block
+		this._updateTreeForRanges(e.textModel, rangeChanges, e.versionId, ranges, captures, note).then(() => {
+			const tree = this._getTree(e.textModel);
+			if (!e.textModel.isDisposed() && (tree?.versionId === e.textModel.getVersionId())) {
+				this._refreshNeedsRefresh(e.textModel);
+			}
+
+		});
+	}
+
+	private async _updateTreeForRanges(textModel: ITextModel, rangeChanges: RangeChange[], versionId: number, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[], captures: { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] }[], note?: string) {
+		let tokenUpdate: { oldRangeLength: number; newTokens: TokenUpdate[] } | undefined;
+
+		for (let i = 0; i < rangeChanges.length; i++) {
+			if (versionId < textModel.getVersionId()) {
+				// Our captures have become invalid and we need to re-capture
+				break;
+			}
+			const capture = captures[i];
+			const range = rangeChanges[i];
+
+			const updates = this.getTokensInRange(textModel, range.newRange, range.newRangeStartOffset, range.newRangeEndOffset, capture);
 			if (updates) {
 				tokenUpdate = { oldRangeLength: range.oldRangeLength, newTokens: updates };
 			} else {
 				tokenUpdate = { oldRangeLength: range.oldRangeLength, newTokens: [] };
 			}
-			this._tokenizationStoreService.updateTokens(e.textModel, e.versionId, [tokenUpdate]);
+			this._tokenizationStoreService.updateTokens(textModel, versionId, [tokenUpdate]);
 			await new Promise<void>(resolve => setTimeout0(resolve));
 		}
 		this._onDidChangeTokens.fire({
-			textModel: e.textModel,
+			textModel: textModel,
 			changes: {
 				semanticTokensApplied: false,
 				ranges
 			}
 		});
+	}
+
+	private _refreshNeedsRefresh(textModel: ITextModel) {
+		const rangesToRefresh = this._tokenizationStoreService.getNeedsRefresh(textModel);
+		if (rangesToRefresh.length === 0) {
+			return;
+		}
+		const rangeChanges: RangeChange[] = new Array(rangesToRefresh.length);
+		const changedRanges: { readonly fromLineNumber: number; readonly toLineNumber: number }[] = new Array(rangesToRefresh.length);
+
+		for (let i = 0; i < rangesToRefresh.length; i++) {
+			const range = rangesToRefresh[i];
+			rangeChanges[i] = {
+				newRange: range.range,
+				newRangeStartOffset: range.startOffset,
+				newRangeEndOffset: range.endOffset,
+				oldRangeLength: range.endOffset - range.startOffset
+			};
+			changedRanges[i] = { fromLineNumber: range.range.startLineNumber, toLineNumber: range.range.endLineNumber };
+		}
+		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId: textModel.getVersionId() }, changedRanges);
 	}
 
 	private _rangeTokensAsUpdates(rangeOffset: number, endOffsetToken: EndOffsetToken[]) {
