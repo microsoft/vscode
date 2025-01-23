@@ -365,9 +365,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				const context: DocumentPasteContext = {
 					triggerKind: DocumentPasteTriggerKind.Automatic,
 				};
-				console.time('getPasteEdits');
+
 				const editSession = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, token);
-				console.timeEnd('getPasteEdits');
 				disposables.add(editSession);
 				if (token.isCancellationRequested) {
 					return;
