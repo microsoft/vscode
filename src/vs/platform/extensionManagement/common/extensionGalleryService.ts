@@ -756,7 +756,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			}
 
 			if (!EXTENSION_IDENTIFIER_REGEX.test(extensionInfo.id)) {
-				toQuery.push(extensionInfo);
 				return;
 			}
 

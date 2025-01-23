@@ -27,6 +27,9 @@ export async function resizeImage(data: Uint8Array): Promise<Uint8Array> {
 				const scaleFactor = 2048 / Math.max(width, height);
 				width = Math.round(width * scaleFactor);
 				height = Math.round(height * scaleFactor);
+			} else {
+				resolve(data);
+				return;
 			}
 
 			const scaleFactor = 768 / Math.min(width, height);

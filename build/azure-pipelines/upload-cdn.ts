@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
+import es from 'event-stream';
 import Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
+import vfs from 'vinyl-fs';
 import filter from 'gulp-filter';
 import gzip from 'gulp-gzip';
-import * as mime from 'mime';
+import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 

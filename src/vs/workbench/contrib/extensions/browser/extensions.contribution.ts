@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey, TrustedPublishersConfigKey, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -58,7 +58,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ShowRuntimeExtensionsAction } from './abstractRuntimeExtensionsEditor.js';
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from './extensionEnablementWorkspaceTrustTransitionParticipant.js';
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from './extensionsIcons.js';
-import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSION_CATEGORIES, ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { Disposable, DisposableStore, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
@@ -71,7 +71,7 @@ import { Event } from '../../../../base/common/event.js';
 import { UnsupportedExtensionsMigrationContrib } from './unsupportedExtensionsMigrationContribution.js';
 import { isLinux, isNative, isWeb } from '../../../../base/common/platform.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -270,6 +270,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['onExp', 'usesOnlineServices']
+			},
+			[TrustedPublishersConfigKey]: {
+				type: 'array',
+				markdownDescription: localize('extensions.trustedPublishers', "Specify a list of trusted publishers. Extensions from these publishers will be allowed to install without consent from the user."),
+				scope: ConfigurationScope.APPLICATION,
+				items: {
+					type: 'string',
+					pattern: '^[a-z0-9A-Z][a-z0-9-A-Z]*$',
+					patternErrorMessage: localize('extensions.trustedPublishers.patternError', "Publisher names must only contain letters and numbers."),
+				}
 			},
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
@@ -1919,6 +1929,38 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 	}
 }
 
+class TrustedPublishersInitializer implements IWorkbenchContribution {
+	constructor(
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
+		@IProductService productService: IProductService,
+		@IStorageService storageService: IStorageService,
+	) {
+		const trustedPublishersInitStatusKey = 'trusted-publishers-initialized';
+		if (!storageService.get(trustedPublishersInitStatusKey, StorageScope.APPLICATION)) {
+			extensionManagementService.getInstalled(ExtensionType.User)
+				.then(async extensions => {
+					const trustedPublishers = new Set<string>();
+					for (const extension of extensions) {
+						if (!extension.publisherId) {
+							continue;
+						}
+						const publisher = extension.manifest.publisher.toLowerCase();
+						if (productService.trustedExtensionPublishers?.includes(publisher)
+							|| (extension.publisherDisplayName && productService.trustedExtensionPublishers?.includes(extension.publisherDisplayName.toLowerCase()))) {
+							continue;
+						}
+						trustedPublishers.add(publisher);
+					}
+					if (trustedPublishers.size) {
+						await allowedExtensionsService.trustPublishers(...trustedPublishers);
+					}
+					storageService.store(trustedPublishersInitStatusKey, 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
+				});
+		}
+	}
+}
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Eventually);
@@ -1930,6 +1972,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, Life
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(TrustedPublishersInitializer, LifecyclePhase.Eventually);
 if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }
