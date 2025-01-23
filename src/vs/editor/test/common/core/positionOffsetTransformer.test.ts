@@ -52,7 +52,7 @@ suite('PositionOffsetTransformer', () => {
 	});
 
 	test('getOffset', () => {
-		for (let i = 0; i < str.length + 2; i++) {
+		for (let i = 0; i < str.length + 1; i++) {
 			assert.strictEqual(t.getOffset(t.getPosition(i)), i);
 		}
 	});

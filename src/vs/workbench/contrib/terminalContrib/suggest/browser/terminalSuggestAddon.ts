@@ -22,16 +22,17 @@ import { activeContrastBorder } from '../../../../../platform/theme/common/color
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
-import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
-import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -79,6 +80,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
+	private readonly _onDidFontConfigurationChange = this._register(new Emitter<void>());
+	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	private _kindToIconMap = new Map<number, ThemeIcon>([
 		[TerminalCompletionItemKind.File, Codicon.file],
@@ -392,23 +395,37 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
+	private _getFontInfo(): ISimpleSuggestWidgetFontInfo {
+		const c = this._terminalConfigurationService.config;
+		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
+		const fontInfo: ISimpleSuggestWidgetFontInfo = {
+			fontFamily: font.fontFamily,
+			fontSize: font.fontSize,
+			lineHeight: Math.ceil(1.5 * font.fontSize),
+			fontWeight: c.fontWeight.toString(),
+			letterSpacing: font.letterSpacing
+		};
+		return fontInfo;
+	}
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
 		if (!this._suggestWidget) {
-			const c = this._terminalConfigurationService.config;
-			const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
-			const fontInfo: ISimpleSuggestWidgetFontInfo = {
-				fontFamily: font.fontFamily,
-				fontSize: font.fontSize,
-				lineHeight: Math.ceil(1.5 * font.fontSize),
-				fontWeight: c.fontWeight.toString(),
-				letterSpacing: font.letterSpacing
-			};
+
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily')) {
+					this._onDidFontConfigurationChange.fire();
+				}
+			}
+			));
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				this._container!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
-				() => fontInfo,
-				{}
+				this._getFontInfo.bind(this),
+				this.onDidFontConfigurationChange,
+				{
+					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
+					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
+				},
 			));
 			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,

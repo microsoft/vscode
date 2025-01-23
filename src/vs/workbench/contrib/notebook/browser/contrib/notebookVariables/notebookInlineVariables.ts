@@ -74,7 +74,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			return;
 		}
 
-		if (this.notebookEditor.textModel?.uri && isEqual(this.notebookEditor.textModel.uri, event.notebook)) {
+		if (!this.notebookEditor.textModel?.uri || !isEqual(this.notebookEditor.textModel.uri, event.notebook)) {
 			return;
 		}
 
