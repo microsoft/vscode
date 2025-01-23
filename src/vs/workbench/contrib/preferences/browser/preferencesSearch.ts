@@ -181,7 +181,6 @@ export class SettingMatches {
 
 		// Key search
 		const settingKeyAsWords: string = this._keyToLabel(setting.key);
-		const settingKeyAsWordsCount = settingKeyAsWords.split(' ').length;
 		const queryWords = new Set<string>(searchString.split(' '));
 		for (const word of queryWords) {
 			// Check if the key contains the word.
@@ -196,6 +195,7 @@ export class SettingMatches {
 				// All words in the query matched with something in the setting key.
 				this.matchType |= SettingMatchType.KeyMatch;
 				// Score based on how many words matched out of the entire key, penalizing longer setting names.
+				const settingKeyAsWordsCount = settingKeyAsWords.split(' ').length;
 				this.keyMatchScore = (keyMatchingWords.size / settingKeyAsWordsCount) + (1 / setting.key.length);
 			}
 			const keyMatches = matchesSubString(searchString, settingKeyAsWords);
