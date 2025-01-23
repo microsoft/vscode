@@ -201,6 +201,28 @@
 	height: 0.7em;
 	display: inline-block;
 }
+
+/** ReadMore Icon styles **/
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .header > .codicon-close,
+.workbench-suggest-widget .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore::before {
+	color: inherit;
+	opacity: 1;
+	font-size: 14px;
+	cursor: pointer;
+}
+
+.monaco-workbench .workbench-suggest-widget .suggest-details .codicon.codicon-close {
+	position: absolute;
+	top: 6px;
+	right: 2px;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .header > .codicon-close:hover,
+.workbench-suggest-widget .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore:hover {
+	opacity: 1;
+}
+
 /** signature, qualifier, type/details opacity **/
 
 .workbench-suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {
