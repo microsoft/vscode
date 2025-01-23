@@ -87,10 +87,10 @@ export class SimpleSuggestDetailsWidget {
 		const lineHeight = fontInfo.lineHeight;
 		const fontWeight = fontInfo.fontWeight;
 		const fontSizePx = `${fontSize}px`;
-		const lineHeightPx = `${lineHeight}px`;
+		const lineHeightPx = `${lineHeight * fontSize}px`;
 
 		this.domNode.style.fontSize = fontSizePx;
-		this.domNode.style.lineHeight = `${lineHeight / fontSize}`;
+		this.domNode.style.lineHeight = lineHeightPx;
 		this.domNode.style.fontWeight = fontWeight;
 		// this.domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		this._type.style.fontFamily = fontFamily;

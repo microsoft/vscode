@@ -180,7 +180,7 @@ export class SimpleSuggestWidget extends Disposable {
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !_configurationService.getValue('editor.suggest.showIcons'));
 		applyIconStyle();
 
-		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo);
+		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo, this._configurationService);
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = this._register(new List('SuggestWidget', this._listElement, {
@@ -770,9 +770,9 @@ export class SimpleSuggestWidget extends Disposable {
 
 	private _getLayoutInfo() {
 		const fontInfo = this._getFontInfo();
-		const itemHeight = clamp(fontInfo.lineHeight, 8, 1000);
+		const itemHeight = clamp(fontInfo.fontSize * fontInfo.lineHeight, 8, 1000);
 		const statusBarHeight = !this._options.statusBarMenuId || !this._options.showStatusBarSettingId || !this._configurationService.getValue(this._options.showStatusBarSettingId) || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
-		const borderWidth = 1; //this._details.widget.borderWidth;
+		const borderWidth = this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
 
 		return {

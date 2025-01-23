@@ -401,7 +401,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const fontInfo: ISimpleSuggestWidgetFontInfo = {
 			fontFamily: font.fontFamily,
 			fontSize: font.fontSize,
-			lineHeight: Math.ceil(c.fontSize * c.lineHeight * 1.5),
+			lineHeight: c.lineHeight,
 			fontWeight: c.fontWeight.toString(),
 			letterSpacing: font.letterSpacing
 		};
