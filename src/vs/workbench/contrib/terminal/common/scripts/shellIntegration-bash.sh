@@ -222,7 +222,9 @@ updateEnvCache() {
 	local key="$1"
 	local value="$2"
 
+	builtin printf "Start %s\n" $(date +%s%3N)
 	for i in "${!vsc_env_keys[@]}"; do
+		# builtin printf "i $i $(date +%s%3N)\n"
 		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
 			if [[ "${vsc_env_values[$i]}" != "$value" ]]; then
 				vsc_env_values[$i]="$value"
@@ -242,6 +244,8 @@ updateEnvCache() {
 trackMissingEnvVars() {
 	# Capture current environment variables in an array
 	local current_env_keys=()
+
+	# TODO: I think this will break for values that contain `=`, see `cut` command in `VSCODE_ENV_REPLACE` code
 	while IFS='=' read -r key value; do
 		current_env_keys+=("$key")
 	done < <(env)
@@ -251,12 +255,14 @@ trackMissingEnvVars() {
 		local found=false
 		for env_key in "${current_env_keys[@]}"; do
 			if [[ "$key" == "$env_key" ]]; then
+				# TODO: Use 1 and 0 over true
 				found=true
 				break
 			fi
 		done
 		if [[ "$found" == false ]]; then
 			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${vsc_env_keys[i]}" "$(__vsc_escape_value "${vsc_env_values[i]}")" "$__vsc_nonce"
+			# TODO: Use `builtin unset`
 			unset 'vsc_env_keys[i]'
 			unset 'vsc_env_values[i]'
 		fi
@@ -269,22 +275,28 @@ trackMissingEnvVars() {
 
 __vsc_update_env() {
 
-	start_time=$(date +%s)
+	start_time=$(date +%s%3N)
 	builtin printf "Start time: %s\n" "$start_time"
 
+	# TODO: Come up with shorter escape sequence ids (~10ms gain on Daniel's PC)
+	# TODO: Send everything the first time, don't bother diffing (array is empty)
+	# TODO: Only send EnvSingleStart, EnvSingleEnd when there is updated content
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
 	while IFS='=' read -r key value; do
 		updateEnvCache "$key" "$value"
 	done < <(env)
 
+	mid_time=$(date +%s%3N)
 	trackMissingEnvVars
 
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 
-	end_time=$(date +%s)
+	end_time=$(date +%s%3N)
 	elapsed_time=$(($end_time - $start_time))
-	builtin printf "Time taken: $elapsed_time seconds\n"
+	builtin printf "updateEnvCache: $(($mid_time - $start_time)) ms\n"
+	builtin printf "trackMissingEnvVars: $(($end_time - $mid_time)) ms\n"
+	builtin printf "Total: $(($end_time - $start_time)) ms\n"
 }
 
 __vsc_command_output_start() {
@@ -313,10 +325,6 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
-
-	if [ "$__vsc_stable" = "0" ]; then
-		__vsc_update_env
-	fi
 }
 __vsc_update_prompt() {
 	# in command execution
@@ -346,7 +354,6 @@ __vsc_precmd() {
 	fi
 	__vsc_first_prompt=1
 	__vsc_update_prompt
-
 	if [ "$__vsc_stable" = "0" ]; then
 		__vsc_update_env
 	fi
