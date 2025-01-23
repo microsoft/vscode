@@ -738,7 +738,6 @@ export class SimpleSuggestWidget extends Disposable {
 		this._listElement.style.height = `${height - statusBarHeight}px`;
 
 		this._listElement.style.width = `${width}px`;
-		this._listElement.style.height = `${height}px`;
 		this.element.layout(height, width);
 
 		this._positionDetails();
