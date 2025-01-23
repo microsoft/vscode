@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { AbstractTextResourceEditor } from '../../../browser/parts/editor/textResourceEditor.js';
-import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, parseLogEntries, ILogEntry, parseLogEntryAt } from '../../../services/output/common/output.js';
+import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, ILogEntry } from '../../../services/output/common/output.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -351,8 +351,6 @@ export class FilterController extends Disposable implements IEditorContribution 
 	private hiddenAreas: Range[] = [];
 	private readonly decorationsCollection: IEditorDecorationsCollection;
 
-	private logEntries: ILogEntry[] | undefined;
-
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IOutputService private readonly outputService: IOutputService
@@ -365,7 +363,6 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 	private onDidChangeModel(): void {
 		this.modelDisposables.clear();
-		this.logEntries = undefined;
 		this.hiddenAreas = [];
 
 		if (!this.editor.hasModel()) {
@@ -373,7 +370,6 @@ export class FilterController extends Disposable implements IEditorContribution 
 		}
 
 		const model = this.editor.getModel();
-		this.computeLogEntries(model);
 		this.filter(model);
 
 		const computeEndLineNumber = () => {
@@ -385,92 +381,89 @@ export class FilterController extends Disposable implements IEditorContribution 
 
 		this.modelDisposables.add(model.onDidChangeContent(e => {
 			if (e.changes.every(e => e.range.startLineNumber > endLineNumber)) {
-				const filterFrom = this.logEntries?.length ?? endLineNumber + 1;
-				if (this.logEntries) {
-					this.computeLogEntriesIncremental(model, endLineNumber + 1);
-				}
-				this.filterIncremental(model, filterFrom);
+				this.filterIncremental(model, endLineNumber + 1);
 			} else {
-				this.computeLogEntries(model);
 				this.filter(model);
 			}
 			endLineNumber = computeEndLineNumber();
 		}));
 	}
 
-	private computeLogEntries(model: ITextModel): void {
-		this.logEntries = undefined;
-		if (!parseLogEntryAt(model, 1)) {
-			return;
-		}
-
-		this.logEntries = [];
-		this.computeLogEntriesIncremental(model, 1);
-	}
-
-	private computeLogEntriesIncremental(model: ITextModel, fromLine: number): void {
-		if (this.logEntries) {
-			this.logEntries = this.logEntries.concat(parseLogEntries(model, fromLine));
-		}
-	}
-
 	private filter(model: ITextModel): void {
 		this.hiddenAreas = [];
 		this.decorationsCollection.clear();
-		this.filterIncremental(model, 0);
+		this.filterIncremental(model, 1);
 	}
 
-	private filterIncremental(model: ITextModel, from: number): void {
-		const filters = this.outputService.filters;
-		const activeChannelId = this.outputService.getActiveChannel()?.id ?? '';
-		const findMatchesDecorations: IModelDeltaDecoration[] = [];
+	private filterIncremental(model: ITextModel, fromLineNumber: number): void {
+		const { findMatches, hiddenAreas } = this.computeDecorations(model, fromLineNumber);
+		this.hiddenAreas.push(...hiddenAreas);
+		this.editor.setHiddenAreas(this.hiddenAreas, this);
+		if (findMatches.length) {
+			this.decorationsCollection.append(findMatches);
+		}
+	}
 
-		if (this.logEntries) {
+	private computeDecorations(model: ITextModel, fromLineNumber: number): { findMatches: IModelDeltaDecoration[]; hiddenAreas: Range[] } {
+		const filters = this.outputService.filters;
+		const activeChannel = this.outputService.getActiveChannel();
+		const findMatches: IModelDeltaDecoration[] = [];
+		const hiddenAreas: Range[] = [];
+
+		const logEntries = activeChannel?.getLogEntries();
+		if (activeChannel && logEntries?.length) {
 			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error;
-			if (hasLogLevelFilter || filters.text || filters.sources.includes(activeChannelId)) {
-				for (let i = from; i < this.logEntries.length; i++) {
-					const entry = this.logEntries[i];
-					if (hasLogLevelFilter && !this.shouldShowLogLevel(entry, filters)) {
-						this.hiddenAreas.push(entry.range);
-						continue;
-					}
-					if (!this.shouldShowSource(activeChannelId, entry, filters)) {
-						this.hiddenAreas.push(entry.range);
-						continue;
-					}
-					if (filters.text) {
-						const matches = model.findMatches(filters.text, entry.range, false, false, null, false);
-						if (matches.length) {
-							for (const match of matches) {
-								findMatchesDecorations.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
-							}
-						} else {
-							this.hiddenAreas.push(entry.range);
-						}
-					}
-				}
+
+			if (!hasLogLevelFilter && !filters.text && !filters.sources.includes(activeChannel.id)) {
+				return { findMatches, hiddenAreas };
 			}
-		} else {
-			if (filters.text) {
-				const lineCount = model.getLineCount();
-				for (let lineNumber = from + 1; lineNumber <= lineCount; lineNumber++) {
-					const lineRange = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-					const matches = model.findMatches(filters.text, lineRange, false, false, null, false);
+
+			const fromLogLevelEntryIndex = logEntries.findIndex(entry => fromLineNumber >= entry.range.startLineNumber && fromLineNumber <= entry.range.endLineNumber);
+			if (fromLogLevelEntryIndex === -1) {
+				return { findMatches, hiddenAreas };
+			}
+
+			for (let i = fromLogLevelEntryIndex; i < logEntries.length; i++) {
+				const entry = logEntries[i];
+				if (hasLogLevelFilter && !this.shouldShowLogLevel(entry, filters)) {
+					hiddenAreas.push(entry.range);
+					continue;
+				}
+				if (!this.shouldShowSource(activeChannel.id, entry, filters)) {
+					hiddenAreas.push(entry.range);
+					continue;
+				}
+				if (filters.text) {
+					const matches = model.findMatches(filters.text, entry.range, false, false, null, false);
 					if (matches.length) {
 						for (const match of matches) {
-							findMatchesDecorations.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
+							findMatches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
 						}
 					} else {
-						this.hiddenAreas.push(lineRange);
+						hiddenAreas.push(entry.range);
 					}
 				}
 			}
+			return { findMatches, hiddenAreas };
 		}
 
-		this.editor.setHiddenAreas(this.hiddenAreas, this);
-		if (findMatchesDecorations.length) {
-			this.decorationsCollection.append(findMatchesDecorations);
+		if (!filters.text) {
+			return { findMatches, hiddenAreas };
 		}
+
+		const lineCount = model.getLineCount();
+		for (let lineNumber = fromLineNumber + 1; lineNumber <= lineCount; lineNumber++) {
+			const lineRange = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
+			const matches = model.findMatches(filters.text, lineRange, false, false, null, false);
+			if (matches.length) {
+				for (const match of matches) {
+					findMatches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
+				}
+			} else {
+				hiddenAreas.push(lineRange);
+			}
+		}
+		return { findMatches, hiddenAreas };
 	}
 
 	private shouldShowLogLevel(entry: ILogEntry, filters: IOutputViewFilters): boolean {

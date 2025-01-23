@@ -3,43 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { basename } from '../../../../../base/common/resources.js';
-import { assertDefined } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { FilePromptParser } from '../../common/promptSyntax/parsers/filePromptParser.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { FailedToResolveContentsStream, FileOpenFailed, NonPromptSnippetFile, ParseError, RecursiveReference } from '../../common/promptFileReferenceErrors.js';
-
-/**
- * Well-known localized error messages.
- */
-const errorMessages = {
-	recursion: localize('chatPromptInstructionsRecursiveReference', 'Recursive reference found'),
-	fileOpenFailed: localize('chatPromptInstructionsFileOpenFailed', 'Failed to open file'),
-	brokenChild: localize('chatPromptInstructionsBrokenReference', 'Contains a broken reference that will be ignored'),
-};
-
-/**
- * Object that represents an error that may occur during
- * the process of resolving prompt instructions reference.
- */
-interface IIssue {
-	/**
-	 * Type of the failure. Currently all errors that occur on
-	 * the "main" root reference directly attached to the chat
-	 * are considered to be `error`s, while all failures on nested
-	 * child references are considered to be `warning`s.
-	 */
-	type: 'error' | 'warning';
-
-	/**
-	 * Error or warning message.
-	 */
-	message: string;
-}
 
 /**
  * Model for a single chat prompt instructions attachment.
@@ -62,15 +30,12 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 * child references it may contain.
 	 */
 	public get references(): readonly URI[] {
-		const { reference, enabled, resolveIssue } = this;
+		const { reference } = this;
+		const { errorCondition } = this.reference;
 
 		// return no references if the attachment is disabled
-		if (!enabled) {
-			return [];
-		}
-
-		// if the model has an error, return no references
-		if (resolveIssue && !(resolveIssue instanceof NonPromptSnippetFile)) {
+		// or if this object itself has an error
+		if (errorCondition) {
 			return [];
 		}
 
@@ -82,120 +47,12 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 		];
 	}
 
-
 	/**
-	 * If the prompt instructions reference (or any of its child references) has
-	 * failed to resolve, this field contains the failure details, otherwise `undefined`.
-	 *
-	 * See {@linkcode IIssue}.
+	 * Get the top-level error of the prompt instructions
+	 * reference, if any.
 	 */
-	public get resolveIssue(): IIssue | undefined {
-		const { errorCondition } = this._reference;
-
-		const errorConditions = this.collectErrorConditions();
-		if (errorConditions.length === 0) {
-			return undefined;
-		}
-
-		const [firstError, ...restErrors] = errorConditions;
-
-		// if the first error is the error of the root reference,
-		// then return it as an `error` otherwise use `warning`
-		const isRootError = (firstError === errorCondition);
-		const type = (isRootError)
-			? 'error'
-			: 'warning';
-
-		const moreSuffix = restErrors.length > 0
-			? `\n-\n +${restErrors.length} more error${restErrors.length > 1 ? 's' : ''}`
-			: '';
-
-		const errorMessage = this.getErrorMessage(firstError, isRootError);
-		return {
-			type,
-			message: `${errorMessage}${moreSuffix}`,
-		};
-	}
-
-	/**
-	 * Get message for the provided error condition object.
-	 *
-	 * @param error Error object.
-	 * @param isRootError If the error happened on the the "main" root reference.
-	 * @returns Error message.
-	 */
-	private getErrorMessage(
-		error: ParseError,
-		isRootError: boolean,
-	): string {
-		// if a child error - the error is somewhere in the nested references tree,
-		// then use message prefix to highlight that this is not a root error
-		const prefix = (!isRootError)
-			? `${errorMessages.brokenChild}: `
-			: '';
-
-		// if failed to open a file, return approprivate message and the file path
-		if (error instanceof FileOpenFailed || error instanceof FailedToResolveContentsStream) {
-			return `${prefix}${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
-		}
-
-		// if a recursion, provide the entire recursion path so users can use
-		// it for the debugging purposes
-		if (error instanceof RecursiveReference) {
-			const { recursivePath } = error;
-
-			const recursivePathString = recursivePath
-				.map((path) => {
-					return basename(URI.file(path));
-				})
-				.join(' -> ');
-
-			return `${prefix}${errorMessages.recursion}:\n${recursivePathString}`;
-		}
-
-		return `${prefix}${error.message}`;
-	}
-
-	/**
-	 * Collect all failures that may have occurred during the process of resolving
-	 * references in the entire references tree, including the current root reference.
-	 *
-	 * @returns List of errors in the references tree.
-	 */
-	private collectErrorConditions(): ParseError[] {
-		const result: ParseError[] = [];
-
-		// add error conditions of this object
-		if (this._reference.errorCondition) {
-			result.push(this._reference.errorCondition);
-		}
-
-		// collect error conditions of all child references
-		const childErrorConditions = this.reference
-			// get entire reference tree
-			.allReferences
-			// filter out children without error conditions or
-			// the ones that are non-prompt snippet files
-			.filter((childReference) => {
-				const { errorCondition } = childReference;
-
-				return errorCondition && !(errorCondition instanceof NonPromptSnippetFile);
-			})
-			// map to error condition objects
-			.map((childReference): ParseError => {
-				const { errorCondition } = childReference;
-
-				// `must` always be `true` because of the `filter` call above
-				assertDefined(
-					errorCondition,
-					`Error condition must be present for '${childReference.uri.path}'.`,
-				);
-
-				return errorCondition;
-			});
-		result.push(...childErrorConditions);
-
-		return result;
+	public get topError() {
+		return this.reference.topError;
 	}
 
 	/**
@@ -231,18 +88,6 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 		return this;
 	}
 
-	/**
-	 * Private property to track the `enabled` state of the prompt
-	 * instructions attachment.
-	 */
-	private _enabled: boolean = true;
-	/**
-	 * Get the `enabled` state of the prompt instructions attachment.
-	 */
-	public get enabled(): boolean {
-		return this._enabled;
-	}
-
 	constructor(
 		uri: URI,
 		@IInstantiationService private readonly initService: IInstantiationService,
@@ -260,16 +105,6 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 */
 	public resolve(): this {
 		this._reference.start();
-
-		return this;
-	}
-
-	/**
-	 * Toggle the `enabled` state of the prompt instructions attachment.
-	 */
-	public toggle(): this {
-		this._enabled = !this._enabled;
-		this._onUpdate.fire();
 
 		return this;
 	}
