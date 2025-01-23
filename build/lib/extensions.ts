@@ -19,7 +19,7 @@ import rename from 'gulp-rename';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import buffer from 'gulp-buffer';
-import jsoncParser from 'jsonc-parser';
+import * as jsoncParser from 'jsonc-parser';
 import webpack from 'webpack';
 import { getProductionDependencies } from './dependencies';
 import { IExtensionDefinition, getExtensionStream } from './builtInExtensions';
