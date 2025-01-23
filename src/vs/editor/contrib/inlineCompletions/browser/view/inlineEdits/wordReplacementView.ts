@@ -240,7 +240,9 @@ export class WordReplacementView extends Disposable implements IInlineEditsView 
 		})
 	]).keepUpdated(this._store);
 
-	readonly isHovered = constObservable(false);
+	readonly isHovered = derived(this, reader => {
+		return this._div.getIsHovered(this._store).read(reader);
+	});
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
@@ -260,7 +262,7 @@ export class WordReplacementView extends Disposable implements IInlineEditsView 
 	}
 }
 
-export class LineReplacementView extends Disposable {
+export class LineReplacementView extends Disposable implements IInlineEditsView {
 
 	private readonly _originalBubblesDecorationCollection = this._editor.editor.createDecorationsCollection();
 	private readonly _originalBubblesDecorationOptions: IModelDecorationOptions = {
@@ -494,6 +496,10 @@ export class LineReplacementView extends Disposable {
 			];
 		})
 	]).keepUpdated(this._store);
+
+	readonly isHovered = derived(this, reader => {
+		return this._div.getIsHovered(this._store).read(reader);
+	});
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
