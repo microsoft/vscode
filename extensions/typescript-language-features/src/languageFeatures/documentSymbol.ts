@@ -37,13 +37,18 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 
 	private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
 	private readonly _interfaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
-	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
-	private readonly _fieldLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
+	private readonly _functionLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
+	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
 
-	private readonly _classFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 80, fontWeight: 'bold', fontFamily: 'Arial' });
-	private readonly _interfaceFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 80, fontWeight: 'bold', fontFamily: 'Times New Roman' });
-	private readonly _methodFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 50, fontWeight: 'italic', fontFamily: 'Courier New' });
-	private readonly _fieldFontSizeDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 20, fontWeight: 'italic', fontFamily: 'Georgia' });
+	private readonly _classFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 80, fontWeight: 'bold', fontFamily: 'Arial' });
+	private readonly _interfaceFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 80, fontWeight: 'bold', fontFamily: 'Times New Roman' });
+	private readonly _functionFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 50, fontWeight: 'italic', fontFamily: 'Courier New' });
+	private readonly _methodFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 20, fontWeight: 'italic', fontFamily: 'Georgia' });
+
+	private readonly _classFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 60, fontWeight: 'italic', fontFamily: 'Georgia' });
+	private readonly _interfaceFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 60, fontWeight: 'italic', fontFamily: 'Arial' });
+	private readonly _functionFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 40, fontWeight: 'bold', fontFamily: 'Times New Roman' });
+	private readonly _methodFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 10, fontWeight: 'bold', fontFamily: 'Courier New' });
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -71,52 +76,52 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		const activeTextEditor = vscode.window.activeTextEditor;
 		if (activeTextEditor) {
 			const classRanges: vscode.Range[] = [];
-			const classRangesFonts: vscode.Range[] = [];
+			const classRangesFonts1: vscode.Range[] = [];
+			const classRangesFonts2: vscode.Range[] = [];
+			this._getRanges(activeTextEditor, result, vscode.SymbolKind.Class, classRanges, classRangesFonts1, classRangesFonts2);
+
 			const interfaceRanges: vscode.Range[] = [];
-			const interfaceRangesFonts: vscode.Range[] = [];
+			const interfaceRangesFonts1: vscode.Range[] = [];
+			const interfaceRangesFonts2: vscode.Range[] = [];
+			this._getRanges(activeTextEditor, result, vscode.SymbolKind.Interface, interfaceRanges, interfaceRangesFonts1, interfaceRangesFonts2);
+
 			const functionRanges: vscode.Range[] = [];
-			const functionRangesFonts: vscode.Range[] = [];
-			const fieldRanges: vscode.Range[] = [];
-			const fieldRangesFonts: vscode.Range[] = [];
+			const functionRangesFonts1: vscode.Range[] = [];
+			const functionRangesFonts2: vscode.Range[] = [];
+			this._getRanges(activeTextEditor, result, vscode.SymbolKind.Function, functionRanges, functionRangesFonts1, functionRangesFonts2);
 
-			for (const res of result) {
-				switch (res.kind) {
-					case (vscode.SymbolKind.Class): {
-						classRanges.push(new vscode.Range(res.range.start.line, 0, res.range.start.line, 0));
-						classRangesFonts.push(activeTextEditor.document.validateRange(new vscode.Range(res.range.start.line, 0, res.range.start.line, Infinity)));
-						break;
-					}
-					case (vscode.SymbolKind.Interface): {
-						interfaceRanges.push(new vscode.Range(res.range.start.line, 0, res.range.start.line, 0));
-						interfaceRangesFonts.push(activeTextEditor.document.validateRange(new vscode.Range(res.range.start.line, 0, res.range.start.line, Infinity)));
-						break;
-					}
-					case (vscode.SymbolKind.Function): {
-						functionRanges.push(new vscode.Range(res.range.start.line, 0, res.range.start.line, 0));
-						functionRangesFonts.push(activeTextEditor.document.validateRange(new vscode.Range(res.range.start.line, 0, res.range.start.line, Infinity)));
-						break;
-					}
-					case (vscode.SymbolKind.Field): {
-						fieldRanges.push(new vscode.Range(res.range.start.line, 0, res.range.start.line, 0));
-						fieldRangesFonts.push(activeTextEditor.document.validateRange(new vscode.Range(res.range.start.line, 0, res.range.start.line, Infinity)));
-						break;
-					}
-				}
-			}
-
-			console.log('classRanges : ', classRanges);
+			const methodRanges: vscode.Range[] = [];
+			const methodRangesFonts1: vscode.Range[] = [];
+			const methodRangesFonts2: vscode.Range[] = [];
+			this._getRanges(activeTextEditor, result, vscode.SymbolKind.Method, methodRanges, methodRangesFonts1, methodRangesFonts2);
 
 			activeTextEditor.setDecorations(this._classLineHeightDecorationType, classRanges);
 			activeTextEditor.setDecorations(this._interfaceLineHeightDecorationType, interfaceRanges);
-			activeTextEditor.setDecorations(this._methodLineHeightDecorationType, functionRanges);
-			activeTextEditor.setDecorations(this._fieldLineHeightDecorationType, fieldRanges);
+			activeTextEditor.setDecorations(this._functionLineHeightDecorationType, functionRanges);
+			activeTextEditor.setDecorations(this._methodLineHeightDecorationType, methodRanges);
 
-			activeTextEditor.setDecorations(this._classFontSizeDecorationType, classRangesFonts);
-			activeTextEditor.setDecorations(this._interfaceFontSizeDecorationType, interfaceRangesFonts);
-			activeTextEditor.setDecorations(this._methodFontSizeDecorationType, functionRangesFonts);
-			activeTextEditor.setDecorations(this._fieldFontSizeDecorationType, fieldRangesFonts);
+			activeTextEditor.setDecorations(this._classFontSizeDecorationType1, classRangesFonts1);
+			activeTextEditor.setDecorations(this._interfaceFontSizeDecorationType1, interfaceRangesFonts1);
+			activeTextEditor.setDecorations(this._functionFontSizeDecorationType1, functionRangesFonts1);
+			activeTextEditor.setDecorations(this._methodFontSizeDecorationType1, methodRangesFonts1);
+
+			activeTextEditor.setDecorations(this._classFontSizeDecorationType2, classRangesFonts2);
+			activeTextEditor.setDecorations(this._interfaceFontSizeDecorationType2, interfaceRangesFonts2);
+			activeTextEditor.setDecorations(this._functionFontSizeDecorationType2, functionRangesFonts2);
+			activeTextEditor.setDecorations(this._methodFontSizeDecorationType2, methodRangesFonts2);
 		}
 		return result;
+	}
+
+	private _getRanges(activeTextEditor: vscode.TextEditor, symbols: vscode.DocumentSymbol[], kind: vscode.SymbolKind, rangesForLineHeight: vscode.Range[], rangesForFontSize1: vscode.Range[], rangesForFontSize2: vscode.Range[]) {
+		for (const symbol of symbols) {
+			if (symbol.kind === kind) {
+				rangesForLineHeight.push(new vscode.Range(symbol.range.start.line, 0, symbol.range.start.line, 0));
+				rangesForFontSize1.push(activeTextEditor.document.validateRange(new vscode.Range(symbol.range.start.line, 0, symbol.range.start.line, 15)));
+				rangesForFontSize2.push(activeTextEditor.document.validateRange(new vscode.Range(symbol.range.start.line, 10, symbol.range.start.line, Infinity)));
+			}
+			this._getRanges(activeTextEditor, symbol.children, kind, rangesForLineHeight, rangesForFontSize1, rangesForFontSize2);
+		}
 	}
 
 	private static convertNavTree(
