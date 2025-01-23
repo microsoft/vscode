@@ -16,7 +16,7 @@ import { PartFingerprint, PartFingerprints } from '../../../view/viewPart.js';
 import { LineNumbersOverlay } from '../../../viewParts/lineNumbers/lineNumbers.js';
 import { Margin } from '../../../viewParts/margin/margin.js';
 import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from '../../../../common/config/editorOptions.js';
-import { FontInfo } from '../../../../common/config/fontInfo.js';
+import { BareFontInfo, FontInfo } from '../../../../common/config/fontInfo.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -40,6 +40,8 @@ import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScree
 import { ClipboardDataToCopy, getDataToCopy } from '../clipboardUtils.js';
 import { _debugComposition, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/core/wordCharacterClassifier.js';
+import { getActiveWindow } from '../../../../../base/browser/dom.js';
+import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -844,7 +846,26 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
-		applyFontInfo(ta, this._fontInfo);
+		let fontInfo: BareFontInfo = this._fontInfo;
+
+		if (this._primaryCursorPosition) {
+			const specialFontInfo = this._context.viewModel.getSpecialFontInfoForPosition(this._primaryCursorPosition);
+			if (specialFontInfo && (
+				specialFontInfo.fontFamily !== this._fontInfo.fontFamily
+				|| specialFontInfo.fontWeight !== this._fontInfo.fontWeight
+				|| specialFontInfo.fontSize !== this._fontInfo.fontSize
+			)) {
+				const targetWindow = getActiveWindow();
+				fontInfo = BareFontInfo.createFromRawSettings({
+					fontFamily: specialFontInfo.fontFamily,
+					fontWeight: specialFontInfo.fontWeight,
+					fontSize: specialFontInfo.fontSize,
+					lineHeight: renderData.height
+				}, PixelRatio.getInstance(targetWindow).value);
+			}
+		}
+
+		applyFontInfo(ta, fontInfo);
 		ta.setLineHeight(renderData.height);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
