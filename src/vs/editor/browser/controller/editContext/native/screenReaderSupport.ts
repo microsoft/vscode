@@ -154,7 +154,7 @@ export class ScreenReaderSupport {
 		}
 
 		// For correct alignment of the screen reader content, we need to apply the correct font
-		applyFontInfo(this._domNode, this._fontInfo);
+		applyFontInfo(this._domNode, fontInfo);
 		this._domNode.setLineHeight(height);
 		this._domNode.setTop(top);
 		this._domNode.setLeft(left);
