@@ -49,7 +49,8 @@ export class SimpleSuggestDetailsWidget {
 
 	constructor(
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
-		@IInstantiationService instaService: IInstantiationService,
+		onDidFontInfoChange: Event<void>,
+		@IInstantiationService instaService: IInstantiationService
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
@@ -72,6 +73,30 @@ export class SimpleSuggestDetailsWidget {
 		this._type = dom.append(this._header, dom.$('p.type'));
 
 		this._docs = dom.append(this._body, dom.$('p.docs'));
+
+		this._configureFont();
+
+		this._disposables.add(onDidFontInfoChange(() => this._configureFont()));
+	}
+
+	private _configureFont(): void {
+		const fontInfo = this._getFontInfo();
+		const fontFamily = fontInfo.fontFamily;
+
+		const fontSize = fontInfo.fontSize;
+		const lineHeight = fontInfo.lineHeight;
+		const fontWeight = fontInfo.fontWeight;
+		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
+
+		this.domNode.style.fontSize = fontSizePx;
+		this.domNode.style.lineHeight = `${lineHeight / fontSize}`;
+		this.domNode.style.fontWeight = fontWeight;
+		// this.domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
+		this._type.style.fontFamily = fontFamily;
+		this._close.style.height = lineHeightPx;
+		this._close.style.width = lineHeightPx;
+
 	}
 
 	dispose(): void {
