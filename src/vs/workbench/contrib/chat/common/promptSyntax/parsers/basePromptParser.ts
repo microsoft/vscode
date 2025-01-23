@@ -401,7 +401,9 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		return this.allReferences
 			// filter out unresolved references
 			.filter((reference) => {
-				return !reference.resolveFailed;
+				const { errorCondition } = reference;
+
+				return !errorCondition || (errorCondition instanceof NonPromptSnippetFile);
 			});
 	}
 
@@ -443,6 +445,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 
 				return errorCondition;
 			});
+
 		result.push(...childErrorConditions);
 
 		return result;
