@@ -124,7 +124,7 @@ interface IChatInputPartOptions {
 	};
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	enableImplicitContext?: boolean;
-	enableWorkingSet?: boolean;
+	renderWorkingSet?: boolean;
 }
 
 export interface IWorkingSetEntry {
@@ -1138,7 +1138,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
-		if (!chatEditingSession || this.options.enableWorkingSet === false) {
+		if (!chatEditingSession || !this.options.renderWorkingSet) {
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;

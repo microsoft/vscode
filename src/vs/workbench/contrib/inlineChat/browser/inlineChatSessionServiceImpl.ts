@@ -30,7 +30,9 @@ import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEven
 import { isEqual } from '../../../../base/common/resources.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { IChatEditingService } from '../../chat/common/chatEditingService.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
+import { assertType } from '../../../../base/common/types.js';
+import { autorun } from '../../../../base/common/observable.js';
 
 
 type SessionData = {
@@ -324,6 +326,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	async createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2> {
 
+		assertType(editor.hasModel());
+
 		const key = this._key(editor, uri);
 		if (this._sessions2.has(key)) {
 			throw new Error('Session already exists');
@@ -336,16 +340,30 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const editingSession = await this._chatEditingService.createAdhocEditingSession(chatModel.sessionId);
 		editingSession.addFileToWorkingSet(uri);
 
+		const store = new DisposableStore();
+		store.add(toDisposable(() => {
+			editingSession.reject();
+			this._sessions2.delete(key);
+			this._onDidChangeSessions.fire(this);
+		}));
+		store.add(editingSession);
+		store.add(chatModel);
+
+		store.add(autorun(r => {
+			const entry = editingSession.readEntry(uri, r);
+			const state = entry?.state.read(r);
+			if (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected) {
+				// self terminate
+				store.dispose();
+			}
+		}));
+
 		const result: IInlineChatSession2 = {
+			uri,
+			initialPosition: editor.getPosition().delta(-1),
 			chatModel,
 			editingSession,
-			dispose: () => {
-				if (this._sessions2.delete(key)) {
-					editingSession.dispose();
-					chatModel.dispose();
-					this._onDidChangeSessions.fire(this);
-				}
-			}
+			dispose: store.dispose.bind(store)
 		};
 		this._sessions2.set(key, result);
 		this._onDidChangeSessions.fire(this);
