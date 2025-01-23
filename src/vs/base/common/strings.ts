@@ -788,13 +788,11 @@ export function rcut(text: string, n: number, suffix = ''): string {
 
 	const re = /\b/g;
 	let lastWordBreak = trimmed.length;
-	let i = 0;
 
 	while (re.test(trimmed)) {
 		if (trimmed.length - re.lastIndex > n) {
 			lastWordBreak = re.lastIndex;
 		}
-		i = re.lastIndex;
 		re.lastIndex += 1;
 	}
 

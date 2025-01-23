@@ -288,7 +288,6 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		}));
 
 		this._show();
-
 	}
 
 	private _show(): void {

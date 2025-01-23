@@ -1024,7 +1024,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const unconfirmedSuggestions = new ResourceSet();
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 				const editingSessionAttachedContext: IChatRequestVariableEntry[] = [];
-
 				// Pick up everything that the user sees is part of the working set.
 				// This should never exceed the maximum file entries limit above.
 				for (const { uri, isMarkedReadonly } of this.inputPart.chatEditWorkingSetFiles) {
