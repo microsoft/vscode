@@ -22,7 +22,7 @@ import { activeContrastBorder } from '../../../../../platform/theme/common/color
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
-import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
@@ -32,6 +32,7 @@ import { TerminalShellType } from '../../../../../platform/terminal/common/termi
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -408,7 +409,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._container!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
 				() => fontInfo,
-				{}
+				{
+					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
+					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
+				},
 			));
 			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
