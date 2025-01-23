@@ -153,7 +153,8 @@ export class InlineCompletionsSource extends Disposable {
 			}
 
 			// Reuse Inline Edit if possible
-			if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && activeInlineCompletion.canBeReused(this._textModel, position)) {
+			const newInlineEdit = updatedCompletions.completions.find(c => c.sourceInlineCompletion.isInlineEdit);
+			if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && (activeInlineCompletion.canBeReused(this._textModel, position) || newInlineEdit?.hash() === activeInlineCompletion.inlineCompletion.hash())) {
 				updatedCompletions.dispose();
 				return false;
 			}
