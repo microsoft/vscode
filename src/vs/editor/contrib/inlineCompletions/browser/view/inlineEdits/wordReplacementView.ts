@@ -20,6 +20,7 @@ import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../common/tokens/tokenArray.js';
 import { mapOutFalsy, n, rectToProps } from './utils.js';
 import { localize } from '../../../../../../nls.js';
+import { IInlineEditsView } from './sideBySideDiff.js';
 export const transparentHoverBackground = registerColor(
 	'inlineEdit.wordReplacementView.background',
 	{
@@ -31,7 +32,7 @@ export const transparentHoverBackground = registerColor(
 	localize('inlineEdit.wordReplacementView.background', 'Background color for the inline edit word replacement view.')
 );
 
-export class WordReplacementView extends Disposable {
+export class WordReplacementView extends Disposable implements IInlineEditsView {
 	private readonly _start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
 	private readonly _end = this._editor.observePosition(constObservable(this._edit.range.getEndPosition()), this._store);
 
@@ -235,6 +236,8 @@ export class WordReplacementView extends Disposable {
 		})
 	]).keepUpdated(this._store);
 
+	readonly isHovered = constObservable(false);
+
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
 		/** Must be single-line in both sides */
@@ -253,7 +256,7 @@ export class WordReplacementView extends Disposable {
 	}
 }
 
-export class WordInsertView extends Disposable {
+export class WordInsertView extends Disposable implements IInlineEditsView {
 	private readonly _start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
 
 	private readonly _layout = derived(this, reader => {
@@ -344,6 +347,8 @@ export class WordInsertView extends Disposable {
 			];
 		})
 	]).keepUpdated(this._store);
+
+	readonly isHovered = constObservable(false);
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
