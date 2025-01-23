@@ -8,7 +8,6 @@ import es from 'event-stream';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import * as util from '../lib/util';
-// @ts-ignore
 import { getProductionDependencies } from '../lib/dependencies';
 import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
