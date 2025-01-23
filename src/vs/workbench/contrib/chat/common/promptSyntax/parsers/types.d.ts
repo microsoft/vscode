@@ -56,6 +56,11 @@ export interface IPromptReference extends IDisposable {
 	readonly linkRange: IRange | undefined;
 
 	/**
+	 * Whether the current reference points to a prompt snippet file.
+	 */
+	readonly isPromptSnippet: boolean;
+
+	/**
 	 * Flag that indicates if resolving this reference failed.
 	 * The `undefined` means that no attempt to resolve the reference
 	 * was made so far or such an attempt is still in progress.
