@@ -160,6 +160,14 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useGutterIndicator);
 
+	private readonly _inlineEditsIsHovered = derived(this, reader => {
+		return this._sideBySide.isHovered.read(reader)
+			|| this._wordReplacementViews.read(reader).some(v => v.isHovered.read(reader))
+			|| this._deletion.isHovered.read(reader)
+			|| this._inlineDiffView.isHovered.read(reader)
+			|| this._lineReplacementView.read(reader).some(v => v.isHovered.read(reader));
+	});
+
 	protected readonly _indicator = this._register(autorunWithStore((reader, store) => {
 		if (this._useGutterIndicator.read(reader)) {
 			store.add(this._instantiationService.createInstance(
@@ -167,7 +175,7 @@ export class InlineEditsView extends Disposable {
 				this._editorObs,
 				this._uiState.map(s => s && s.originalDisplayRange),
 				this._model,
-				this._sideBySide.isHovered,
+				this._inlineEditsIsHovered,
 				this._focusIsInMenu,
 			));
 		} else {

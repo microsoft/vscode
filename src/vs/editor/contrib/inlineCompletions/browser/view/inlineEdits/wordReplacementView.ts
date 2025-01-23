@@ -20,6 +20,7 @@ import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../common/tokens/tokenArray.js';
 import { mapOutFalsy, n, rectToProps } from './utils.js';
 import { localize } from '../../../../../../nls.js';
+import { IInlineEditsView } from './sideBySideDiff.js';
 import { Range } from '../../../../../common/core/range.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
@@ -35,7 +36,7 @@ export const transparentHoverBackground = registerColor(
 	localize('inlineEdit.wordReplacementView.background', 'Background color for the inline edit word replacement view.')
 );
 
-export class WordReplacementView extends Disposable {
+export class WordReplacementView extends Disposable implements IInlineEditsView {
 	private readonly _start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
 	private readonly _end = this._editor.observePosition(constObservable(this._edit.range.getEndPosition()), this._store);
 
@@ -239,6 +240,10 @@ export class WordReplacementView extends Disposable {
 		})
 	]).keepUpdated(this._store);
 
+	readonly isHovered = derived(this, reader => {
+		return this._div.getIsHovered(this._store).read(reader);
+	});
+
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
 		/** Must be single-line in both sides */
@@ -257,7 +262,7 @@ export class WordReplacementView extends Disposable {
 	}
 }
 
-export class LineReplacementView extends Disposable {
+export class LineReplacementView extends Disposable implements IInlineEditsView {
 
 	private readonly _originalBubblesDecorationCollection = this._editor.editor.createDecorationsCollection();
 	private readonly _originalBubblesDecorationOptions: IModelDecorationOptions = {
@@ -492,6 +497,10 @@ export class LineReplacementView extends Disposable {
 		})
 	]).keepUpdated(this._store);
 
+	readonly isHovered = derived(this, reader => {
+		return this._div.getIsHovered(this._store).read(reader);
+	});
+
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
 		private readonly _originalRange: LineRange,
@@ -538,7 +547,7 @@ export interface Replacement {
 	modifiedRange: Range;
 }
 
-export class WordInsertView extends Disposable {
+export class WordInsertView extends Disposable implements IInlineEditsView {
 	private readonly _start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
 
 	private readonly _layout = derived(this, reader => {
@@ -629,6 +638,8 @@ export class WordInsertView extends Disposable {
 			];
 		})
 	]).keepUpdated(this._store);
+
+	readonly isHovered = constObservable(false);
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
