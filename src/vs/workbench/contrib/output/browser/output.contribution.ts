@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OutputService } from './outputServices.js';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, isSingleSourceOutputChannelDescriptor, isMultiSourceOutputChannelDescriptor, HIDE_SOURCE_FILTER_CONTEXT } from '../../../services/output/common/output.js';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, isSingleSourceOutputChannelDescriptor } from '../../../services/output/common/output.js';
 import { OutputViewPane } from './outputView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -26,7 +26,7 @@ import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/conte
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
 import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
@@ -41,7 +41,6 @@ import { ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { basename } from '../../../../base/common/resources.js';
-import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 
 const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
@@ -117,7 +116,6 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerOpenLogFileAction();
 		this.registerConfigureActiveOutputLogLevelAction();
 		this.registerLogLevelFilterActions();
-		this.registerSourceFilterAction();
 		this.registerClearFilterActions();
 		this.registerExportLogsAction();
 		this.registerImportLogAction();
@@ -682,57 +680,6 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		registerLogLevel(LogLevel.Info, SHOW_INFO_FILTER_CONTEXT);
 		registerLogLevel(LogLevel.Warning, SHOW_WARNING_FILTER_CONTEXT);
 		registerLogLevel(LogLevel.Error, SHOW_ERROR_FILTER_CONTEXT);
-	}
-
-	private registerSourceFilterAction(): void {
-		const registeredChannels = new DisposableMap<string, DisposableStore>();
-		this._register(toDisposable(() => dispose(registeredChannels.values())));
-		const registerOutputChannels = (channels: IOutputChannelDescriptor[]) => {
-			for (const channel of channels) {
-				if (!isMultiSourceOutputChannelDescriptor(channel)) {
-					continue;
-				}
-				const disposables = new DisposableStore();
-				registeredChannels.set(channel.id, disposables);
-				for (const source of channel.source) {
-					if (!source.name) {
-						continue;
-					}
-					const sourceFilter = `${channel.id}:${source.name}`;
-					disposables.add(registerAction2(class extends Action2 {
-						constructor() {
-							super({
-								id: `workbench.actions.${OUTPUT_VIEW_ID}.toggle.${sourceFilter}`,
-								title: source.name!,
-								toggled: ContextKeyExpr.regex(HIDE_SOURCE_FILTER_CONTEXT.key, new RegExp(`.*,${escapeRegExpCharacters(sourceFilter)},.*`)).negate(),
-								menu: {
-									id: viewFilterSubmenu,
-									group: '1_source_filter',
-									when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID), ACTIVE_OUTPUT_CHANNEL_CONTEXT.isEqualTo(channel.id)),
-								}
-							});
-						}
-						async run(accessor: ServicesAccessor): Promise<void> {
-							const outputService = accessor.get(IOutputService);
-							outputService.filters.toggleSource(sourceFilter);
-						}
-					}));
-				}
-			}
-		};
-		registerOutputChannels(this.outputService.getChannelDescriptors());
-		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		this._register(outputChannelRegistry.onDidRegisterChannel(e => {
-			const channel = this.outputService.getChannelDescriptor(e);
-			if (channel) {
-				registerOutputChannels([channel]);
-			}
-		}));
-		this._register(outputChannelRegistry.onDidUpdateChannelSources(e => {
-			registeredChannels.deleteAndDispose(e.id);
-			registerOutputChannels([e]);
-		}));
-		this._register(outputChannelRegistry.onDidRemoveChannel(e => registeredChannels.deleteAndDispose(e.id)));
 	}
 
 	private registerClearFilterActions(): void {
