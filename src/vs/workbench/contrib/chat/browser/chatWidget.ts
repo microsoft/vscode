@@ -650,7 +650,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					noCommandDetection: true,
 					attempt: request.attempt + 1,
 					location: this.location,
-					userSelectedModelId: this.input.currentLanguageModel
+					userSelectedModelId: this.input.currentLanguageModel,
+					hasInstructionAttachments: this.input.hasInstructionAttachments,
 				};
 				this.chatService.resendRequest(request, options).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
@@ -672,6 +673,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: ChatTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
 				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions), } : undefined,
+				scrollToActiveElement: true,
 				overrideStyles: {
 					listFocusBackground: this.styles.listBackground,
 					listInactiveFocusBackground: this.styles.listBackground,
@@ -1014,13 +1016,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const editingSessionAttachedContext: IChatRequestVariableEntry[] = [];
 				// Pick up everything that the user sees is part of the working set.
 				// This should never exceed the maximum file entries limit above.
-				for (const v of this.inputPart.chatEditWorkingSetFiles) {
+				for (const { uri, isMarkedReadonly } of this.inputPart.chatEditWorkingSetFiles) {
 					// Skip over any suggested files that haven't been confirmed yet in the working set
-					if (currentEditingSession?.workingSet.get(v)?.state === WorkingSetEntryState.Suggested) {
-						unconfirmedSuggestions.add(v);
+					if (currentEditingSession?.workingSet.get(uri)?.state === WorkingSetEntryState.Suggested) {
+						unconfirmedSuggestions.add(uri);
 					} else {
-						uniqueWorkingSetEntries.add(v);
-						editingSessionAttachedContext.push(this.attachmentModel.asVariableEntry(v));
+						uniqueWorkingSetEntries.add(uri);
+						editingSessionAttachedContext.push(this.attachmentModel.asVariableEntry(uri, undefined, isMarkedReadonly));
 					}
 				}
 				let maximumFileEntries = this.chatEditingService.editingSessionFileLimit - editingSessionAttachedContext.length;
@@ -1078,6 +1080,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext,
 				workingSet,
 				noCommandDetection: options?.noCommandDetection,
+				hasInstructionAttachments: this.inputPart.hasInstructionAttachments,
 			});
 
 			if (result) {
@@ -1095,6 +1098,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						}
 					}
 				});
+
+				const RESPONSE_TIMEOUT = 20000;
+				setTimeout(() => {
+					// Stop the signal if the promise is still unresolved
+					this.chatAccessibilityService.acceptResponse(undefined, requestId, options?.isVoiceInput);
+				}, RESPONSE_TIMEOUT);
+
 				return result.responseCreatedPromise;
 			}
 		}

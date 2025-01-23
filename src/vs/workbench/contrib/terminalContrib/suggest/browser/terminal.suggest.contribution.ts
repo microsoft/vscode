@@ -27,6 +27,9 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
+import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
+import { SuggestDetailsClassName } from '../../../../services/suggest/browser/simpleSuggestWidgetDetails.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -112,7 +115,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
 		}));
-		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon));
+		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', pwshCompletionProviderAddon.id, pwshCompletionProviderAddon));
 		// If completions are requested, pause and queue input events until completions are
 		// received. This fixing some problems in PowerShell, particularly enter not executing
 		// when typing quickly and some characters being printed twice. On Windows this isn't
@@ -152,7 +155,16 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
 		}
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-		this.add(this._ctx.instance.onDidBlur(() => addon.hideSuggestWidget()));
+
+		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
+			const focusedElement = e.relatedTarget as HTMLElement;
+			if (focusedElement?.className === SuggestDetailsClassName) {
+				// Don't hide the suggest widget if the focus is moving to the details
+				return;
+			}
+			addon.hideSuggestWidget();
+		}));
+
 		this.add(addon.onAcceptedCompletion(async text => {
 			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
@@ -178,6 +190,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		addon.shellType = this._ctx.instance.shellType;
+		if (!this._ctx.instance.xterm?.raw) {
+			return;
+		}
+		// Relies on shell type being set
+		this._loadPwshCompletionAddon(this._ctx.instance.xterm.raw);
 	}
 }
 
@@ -194,7 +211,7 @@ registerActiveInstanceAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
+		when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.suggestWidgetVisible.negate(), ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions(true)
 });
@@ -242,6 +259,48 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.selectNextSuggestion()
+});
+
+registerActiveInstanceAction({
+	id: 'terminalSuggestToggleExplainMode',
+	title: localize2('workbench.action.terminal.suggestToggleExplainMode', 'Suggest Toggle Explain Modes'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	keybinding: {
+		// Down is bound to other workbench keybindings that this needs to beat
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		primary: KeyMod.CtrlCmd | KeyCode.Slash,
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleExplainMode()
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ToggleDetailsFocus,
+	title: localize2('workbench.action.terminal.suggestToggleDetailsFocus', 'Suggest Toggle Suggestion Focus'),
+	f1: false,
+	// HACK: This does not work with a precondition of `TerminalContextKeys.suggestWidgetVisible`, so make sure to not override the editor's keybinding
+	precondition: EditorContextKeys.textInputFocus.negate(),
+	keybinding: {
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
+		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleSuggestionFocus()
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ToggleDetails,
+	title: localize2('workbench.action.terminal.suggestToggleDetails', 'Suggest Toggle Details'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.focus, TerminalContextKeys.suggestWidgetVisible, SimpleSuggestContext.HasFocusedSuggestion),
+	keybinding: {
+		// HACK: Force weight to be higher than that to start terminal chat
+		weight: KeybindingWeight.ExternalExtension + 2,
+		primary: KeyMod.CtrlCmd | KeyCode.Space,
+		secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
+		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KeyI] }
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.toggleSuggestionDetails()
 });
 
 registerActiveInstanceAction({

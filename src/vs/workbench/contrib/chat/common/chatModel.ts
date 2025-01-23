@@ -30,6 +30,7 @@ export interface IBaseChatRequestVariableEntry {
 	fullName?: string;
 	icon?: ThemeIcon;
 	name: string;
+	isMarkedReadonly?: boolean;
 	modelDescription?: string;
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
@@ -352,7 +353,9 @@ export class Response extends Disposable implements IResponse {
 				// The last part can't be merged with- not markdown, or markdown with different permissions
 				this._responseParts.push(progress);
 			} else {
-				lastResponsePart.content = appendMarkdownString(lastResponsePart.content, progress.content);
+				// Don't modify the current object, since it's being diffed by the renderer
+				const idx = this._responseParts.indexOf(lastResponsePart);
+				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit') {

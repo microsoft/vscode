@@ -32,14 +32,14 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 	readonly onWatchFail = this._onDidWatchFail.event;
 
-	testRemoveDuplicateRequests(paths: string[], excludes: string[] = []): string[] {
+	async testRemoveDuplicateRequests(paths: string[], excludes: string[] = []): Promise<string[]> {
 
 		// Work with strings as paths to simplify testing
 		const requests: IRecursiveWatchRequest[] = paths.map(path => {
 			return { path, excludes, recursive: true };
 		});
 
-		return this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
+		return (await this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */)).map(request => request.path);
 	}
 
 	protected override getUpdateWatchersDelay(): number {
@@ -97,7 +97,11 @@ suite.skip('File Watcher (parcel)', function () {
 			}
 		});
 
-		testDir = URI.file(getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher')).fsPath;
+		// Rule out strange testing conditions by using the realpath
+		// here. for example, on macOS the tmp dir is potentially a
+		// symlink in some of the root folders, which is a rather
+		// unrealisic case for the file watcher.
+		testDir = URI.file(getRandomTestPath(realpathSync(tmpdir()), 'vsctests', 'filewatcher')).fsPath;
 
 		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
@@ -636,34 +640,34 @@ suite.skip('File Watcher (parcel)', function () {
 		return basicCrudTest(join(testDir, 'newFile.txt'), correlationId);
 	});
 
-	test('should not exclude roots that do not overlap', () => {
+	test('should not exclude roots that do not overlap', async () => {
 		if (isWindows) {
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a']), ['C:\\a']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['C:\\a']), ['C:\\a']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
 		} else {
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a']), ['/a']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/b']), ['/a', '/b']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['/a']), ['/a']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['/a', '/b']), ['/a', '/b']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
 		}
 	});
 
-	test('should remove sub-folders of other paths', () => {
+	test('should remove sub-folders of other paths', async () => {
 		if (isWindows) {
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
 		} else {
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/a/b']), ['/a']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/a', '/a/b', '/a/c/d']), ['/a']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['/a', '/a/b']), ['/a']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['/a', '/b', '/a/b']), ['/a', '/b']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
+			assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['/a', '/a/b', '/a/c/d']), ['/a']);
 		}
 	});
 
-	test('should ignore when everything excluded', () => {
-		assert.deepStrictEqual(watcher.testRemoveDuplicateRequests(['/foo/bar', '/bar'], ['**', 'something']), []);
+	test('should ignore when everything excluded', async () => {
+		assert.deepStrictEqual(await watcher.testRemoveDuplicateRequests(['/foo/bar', '/bar'], ['**', 'something']), []);
 	});
 
 	test('watching same or overlapping paths supported when correlation is applied', async () => {
@@ -786,17 +790,19 @@ suite.skip('File Watcher (parcel)', function () {
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath);
 
-		onDidWatchFail = Event.toPromise(watcher.onWatchFail);
-		await Promises.rm(folderPath);
-		await onDidWatchFail;
+		if (!reuseExistingWatcher) {
+			onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+			await Promises.rm(folderPath);
+			await onDidWatchFail;
 
-		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED);
-		onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await promises.mkdir(folderPath);
-		await changeFuture;
-		await onDidWatch;
+			changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED);
+			onDidWatch = Event.toPromise(watcher.onDidWatch);
+			await promises.mkdir(folderPath);
+			await changeFuture;
+			await onDidWatch;
 
-		await basicCrudTest(filePath);
+			await basicCrudTest(filePath);
+		}
 	}
 
 	(isWindows /* Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, exist in beginning, not reusing watcher)', async () => {
@@ -820,17 +826,19 @@ suite.skip('File Watcher (parcel)', function () {
 		const filePath = join(folderPath, 'newFile.txt');
 		await basicCrudTest(filePath);
 
-		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
-		await Promises.rm(folderPath);
-		await onDidWatchFail;
+		if (!reuseExistingWatcher) {
+			const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
+			await Promises.rm(folderPath);
+			await onDidWatchFail;
 
-		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED);
-		const onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await promises.mkdir(folderPath);
-		await changeFuture;
-		await onDidWatch;
+			const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED);
+			const onDidWatch = Event.toPromise(watcher.onDidWatch);
+			await promises.mkdir(folderPath);
+			await changeFuture;
+			await onDidWatch;
 
-		await basicCrudTest(filePath);
+			await basicCrudTest(filePath);
+		}
 	}
 
 	test('watch request reuses another recursive watcher even when requests are coming in at the same time', async function () {

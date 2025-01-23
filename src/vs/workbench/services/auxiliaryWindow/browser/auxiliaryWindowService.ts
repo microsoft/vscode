@@ -225,7 +225,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly DEFAULT_SIZE = { width: 800, height: 600 };
+	private static readonly DEFAULT_SIZE = { width: 1024, height: 768 };
 
 	private static WINDOW_IDS = getWindowId(mainWindow) + 1; // start from the main window ID + 1
 

@@ -63,6 +63,7 @@ import { NativeEditContext } from './controller/editContext/native/nativeEditCon
 import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
 import { EditContext } from './controller/editContext/native/editContextFactory.js';
 import { GpuMarkOverlay } from './viewParts/gpuMark/gpuMark.js';
+import { AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
 
 
 export interface IContentWidgetData {
@@ -101,6 +102,7 @@ export class View extends ViewEventHandler {
 	private readonly _viewController: ViewController;
 
 	private _experimentalEditContextEnabled: boolean;
+	private _accessibilitySupport: AccessibilitySupport;
 	private _editContext: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
 
@@ -145,7 +147,8 @@ export class View extends ViewEventHandler {
 
 		// Keyboard handler
 		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
-		this._editContext = this._instantiateEditContext(this._experimentalEditContextEnabled);
+		this._accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
+		this._editContext = this._instantiateEditContext(this._experimentalEditContextEnabled, this._accessibilitySupport);
 
 		this._viewParts.push(this._editContext);
 
@@ -274,10 +277,10 @@ export class View extends ViewEventHandler {
 		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper()));
 	}
 
-	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
+	private _instantiateEditContext(experimentalEditContextEnabled: boolean, accessibilitySupport: AccessibilitySupport): AbstractEditContext {
 		const domNode = dom.getWindow(this._overflowGuardContainer.domNode);
 		const isEditContextSupported = EditContext.supported(domNode);
-		if (experimentalEditContextEnabled && isEditContextSupported) {
+		if (experimentalEditContextEnabled && isEditContextSupported && accessibilitySupport !== AccessibilitySupport.Enabled) {
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
 			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
@@ -286,14 +289,16 @@ export class View extends ViewEventHandler {
 
 	private _updateEditContext(): void {
 		const experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
-		if (this._experimentalEditContextEnabled === experimentalEditContextEnabled) {
+		const accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
+		if (this._experimentalEditContextEnabled === experimentalEditContextEnabled && this._accessibilitySupport === accessibilitySupport) {
 			return;
 		}
 		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		this._accessibilitySupport = accessibilitySupport;
 		const isEditContextFocused = this._editContext.isFocused();
 		const indexOfEditContext = this._viewParts.indexOf(this._editContext);
 		this._editContext.dispose();
-		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled);
+		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled, accessibilitySupport);
 		if (isEditContextFocused) {
 			this._editContext.focus();
 		}

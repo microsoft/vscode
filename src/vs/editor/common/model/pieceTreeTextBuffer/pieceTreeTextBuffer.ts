@@ -27,6 +27,10 @@ export interface IValidatedEditOperation {
 	isAutoWhitespaceEdit: boolean;
 }
 
+export interface IValidatedEditOperationWithReverseRange extends IValidatedEditOperation {
+	reverseRange: Range;
+}
+
 interface IReverseSingleEditOperation extends IValidEditOperation {
 	sortIndex: number;
 }
@@ -323,7 +327,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 		}
 
 		// Delta encode operations
-		const reverseRanges = (computeUndoEdits || recordTrimAutoWhitespace ? PieceTreeTextBuffer._getInverseEditRanges(operations) : []);
+		const reverseRanges = PieceTreeTextBuffer._getInverseEditRanges(operations);
 		const newTrimAutoWhitespaceCandidates: { lineNumber: number; oldContent: string }[] = [];
 		if (recordTrimAutoWhitespace) {
 			for (let i = 0; i < operations.length; i++) {
@@ -373,12 +377,19 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 			}
 		}
 
+		const operationsWithReverseRanges: IValidatedEditOperationWithReverseRange[] = new Array(operations.length);
+		for (let i = 0; i < operations.length; i++) {
+			operationsWithReverseRanges[i] = {
+				...operations[i],
+				reverseRange: reverseRanges[i]
+			};
+		}
 
 		this._mightContainRTL = mightContainRTL;
 		this._mightContainUnusualLineTerminators = mightContainUnusualLineTerminators;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
 
-		const contentChanges = this._doApplyEdits(operations);
+		const contentChanges = this._doApplyEdits(operationsWithReverseRanges);
 
 		let trimAutoWhitespaceLineNumbers: number[] | null = null;
 		if (recordTrimAutoWhitespace && newTrimAutoWhitespaceCandidates.length > 0) {
@@ -476,7 +487,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 		};
 	}
 
-	private _doApplyEdits(operations: IValidatedEditOperation[]): IInternalModelContentChange[] {
+	private _doApplyEdits(operations: IValidatedEditOperationWithReverseRange[]): IInternalModelContentChange[] {
 		operations.sort(PieceTreeTextBuffer._sortOpsDescending);
 
 		const contentChanges: IInternalModelContentChange[] = [];
@@ -509,6 +520,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 			contentChanges.push({
 				range: contentChangeRange,
 				rangeLength: op.rangeLength,
+				rangeEndPosition: op.reverseRange.getEndPosition(),
 				text: op.text,
 				rangeOffset: op.rangeOffset,
 				forceMoveMarkers: op.forceMoveMarkers

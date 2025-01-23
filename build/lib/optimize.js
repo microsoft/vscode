@@ -3,22 +3,58 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bundleTask = bundleTask;
 exports.minifyTask = minifyTask;
-const es = require("event-stream");
-const gulp = require("gulp");
-const filter = require("gulp-filter");
-const path = require("path");
-const fs = require("fs");
-const pump = require("pump");
-const VinylFile = require("vinyl");
-const bundle = require("./bundle");
+const es = __importStar(require("event-stream"));
+const gulp = __importStar(require("gulp"));
+const gulp_filter_1 = __importDefault(require("gulp-filter"));
+const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
+const pump_1 = __importDefault(require("pump"));
+const vinyl_1 = __importDefault(require("vinyl"));
+const bundle = __importStar(require("./bundle"));
 const postcss_1 = require("./postcss");
-const esbuild = require("esbuild");
-const sourcemaps = require("gulp-sourcemaps");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
+const esbuild = __importStar(require("esbuild"));
+const sourcemaps = __importStar(require("gulp-sourcemaps"));
+const fancy_log_1 = __importDefault(require("fancy-log"));
+const ansiColors = __importStar(require("ansi-colors"));
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 const DEFAULT_FILE_HEADER = [
     '/*!--------------------------------------------------------',
@@ -44,7 +80,7 @@ function bundleESMTask(opts) {
         const files = [];
         const tasks = [];
         for (const entryPoint of entryPoints) {
-            fancyLog(`Bundled entry point: ${ansiColors.yellow(entryPoint.name)}...`);
+            (0, fancy_log_1.default)(`Bundled entry point: ${ansiColors.yellow(entryPoint.name)}...`);
             // support for 'dest' via esbuild#in/out
             const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
             // banner contents
@@ -128,7 +164,7 @@ function bundleESMTask(opts) {
                         path: file.path,
                         base: path.join(REPO_ROOT_PATH, opts.src)
                     };
-                    files.push(new VinylFile(fileProps));
+                    files.push(new vinyl_1.default(fileProps));
                 }
             });
             tasks.push(task);
@@ -160,10 +196,10 @@ function minifyTask(src, sourceMapBaseUrl) {
     return cb => {
         const cssnano = require('cssnano');
         const svgmin = require('gulp-svgmin');
-        const jsFilter = filter('**/*.js', { restore: true });
-        const cssFilter = filter('**/*.css', { restore: true });
-        const svgFilter = filter('**/*.svg', { restore: true });
-        pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), es.map((f, cb) => {
+        const jsFilter = (0, gulp_filter_1.default)('**/*.js', { restore: true });
+        const cssFilter = (0, gulp_filter_1.default)('**/*.css', { restore: true });
+        const svgFilter = (0, gulp_filter_1.default)('**/*.svg', { restore: true });
+        (0, pump_1.default)(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), es.map((f, cb) => {
             esbuild.build({
                 entryPoints: [f.path],
                 minify: true,

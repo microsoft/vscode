@@ -118,4 +118,8 @@ declare module 'vscode' {
 	export interface LanguageModelIgnoredFileProvider {
 		provideFileIgnored(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
 	}
+
+	export interface LanguageModelToolInvocationOptions<T> {
+		chatRequestId?: string;
+	}
 }

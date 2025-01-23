@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import { Readable } from 'stream';
 import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
-import * as yauzl from 'yauzl';
-import * as crypto from 'crypto';
+import yauzl from 'yauzl';
+import crypto from 'crypto';
 import { retry } from './retry';
 import { CosmosClient } from '@azure/cosmos';
-import * as cp from 'child_process';
-import * as os from 'os';
+import cp from 'child_process';
+import os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';

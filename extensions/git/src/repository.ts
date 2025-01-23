@@ -26,6 +26,7 @@ import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { detectEncoding } from './encoding';
+import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -841,6 +842,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
+	private unpublishedCommits: Set<string> | undefined = undefined;
 	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
@@ -854,6 +856,7 @@ export class Repository implements Disposable {
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
+		historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
@@ -892,7 +895,7 @@ export class Repository implements Disposable {
 
 		this._sourceControl.quickDiffProvider = this;
 
-		this._historyProvider = new GitHistoryProvider(this, logger);
+		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;
 		this.disposables.push(this._historyProvider);
 
@@ -1163,7 +1166,10 @@ export class Repository implements Disposable {
 	}
 
 	diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
-		return this.run(Operation.Diff, () => this.repository.diffTrees(treeish1, treeish2));
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.root));
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
+
+		return this.run(Operation.Diff, () => this.repository.diffTrees(treeish1, treeish2, { similarityThreshold }));
 	}
 
 	getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
@@ -1517,7 +1523,7 @@ export class Repository implements Disposable {
 	async getBranches(query: BranchQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return await this.run(Operation.GetBranches, async () => {
 			const refs = await this.getRefs(query, cancellationToken);
-			return refs.filter(value => (value.type === RefType.Head || value.type === RefType.RemoteHead) && (query.remote || !value.remote));
+			return refs.filter(value => value.type === RefType.Head || (value.type === RefType.RemoteHead && query.remote));
 		});
 	}
 
@@ -2270,6 +2276,17 @@ export class Repository implements Disposable {
 					this.isCherryPickInProgress(),
 					this.getInputTemplate()]);
 
+			// Reset the list of unpublished commits if HEAD has
+			// changed (ex: checkout, fetch, pull, push, publish, etc.).
+			// The list of unpublished commits will be computed lazily
+			// on demand.
+			if (this.HEAD?.name !== HEAD?.name ||
+				this.HEAD?.commit !== HEAD?.commit ||
+				this.HEAD?.ahead !== HEAD?.ahead ||
+				this.HEAD?.upstream !== HEAD?.upstream) {
+				this.unpublishedCommits = undefined;
+			}
+
 			this._HEAD = HEAD;
 			this._remotes = remotes!;
 			this._submodules = submodules!;
@@ -2744,6 +2761,24 @@ export class Repository implements Disposable {
 		}
 
 		return false;
+	}
+
+	async getUnpublishedCommits(): Promise<Set<string>> {
+		if (this.unpublishedCommits) {
+			return this.unpublishedCommits;
+		}
+
+		if (this.HEAD && this.HEAD.name && this.HEAD.upstream && this.HEAD.ahead && this.HEAD.ahead > 0) {
+			const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+			const ref2 = this.HEAD.name;
+
+			const revList = await this.repository.revList(ref1, ref2);
+			this.unpublishedCommits = new Set<string>(revList);
+		} else {
+			this.unpublishedCommits = new Set<string>();
+		}
+
+		return this.unpublishedCommits;
 	}
 
 	dispose(): void {

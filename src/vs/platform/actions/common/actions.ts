@@ -5,7 +5,7 @@
 
 import { IAction, SubmenuAction } from '../../../base/common/actions.js';
 import { Event, MicrotaskEmitter } from '../../../base/common/event.js';
-import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, toDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from '../../action/common/action.js';
@@ -114,7 +114,6 @@ export class MenuId {
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMInputBox = new MenuId('SCMInputBox');
-	static readonly SCMChangesContext = new MenuId('SCMChangesContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
 	static readonly SCMResourceContextShare = new MenuId('SCMResourceContextShare');
@@ -124,6 +123,8 @@ export class MenuId {
 	static readonly SCMSourceControlInline = new MenuId('SCMSourceControlInline');
 	static readonly SCMSourceControlTitle = new MenuId('SCMSourceControlTitle');
 	static readonly SCMHistoryTitle = new MenuId('SCMHistoryTitle');
+	static readonly SCMHistoryItemContext = new MenuId('SCMHistoryItemContext');
+	static readonly SCMHistoryItemHover = new MenuId('SCMHistoryItemHover');
 	static readonly SCMHistoryItemRefContext = new MenuId('SCMHistoryItemRefContext');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
@@ -397,11 +398,11 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		this._commands.set(command.id, command);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 
-		return toDisposable(() => {
+		return markAsSingleton(toDisposable(() => {
 			if (this._commands.delete(command.id)) {
 				this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 			}
-		});
+		}));
 	}
 
 	getCommand(id: string): ICommandAction | undefined {
@@ -422,10 +423,10 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		}
 		const rm = list.push(item);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
-		return toDisposable(() => {
+		return markAsSingleton(toDisposable(() => {
 			rm();
 			this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
-		});
+		}));
 	}
 
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable {

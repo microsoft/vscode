@@ -57,8 +57,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				throw new Error(`Invalid tool invocation token`);
 			}
 
-			const tool = this._allTools.get(toolId);
-			if (tool?.tags?.includes('vscode_editing') && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+			if (toolId === 'vscode_editFile' && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
 				throw new Error(`Invalid tool: ${toolId}`);
 			}
 
@@ -69,6 +68,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				parameters: options.input,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
+				chatRequestId: options.chatRequestId,
 			}, token);
 			return typeConvert.LanguageModelToolResult.to(result);
 		} finally {
@@ -87,7 +87,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return Array.from(this._allTools.values())
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool))
 			.filter(tool => {
-				if (tool.tags.includes('vscode_editing')) {
+				if (tool.name === 'vscode_editFile') {
 					return isProposedApiEnabled(extension, 'chatParticipantPrivate');
 				}
 
@@ -101,7 +101,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions<Object> = { input: dto.parameters, toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined };
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
+			input: dto.parameters,
+			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
+			chatRequestId: dto.chatRequestId,
+		};
 		if (dto.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
