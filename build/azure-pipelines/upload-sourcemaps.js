@@ -45,7 +45,7 @@ const event_stream_1 = __importDefault(require("event-stream"));
 const vinyl_fs_1 = __importDefault(require("vinyl-fs"));
 const util = __importStar(require("../lib/util"));
 // @ts-ignore
-const deps = __importStar(require("../lib/dependencies"));
+const dependencies_1 = __importDefault(require("../lib/dependencies"));
 const identity_1 = require("@azure/identity");
 const azure = require('gulp-azure-storage');
 const root = path_1.default.dirname(path_1.default.dirname(__dirname));
@@ -66,8 +66,8 @@ function main() {
     if (!base) {
         const vs = src('out-vscode-min'); // client source-maps only
         sources.push(vs);
-        const productionDependencies = deps.getProductionDependencies(root);
-        const productionDependenciesSrc = productionDependencies.map(d => path_1.default.relative(root, d)).map(d => `./${d}/**/*.map`);
+        const productionDependencies = dependencies_1.default.getProductionDependencies(root);
+        const productionDependenciesSrc = productionDependencies.map((d) => path_1.default.relative(root, d)).map((d) => `./${d}/**/*.map`);
         const nodeModules = vinyl_fs_1.default.src(productionDependenciesSrc, { base: '.' })
             .pipe(util.cleanNodeModules(path_1.default.join(root, 'build', '.moduleignore')))
             .pipe(util.cleanNodeModules(path_1.default.join(root, 'build', `.moduleignore.${process.platform}`)));
