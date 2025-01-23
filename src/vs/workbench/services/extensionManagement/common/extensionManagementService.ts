@@ -776,9 +776,21 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			return;
 		}
 
+		type TrustPublisherClassification = {
+			owner: 'sandy081';
+			comment: 'Report the action taken by the user on the publisher trust dialog';
+			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action taken by the user on the publisher trust dialog. Can be trust, learn more or cancel.' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the extension for which the publisher trust dialog was shown.' };
+		};
+		type TrustPublisherEvent = {
+			action: string;
+			extensionId: string;
+		};
+
 		const installButton: IPromptButton<void> = {
 			label: localize({ key: 'trust and install', comment: ['&& denotes a mnemonic'] }, "Trust Publisher & &&Install"),
 			run: async () => {
+				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'trust', extensionId: extension.identifier.id });
 				await this.allowedExtensionsService.trustPublishers(extension.publisher);
 			}
 		};
@@ -786,6 +798,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		const learnMoreButton: IPromptButton<void> = {
 			label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
 			run: () => {
+				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'learn', extensionId: extension.identifier.id });
+				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('vscode.open', URI.parse('https://code.visualstudio.com/docs/editor/extension-runtime-security')));
 				throw new CancellationError();
 			}
 		};
@@ -808,7 +822,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			type: Severity.Warning,
 			buttons: [installButton, learnMoreButton],
 			cancelButton: {
-				run: () => { throw new CancellationError(); }
+				run: () => {
+					this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'cancel', extensionId: extension.identifier.id });
+					throw new CancellationError();
+				}
 			},
 			custom: {
 				markdownDetails: [{ markdown: customMessage, classes: ['extensions-management-publisher-trust-dialog'] }],
