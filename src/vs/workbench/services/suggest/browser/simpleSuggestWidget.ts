@@ -90,8 +90,8 @@ export class SimpleSuggestWidget extends Disposable {
 	private readonly _messageElement: HTMLElement;
 	private readonly _listElement: HTMLElement;
 	private readonly _list: List<SimpleCompletionItem>;
-	private readonly _details: SimpleSuggestDetailsOverlay;
 	private _status?: SuggestWidgetStatus;
+	private readonly _details: SimpleSuggestDetailsOverlay;
 
 	private readonly _showTimeout = this._register(new TimeoutTimer());
 
@@ -250,8 +250,8 @@ export class SimpleSuggestWidget extends Disposable {
 				if (showStatusBar && !this._status) {
 					this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
 					this._status.show();
-				} else if (showStatusBar) {
-					this._status?.show();
+				} else if (showStatusBar && this._status) {
+					this._status.show();
 				} else if (this._status) {
 					this._status.element.remove();
 					this._status.dispose();
@@ -448,10 +448,7 @@ export class SimpleSuggestWidget extends Disposable {
 					dom.hide(this._messageElement, this._listElement, this._status.element);
 				}
 				dom.hide(this._listElement);
-				if (this._status) {
-					dom.hide(this._status?.element);
-				}
-				// this._details.hide(true);
+				this._details.hide(true);
 				this._status?.hide();
 				// this._contentWidget.hide();
 				// this._ctxSuggestWidgetVisible.reset();
@@ -469,53 +466,49 @@ export class SimpleSuggestWidget extends Disposable {
 				this._messageElement.textContent = SimpleSuggestWidget.LOADING_MESSAGE;
 				dom.hide(this._listElement);
 				if (this._status) {
-					dom.hide(this._status?.element);
+					dom.hide(this._status.element);
 				}
 				dom.show(this._messageElement);
-				// this._details.hide();
+				this._details.hide();
 				this._show();
-				// this._focusedItem = undefined;
+				this._focusedItem = undefined;
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
 				this._messageElement.textContent = SimpleSuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				dom.hide(this._listElement);
 				if (this._status) {
-					dom.hide(this._status?.element);
+					dom.hide(this._status.element);
 				}
 				dom.show(this._messageElement);
-				// this._details.hide();
+				this._details.hide();
 				this._show();
-				// this._focusedItem = undefined;
+				this._focusedItem = undefined;
 				break;
 			case State.Open:
 				dom.hide(this._messageElement);
-				if (this._status) {
-					dom.show(this._listElement, this._status?.element);
-				} else {
-					dom.show(this._listElement);
-				}
+				this._showListAndStatus();
 				this._show();
 				break;
 			case State.Frozen:
 				dom.hide(this._messageElement);
-				if (this._status) {
-					dom.show(this._listElement, this._status?.element);
-				} else {
-					dom.show(this._listElement);
-				}
+				this._showListAndStatus();
 				this._show();
 				break;
 			case State.Details:
 				dom.hide(this._messageElement);
-				if (this._status) {
-					dom.show(this._listElement, this._status?.element);
-				} else {
-					dom.show(this._listElement);
-				}
+				this._showListAndStatus();
 				this._details.show();
 				this._show();
 				break;
+		}
+	}
+
+	private _showListAndStatus(): void {
+		if (this._status) {
+			dom.show(this._listElement, this._status.element);
+		} else {
+			dom.show(this._listElement);
 		}
 	}
 
