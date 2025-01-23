@@ -44,7 +44,6 @@ const path_1 = __importDefault(require("path"));
 const event_stream_1 = __importDefault(require("event-stream"));
 const vinyl_fs_1 = __importDefault(require("vinyl-fs"));
 const util = __importStar(require("../lib/util"));
-// @ts-ignore
 const dependencies_1 = require("../lib/dependencies");
 const identity_1 = require("@azure/identity");
 const azure = require('gulp-azure-storage');
