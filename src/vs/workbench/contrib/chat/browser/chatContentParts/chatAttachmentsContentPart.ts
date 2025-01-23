@@ -10,7 +10,7 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { Promises } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -147,8 +147,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 							this.openResource(attachment.references[0].reference, false, undefined);
 						}
 					};
-					widget.addEventListener('click', clickHandler);
-					this.attachedContextDisposables.add(toDisposable(() => widget.removeEventListener('click', clickHandler)));
+					dom.addDisposableListener(widget, 'click', clickHandler);
 				}
 
 				if (isAttachmentPartialOrOmitted) {

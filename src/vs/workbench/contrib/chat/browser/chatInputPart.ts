@@ -514,7 +514,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	showPreviousValue(): void {
 		const inputState = this.getInputState();
-		inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
 		if (this.history.isAtEnd()) {
 			this.saveCurrentValue(inputState);
 		} else {
@@ -529,7 +528,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	showNextValue(): void {
 		const inputState = this.getInputState();
-		inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
 		if (this.history.isAtEnd()) {
 			return;
 		} else {
@@ -581,13 +579,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
 
 		if (!transient) {
-			const inputState = this.getInputState();
-			inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
-			this.saveCurrentValue(inputState);
+			this.saveCurrentValue(this.getInputState());
 		}
 	}
 
-	private saveCurrentValue(inputState: any): void {
+	private saveCurrentValue(inputState: IChatInputState): void {
+		inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
 		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
 		this.history.replaceLast(newEntry);
 	}
@@ -955,8 +952,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.openResource(attachment.references[0].reference, false, undefined);
 						}
 					};
-					widget.addEventListener('click', clickHandler);
-					store.add(toDisposable(() => widget.removeEventListener('click', clickHandler)));
+					addDisposableListener(widget, 'click', clickHandler);
 				}
 
 				if (!supportsVision) {
@@ -1530,9 +1526,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	saveState(): void {
-		const inputState = this.getInputState();
-		inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
-		this.saveCurrentValue(inputState);
+		this.saveCurrentValue(this.getInputState());
 		const inputHistory = [...this.history];
 		this.historyService.saveHistory(this.location, inputHistory);
 	}
