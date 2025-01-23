@@ -7,7 +7,7 @@ import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFi
 import { IRange } from '../../../../editor/common/core/range.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import * as strings from '../../../../base/common/strings.js';
-import { IMatch, matchesContiguousSubString, matchesWords } from '../../../../base/common/filters.js';
+import { IMatch, matchesContiguousSubString, matchesSubString, matchesWords } from '../../../../base/common/filters.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
@@ -176,27 +176,36 @@ export class SettingMatches {
 		const keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 		const valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 
-		const queryWords = new Set<string>(searchString.split(' '));
-
 		// Key search
 		const settingKeyAsWords: string = this._keyToLabel(setting.key);
+		const settingKeyAsWordsCount = settingKeyAsWords.split(' ').length;
+		const queryWords = new Set<string>(searchString.split(' '));
 		for (const word of queryWords) {
 			// Check if the key contains the word.
-			const keyMatches = matchesWords(word, settingKeyAsWords, false);
+			const keyMatches = matchesWords(word, settingKeyAsWords, true);
 			if (keyMatches?.length) {
 				keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 			}
 		}
-		if (keyMatchingWords.size) {
+		if (keyMatchingWords.size === queryWords.size) {
+			// All words in the query matched with something in the setting key.
+			this.matchType |= SettingMatchType.KeyMatch;
+			// Score based on how many words matched out of the entire key, penalizing longer setting names.
+			this.keyMatchScore = (keyMatchingWords.size / settingKeyAsWordsCount) + (1 / setting.key.length);
+		}
+		const keyMatches = matchesSubString(searchString, settingKeyAsWords);
+		if (keyMatches?.length) {
+			// Handles cases such as "editor formonpast" with missing letters.
+			keyMatchingWords.set(searchString, keyMatches.map(match => this.toKeyRange(setting, match)));
 			this.matchType |= SettingMatchType.KeyMatch;
 			this.keyMatchScore = keyMatchingWords.size;
 		}
-
-		// Also check if the user tried searching by id.
 		const keyIdMatches = matchesContiguousSubString(searchString, setting.key);
 		if (keyIdMatches?.length) {
+			// Handles cases such as "editor.formatonpaste" where the user tries searching for the ID.
 			keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
-			this.matchType |= SettingMatchType.KeyIdMatch;
+			this.matchType |= SettingMatchType.KeyMatch;
+			this.keyMatchScore = Math.max(this.keyMatchScore, searchString.length / setting.key.length);
 		}
 
 		// Check if the match was for a language tag group setting such as [markdown].
@@ -208,8 +217,15 @@ export class SettingMatches {
 			return [...keyRanges];
 		}
 
-		// Search the description if there were no key matches.
-		if (this.searchDescription && this.matchType !== SettingMatchType.None) {
+		// Exit early if the key already matched
+		if (this.matchType & SettingMatchType.KeyMatch) {
+			const keyRanges = keyMatchingWords.size ?
+				Array.from(keyMatchingWords.values()).flat() : [];
+			return [...keyRanges];
+		}
+
+		// Description search
+		if (this.searchDescription) {
 			for (const word of queryWords) {
 				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
