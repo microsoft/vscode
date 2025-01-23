@@ -99,7 +99,7 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 			const fontFeatureSettings = '';
 			const { fontFamily, fontSize, lineHeight, fontWeight, letterSpacing } = this._getFontInfo();
 			const fontSizePx = `${fontSize}px`;
-			const lineHeightPx = `${lineHeight * fontSize}px`;
+			const lineHeightPx = `${lineHeight}px`;
 			const letterSpacingPx = `${letterSpacing}px`;
 
 			root.style.fontSize = fontSizePx;
