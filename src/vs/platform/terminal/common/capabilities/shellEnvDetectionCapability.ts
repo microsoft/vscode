@@ -58,17 +58,14 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		if (!this._pendingEnv) {
 			return;
 		}
-		const didDiffer = this.applyEnvironmentDiff(this._pendingEnv, isTrusted);
-		if (didDiffer) {
-			this._env = this._pendingEnv;
-		}
+		this.applyEnvironmentDiff(this._pendingEnv, isTrusted);
 		this._pendingEnv = undefined;
 	}
 	// Returns true if the environment differs, and was updated.
 	// This way we only fire an event if the environment actually changed.
-	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): boolean {
+	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void {
 		if (!isTrusted) {
-			return false;
+			return;
 		}
 
 		let envDiffers: boolean = false;
@@ -84,9 +81,7 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 
 		if (envDiffers) {
 			this._onDidChangeEnv.fire(this._env);
-			return true;
+			return;
 		}
-
-		return false;
 	}
 }
