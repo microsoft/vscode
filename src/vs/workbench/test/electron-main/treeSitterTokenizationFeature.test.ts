@@ -68,6 +68,10 @@ class MockTelemetryService implements ITelemetryService {
 }
 
 class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
+	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
+		throw new Error('Method not implemented.');
+	}
+
 	_serviceBrand: undefined;
 	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
 	}
@@ -162,8 +166,9 @@ suite('Tree Sitter TokenizationFeature', function () {
 		return tokens[tokens.length - 1].startOffsetInclusive + tokens[tokens.length - 1].length;
 	}
 
+	let nameNumber = 1;
 	async function getModelAndPrepTree(content: string) {
-		const model = disposables.add(modelService.createModel(content, { languageId: 'typescript', onDidChange: Event.None }, URI.file('file.ts')));
+		const model = disposables.add(modelService.createModel(content, { languageId: 'typescript', onDidChange: Event.None }, URI.file(`file${nameNumber++}.ts`)));
 		const tree = disposables.add(await treeSitterParserService.getTextModelTreeSitter(model));
 		const treeParseResult = new Promise<void>(resolve => {
 			const disposable = treeSitterParserService.onDidUpdateTree(e => {
