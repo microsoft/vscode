@@ -256,7 +256,7 @@ trackMissingEnvVars() {
 			fi
 		done
 		if [[ "$found" == false ]]; then
-			printf "Missing environment variable: %s\n" "$key"
+			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${vsc_env_keys[i]}" "$(__vsc_escape_value "${vsc_env_values[i]}")" "$__vsc_nonce"
 			unset 'vsc_env_keys[i]'
 			unset 'vsc_env_values[i]'
 		fi

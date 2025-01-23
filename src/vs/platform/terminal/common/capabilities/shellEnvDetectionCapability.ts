@@ -61,11 +61,21 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		this.applyEnvironmentDiff(this._pendingEnv, isTrusted);
 		this._pendingEnv = undefined;
 	}
+
+	deleteEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
+		if (!isTrusted) {
+			return;
+		}
+		if (key !== undefined && value !== undefined) {
+			this._env.delete(key);
+			this._pendingEnv?.delete(key);
+			this._onDidChangeEnv.fire(this._env);
+		}
+		return;
+	}
+
 	// Check for environment differs, and was updated.
 	// This way we only fire an event if the environment actually changed.
-
-	// TODO: Handle deleted variable on TS side. It is already one in bash side
-	// unsetEnvironmentSingleVar()
 	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void {
 		if (!isTrusted) {
 			return;
