@@ -65,7 +65,7 @@ const gulp_rename_1 = __importDefault(require("gulp-rename"));
 const fancy_log_1 = __importDefault(require("fancy-log"));
 const ansi_colors_1 = __importDefault(require("ansi-colors"));
 const gulp_buffer_1 = __importDefault(require("gulp-buffer"));
-const jsoncParser = __importStar(require("jsonc-parser"));
+const jsonc_parser_1 = __importDefault(require("jsonc-parser"));
 const dependencies_1 = require("./dependencies");
 const builtInExtensions_1 = require("./builtInExtensions");
 const getVersion_1 = require("./getVersion");
@@ -80,7 +80,7 @@ function minifyExtensionResources(input) {
         .pipe((0, gulp_buffer_1.default)())
         .pipe(event_stream_1.default.mapSync((f) => {
         const errors = [];
-        const value = jsoncParser.parse(f.contents.toString('utf8'), errors, { allowTrailingComma: true });
+        const value = jsonc_parser_1.default.parse(f.contents.toString('utf8'), errors, { allowTrailingComma: true });
         if (errors.length === 0) {
             // file parsed OK => just stringify to drop whitespace and comments
             f.contents = Buffer.from(JSON.stringify(value));

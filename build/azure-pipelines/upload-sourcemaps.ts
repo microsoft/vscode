@@ -9,7 +9,7 @@ import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 // @ts-ignore
-import * as deps from '../lib/dependencies';
+import deps from '../lib/dependencies';
 import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
