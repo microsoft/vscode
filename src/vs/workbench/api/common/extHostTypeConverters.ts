@@ -13,6 +13,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import * as marked from '../../../base/common/marked/marked.js';
 import { parse, revive } from '../../../base/common/marshalling.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
 import { cloneAndChange } from '../../../base/common/objects.js';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../base/common/prefixTree.js';
@@ -37,10 +38,12 @@ import { ProgressLocation as MainProgressLocation } from '../../../platform/prog
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
+import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatModel.js';
 import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
+import { IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
@@ -54,10 +57,7 @@ import * as extHostProtocol from './extHost.protocol.js';
 import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
-import { IChatResponseTextPart, IChatResponsePromptTsxPart } from '../../contrib/chat/common/languageModels.js';
-import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostTypes.js';
-import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
+import { LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
 
 export namespace Command {
 
@@ -2793,7 +2793,8 @@ export namespace ChatPromptReference {
 			throw new Error('Invalid value reference');
 		}
 
-		const additionalUri = variable.references && URI.isUri(variable.references[0].reference) ? variable.references[0].reference : undefined;
+		// const additionalUri = variable.references && URI.isUri(variable.references[0].reference) ? variable.references[0].reference : undefined;
+		const additionalUri = undefined;
 
 		return {
 			id: variable.id,
