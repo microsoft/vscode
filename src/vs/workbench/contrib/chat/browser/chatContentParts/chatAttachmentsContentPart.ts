@@ -10,7 +10,7 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { Promises } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -139,6 +139,17 @@ export class ChatAttachmentsContentPart extends Disposable {
 				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
 				widget.appendChild(pillIcon);
 				widget.appendChild(textLabel);
+
+				if (attachment.references) {
+					widget.style.cursor = 'pointer';
+					const clickHandler = () => {
+						if (attachment.references && URI.isUri(attachment.references[0].reference)) {
+							this.openResource(attachment.references[0].reference, false, undefined);
+						}
+					};
+					widget.addEventListener('click', clickHandler);
+					this.attachedContextDisposables.add(toDisposable(() => widget.removeEventListener('click', clickHandler)));
+				}
 
 				if (isAttachmentPartialOrOmitted) {
 					hoverElement.textContent = localize('chat.imageAttachmentHover', "Image was not sent to the model.");

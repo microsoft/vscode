@@ -381,7 +381,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.getInputState = (): IChatInputState => {
 			return {
 				...getContribsInputState(),
-				chatContextAttachments: this._attachmentModel.attachments.filter(attachment => !attachment.isImage),
+				chatContextAttachments: this._attachmentModel.attachments,
 			};
 		};
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
@@ -514,7 +514,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	showPreviousValue(): void {
-		const inputState = this.getInputState();
+		const inputState = this.getInputState().chatContextAttachments?.filter(attachment => !attachment.isImage);
 		if (this.history.isAtEnd()) {
 			this.saveCurrentValue(inputState);
 		} else {
@@ -528,7 +528,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	showNextValue(): void {
-		const inputState = this.getInputState();
+		const inputState = this.getInputState().chatContextAttachments?.filter(attachment => !attachment.isImage);
 		if (this.history.isAtEnd()) {
 			return;
 		} else {
@@ -580,11 +580,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
 
 		if (!transient) {
-			this.saveCurrentValue(this.getInputState());
+			const inputState = this.getInputState().chatContextAttachments?.filter(attachment => !attachment.isImage);
+			this.saveCurrentValue(inputState);
 		}
 	}
 
 	private saveCurrentValue(inputState: any): void {
+		// inputState.chatContextAttachments = (inputState.chatContextAttachments ?? []).filter((attachment: { isImage: boolean }) => !attachment.isImage);
 		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
 		this.history.replaceLast(newEntry);
 	}
@@ -944,6 +946,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
 				widget.appendChild(pillIcon);
 				widget.appendChild(textLabel);
+
+				if (attachment.references) {
+					widget.style.cursor = 'pointer';
+					const clickHandler = () => {
+						if (attachment.references && URI.isUri(attachment.references[0].reference)) {
+							this.openResource(attachment.references[0].reference, false, undefined);
+						}
+					};
+					widget.addEventListener('click', clickHandler);
+					store.add(toDisposable(() => widget.removeEventListener('click', clickHandler)));
+				}
 
 				if (!supportsVision) {
 					widget.classList.add('warning');
@@ -1516,7 +1529,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	saveState(): void {
-		this.saveCurrentValue(this.getInputState());
+		const inputState = this.getInputState().chatContextAttachments?.filter(attachment => !attachment.isImage);
+		this.saveCurrentValue(inputState);
 		const inputHistory = [...this.history];
 		this.historyService.saveHistory(this.location, inputHistory);
 	}
