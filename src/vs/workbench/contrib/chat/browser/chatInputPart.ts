@@ -586,7 +586,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private saveCurrentValue(inputState: any): void {
-		// inputState.chatContextAttachments = (inputState.chatContextAttachments ?? []).filter((attachment: { isImage: boolean }) => !attachment.isImage);
 		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
 		this.history.replaceLast(newEntry);
 	}
