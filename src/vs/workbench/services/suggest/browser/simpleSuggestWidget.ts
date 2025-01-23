@@ -389,7 +389,6 @@ export class SimpleSuggestWidget extends Disposable {
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
 
-
 		if (isFrozen && this._state !== State.Empty && this._state !== State.Hidden) {
 			this._setState(State.Frozen);
 			return;
