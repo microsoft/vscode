@@ -16,7 +16,7 @@ export const enum TerminalSuggestCommandId {
 	ResetWidgetSize = 'workbench.action.terminal.resetSuggestWidgetSize',
 	ToggleDetails = 'workbench.action.terminal.suggestToggleDetails',
 	ToggleDetailsFocus = 'workbench.action.terminal.suggestToggleDetailsFocus',
-	ConfigureSuggestSettings = 'workbench.action.terminal.configureSuggestSettings',
+	ConfigureSettings = 'workbench.action.terminal.configureSuggestSettings',
 }
 
 export const defaultTerminalSuggestCommandsToSkipShell = [

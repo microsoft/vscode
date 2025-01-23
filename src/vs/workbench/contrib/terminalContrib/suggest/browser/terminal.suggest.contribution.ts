@@ -362,7 +362,7 @@ registerActiveInstanceAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.ConfigureSuggestSettings,
+	id: TerminalSuggestCommandId.ConfigureSettings,
 	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure Suggest Settings'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),

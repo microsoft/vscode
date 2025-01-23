@@ -28,8 +28,6 @@ export class SuggestWidgetStatus {
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 	) {
 		this.element = dom.append(container, dom.$('.suggest-status-bar'));
-		console.log('SuggestWidgetStatus element', this.element);
-		console.log('SuggestWidgetStatus container', container);
 
 		const actionViewItemProvider = <IActionViewItemProvider>(action => {
 			return action instanceof MenuItemAction ? instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { useComma: true }) : undefined;
