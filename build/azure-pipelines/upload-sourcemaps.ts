@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
+import path from 'path';
+import es from 'event-stream';
+import Vinyl from 'vinyl';
+import vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 // @ts-ignore
-import * as deps from '../lib/dependencies';
+import deps from '../lib/dependencies';
 import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
@@ -37,7 +37,7 @@ function main(): Promise<void> {
 		sources.push(vs);
 
 		const productionDependencies = deps.getProductionDependencies(root);
-		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => `./${d}/**/*.map`);
+		const productionDependenciesSrc = productionDependencies.map((d: string) => path.relative(root, d)).map((d: string) => `./${d}/**/*.map`);
 		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
 			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.97.0",
-  "distro": "03bcc2befd4c31b21f1b2fb56c56d767e3db462b",
+  "distro": "3bc3cc2a38be414a418f2930e0aa7ba1aa39043a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -109,7 +109,7 @@
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-textmate": "9.1.0",
+    "vscode-textmate": "9.2.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },

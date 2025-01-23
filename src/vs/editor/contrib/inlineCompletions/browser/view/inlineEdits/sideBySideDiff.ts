@@ -12,15 +12,14 @@ import { IObservable, autorun, constObservable, derived, derivedObservableWithCa
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { diffInserted, diffRemoved, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -77,10 +76,10 @@ export const modifiedChangedTextOverlayColor = registerColor(
 export const originalBorder = registerColor(
 	'inlineEdit.originalBorder',
 	{
-		light: darken(editorLineHighlightBorder, 0.15),
-		dark: lighten(editorLineHighlightBorder, 0.50),
-		hcDark: editorLineHighlightBorder,
-		hcLight: editorLineHighlightBorder
+		light: editorHoverBorder,
+		dark: editorHoverBorder,
+		hcDark: editorHoverBorder,
+		hcLight: editorHoverBorder
 	},
 	localize('inlineEdit.originalBorder', 'Border color for the original text in inline edits.')
 );
@@ -88,10 +87,10 @@ export const originalBorder = registerColor(
 export const modifiedBorder = registerColor(
 	'inlineEdit.modifiedBorder',
 	{
-		light: darken(editorLineHighlightBorder, 0.15),
-		dark: lighten(editorLineHighlightBorder, 0.50),
-		hcDark: editorLineHighlightBorder,
-		hcLight: editorLineHighlightBorder
+		light: editorHoverBorder,
+		dark: editorHoverBorder,
+		hcDark: editorHoverBorder,
+		hcLight: editorHoverBorder
 	},
 	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
 );

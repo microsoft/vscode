@@ -136,7 +136,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, terminal.shellIntegration?.cwd, token);
 			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
-				// const cwd = resolveCwdFromPrefix(prefix, terminal.shellIntegration?.cwd) ?? terminal.shellIntegration?.cwd;
 				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: isWindows ? '\\' : '/' });
 			}
 			return result.items;
@@ -345,7 +344,7 @@ export async function getCompletionItemsFromSpecs(
 				|| !!firstCommand && specLabel.startsWith(firstCommand)
 			) {
 				// push it to the completion items
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, availableCommand.detail, getDescription(spec)));
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, getDescription(spec), availableCommand.detail));
 			}
 
 			if (!terminalContext.commandLine.startsWith(specLabel)) {
