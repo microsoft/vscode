@@ -69,13 +69,11 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		if (key !== undefined && value !== undefined) {
 			this._env.delete(key);
 			this._pendingEnv?.delete(key);
-			this._onDidChangeEnv.fire(this._env);
 		}
 		return;
 	}
 
-	// Check for environment differs, and was updated.
-	// This way we only fire an event if the environment actually changed.
+	// Make sure to update this.env to the latest, fire event if there is a diff
 	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void {
 		if (!isTrusted) {
 			return;
@@ -86,7 +84,10 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		for (const [key, value] of env.entries()) {
 			if (this._env.has(key) && this._env.get(key) === value) {
 				// Do nothing
-			} else if (value !== undefined) {
+			} else if (this.env.has(key) && value !== this.env.get(key)) {
+				this._env.set(key, value);
+				envDiffers = true;
+			} else if (!this.env.has(key)) {
 				this._env.set(key, value);
 				envDiffers = true;
 			}

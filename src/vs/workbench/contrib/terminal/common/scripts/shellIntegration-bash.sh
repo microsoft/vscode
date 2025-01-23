@@ -278,14 +278,12 @@ __vsc_update_env() {
 		updateEnvCache "$key" "$value"
 	done < <(env)
 
+	trackMissingEnvVars
+
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 
 	end_time=$(date +%s)
 	elapsed_time=$(($end_time - $start_time))
-
-	# builtin printf "Time taken: $elapsed_time seconds\n"
-
-	trackMissingEnvVars
 	builtin printf "Time taken: $elapsed_time seconds\n"
 }
 
