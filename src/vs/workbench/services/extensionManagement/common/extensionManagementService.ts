@@ -799,7 +799,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
 			run: () => {
 				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'learn', extensionId: extension.identifier.id });
-				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('vscode.open', URI.parse('https://code.visualstudio.com/docs/editor/extension-runtime-security')));
+				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('vscode.open', URI.parse('https://aka.ms/vscode-extension-security')));
 				throw new CancellationError();
 			}
 		};
