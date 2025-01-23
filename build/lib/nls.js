@@ -3,39 +3,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -44,8 +11,8 @@ exports.nls = nls;
 const lazy_js_1 = __importDefault(require("lazy.js"));
 const event_stream_1 = require("event-stream");
 const vinyl_1 = __importDefault(require("vinyl"));
-const sm = __importStar(require("source-map"));
-const path = __importStar(require("path"));
+const source_map_1 = __importDefault(require("source-map"));
+const path_1 = __importDefault(require("path"));
 const gulp_sort_1 = __importDefault(require("gulp-sort"));
 var CollectStepResult;
 (function (CollectStepResult) {
@@ -93,7 +60,7 @@ function nls(options) {
         }
         const root = f.sourceMap.sourceRoot;
         if (root) {
-            source = path.join(root, source);
+            source = path_1.default.join(root, source);
         }
         const typescript = f.sourceMap.sourcesContent[0];
         if (!typescript) {
@@ -328,7 +295,7 @@ var _nls;
         return model.toString();
     }
     function patchSourcemap(patches, rsm, smc) {
-        const smg = new sm.SourceMapGenerator({
+        const smg = new source_map_1.default.SourceMapGenerator({
             file: rsm.file,
             sourceRoot: rsm.sourceRoot
         });
@@ -353,10 +320,10 @@ var _nls;
                 generated.column += lengthDiff;
                 patches.pop();
             }
-            source = rsm.sourceRoot ? path.relative(rsm.sourceRoot, m.source) : m.source;
+            source = rsm.sourceRoot ? path_1.default.relative(rsm.sourceRoot, m.source) : m.source;
             source = source.replace(/\\/g, '/');
             smg.addMapping({ source, name: m.name, original, generated });
-        }, null, sm.SourceMapConsumer.GENERATED_ORDER);
+        }, null, source_map_1.default.SourceMapConsumer.GENERATED_ORDER);
         if (source) {
             smg.setSourceContent(source, smc.sourceContentFor(source));
         }
@@ -377,7 +344,7 @@ var _nls;
         }
         const nlsKeys = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.key)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.key)));
         const nlsMessages = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.value)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.value)));
-        const smc = new sm.SourceMapConsumer(sourcemap);
+        const smc = new source_map_1.default.SourceMapConsumer(sourcemap);
         const positionFrom = mappedPositionFrom.bind(null, sourcemap.sources[0]);
         // build patches
         const toPatch = (c) => {

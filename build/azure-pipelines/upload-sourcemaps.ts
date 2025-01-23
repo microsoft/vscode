@@ -9,7 +9,7 @@ import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 // @ts-ignore
-import * as deps from '../lib/dependencies';
+import deps from '../lib/dependencies';
 import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
@@ -37,7 +37,7 @@ function main(): Promise<void> {
 		sources.push(vs);
 
 		const productionDependencies = deps.getProductionDependencies(root);
-		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => `./${d}/**/*.map`);
+		const productionDependenciesSrc = productionDependencies.map((d: string) => path.relative(root, d)).map((d: string) => `./${d}/**/*.map`);
 		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
 			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));
