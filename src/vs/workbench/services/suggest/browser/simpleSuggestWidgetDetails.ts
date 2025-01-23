@@ -16,6 +16,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export function canExpandCompletionItem(item: SimpleCompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -50,6 +51,7 @@ export class SimpleSuggestDetailsWidget {
 	constructor(
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
 		@IInstantiationService instaService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
@@ -72,6 +74,31 @@ export class SimpleSuggestDetailsWidget {
 		this._type = dom.append(this._header, dom.$('p.type'));
 
 		this._docs = dom.append(this._body, dom.$('p.docs'));
+
+		this._configureFont();
+
+		// TODO: respond to font config change?
+	}
+
+	private _configureFont(): void {
+
+		const fontInfo = this._getFontInfo();
+		const fontFamily = fontInfo.fontFamily;
+
+		const fontSize = fontInfo.fontSize;
+		const lineHeight = fontInfo.lineHeight;
+		const fontWeight = fontInfo.fontWeight;
+		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
+
+		this.domNode.style.fontSize = fontSizePx;
+		this.domNode.style.lineHeight = `${lineHeight / fontSize}`;
+		this.domNode.style.fontWeight = fontWeight;
+		// this.domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
+		this._type.style.fontFamily = fontFamily;
+		this._close.style.height = lineHeightPx;
+		this._close.style.width = lineHeightPx;
+
 	}
 
 	dispose(): void {
