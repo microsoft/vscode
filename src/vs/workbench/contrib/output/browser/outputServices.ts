@@ -10,7 +10,7 @@ import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js'
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, IOutputViewFilters, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, IMultiSourceOutputChannelDescriptor, isSingleSourceOutputChannelDescriptor, HIDE_SOURCE_FILTER_CONTEXT, isMultiSourceOutputChannelDescriptor, ILogEntry } from '../../../services/output/common/output.js';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, IOutputViewFilters, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, IMultiSourceOutputChannelDescriptor, isSingleSourceOutputChannelDescriptor, HIDE_CATEGORY_FILTER_CONTEXT, isMultiSourceOutputChannelDescriptor, ILogEntry } from '../../../services/output/common/output.js';
 import { OutputLinkProvider } from './outputLinkProvider.js';
 import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -113,7 +113,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		this._info.set(options.info);
 		this._warning.set(options.warning);
 		this._error.set(options.error);
-		this._sources.set(options.sources);
+		this._categories.set(options.sources);
 
 		this.filterHistory = options.filterHistory;
 	}
@@ -186,29 +186,29 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _sources = HIDE_SOURCE_FILTER_CONTEXT.bindTo(this.contextKeyService);
-	get sources(): string {
-		return this._sources.get() || ',';
+	private readonly _categories = HIDE_CATEGORY_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	get categories(): string {
+		return this._categories.get() || ',';
 	}
-	set sources(sources: string) {
-		this._sources.set(sources);
+	set categories(categories: string) {
+		this._categories.set(categories);
 		this._onDidChange.fire();
 	}
 
-	toggleSource(source: string): void {
-		const sources = this.sources;
-		if (this.hasSource(source)) {
-			this.sources = sources.replace(`,${source},`, ',');
+	toggleCategory(category: string): void {
+		const categories = this.categories;
+		if (this.hasCategory(category)) {
+			this.categories = categories.replace(`,${category},`, ',');
 		} else {
-			this.sources = `${sources}${source},`;
+			this.categories = `${categories}${category},`;
 		}
 	}
 
-	hasSource(source: string): boolean {
-		if (source === ',') {
+	hasCategory(category: string): boolean {
+		if (category === ',') {
 			return false;
 		}
-		return this.sources.includes(`,${source},`);
+		return this.categories.includes(`,${category},`);
 	}
 }
 
