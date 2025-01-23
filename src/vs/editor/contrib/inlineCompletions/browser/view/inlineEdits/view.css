@@ -237,6 +237,32 @@
 	}
 }
 
-.inline-edits-view-gutter-indicator .codicon{
+.inline-edits-view-gutter-indicator .codicon {
 	margin-top: 1px; /* TODO: Move into gutter DOM initialization */
+}
+
+@keyframes wiggle {
+	0% {
+		transform: rotate(0) scale(1);
+	}
+
+	15%,
+	45% {
+		transform: rotate(.04turn) scale(1.1);
+	}
+
+	30%,
+	60% {
+		transform: rotate(-.04turn) scale(1.2);
+	}
+
+	100% {
+		transform: rotate(0) scale(1);
+	}
+}
+
+.inline-edits-view-gutter-indicator.wiggle .icon {
+	animation-duration: .8s;
+	animation-iteration-count: 1;
+	animation-name: wiggle;
 }

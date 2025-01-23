@@ -107,7 +107,11 @@ export const acceptedDecorationBackgroundColor = registerColor(
 	true
 );
 
-export class InlineEditsSideBySideDiff extends Disposable {
+export interface IInlineEditsView {
+	isHovered: IObservable<boolean>;
+}
+
+export class InlineEditsSideBySideDiff extends Disposable implements IInlineEditsView {
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	constructor(
