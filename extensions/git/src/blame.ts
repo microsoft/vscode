@@ -5,13 +5,18 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, languages, HoverProvider, CancellationToken, Hover, TextDocument } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable } from './util';
+import { dispose, fromNow, getCommitShortHash, IDisposable } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation, Commit } from './git';
-import { fromGitUri, isGitUri } from './uri';
+import { fromGitUri, isGitUri, toGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
+import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { AvatarQuery, AvatarQueryCommit } from './api/git';
+import { LRUCache } from './cache';
+
+const AVATAR_SIZE = 20;
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -60,10 +65,6 @@ function getEditorDecorationRange(lineNumber: number): Range {
 	return new Range(position, position);
 }
 
-function isBlameInformation(object: any): object is BlameInformation {
-	return Array.isArray((object as BlameInformation).ranges);
-}
-
 function isResourceSchemeSupported(uri: Uri): boolean {
 	return uri.scheme === 'file' || isGitUri(uri);
 }
@@ -78,82 +79,34 @@ type BlameInformationTemplateTokens = {
 	readonly authorDateAgo: string;
 };
 
-interface RepositoryBlameInformation {
-	/**
-	 * Track the current HEAD of the repository so that we can clear cache entries
-	 */
-	HEAD: string;
-
-	/**
-	 * Outer map - maps resource scheme to resource blame information. Using the uri
-	 * scheme as the key so that we can easily delete the cache entries for the "file"
-	 * scheme as those entries are outdated when the HEAD of the repository changes.
-	 *
-	 * Inner map - maps commit + resource to blame information.
-	 */
-	readonly blameInformation: Map<string, Map<string, BlameInformation[]>>;
-}
-
 interface LineBlameInformation {
 	readonly lineNumber: number;
 	readonly blameInformation: BlameInformation | string;
 }
 
 class GitBlameInformationCache {
-	private readonly _cache = new Map<Repository, RepositoryBlameInformation>();
+	private readonly _cache = new Map<Repository, LRUCache<string, BlameInformation[]>>();
 
-	getRepositoryHEAD(repository: Repository): string | undefined {
-		return this._cache.get(repository)?.HEAD;
+	delete(repository: Repository): boolean {
+		return this._cache.delete(repository);
 	}
 
-	setRepositoryHEAD(repository: Repository, commit: string): void {
-		const repositoryBlameInformation = this._cache.get(repository) ?? {
-			HEAD: commit,
-			blameInformation: new Map<string, Map<string, BlameInformation[]>>()
-		} satisfies RepositoryBlameInformation;
-
-		this._cache.set(repository, {
-			...repositoryBlameInformation,
-			HEAD: commit
-		} satisfies RepositoryBlameInformation);
+	get(repository: Repository, resource: Uri, commit: string): BlameInformation[] | undefined {
+		const key = this._getCacheKey(resource, commit);
+		return this._cache.get(repository)?.get(key);
 	}
 
-	deleteBlameInformation(repository: Repository, scheme?: string): boolean {
-		if (scheme === undefined) {
-			return this._cache.delete(repository);
-		}
-
-		return this._cache.get(repository)?.blameInformation.delete(scheme) === true;
-	}
-
-	getBlameInformation(repository: Repository, resource: Uri, commit: string): BlameInformation[] | undefined {
-		const blameInformationKey = this._getBlameInformationKey(resource, commit);
-		return this._cache.get(repository)?.blameInformation.get(resource.scheme)?.get(blameInformationKey);
-	}
-
-	setBlameInformation(repository: Repository, resource: Uri, commit: string, blameInformation: BlameInformation[]): void {
-		if (!repository.HEAD?.commit) {
-			return;
-		}
-
+	set(repository: Repository, resource: Uri, commit: string, blameInformation: BlameInformation[]): void {
 		if (!this._cache.has(repository)) {
-			this._cache.set(repository, {
-				HEAD: repository.HEAD.commit,
-				blameInformation: new Map<string, Map<string, BlameInformation[]>>()
-			} satisfies RepositoryBlameInformation);
+			this._cache.set(repository, new LRUCache<string, BlameInformation[]>(100));
 		}
 
-		const repositoryBlameInformation = this._cache.get(repository)!;
-		if (!repositoryBlameInformation.blameInformation.has(resource.scheme)) {
-			repositoryBlameInformation.blameInformation.set(resource.scheme, new Map<string, BlameInformation[]>());
-		}
-
-		const resourceSchemeBlameInformation = repositoryBlameInformation.blameInformation.get(resource.scheme)!;
-		resourceSchemeBlameInformation.set(this._getBlameInformationKey(resource, commit), blameInformation);
+		const key = this._getCacheKey(resource, commit);
+		this._cache.get(repository)!.set(key, blameInformation);
 	}
 
-	private _getBlameInformationKey(resource: Uri, commit: string): string {
-		return `${commit}:${resource.toString()}`;
+	private _getCacheKey(resource: Uri, commit: string): string {
+		return toGitUri(resource, commit).toString();
 	}
 }
 
@@ -172,6 +125,8 @@ export class GitBlameController {
 		this._onDidChangeBlameInformation.fire();
 	}
 
+	private _HEAD: string | undefined;
+	private readonly _commitInformationCache = new LRUCache<string, Commit>(100);
 	private readonly _repositoryBlameCache = new GitBlameInformationCache();
 
 	private _editorDecoration: GitBlameEditorDecoration | undefined;
@@ -186,14 +141,14 @@ export class GitBlameController {
 		this._onDidChangeConfiguration();
 	}
 
-	formatBlameInformationMessage(template: string, blameInformation: BlameInformation): string {
+	formatBlameInformationMessage(documentUri: Uri, template: string, blameInformation: BlameInformation): string {
 		const subject = blameInformation.subject && blameInformation.subject.length > this._subjectMaxLength
 			? `${blameInformation.subject.substring(0, this._subjectMaxLength)}\u2026`
 			: blameInformation.subject;
 
 		const templateTokens = {
 			hash: blameInformation.hash,
-			hashShort: blameInformation.hash.substring(0, 8),
+			hashShort: getCommitShortHash(documentUri, blameInformation.hash),
 			subject: emojify(subject ?? ''),
 			authorName: blameInformation.authorName ?? '',
 			authorEmail: blameInformation.authorEmail ?? '',
@@ -206,63 +161,116 @@ export class GitBlameController {
 		});
 	}
 
-	async getBlameInformationDetailedHover(documentUri: Uri, blameInformation: BlameInformation): Promise<MarkdownString | undefined> {
+	async getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation): Promise<MarkdownString> {
+		const remoteHoverCommands: Command[] = [];
+		let commitAvatar: string | undefined;
+		let commitInformation: Commit | undefined;
+		let commitMessageWithLinks: string | undefined;
+
 		const repository = this._model.getRepository(documentUri);
-		if (!repository) {
-			return this.getBlameInformationHover(documentUri, blameInformation);
+		if (repository) {
+			try {
+				// Commit details
+				commitInformation = this._commitInformationCache.get(blameInformation.hash);
+				if (!commitInformation) {
+					commitInformation = await repository.getCommit(blameInformation.hash);
+					this._commitInformationCache.set(blameInformation.hash, commitInformation);
+				}
+
+				// Avatar
+				const avatarQuery = {
+					commits: [{
+						hash: blameInformation.hash,
+						authorName: blameInformation.authorName,
+						authorEmail: blameInformation.authorEmail
+					} satisfies AvatarQueryCommit],
+					size: AVATAR_SIZE
+				} satisfies AvatarQuery;
+
+				const avatarResult = await provideSourceControlHistoryItemAvatar(this._model, repository, avatarQuery);
+				commitAvatar = avatarResult?.get(blameInformation.hash);
+			} catch { }
+
+			// Remote hover commands
+			const unpublishedCommits = await repository.getUnpublishedCommits();
+			if (!unpublishedCommits.has(blameInformation.hash)) {
+				remoteHoverCommands.push(...await provideSourceControlHistoryItemHoverCommands(this._model, repository) ?? []);
+			}
+
+			// Message links
+			commitMessageWithLinks = await provideSourceControlHistoryItemMessageLinks(
+				this._model, repository, commitInformation?.message ?? blameInformation.subject ?? '');
 		}
 
-		try {
-			const commit = await repository.getCommit(blameInformation.hash);
-			return this.getBlameInformationHover(documentUri, commit);
-		} catch {
-			return this.getBlameInformationHover(documentUri, blameInformation);
-		}
-	}
-
-	getBlameInformationHover(documentUri: Uri, blameInformationOrCommit: BlameInformation | Commit): MarkdownString {
 		const markdownString = new MarkdownString();
 		markdownString.isTrusted = true;
 		markdownString.supportHtml = true;
 		markdownString.supportThemeIcons = true;
 
-		if (blameInformationOrCommit.authorName) {
-			markdownString.appendMarkdown(`$(account) **${blameInformationOrCommit.authorName}**`);
+		// Author, date
+		const hash = commitInformation?.hash ?? blameInformation.hash;
+		const authorName = commitInformation?.authorName ?? blameInformation.authorName;
+		const authorEmail = commitInformation?.authorEmail ?? blameInformation.authorEmail;
+		const authorDate = commitInformation?.authorDate ?? blameInformation.authorDate;
+		const avatar = commitAvatar ? `![${authorName}](${commitAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
 
-			if (blameInformationOrCommit.authorDate) {
-				const dateString = new Date(blameInformationOrCommit.authorDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformationOrCommit.authorDate, true, true)} (${dateString})`);
+		if (authorName) {
+			if (authorEmail) {
+				const emailTitle = l10n.t('Email');
+				markdownString.appendMarkdown(`${avatar} [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
+			} else {
+				markdownString.appendMarkdown(`${avatar} **${authorName}**`);
+			}
+
+			if (authorDate) {
+				const dateString = new Date(authorDate).toLocaleString(undefined, {
+					year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'
+				});
+				markdownString.appendMarkdown(`, $(history) ${fromNow(authorDate, true, true)} (${dateString})`);
 			}
 
 			markdownString.appendMarkdown('\n\n');
 		}
 
-		markdownString.appendMarkdown(`${emojify(isBlameInformation(blameInformationOrCommit) ? blameInformationOrCommit.subject ?? '' : blameInformationOrCommit.message)}\n\n`);
+		// Subject | Message
+		markdownString.appendMarkdown(`${emojify(commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '')}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
-		if (!isBlameInformation(blameInformationOrCommit) && blameInformationOrCommit.shortStat) {
-			markdownString.appendMarkdown(`<span>${blameInformationOrCommit.shortStat.files === 1 ?
-				l10n.t('{0} file changed', blameInformationOrCommit.shortStat.files) :
-				l10n.t('{0} files changed', blameInformationOrCommit.shortStat.files)}</span>`);
+		// Short stats
+		if (commitInformation?.shortStat) {
+			markdownString.appendMarkdown(`<span>${commitInformation.shortStat.files === 1 ?
+				l10n.t('{0} file changed', commitInformation.shortStat.files) :
+				l10n.t('{0} files changed', commitInformation.shortStat.files)}</span>`);
 
-			if (blameInformationOrCommit.shortStat.insertions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${blameInformationOrCommit.shortStat.insertions === 1 ?
-					l10n.t('{0} insertion{1}', blameInformationOrCommit.shortStat.insertions, '(+)') :
-					l10n.t('{0} insertions{1}', blameInformationOrCommit.shortStat.insertions, '(+)')}</span>`);
+			if (commitInformation.shortStat.insertions) {
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${commitInformation.shortStat.insertions === 1 ?
+					l10n.t('{0} insertion{1}', commitInformation.shortStat.insertions, '(+)') :
+					l10n.t('{0} insertions{1}', commitInformation.shortStat.insertions, '(+)')}</span>`);
 			}
 
-			if (blameInformationOrCommit.shortStat.deletions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${blameInformationOrCommit.shortStat.deletions === 1 ?
-					l10n.t('{0} deletion{1}', blameInformationOrCommit.shortStat.deletions, '(-)') :
-					l10n.t('{0} deletions{1}', blameInformationOrCommit.shortStat.deletions, '(-)')}</span>`);
+			if (commitInformation.shortStat.deletions) {
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${commitInformation.shortStat.deletions === 1 ?
+					l10n.t('{0} deletion{1}', commitInformation.shortStat.deletions, '(-)') :
+					l10n.t('{0} deletions{1}', commitInformation.shortStat.deletions, '(-)')}</span>`);
 			}
 
 			markdownString.appendMarkdown(`\n\n---\n\n`);
 		}
 
-		markdownString.appendMarkdown(`[\`$(git-commit) ${blameInformationOrCommit.hash.substring(0, 8)} \`](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformationOrCommit.hash]))} "${l10n.t('View Commit')}")`);
+		// Commands
+		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, hash]))} "${l10n.t('Open Commit')}")`);
 		markdownString.appendMarkdown('&nbsp;');
-		markdownString.appendMarkdown(`[$(copy)](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformationOrCommit.hash))} "${l10n.t('Copy Commit Hash')}")`);
+		markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
+
+		// Remote hover commands
+		if (remoteHoverCommands.length > 0) {
+			markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+
+			const remoteCommandsMarkdown = remoteHoverCommands
+				.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], hash]))} "${command.tooltip}")`);
+			markdownString.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
+		}
+
 		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
 		markdownString.appendMarkdown(`[$(gear)](command:workbench.action.openSettings?%5B%22git.blame%22%5D "${l10n.t('Open Settings')}")`);
 
@@ -334,23 +342,16 @@ export class GitBlameController {
 		}
 
 		this._repositoryDisposables.delete(repository);
-		this._repositoryBlameCache.deleteBlameInformation(repository);
+		this._repositoryBlameCache.delete(repository);
 	}
 
 	private _onDidRunGitStatus(repository: Repository): void {
-		const repositoryHEAD = this._repositoryBlameCache.getRepositoryHEAD(repository);
-		if (!repositoryHEAD || !repository.HEAD?.commit) {
+		if (!repository.HEAD?.commit || this._HEAD === repository.HEAD.commit) {
 			return;
 		}
 
-		// If the HEAD of the repository changed we can remove the cache
-		// entries for the "file" scheme as those entries are outdated.
-		if (repositoryHEAD !== repository.HEAD.commit) {
-			this._repositoryBlameCache.deleteBlameInformation(repository, 'file');
-			this._repositoryBlameCache.setRepositoryHEAD(repository, repository.HEAD.commit);
-
-			this._updateTextEditorBlameInformation(window.activeTextEditor);
-		}
+		this._HEAD = repository.HEAD.commit;
+		this._updateTextEditorBlameInformation(window.activeTextEditor);
 	}
 
 	private async _getBlameInformation(resource: Uri, commit: string): Promise<BlameInformation[] | undefined> {
@@ -359,18 +360,18 @@ export class GitBlameController {
 			return undefined;
 		}
 
-		const resourceBlameInformation = this._repositoryBlameCache.getBlameInformation(repository, resource, commit);
+		const resourceBlameInformation = this._repositoryBlameCache.get(repository, resource, commit);
 		if (resourceBlameInformation) {
 			return resourceBlameInformation;
 		}
 
-		// Ensure that the emojis are loaded. We will
-		// use them when formatting the blame information.
+		// Ensure that the emojis are loaded as we will need
+		// access to them when formatting the blame information.
 		await ensureEmojis();
 
 		// Get blame information for the resource and cache it
 		const blameInformation = await repository.blame2(resource.fsPath, commit) ?? [];
-		this._repositoryBlameCache.setBlameInformation(repository, resource, commit, blameInformation);
+		this._repositoryBlameCache.set(repository, resource, commit, blameInformation);
 
 		return blameInformation;
 	}
@@ -561,7 +562,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 			return undefined;
 		}
 
-		const contents = await this._controller.getBlameInformationDetailedHover(textEditor.document.uri, lineBlameInformation.blameInformation);
+		const contents = await this._controller.getBlameInformationHover(textEditor.document.uri, lineBlameInformation.blameInformation);
 
 		if (!contents || token.isCancellationRequested) {
 			return undefined;
@@ -571,7 +572,9 @@ class GitBlameEditorDecoration implements HoverProvider {
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
-		if (e && !e.affectsConfiguration('git.blame.editorDecoration.template')) {
+		if (e &&
+			!e.affectsConfiguration('git.commitShortHashLength') &&
+			!e.affectsConfiguration('git.blame.editorDecoration.template')) {
 			return;
 		}
 
@@ -610,7 +613,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation !== 'string'
-				? this._controller.formatBlameInformationMessage(template, blame.blameInformation)
+				? this._controller.formatBlameInformationMessage(textEditor.document.uri, template, blame.blameInformation)
 				: blame.blameInformation;
 
 			return this._createDecoration(blame.lineNumber, contentText);
@@ -663,14 +666,15 @@ class GitBlameStatusBarItem {
 	}
 
 	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.statusBarItem.template')) {
+		if (!e.affectsConfiguration('git.commitShortHashLength') &&
+			!e.affectsConfiguration('git.blame.statusBarItem.template')) {
 			return;
 		}
 
 		this._onDidChangeBlameInformation();
 	}
 
-	private _onDidChangeBlameInformation(): void {
+	private async _onDidChangeBlameInformation(): Promise<void> {
 		if (!window.activeTextEditor) {
 			this._statusBarItem.hide();
 			return;
@@ -690,16 +694,31 @@ class GitBlameStatusBarItem {
 			const config = workspace.getConfiguration('git');
 			const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
 
-			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(template, blameInformation[0].blameInformation)}`;
-			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(window.activeTextEditor.document.uri, blameInformation[0].blameInformation);
+			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(
+				window.activeTextEditor.document.uri, template, blameInformation[0].blameInformation)}`;
+
+			this._statusBarItem.tooltip2 = (cancellationToken: CancellationToken) => {
+				return this._provideTooltip(window.activeTextEditor!.document.uri,
+					blameInformation[0].blameInformation as BlameInformation, cancellationToken);
+			};
+
 			this._statusBarItem.command = {
-				title: l10n.t('View Commit'),
-				command: 'git.blameStatusBarItem.viewCommit',
+				title: l10n.t('Open Commit'),
+				command: 'git.viewCommit',
 				arguments: [window.activeTextEditor.document.uri, blameInformation[0].blameInformation.hash]
 			} satisfies Command;
 		}
 
 		this._statusBarItem.show();
+	}
+
+	private async _provideTooltip(uri: Uri, blameInformation: BlameInformation, cancellationToken: CancellationToken): Promise<MarkdownString | undefined> {
+		if (cancellationToken.isCancellationRequested) {
+			return undefined;
+		}
+
+		const tooltip = await this._controller.getBlameInformationHover(uri, blameInformation);
+		return cancellationToken.isCancellationRequested ? undefined : tooltip;
 	}
 
 	dispose() {

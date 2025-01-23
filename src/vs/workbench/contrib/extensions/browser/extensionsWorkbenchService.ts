@@ -23,7 +23,7 @@ import {
 	AllowedExtensionsConfigKey
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -550,7 +550,7 @@ ${this.description}
 	}
 
 	setExtensionsControlManifest(extensionsControlManifest: IExtensionsControlManifest): void {
-		this.isMalicious = extensionsControlManifest.malicious.some(identifier => areSameExtensions(this.identifier, identifier));
+		this.isMalicious = isMalicious(this.identifier, extensionsControlManifest);
 		this.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[this.identifier.id.toLowerCase()] : undefined;
 		this._extensionEnabledWithPreRelease = extensionsControlManifest?.extensionsEnabledWithPreRelease?.includes(this.identifier.id.toLowerCase());
 	}
@@ -847,11 +847,6 @@ class Extensions extends Disposable {
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		type GalleryServiceMatchInstalledExtensionClassification = {
-			owner: 'sandy081';
-			comment: 'Report when a request is made to match installed extension with gallery';
-		};
-		this.telemetryService.publicLog2<{}, GalleryServiceMatchInstalledExtensionClassification>('galleryService:matchInstalledExtension');
 		const galleryExtensions = await this.galleryService.getExtensions(toMatch.map(e => ({ ...e.identifier, preRelease: e.local?.preRelease })), { compatible: true, targetPlatform: await this.server.extensionManagementService.getTargetPlatform() }, CancellationToken.None);
 		for (const extension of extensions) {
 			const compatible = galleryExtensions.find(e => areSameExtensions(e.identifier, extension.identifier));
@@ -2925,29 +2920,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async doSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<boolean[]> {
-		const changed = await this.extensionEnablementService.setEnablement(extensions.map(e => e.local!), enablementState);
-		for (let i = 0; i < changed.length; i++) {
-			if (changed[i]) {
-				/* __GDPR__
-				"extension:enable" : {
-					"owner": "sandy081",
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
-				}
-				*/
-				/* __GDPR__
-				"extension:disable" : {
-					"owner": "sandy081",
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
-				}
-				*/
-				this.telemetryService.publicLog(enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace ? 'extension:enable' : 'extension:disable', extensions[i].telemetryData);
-			}
-		}
-		return changed;
+		return await this.extensionEnablementService.setEnablement(extensions.map(e => e.local!), enablementState);
 	}
 
 	// Current service reports progress when installing/uninstalling extensions

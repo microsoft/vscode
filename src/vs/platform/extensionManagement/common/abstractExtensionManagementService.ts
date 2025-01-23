@@ -24,7 +24,7 @@ import {
 	ExtensionSignatureVerificationCode,
 	IAllowedExtensionsService
 } from './extensionManagement.js';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from './extensionManagementUtil.js';
+import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, isMalicious } from './extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from '../../extensions/common/extensions.js';
 import { areApiProposalsCompatible } from '../../extensions/common/extensionValidator.js';
 import { ILogService } from '../../log/common/log.js';
@@ -194,6 +194,20 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 		if (installableExtensions.length) {
 			results.push(...await this.installExtensions(installableExtensions));
+		}
+
+		const untrustedPublishers = new Set<string>();
+		for (const result of results) {
+			if (result.local && result.source && !URI.isUri(result.source) && !this.allowedExtensionsService.isTrusted(result.source)) {
+				untrustedPublishers.add(result.source.publisher);
+			}
+		}
+		if (untrustedPublishers.size) {
+			try {
+				await this.allowedExtensionsService.trustPublishers(...untrustedPublishers);
+			} catch (error) {
+				this.logService.error('Error while trusting publishers', getErrorMessage(error), ...untrustedPublishers);
+			}
 		}
 
 		return results;
@@ -639,7 +653,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		let compatibleExtension: IGalleryExtension | null;
 
 		const extensionsControlManifest = await this.getExtensionsControlManifest();
-		if (extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier))) {
+		if (isMalicious(extension.identifier, extensionsControlManifest)) {
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 

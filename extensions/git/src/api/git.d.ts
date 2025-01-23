@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken, SourceControlHistoryItem } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -200,10 +200,12 @@ export interface Repository {
 	readonly ui: RepositoryUIState;
 
 	readonly onDidCommit: Event<void>;
+	readonly onDidCheckout: Event<void>;
 
 	getConfigs(): Promise<{ key: string; value: string; }[]>;
 	getConfig(key: string): Promise<string>;
 	setConfig(key: string, value: string): Promise<string>;
+	unsetConfig(key: string): Promise<string>;
 	getGlobalConfig(key: string): Promise<string>;
 
 	getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }>;
@@ -325,6 +327,23 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
+export interface AvatarQueryCommit {
+	readonly hash: string;
+	readonly authorName?: string;
+	readonly authorEmail?: string;
+}
+
+export interface AvatarQuery {
+	readonly commits: AvatarQueryCommit[];
+	readonly size: number;
+}
+
+export interface SourceControlHistoryItemDetailsProvider {
+	provideAvatar(repository: Repository, query: AvatarQuery): ProviderResult<Map<string, string | undefined>>;
+	provideHoverCommands(repository: Repository): ProviderResult<Command[]>;
+	provideMessageLinks(repository: Repository, message: string): ProviderResult<string>;
+}
+
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface PublishEvent {
@@ -352,6 +371,7 @@ export interface API {
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
+	registerSourceControlHistoryItemDetailsProvider(provider: SourceControlHistoryItemDetailsProvider): Disposable;
 }
 
 export interface GitExtension {

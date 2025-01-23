@@ -7,7 +7,7 @@
 
 import type * as vscode from 'vscode';
 import { asArray, coalesceInPlace, equals } from '../../../base/common/arrays.js';
-import { illegalArgument } from '../../../base/common/errors.js';
+import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from '../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -2072,6 +2072,22 @@ export enum TerminalShellExecutionCommandLineConfidence {
 	High = 2
 }
 
+export enum TerminalShellType {
+	Sh = 1,
+	Bash = 2,
+	Fish = 3,
+	Csh = 4,
+	Ksh = 5,
+	Zsh = 6,
+	CommandPrompt = 7,
+	GitBash = 8,
+	PowerShell = 9,
+	Python = 10,
+	Julia = 11,
+	NuShell = 12,
+	Node = 13
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
@@ -2950,6 +2966,7 @@ export enum DocumentPasteTriggerKind {
 export class DocumentDropOrPasteEditKind {
 	static Empty: DocumentDropOrPasteEditKind;
 	static Text: DocumentDropOrPasteEditKind;
+	static TextUpdateImports: DocumentDropOrPasteEditKind;
 
 	private static sep = '.';
 
@@ -2971,6 +2988,7 @@ export class DocumentDropOrPasteEditKind {
 }
 DocumentDropOrPasteEditKind.Empty = new DocumentDropOrPasteEditKind('');
 DocumentDropOrPasteEditKind.Text = new DocumentDropOrPasteEditKind('text');
+DocumentDropOrPasteEditKind.TextUpdateImports = DocumentDropOrPasteEditKind.Text.append('updateImports');
 
 export class DocumentPasteEdit {
 
@@ -4845,6 +4863,8 @@ export class LanguageModelChatAssistantMessage {
 
 export class LanguageModelError extends Error {
 
+	static readonly #name = 'LanguageModelError';
+
 	static NotFound(message?: string): LanguageModelError {
 		return new LanguageModelError(message, LanguageModelError.NotFound.name);
 	}
@@ -4857,11 +4877,18 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.Blocked.name);
 	}
 
+	static tryDeserialize(data: SerializedError): LanguageModelError | undefined {
+		if (data.name !== LanguageModelError.#name) {
+			return undefined;
+		}
+		return new LanguageModelError(data.message, data.code, data.cause);
+	}
+
 	readonly code: string;
 
 	constructor(message?: string, code?: string, cause?: Error) {
 		super(message, { cause });
-		this.name = 'LanguageModelError';
+		this.name = LanguageModelError.#name;
 		this.code = code ?? '';
 	}
 

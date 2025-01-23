@@ -81,6 +81,7 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['python', GeneralShellType.Python],
 	['julia', GeneralShellType.Julia],
 	['nu', GeneralShellType.NuShell],
+	['node', GeneralShellType.Node],
 
 ]);
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {

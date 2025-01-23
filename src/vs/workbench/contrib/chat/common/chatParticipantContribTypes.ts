@@ -22,6 +22,7 @@ export interface IRawChatParticipantContribution {
 	when?: string;
 	description?: string;
 	isDefault?: boolean;
+	isAgent?: boolean;
 	isSticky?: boolean;
 	sampleRequest?: string;
 	commands?: IRawChatCommandContribution[];

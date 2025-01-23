@@ -6,11 +6,11 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
@@ -46,13 +46,21 @@ export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
 
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			// if the input has prompt instructions attached, allow submitting requests even
+			// without text present - having instructions is enough context for a request
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ChatContextKeys.requestInProgress.negate(),
+			ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+		);
+
 		super({
 			id: ChatSubmitAction.ID,
 			title: localize2('interactive.submit.label', "Send and Dispatch"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.requestInProgress.negate(), ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
+			precondition,
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
@@ -75,17 +83,71 @@ export class ChatSubmitAction extends SubmitAction {
 	}
 }
 
+export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
+export class ToggleAgentModeAction extends Action2 {
+	static readonly ID = ToggleAgentModeActionId;
+
+	constructor() {
+		super({
+			id: ToggleAgentModeAction.ID,
+			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode (Experimental)"),
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+				ChatContextKeys.Editing.hasToolsAgent),
+			icon: Codicon.edit,
+			toggled: {
+				condition: ChatContextKeys.Editing.agentMode,
+				icon: Codicon.tools,
+				tooltip: localize('agentEnabled', "Agent Mode Enabled (Experimental)"),
+			},
+			tooltip: localize('agentDisabled', "Agent Mode Disabled"),
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+				primary: KeyMod.CtrlCmd | KeyCode.Period,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menu: [
+				{
+					id: MenuId.ChatExecute,
+					order: 1,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+						ChatContextKeys.Editing.hasToolsAgent),
+					group: 'navigation',
+				},
+			]
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const agentService = accessor.get(IChatAgentService);
+		agentService.toggleToolsAgentMode();
+	}
+}
+
 export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			// if the input has prompt instructions attached, allow submitting requests even
+			// without text present - having instructions is enough context for a request
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			applyingChatEditsContextKey.toNegated(),
+			ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+		);
+
 		super({
 			id: ChatEditingSessionSubmitAction.ID,
 			title: localize2('edits.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.requestInProgress.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()),
+			precondition,
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
@@ -113,18 +175,23 @@ class SubmitWithoutDispatchingAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.submitWithoutDispatching';
 
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			// if the input has prompt instructions attached, allow submitting requests even
+			// without text present - having instructions is enough context for a request
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ChatContextKeys.requestInProgress.negate(),
+			ContextKeyExpr.and(ContextKeyExpr.or(
+				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
+			)),
+		);
+
 		super({
 			id: SubmitWithoutDispatchingAction.ID,
 			title: localize2('interactive.submitWithoutDispatch.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.inputHasText,
-				ChatContextKeys.requestInProgress.negate(),
-				ContextKeyExpr.and(ContextKeyExpr.or(
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
-				))),
+			precondition,
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
@@ -173,10 +240,18 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.submitSecondaryAgent';
 
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			// if the input has prompt instructions attached, allow submitting requests even
+			// without text present - having instructions is enough context for a request
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ChatContextKeys.inputHasAgent.negate(),
+			ChatContextKeys.requestInProgress.negate(),
+		);
+
 		super({
 			id: ChatSubmitSecondaryAgentAction.ID,
 			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
-			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.inputHasAgent.negate(), ChatContextKeys.requestInProgress.negate()),
+			precondition,
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
@@ -216,10 +291,18 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 
 class SendToChatEditingAction extends Action2 {
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			// if the input has prompt instructions attached, allow submitting requests even
+			// without text present - having instructions is enough context for a request
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ChatContextKeys.inputHasAgent.negate(),
+			ChatContextKeys.requestInProgress.negate(),
+		);
+
 		super({
 			id: 'workbench.action.chat.sendToChatEditing',
 			title: localize2('chat.sendToChatEditing.label', "Send to Copilot Edits"),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.inputHasAgent.negate(), ChatContextKeys.inputHasText),
+			precondition,
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
@@ -301,10 +384,17 @@ class SendToChatEditingAction extends Action2 {
 
 class SendToNewChatAction extends Action2 {
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			// if the input has prompt instructions attached, allow submitting requests even
+			// without text present - having instructions is enough context for a request
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
+			ChatContextKeys.requestInProgress.negate(),
+		);
+
 		super({
 			id: 'workbench.action.chat.sendToNewChat',
 			title: localize2('chat.newChat.label', "Send to New Chat"),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.inputHasText),
+			precondition,
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
@@ -388,4 +478,5 @@ export function registerChatExecuteActions() {
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitSecondaryAgentAction);
 	registerAction2(SendToChatEditingAction);
+	registerAction2(ToggleAgentModeAction);
 }

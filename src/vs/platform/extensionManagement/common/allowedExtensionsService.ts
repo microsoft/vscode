@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
-import { IGalleryExtension, AllowedExtensionsConfigKey, IAllowedExtensionsService } from './extensionManagement.js';
+import { IGalleryExtension, AllowedExtensionsConfigKey, IAllowedExtensionsService, TrustedPublishersConfigKey } from './extensionManagement.js';
 import { ExtensionType, IExtension, TargetPlatform } from '../../extensions/common/extensions.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
@@ -34,6 +34,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 
 	private allowedExtensions: AllowedExtensionsConfigValueType | undefined;
 	private readonly publisherOrgs: string[];
+	private readonly trustedPublishers: readonly string[];
 
 	private _onDidChangeAllowedExtensions = this._register(new Emitter<void>());
 	readonly onDidChangeAllowedExtensions = this._onDidChangeAllowedExtensions.event;
@@ -45,6 +46,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 		super();
 		this.publisherOrgs = productService.extensionPublisherOrgs?.map(p => p.toLowerCase()) ?? [];
 		this.allowedExtensions = this.getAllowedExtensionsValue();
+		this.trustedPublishers = productService.trustedExtensionPublishers ?? [];
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AllowedExtensionsConfigKey)) {
 				this.allowedExtensions = this.getAllowedExtensionsValue();
@@ -141,5 +143,29 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 		}
 
 		return extensionReason;
+	}
+
+	isTrusted(extension: IGalleryExtension): boolean {
+		const publisher = extension.publisher.toLowerCase();
+		if (this.trustedPublishers.includes(publisher) || this.trustedPublishers.includes(extension.publisherDisplayName.toLowerCase())) {
+			return true;
+		}
+
+		// Check if the extension is allowed by publisher or extension id
+		if (this.allowedExtensions && (this.allowedExtensions[publisher] || this.allowedExtensions[extension.identifier.id.toLowerCase()])) {
+			return true;
+		}
+
+		const trustedPublishers = (this.configurationService.getValue<string[]>(TrustedPublishersConfigKey) ?? []).map(p => p.toLowerCase());
+		return trustedPublishers.includes(publisher);
+	}
+
+	async trustPublishers(...publishers: string[]): Promise<void> {
+		const trustedPublishers = (this.configurationService.getValue<string[]>(TrustedPublishersConfigKey) ?? []).map(p => p.toLowerCase());
+		publishers = publishers.map(p => p.toLowerCase()).filter(p => !trustedPublishers.includes(p));
+		if (publishers.length) {
+			trustedPublishers.push(...publishers);
+			await this.configurationService.updateValue(TrustedPublishersConfigKey, trustedPublishers);
+		}
 	}
 }

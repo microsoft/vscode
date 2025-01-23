@@ -103,6 +103,7 @@ import { PreventDefaultContextMenuItemsContextKeyName } from '../../webview/brow
 import { NotebookAccessibilityProvider } from './notebookAccessibilityProvider.js';
 import { NotebookHorizontalTracker } from './viewParts/notebookHorizontalTracker.js';
 import { NotebookCellEditorPool } from './view/notebookCellEditorPool.js';
+import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 
 const $ = DOM.$;
 
@@ -2038,6 +2039,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				SuggestController.get(editor)?.cancelSuggestWidget();
 				DropIntoEditorController.get(editor)?.clearWidgets();
 				CopyPasteController.get(editor)?.clearWidgets();
+			}
+		});
+
+		this._renderedEditors.forEach((editor, cell) => {
+			const controller = InlineCompletionsController.get(editor);
+			if (controller?.model.get()?.inlineEditState.get()) {
+				editor.render(true);
 			}
 		});
 	}

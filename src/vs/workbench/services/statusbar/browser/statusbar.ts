@@ -204,6 +204,12 @@ export interface IStatusbarEntry {
 	 * the entry to new auxiliary windows opening.
 	 */
 	readonly showInAllWindows?: boolean;
+
+	/**
+	 * If provided, signals what extension is providing the status bar entry. This allows for
+	 * more actions to manage the extension from the status bar entry.
+	 */
+	readonly extensionId?: string;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {
