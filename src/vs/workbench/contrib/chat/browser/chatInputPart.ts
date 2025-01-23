@@ -1531,7 +1531,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	saveState(): void {
 		const inputState = this.getInputState();
-		inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
+		// inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
 		this.saveCurrentValue(inputState);
 		const inputHistory = [...this.history];
 		this.historyService.saveHistory(this.location, inputHistory);
