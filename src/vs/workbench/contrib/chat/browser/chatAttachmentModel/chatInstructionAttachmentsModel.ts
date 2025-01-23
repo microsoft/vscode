@@ -35,7 +35,7 @@ type TInstructionsVariableIds = TInstructionsId | TInstructionsRootId;
  */
 const toChatVariable = (id: TInstructionsVariableIds, uri: URI): IChatRequestVariableEntry => {
 	return {
-		id,
+		id: `${id}__${uri}`,
 		name: uri.fsPath,
 		value: uri,
 		isSelection: false,
