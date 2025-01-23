@@ -239,6 +239,34 @@ updateEnvCache() {
 	builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 }
 
+trackMissingEnvVars() {
+	# Capture current environment variables in an array
+	local current_env_keys=()
+	while IFS='=' read -r key value; do
+		current_env_keys+=("$key")
+	done < <(env)
+
+	# Compare vsc_env_keys with current_env_keys
+	for key in "${vsc_env_keys[@]}"; do
+		local found=false
+		for env_key in "${current_env_keys[@]}"; do
+			if [[ "$key" == "$env_key" ]]; then
+				found=true
+				break
+			fi
+		done
+		if [[ "$found" == false ]]; then
+			printf "Missing environment variable: %s\n" "$key"
+			unset 'vsc_env_keys[i]'
+			unset 'vsc_env_values[i]'
+		fi
+	done
+
+	# Remove gaps from unset
+	vsc_env_keys=("${vsc_env_keys[@]}")
+	vsc_env_values=("${vsc_env_values[@]}")
+}
+
 __vsc_update_env() {
 
 	start_time=$(date +%s)
@@ -255,8 +283,10 @@ __vsc_update_env() {
 	end_time=$(date +%s)
 	elapsed_time=$(($end_time - $start_time))
 
-	builtin printf "Time taken: $elapsed_time seconds\n"
+	# builtin printf "Time taken: $elapsed_time seconds\n"
 
+	trackMissingEnvVars
+	builtin printf "Time taken: $elapsed_time seconds\n"
 }
 
 __vsc_command_output_start() {

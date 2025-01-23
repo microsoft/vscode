@@ -63,6 +63,9 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 	}
 	// Check for environment differs, and was updated.
 	// This way we only fire an event if the environment actually changed.
+
+	// TODO: Handle deleted variable on TS side. It is already one in bash side
+	// unsetEnvironmentSingleVar()
 	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void {
 		if (!isTrusted) {
 			return;
