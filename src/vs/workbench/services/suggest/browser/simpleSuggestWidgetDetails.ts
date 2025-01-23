@@ -16,7 +16,6 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export function canExpandCompletionItem(item: SimpleCompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -50,8 +49,8 @@ export class SimpleSuggestDetailsWidget {
 
 	constructor(
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
-		@IInstantiationService instaService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		onDidFontInfoChange: Event<void>,
+		@IInstantiationService instaService: IInstantiationService
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
@@ -77,7 +76,7 @@ export class SimpleSuggestDetailsWidget {
 
 		this._configureFont();
 
-		// TODO: respond to font config change?
+		this._disposables.add(onDidFontInfoChange(() => this._configureFont()));
 	}
 
 	private _configureFont(): void {

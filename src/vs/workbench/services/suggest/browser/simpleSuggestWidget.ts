@@ -114,6 +114,7 @@ export class SimpleSuggestWidget extends Disposable {
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
+		private readonly _onDidFontConfigurationChange: Event<void>,
 		private readonly _options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -227,7 +228,7 @@ export class SimpleSuggestWidget extends Disposable {
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 
-		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo));
+		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo, this._onDidFontConfigurationChange));
 		this._register(details.onDidClose(() => this.toggleDetails()));
 		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
 		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
