@@ -135,10 +135,18 @@ export async function activate(context: vscode.ExtensionContext) {
 			const commands = [...commandsInPath.completionResources, ...builtinCommands];
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
-
+			const pathSeparator = isWindows ? '\\' : '/';
 			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, terminal.shellIntegration?.cwd, token);
+			if (terminal.shellIntegration?.env) {
+				const homeDirCompletion = result.items.find(i => i.label === '~');
+				if (homeDirCompletion && terminal.shellIntegration.env.HOME) {
+					homeDirCompletion.documentation = getFriendlyResourcePath(vscode.Uri.file(terminal.shellIntegration.env.HOME), pathSeparator, vscode.TerminalCompletionItemKind.Folder);
+					homeDirCompletion.kind = vscode.TerminalCompletionItemKind.Folder;
+				}
+			}
+
 			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: isWindows ? '\\' : '/' });
+				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: isWindows ? '\\' : '/', env: terminal.shellIntegration?.env });
 			}
 			return result.items;
 		}
@@ -269,7 +277,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			const fileResource = vscode.Uri.file(path);
 			const files = await vscode.workspace.fs.readDirectory(fileResource);
 			for (const [file, fileType] of files) {
-				const formattedPath = getFriendlyFilePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
+				const formattedPath = getFriendlyResourcePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
 				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, cachedWindowsExecutableExtensions)) {
 					executables.add({ label: file, detail: formattedPath });
 					labels.add(file);
@@ -539,11 +547,16 @@ function getFirstCommand(commandLine: string): string | undefined {
 	return firstCommand;
 }
 
-function getFriendlyFilePath(uri: vscode.Uri, pathSeparator: string): string {
+function getFriendlyResourcePath(uri: vscode.Uri, pathSeparator: string, kind?: vscode.TerminalCompletionItemKind): string {
 	let path = uri.fsPath;
 	// Ensure drive is capitalized on Windows
 	if (pathSeparator === '\\' && path.match(/^[a-zA-Z]:\\/)) {
 		path = `${path[0].toUpperCase()}:${path.slice(2)}`;
+	}
+	if (kind === vscode.TerminalCompletionItemKind.Folder) {
+		if (!path.endsWith(pathSeparator)) {
+			path += pathSeparator;
+		}
 	}
 	return path;
 }

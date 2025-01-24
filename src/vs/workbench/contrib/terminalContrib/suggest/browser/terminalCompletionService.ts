@@ -65,6 +65,7 @@ export interface TerminalResourceRequestConfig {
 	cwd?: URI;
 	pathSeparator: string;
 	shouldNormalizePrefix?: boolean;
+	env?: { [key: string]: string | null | undefined };
 }
 
 
@@ -246,6 +247,24 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const lastWordFolderHasDotPrefix = lastWordFolder.match(/^\.\.?[\\\/]/);
 
+		const lastWordFolderHasTildePrefix = lastWordFolder.match(/^~[\\\/]/);
+		if (lastWordFolderHasTildePrefix) {
+			// Handle specially
+			const resolvedFolder = resourceRequestConfig.env?.HOME ? URI.file(resourceRequestConfig.env.HOME) : undefined;
+			if (resolvedFolder) {
+				resourceCompletions.push({
+					label: lastWordFolder,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					detail: getFriendlyPath(resolvedFolder, resourceRequestConfig.pathSeparator),
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+				return resourceCompletions;
+			}
+		}
 		// Add current directory. This should be shown at the top because it will be an exact match
 		// and therefore highlight the detail, plus it improves the experience when runOnEnter is
 		// used.
