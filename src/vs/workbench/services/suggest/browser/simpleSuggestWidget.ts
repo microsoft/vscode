@@ -23,7 +23,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 
 const $ = dom.$;
 
@@ -106,6 +105,8 @@ export class SimpleSuggestWidget extends Disposable {
 	readonly onDidFocus: Event<ISimpleSelectedSuggestion> = this._onDidFocus.event;
 	private readonly _onDidBlurDetails = this._register(new Emitter<FocusEvent>());
 	readonly onDidBlurDetails = this._onDidBlurDetails.event;
+	private readonly _onDidFontConfigurationChange = this._register(new Emitter<void>());
+	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	get list(): List<SimpleCompletionItem> { return this._list; }
 
@@ -114,8 +115,6 @@ export class SimpleSuggestWidget extends Disposable {
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
-		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
-		private readonly _onDidFontConfigurationChange: Event<void>,
 		private readonly _options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -180,7 +179,7 @@ export class SimpleSuggestWidget extends Disposable {
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !_configurationService.getValue('editor.suggest.showIcons'));
 		applyIconStyle();
 
-		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo, this._configurationService);
+		const renderer = new SimpleSuggestWidgetItemRenderer(this._getFontInfo.bind(this), this._configurationService);
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = this._register(new List('SuggestWidget', this._listElement, {
@@ -229,7 +228,7 @@ export class SimpleSuggestWidget extends Disposable {
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 
-		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo, this._onDidFontConfigurationChange));
+		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo.bind(this), this.onDidFontConfigurationChange));
 		this._register(details.onDidClose(() => this.toggleDetails()));
 		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
 		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
@@ -247,9 +246,13 @@ export class SimpleSuggestWidget extends Disposable {
 			if (e.affectsConfiguration('editor.suggest.showIcons')) {
 				applyIconStyle();
 			}
-			if (this._completionModel && e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily)) {
-				this._layout(undefined);
-				this._list.splice(0, this._list.length, this._completionModel!.items);
+			if (this._completionModel && (
+				e.affectsConfiguration('editor.fontSize') ||
+				e.affectsConfiguration('editor.lineHeight') ||
+				e.affectsConfiguration('editor.fontWeight') ||
+				e.affectsConfiguration('editor.fontFamily'))) {
+				this._list.splice(0, this._completionModel.items.length, this._completionModel!.items);
+				this._onDidFontConfigurationChange.fire();
 			}
 			if (_options.statusBarMenuId && _options.showStatusBarSettingId && e.affectsConfiguration(_options.showStatusBarSettingId)) {
 				const showStatusBar: boolean = _configurationService.getValue(_options.showStatusBarSettingId);
@@ -765,6 +768,31 @@ export class SimpleSuggestWidget extends Disposable {
 		if (this._isDetailsVisible()) {
 			this._details.placeAtAnchor(this.element.domNode);
 		}
+	}
+
+	private _getFontInfo(): ISimpleSuggestWidgetFontInfo {
+		let lineHeight: number = this._configurationService.getValue('editor.lineHeight');
+		const fontSize: number = this._configurationService.getValue('editor.fontSize');
+		const fontFamily: string = this._configurationService.getValue('editor.fontFamily');
+		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
+		const letterSpacing: number = this._configurationService.getValue('editor.letterSpacing');
+
+		if (lineHeight <= 1 && fontSize < 16) {
+			// Scale so icon shows by default
+			lineHeight = Math.ceil(fontSize * 1.5);
+		} else if (lineHeight <= 8) {
+			lineHeight = fontSize * lineHeight;
+		}
+
+		const fontInfo = {
+			fontSize,
+			lineHeight,
+			fontWeight: fontWeight.toString(),
+			letterSpacing,
+			fontFamily
+		};
+
+		return fontInfo;
 	}
 
 	private _getLayoutInfo() {
