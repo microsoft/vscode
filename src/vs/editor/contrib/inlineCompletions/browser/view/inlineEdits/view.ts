@@ -146,8 +146,11 @@ export class InlineEditsView extends Disposable {
 				const state = this._uiState.read(reader)?.state;
 				if (!state || state.kind !== 'insertion') { return undefined; }
 
-				if (state.column === 1 && state.text.endsWith('\n') && !state.text.startsWith('\n') && state.lineNumber > 1) {
-					const endOfLineColumn = this._editor.getModel()!.getLineLength(state.lineNumber - 1) + 1;
+				const textModel = this._editor.getModel()!;
+
+				// Try to not insert on the same line where there is other content
+				if (state.column === 1 && state.lineNumber > 1 && textModel.getLineLength(state.lineNumber) !== 0 && state.text.endsWith('\n') && !state.text.startsWith('\n')) {
+					const endOfLineColumn = textModel.getLineLength(state.lineNumber - 1) + 1;
 					return new GhostText(state.lineNumber - 1, [new GhostTextPart(endOfLineColumn, '\n' + state.text.slice(0, -1), false)]);
 				}
 
