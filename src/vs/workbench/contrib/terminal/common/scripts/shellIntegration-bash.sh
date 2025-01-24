@@ -274,35 +274,23 @@ trackMissingEnvVars() {
 }
 
 __vsc_update_env() {
-
-	# start_time=$(date +%s%3N)
-	# builtin printf "Start time: %s\n" "$start_time"
-	# TODO: Send everything the first time, don't bother diffing (array is empty)
-
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
-	# This surprisingly doesnt break even when value contains = or multiple =
-	while IFS='=' read -r key value; do
-		updateEnvCache "$key" "$value"
-	done < <(env)
+	if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
+		while IFS='=' read -r key value; do
+			vsc_env_keys+=("$key")
+			vsc_env_values+=("$value")
+			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+		done < <(env)
+	else
+		while IFS='=' read -r key value; do
+			updateEnvCache "$key" "$value"
+		done < <(env)
+	fi
 
-	# IMPORTANT: Trying to use cut like this with echo really slow things down.
-	# while IFS= read -r line; do
-	# 	key=$(echo "$line" | cut -d '=' -f 1)
-	# 	value=$(echo "$line" | cut -d '=' -f 2-)
-	# 	updateEnvCache "$key" "$value"
-	# done < <(env)
-
-	# mid_time=$(date +%s%3N)
 	trackMissingEnvVars
 
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
-
-	# end_time=$(date +%s%3N)
-	# elapsed_time=$(($end_time - $start_time))
-	# builtin printf "updateEnvCache: $(($mid_time - $start_time)) ms\n"
-	# builtin printf "trackMissingEnvVars: $(($end_time - $mid_time)) ms\n"
-	# builtin printf "Total: $(($end_time - $start_time)) ms\n"
 }
 
 __vsc_command_output_start() {
