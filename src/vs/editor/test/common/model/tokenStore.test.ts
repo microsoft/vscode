@@ -204,6 +204,35 @@ suite('TokenStore', () => {
 		assert.strictEqual(root.children[2].length, 2); // Last 2 tokens
 	});
 
+	test('update deeply nested tree with a range of tokens that causes tokens to split', () => {
+		const store = new TokenStore(textModel);
+		store.buildStore([
+			{ startOffsetInclusive: 0, length: 3, token: 1 },
+			{ startOffsetInclusive: 3, length: 3, token: 2 },
+			{ startOffsetInclusive: 6, length: 4, token: 3 },
+			{ startOffsetInclusive: 10, length: 5, token: 4 },
+			{ startOffsetInclusive: 15, length: 4, token: 5 },
+			{ startOffsetInclusive: 19, length: 3, token: 6 },
+			{ startOffsetInclusive: 22, length: 5, token: 7 },
+			{ startOffsetInclusive: 27, length: 3, token: 8 }
+		]);
+
+		// Update token in the middle which causes tokens to split
+		store.update(8, [
+			{ startOffsetInclusive: 12, length: 4, token: 9 },
+			{ startOffsetInclusive: 16, length: 4, token: 10 }
+		]);
+
+		const root = store.root as any;
+		// Verify the structure remains balanced
+		assert.strictEqual(root.children.length, 2);
+		assert.strictEqual(root.children[0].children.length, 2);
+
+		// Verify the lengths are updated correctly
+		assert.strictEqual(root.children[0].length, 12);
+		assert.strictEqual(root.children[1].length, 18);
+	});
+
 	test('getTokensInRange returns tokens in middle of document', () => {
 		const store = new TokenStore(textModel);
 		store.buildStore([

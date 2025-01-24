@@ -115,6 +115,12 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		super();
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
+			if (this._tokenizationStoreService.hasTokens(e.textModel)) {
+				// Mark the range for refresh immediately
+				for (const range of e.ranges) {
+					this._tokenizationStoreService.markForRefresh(e.textModel, range.newRange);
+				}
+			}
 			if (e.versionId !== e.textModel.getVersionId()) {
 				return;
 			}
@@ -125,10 +131,6 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			if (!this._tokenizationStoreService.hasTokens(e.textModel)) {
 				this._firstTreeUpdate(e.textModel, e.versionId, ranges);
 			} else {
-				// Mark the range for refresh immediately
-				for (const range of e.ranges) {
-					this._tokenizationStoreService.markForRefresh(e.textModel, range.newRange);
-				}
 				this._handleTreeUpdate(e, ranges);
 			}
 		}));
@@ -146,9 +148,6 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	}
 
 	private _firstTreeUpdate(textModel: ITextModel, versionId: number, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[]) {
-		if (versionId !== textModel.getVersionId()) {
-			return;
-		}
 		const modelEndOffset = textModel.getValueLength();
 		const editorEndPosition = textModel.getPositionAt(modelEndOffset);
 		const captures = this._getTreeAndCaptures(new Range(1, 1, editorEndPosition.lineNumber, editorEndPosition.column), textModel);
@@ -232,7 +231,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		// Get the captures immediately while the text model is correct
 		const captures = rangeChanges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
 		// Don't block
-		this._updateTreeForRanges(e.textModel, rangeChanges, e.versionId, ranges, captures, note).then(() => {
+		this._updateTreeForRanges(e.textModel, rangeChanges, e.versionId, captures, note).then(() => {
 			const tree = this._getTree(e.textModel);
 			if (!e.textModel.isDisposed() && (tree?.versionId === e.textModel.getVersionId())) {
 				this._refreshNeedsRefresh(e.textModel);
@@ -241,11 +240,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		});
 	}
 
-	private async _updateTreeForRanges(textModel: ITextModel, rangeChanges: RangeChange[], versionId: number, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[], captures: { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] }[], note?: string) {
+	private async _updateTreeForRanges(textModel: ITextModel, rangeChanges: RangeChange[], versionId: number, captures: { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] }[], note?: string) {
 		let tokenUpdate: { oldRangeLength: number; newTokens: TokenUpdate[] } | undefined;
 
 		for (let i = 0; i < rangeChanges.length; i++) {
-			if (versionId < textModel.getVersionId()) {
+			if (versionId !== textModel.getVersionId()) {
 				// Our captures have become invalid and we need to re-capture
 				break;
 			}
@@ -259,15 +258,15 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				tokenUpdate = { oldRangeLength: range.oldRangeLength, newTokens: [] };
 			}
 			this._tokenizationStoreService.updateTokens(textModel, versionId, [tokenUpdate]);
+			this._onDidChangeTokens.fire({
+				textModel: textModel,
+				changes: {
+					semanticTokensApplied: false,
+					ranges: [{ fromLineNumber: range.newRange.getStartPosition().lineNumber, toLineNumber: range.newRange.getEndPosition().lineNumber }]
+				}
+			});
 			await new Promise<void>(resolve => setTimeout0(resolve));
 		}
-		this._onDidChangeTokens.fire({
-			textModel: textModel,
-			changes: {
-				semanticTokensApplied: false,
-				ranges
-			}
-		});
 	}
 
 	private _refreshNeedsRefresh(textModel: ITextModel) {
