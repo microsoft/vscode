@@ -73,9 +73,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
 				if (!!xtermRaw && completionsEnabled) {
-					if (xtermRaw) {
-						this._loadAddons(xtermRaw);
-					}
+					this._loadAddons(xtermRaw);
 				}
 			}
 		}));
