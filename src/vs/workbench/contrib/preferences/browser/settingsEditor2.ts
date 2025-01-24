@@ -1159,6 +1159,7 @@ export class SettingsEditor2 extends EditorPane {
 					this.refreshTOCTree();
 				}
 				this.renderTree(key, isManualReset);
+				this.pendingSettingUpdate = null;
 
 				// Only log 1% of modification events to reduce the volume of data
 				if (Math.random() >= 0.01) {
@@ -1174,8 +1175,6 @@ export class SettingsEditor2 extends EditorPane {
 					isReset: typeof value === 'undefined',
 					settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
 				};
-
-				this.pendingSettingUpdate = null;
 				return this.reportModifiedSetting(reportModifiedProps);
 			});
 	}
