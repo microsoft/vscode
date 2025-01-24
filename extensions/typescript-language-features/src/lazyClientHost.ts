@@ -97,10 +97,6 @@ function isSupportedDocument(
 	supportedLanguage: readonly string[],
 	document: vscode.TextDocument
 ): boolean {
-	//Activate for JS/TS config files
-	if (isJsConfigOrTsConfigFileName(document.fileName)) {
-		return true;
-	}
-	return supportedLanguage.indexOf(document.languageId) >= 0
+	return (supportedLanguage.indexOf(document.languageId) >= 0 || isJsConfigOrTsConfigFileName(document.fileName))
 		&& !fileSchemes.disabledSchemes.has(document.uri.scheme);
 }
