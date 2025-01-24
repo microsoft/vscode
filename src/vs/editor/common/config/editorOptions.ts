@@ -1670,10 +1670,10 @@ export interface IEditorFindOptions {
 	 * @internal
 	 * Controls how the find widget search history should be stored
 	 */
-	findHistory?: 'never' | 'workspace';
+	history?: 'never' | 'workspace';
 	/**
 	 * @internal
-	 * Controls how the find widget search history should be stored
+	 * Controls how the replace widget search history should be stored
 	 */
 	replaceHistory?: 'never' | 'workspace';
 }
@@ -1693,7 +1693,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true,
-			findHistory: 'workspace',
+			history: 'workspace',
 			replaceHistory: 'workspace',
 		};
 		super(
@@ -1752,15 +1752,15 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					],
 					description: nls.localize('find.history', "Controls how the find widget history should be stored")
 				},
-				'editor.replace.history': {
+				'editor.find.replaceHistory': {
 					type: 'string',
 					enum: ['never', 'workspace'],
 					default: 'workspace',
 					enumDescriptions: [
-						nls.localize('editor.replace.history.never', 'Do not store history from the replace widget.'),
-						nls.localize('editor.replace.history.workspace', 'Store replace history across the active workspace'),
+						nls.localize('editor.find.replaceHistory.never', 'Do not store history from the replace widget.'),
+						nls.localize('editor.find.replaceHistory.workspace', 'Store replace history across the active workspace'),
 					],
-					description: nls.localize('replace.history', "Controls how the replace widget history should be stored")
+					description: nls.localize('find.replaceHistory', "Controls how the replace widget history should be stored")
 				}
 			}
 		);
@@ -1782,7 +1782,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
-			findHistory: stringSet<'never' | 'workspace'>(input.findHistory, this.defaultValue.findHistory, ['never', 'workspace']),
+			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
 		};
 	}
