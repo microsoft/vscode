@@ -246,8 +246,13 @@ export class SimpleSuggestWidget extends Disposable {
 			if (e.affectsConfiguration('editor.suggest.showIcons')) {
 				applyIconStyle();
 			}
-			if (this._completionModel && (e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.lineHeight') || e.affectsConfiguration('editor.fontFamily'))) {
+			if (this._completionModel && (
+				e.affectsConfiguration('editor.fontSize') ||
+				e.affectsConfiguration('editor.lineHeight') ||
+				e.affectsConfiguration('editor.fontWeight') ||
+				e.affectsConfiguration('editor.fontFamily'))) {
 				this._list.splice(0, this._completionModel.items.length, this._completionModel!.items);
+				this._onDidFontConfigurationChange.fire();
 			}
 			if (_options.statusBarMenuId && _options.showStatusBarSettingId && e.affectsConfiguration(_options.showStatusBarSettingId)) {
 				const showStatusBar: boolean = _configurationService.getValue(_options.showStatusBarSettingId);
@@ -265,16 +270,6 @@ export class SimpleSuggestWidget extends Disposable {
 				this.element.domNode.classList.toggle('with-status-bar', showStatusBar);
 			}
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.fontSize') ||
-				e.affectsConfiguration('editor.lineHeight') ||
-				e.affectsConfiguration('editor.fontWeight') ||
-				e.affectsConfiguration('editor.fontFamily')) {
-				this._onDidFontConfigurationChange.fire();
-				this._layout(undefined);
-			}
-		}
-		));
 	}
 
 	private _onListFocus(e: IListEvent<SimpleCompletionItem>): void {
