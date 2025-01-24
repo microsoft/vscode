@@ -15,7 +15,7 @@ import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
 import ManagedFileContextManager from './ui/managedFileContext';
 import { ServiceConfigurationProvider } from './configuration/configuration';
 import * as fileSchemes from './configuration/fileSchemes';
-import { standardLanguageDescriptions } from './configuration/languageDescription';
+import { standardLanguageDescriptions, isJsConfigOrTsConfigFileName } from './configuration/languageDescription';
 import { Lazy, lazy } from './utils/lazy';
 import { Logger } from './logging/logger';
 import { PluginManager } from './tsServer/plugins';
@@ -97,6 +97,10 @@ function isSupportedDocument(
 	supportedLanguage: readonly string[],
 	document: vscode.TextDocument
 ): boolean {
+	//Activate for JS/TS config files
+	if (isJsConfigOrTsConfigFileName(document.fileName)) {
+		return true;
+	}
 	return supportedLanguage.indexOf(document.languageId) >= 0
 		&& !fileSchemes.disabledSchemes.has(document.uri.scheme);
 }
