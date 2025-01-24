@@ -239,8 +239,6 @@ export interface IPartsSplash {
 
 export interface IPartsSplashWorkspaceOverride {
 	layoutInfo: {
-		auxiliarySideBarWidth: {
-			[workspaceId: string]: number | undefined;
-		};
+		auxiliarySideBarWidth: [number, string[] /* workspace ID */];
 	};
 }

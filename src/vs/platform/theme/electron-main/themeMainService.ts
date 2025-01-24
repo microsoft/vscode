@@ -195,14 +195,21 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		if (workspace) {
 			splashOverride = { ...this.getWindowSplashOverride() }; // make a copy for modifications
 
+			const [auxiliarySideBarWidth, workspaceIds] = splashOverride.layoutInfo.auxiliarySideBarWidth;
 			if (splash.layoutInfo?.auxiliarySideBarWidth) {
-				if (splashOverride.layoutInfo.auxiliarySideBarWidth[workspace.id] !== splash.layoutInfo.auxiliarySideBarWidth) {
-					splashOverride.layoutInfo.auxiliarySideBarWidth[workspace.id] = splash.layoutInfo.auxiliarySideBarWidth;
+				if (auxiliarySideBarWidth !== splash.layoutInfo.auxiliarySideBarWidth) {
+					splashOverride.layoutInfo.auxiliarySideBarWidth[0] = splash.layoutInfo.auxiliarySideBarWidth;
+					changed = true;
+				}
+
+				if (!workspaceIds.includes(workspace.id)) {
+					workspaceIds.push(workspace.id);
 					changed = true;
 				}
 			} else {
-				if (typeof splashOverride.layoutInfo.auxiliarySideBarWidth[workspace.id] === 'number') {
-					delete splashOverride.layoutInfo.auxiliarySideBarWidth[workspace.id];
+				const index = workspaceIds.indexOf(workspace.id);
+				if (index !== -1) {
+					workspaceIds.splice(index, 1);
 					changed = true;
 				}
 			}
@@ -226,24 +233,28 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			return partSplash; // return early: overrides currently only apply to layout info
 		}
 
+		// Apply workspace specific overrides
 		let auxiliarySideBarWidthOverride: number | undefined;
 		if (workspace) {
-			auxiliarySideBarWidthOverride = this.getWindowSplashOverride().layoutInfo.auxiliarySideBarWidth[workspace.id];
+			const [auxiliarySideBarWidth, workspaceIds] = this.getWindowSplashOverride().layoutInfo.auxiliarySideBarWidth;
+			if (workspaceIds.includes(workspace.id)) {
+				auxiliarySideBarWidthOverride = auxiliarySideBarWidth;
+			}
 		}
 
 		return {
 			...partSplash,
-			layoutInfo: {
+			layoutInfo: partSplash.layoutInfo ? {
 				...partSplash.layoutInfo,
-				// Only apply a auxiliary bar width when we have a workspace specific
+				// Only apply an auxiliary bar width when we have a workspace specific
 				// override. Auxiliary bar is not visible by default unless explicitly
 				// opened in a workspace.
 				auxiliarySideBarWidth: typeof auxiliarySideBarWidthOverride === 'number' ? auxiliarySideBarWidthOverride : 0
-			}
+			} : undefined
 		};
 	}
 
 	private getWindowSplashOverride(): IPartsSplashWorkspaceOverride {
-		return this.stateService.getItem<IPartsSplashWorkspaceOverride>(THEME_WINDOW_SPLASH_WORKSPACE_OVERRIDE_KEY, { layoutInfo: { auxiliarySideBarWidth: {} } });
+		return this.stateService.getItem<IPartsSplashWorkspaceOverride>(THEME_WINDOW_SPLASH_WORKSPACE_OVERRIDE_KEY, { layoutInfo: { auxiliarySideBarWidth: [0, []] } });
 	}
 }
