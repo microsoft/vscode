@@ -26,6 +26,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	constructor(private targetWindow: WeakRef<Window>) {
 	}
 
+	// error with font info, line breaks incorrectly computed
 	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ILineBreaksComputer {
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
@@ -42,6 +43,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	}
 }
 
+// error with font info,  line breaks incorrectly computed
 function createLineBreaks(targetWindow: Window, requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', injectedTextsPerLine: (LineInjectedText[] | null)[]): (ModelLineProjectionData | null)[] {
 	// console.log('createLineBreaks');
 	// console.log('requests : ', requests);

@@ -915,6 +915,7 @@ interface IRenderData {
 	strikethrough?: boolean;
 }
 
+// potential error with font info
 function measureText(targetDocument: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
 	if (text.length === 0) {
 		return 0;

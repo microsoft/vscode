@@ -50,6 +50,11 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 	private readonly _functionFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 40, fontWeight: 'bold', fontFamily: 'Times New Roman' });
 	private readonly _methodFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ fontSize: 10, fontWeight: 'bold', fontFamily: 'Courier New' });
 
+	private readonly _classFontSizeDecorationTypeInjectedText: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ after: { contentText: 'AFTER CLASS', fontSize: 40, fontWeight: 'italic', fontFamily: 'Segoe' } });
+	private readonly _interfaceFontSizeDecorationTypeInjectedText: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ after: { contentText: 'AFTER INTERFACE', fontSize: 40, fontWeight: 'italic', fontFamily: 'Roboto' } });
+	private readonly _functionFontSizeDecorationTypeInjectedText: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ after: { contentText: 'AFTER FUNCTION', fontSize: 60, fontWeight: 'bold', fontFamily: 'Nunito' } });
+	private readonly _methodFontSizeDecorationTypeInjectedText: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ after: { contentText: 'AFTER METHOD', fontSize: 5, fontWeight: 'bold', fontFamily: 'Arial' } });
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly cachedResponse: CachedResponse<Proto.NavTreeResponse>,
@@ -109,6 +114,11 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 			activeTextEditor.setDecorations(this._interfaceFontSizeDecorationType2, interfaceRangesFonts2);
 			activeTextEditor.setDecorations(this._functionFontSizeDecorationType2, functionRangesFonts2);
 			activeTextEditor.setDecorations(this._methodFontSizeDecorationType2, methodRangesFonts2);
+
+			activeTextEditor.setDecorations(this._classFontSizeDecorationTypeInjectedText, classRangesFonts2);
+			activeTextEditor.setDecorations(this._interfaceFontSizeDecorationTypeInjectedText, interfaceRangesFonts2);
+			activeTextEditor.setDecorations(this._functionFontSizeDecorationTypeInjectedText, functionRangesFonts2);
+			activeTextEditor.setDecorations(this._methodFontSizeDecorationTypeInjectedText, methodRangesFonts2);
 		}
 		return result;
 	}
