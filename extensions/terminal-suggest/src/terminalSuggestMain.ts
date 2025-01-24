@@ -135,8 +135,15 @@ export async function activate(context: vscode.ExtensionContext) {
 			const commands = [...commandsInPath.completionResources, ...builtinCommands];
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
-
+			const pathSeparator = isWindows ? '\\' : '/';
 			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, terminal.shellIntegration?.cwd, token);
+			if (terminal.shellIntegration?.env) {
+				const homeDirCompletion = result.items.find(i => i.label === '~');
+				if (homeDirCompletion && terminal.shellIntegration.env.HOME) {
+					homeDirCompletion.documentation = getFriendlyFilePath(vscode.Uri.file(terminal.shellIntegration.env.HOME), pathSeparator);
+				}
+			}
+
 			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
 				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: isWindows ? '\\' : '/', env: terminal.shellIntegration?.env });
 			}
