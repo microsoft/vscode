@@ -155,18 +155,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._onDidDispose.event;
 	}
 
-	get isVisible(): boolean {
-		this._assertNotDisposed();
-		return Boolean(this._editorPane && this._editorPane.isVisible());
-	}
-
 	private _isToolsAgentSession = false;
 	get isToolsAgentSession(): boolean {
 		return this._isToolsAgentSession;
 	}
 
 	constructor(
-		public readonly chatSessionId: string,
+		readonly chatSessionId: string,
+		readonly isGlobalEditingSession: boolean,
 		private editingSessionFileLimitPromise: Promise<number>,
 		private _lookupExternalEntry: (uri: URI) => ChatEditingModifiedFileEntry | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

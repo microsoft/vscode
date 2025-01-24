@@ -186,7 +186,7 @@ export class InlineChatController implements IEditorContribution {
 				}
 			}
 
-			const zone = _instaService.createInstance(InlineChatZoneWidget, location, this._editor);
+			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, this._editor);
 			this._store.add(zone);
 			this._store.add(zone.widget.chatWidget.onDidClear(async () => {
 				const r = this.joinCurrentRun();
@@ -1138,10 +1138,6 @@ export class InlineChatController implements IEditorContribution {
 
 		const uri = this._editor.getModel().uri;
 		const chatModel = this._chatService.startSession(ChatAgentLocation.Editor, token);
-
-		if (!chatModel) {
-			return false;
-		}
 
 		const editSession = await this._chatEditingService.createAdhocEditingSession(chatModel.sessionId);
 

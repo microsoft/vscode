@@ -749,7 +749,7 @@ export function isEmojiImprecise(x: number): boolean {
  * happens at favorable positions - such as whitespace or punctuation characters.
  * The return value can be longer than the given value of `n`. Leading whitespace is always trimmed.
  */
-export function lcut(text: string, n: number, prefix = '') {
+export function lcut(text: string, n: number, prefix = ''): string {
 	const trimmed = text.trimStart();
 
 	if (trimmed.length < n) {
@@ -772,6 +772,35 @@ export function lcut(text: string, n: number, prefix = '') {
 	}
 
 	return prefix + trimmed.substring(i).trimStart();
+}
+
+/**
+ * Given a string and a max length returns a shorted version. Shorting
+ * happens at favorable positions - such as whitespace or punctuation characters.
+ * The return value can be longer than the given value of `n`. Trailing whitespace is always trimmed.
+ */
+export function rcut(text: string, n: number, suffix = ''): string {
+	const trimmed = text.trimEnd();
+
+	if (trimmed.length < n) {
+		return trimmed;
+	}
+
+	const re = /\b/g;
+	let lastWordBreak = trimmed.length;
+
+	while (re.test(trimmed)) {
+		if (trimmed.length - re.lastIndex > n) {
+			lastWordBreak = re.lastIndex;
+		}
+		re.lastIndex += 1;
+	}
+
+	if (lastWordBreak === trimmed.length) {
+		return trimmed;
+	}
+
+	return (trimmed.substring(0, lastWordBreak) + suffix).trimEnd();
 }
 
 // Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
