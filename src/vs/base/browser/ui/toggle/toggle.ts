@@ -301,6 +301,7 @@ export class Checkbox extends Widget {
 
 export interface ICheckboxActionViewItemOptions extends IActionViewItemOptions {
 	checkboxStyles: ICheckboxStyles;
+	enableToolTip?: boolean;
 }
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
@@ -308,10 +309,14 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 	protected readonly toggle: Checkbox;
 	private cssClass?: string;
 
-	constructor(context: any, action: IAction, options: ICheckboxActionViewItemOptions) {
-		super(context, action, options);
+	constructor(
+		context: any,
+		action: IAction,
+		private readonly _options: ICheckboxActionViewItemOptions
+	) {
+		super(context, action, _options);
 
-		this.toggle = this._register(new Checkbox(this._action.label, !!this._action.checked, options.checkboxStyles));
+		this.toggle = this._register(new Checkbox(this._action.label, !!this._action.checked, _options.checkboxStyles));
 		this._register(this.toggle.onChange(() => this.onChange()));
 	}
 
@@ -332,6 +337,9 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		this.updateEnabled();
 		this.updateClass();
 		this.updateChecked();
+		if (this._options.enableToolTip) {
+			this.updateTooltip();
+		}
 	}
 
 	private onChange(): void {

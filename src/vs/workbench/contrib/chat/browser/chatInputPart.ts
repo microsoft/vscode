@@ -8,6 +8,7 @@ import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
@@ -17,7 +18,7 @@ import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../..
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
+import { CheckboxActionViewItem, ICheckboxActionViewItemOptions } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Promises } from '../../../../base/common/async.js';
@@ -73,6 +74,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService, type OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IFileLabelOptions, ResourceLabels } from '../../../browser/labels.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
@@ -773,7 +775,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
-			highlightToggledItems: true,
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
 				shouldForwardArgs: true
@@ -804,7 +805,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate, { hoverDelegate: options.hoverDelegate, keybinding: options.keybinding ?? undefined });
 					}
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
-					// return this.instantiationService.createInstance(ToggleAgentActionViewItem, action, options as IMenuEntryActionViewItemOptions);
+					return new ToggleAgentCheckActionViewItem(undefined, action, options);
 				}
 
 				return undefined;
@@ -1588,31 +1589,6 @@ interface ModelPickerDelegate {
 	setModel(selectedModelId: string): void;
 }
 
-class ToggleAgentActionViewItem extends MenuEntryActionViewItem {
-	constructor(
-		action: MenuItemAction,
-		options: IMenuEntryActionViewItemOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAccessibilityService _accessibilityService: IAccessibilityService
-	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
-	}
-
-	public override render(container: HTMLElement): void {
-		const checkbox = this._register(new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', ...unthemedToggleStyles }));
-		checkbox.checked = !!this.action.checked;
-		container.appendChild(checkbox.domNode);
-		container.appendChild($('span', undefined, 'Agent'));
-		this._register(checkbox.onChange(() => {
-			this.action.run();
-		}));
-	}
-}
-
 class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 	constructor(
 		action: MenuItemAction,
@@ -1691,3 +1667,21 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
+
+class ToggleAgentCheckActionViewItem extends CheckboxActionViewItem {
+	constructor(
+		context: any,
+		action: IAction,
+		options: IActionViewItemOptions
+	) {
+		action.label = localize('agent', "Agent");
+		const checkboxOptions: ICheckboxActionViewItemOptions = {
+			...options,
+			icon: true,
+			label: true,
+			checkboxStyles: defaultCheckboxStyles,
+			enableToolTip: true
+		};
+		super(context, action, checkboxOptions);
+	}
+}
