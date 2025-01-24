@@ -69,8 +69,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				const completionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enabled;
 				if (!completionsEnabled) {
 					this._addon.clear();
-				}
-				if (!completionsEnabled) {
 					this._pwshAddon.clear();
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
