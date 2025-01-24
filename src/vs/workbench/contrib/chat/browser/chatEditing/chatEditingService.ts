@@ -26,6 +26,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -104,6 +105,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
@@ -161,7 +163,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// todo@connor4312: temporary until chatReadonlyPromptReference proposal is finalized
 		const readonlyEnabledContextKey = chatEditingAgentSupportsReadonlyReferencesContextKey.bindTo(contextKeyService);
 		const setReadonlyFilesEnabled = () => {
-			const enabled = extensionService.extensions.some(e => e.enabledApiProposals?.includes('chatReadonlyPromptReference'));
+			const enabled = productService.quality !== 'stable' && extensionService.extensions.some(e => e.enabledApiProposals?.includes('chatReadonlyPromptReference'));
 			readonlyEnabledContextKey.set(enabled);
 		};
 		setReadonlyFilesEnabled();
