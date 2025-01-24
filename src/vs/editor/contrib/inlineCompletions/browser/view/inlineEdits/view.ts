@@ -31,6 +31,7 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _useMixedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useMixedLinesDiff);
 	private readonly _useInterleavedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useInterleavedLinesDiff);
+	private readonly _useCodeOverlay = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useCodeOverlay);
 
 	private _previousView: { id: string; view: ReturnType<typeof InlineEditsView.prototype.determineView>; userJumpedToIt: boolean } | undefined;
 
@@ -226,13 +227,16 @@ export class InlineEditsView extends Disposable {
 			return 'deletion';
 		}
 
-		const numOriginalLines = edit.originalLineRange.length;
-		const numModifiedLines = edit.modifiedLineRange.length;
-		const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
-		if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
-			return 'wordReplacements';
-		} else if (numOriginalLines > 0 && numModifiedLines > 0) {
-			return 'lineReplacement';
+		const useCodeOverlay = this._useCodeOverlay.read(reader);
+		if (useCodeOverlay !== 'never') {
+			const numOriginalLines = edit.originalLineRange.length;
+			const numModifiedLines = edit.modifiedLineRange.length;
+			const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
+			if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1 && useCodeOverlay === 'whenPossible') {
+				return 'wordReplacements';
+			} else if (numOriginalLines > 0 && numModifiedLines > 0) {
+				return 'lineReplacement';
+			}
 		}
 
 		if (
