@@ -1159,6 +1159,12 @@ export class SettingsEditor2 extends EditorPane {
 					this.refreshTOCTree();
 				}
 				this.renderTree(key, isManualReset);
+
+				// Only log 1% of modification events to reduce the volume of data
+				if (Math.random() >= 0.01) {
+					return;
+				}
+
 				const reportModifiedProps = {
 					key,
 					query,
