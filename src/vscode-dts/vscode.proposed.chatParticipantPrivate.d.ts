@@ -122,4 +122,9 @@ declare module 'vscode' {
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
 	}
+
+	export interface PreparedToolInvocation {
+		pastTenseMessage?: string | MarkdownString;
+		tooltip?: string | MarkdownString;
+	}
 }
