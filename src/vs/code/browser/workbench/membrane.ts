@@ -1,3 +1,5 @@
+// MEMBRANE: disable ESLint rule for using window below
+/* eslint-disable no-restricted-globals */
 import { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 export class SecretStorageProvider implements ISecretStorageProvider {
 	public type: 'persisted';
@@ -58,7 +60,7 @@ export async function membraneApi(
 ): Promise<Response> {
 	// WARNING: It's important that this url is NOT controlled by the extension settings (i.e. the url used by the
 	// extension and gaze) because this function is used to load the user settings themselves.
-	const baseUrl = 'https://api.membrane.io';
+	const baseUrl = 'https://ide.membrane.io/api';
 
 	const secretProvider = SecretStorageProvider.getInstance();
 	const token = await secretProvider.getAuthToken();
