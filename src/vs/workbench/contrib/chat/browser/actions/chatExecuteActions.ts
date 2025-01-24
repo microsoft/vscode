@@ -432,7 +432,10 @@ export class CancelAction extends Action2 {
 			icon: Codicon.stopCircle,
 			menu: {
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.or(ChatContextKeys.requestInProgress, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey)),
+				when: ContextKeyExpr.or(
+					ChatContextKeys.requestInProgress,
+					ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey)
+				),
 				order: 4,
 				group: 'navigation',
 			},

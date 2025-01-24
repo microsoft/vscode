@@ -13,7 +13,6 @@ import { createMatches } from '../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 
 export function getAriaId(index: number): string {
 	return `simple-suggest-aria-id-${index}`;
@@ -117,7 +116,7 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 		configureFont();
 
 		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontWeight) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
+			if (e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily') || e.affectsConfiguration('editor.lineHeight') || e.affectsConfiguration('editor.fontWeight')) {
 				configureFont();
 			}
 		}));

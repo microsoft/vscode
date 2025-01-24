@@ -93,7 +93,9 @@ class ChatToolInvocationSubPart extends Disposable {
 				toolInvocation.confirmed.complete(button.data);
 			}));
 			this._onDidChangeHeight.input = confirmWidget.onDidChangeHeight;
-			toolInvocation.confirmed.p.then(() => this._onNeedsRerender.fire());
+			toolInvocation.confirmed.p.then(() => {
+				this._onNeedsRerender.fire();
+			});
 		} else {
 			let content: IMarkdownString;
 			if (toolInvocation.isComplete && toolInvocation.isConfirmed !== false && toolInvocation.pastTenseMessage) {
