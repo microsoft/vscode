@@ -1004,7 +1004,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					`${query.prefix} ${editorValue}`;
 			const isUserQuery = !query || 'prefix' in query;
 
-
+			const { promptInstructions } = this.inputPart.attachmentModel;
+			const instructionsEnabled = promptInstructions.featureEnabled;
+			if (instructionsEnabled) {
+				// instruction files may have nested child references to other prompt
+				// files that are resolved asynchronously, hence we need to wait for
+				// the entire prompt instruction tree to be processed
+				const instructionsStarted = performance.now();
+				await promptInstructions.allSettled();
+				// allow-any-unicode-next-line
+				this.logService.trace(`[⏱] instructions tree resolved in ${performance.now() - instructionsStarted}ms`);
+			}
 
 			let attachedContext = this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
 			let workingSet: URI[] | undefined;
@@ -1032,6 +1042,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					if (!URI.isUri(attachment.value)) {
 						editingSessionAttachedContext.push(attachment);
 					}
+				}
+
+				// add prompt instruction references to the attached context, if enabled
+				if (instructionsEnabled) {
+					editingSessionAttachedContext
+						.push(...promptInstructions.chatAttachments);
 				}
 
 				for (const file of uniqueWorkingSetEntries) {

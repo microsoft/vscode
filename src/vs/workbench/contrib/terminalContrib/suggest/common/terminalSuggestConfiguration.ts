@@ -17,6 +17,7 @@ export const enum TerminalSuggestSettingId {
 	EnableExtensionCompletions = 'terminal.integrated.suggest.enableExtensionCompletions',
 	WindowsExecutableExtensions = 'terminal.integrated.suggest.windowsExecutableExtensions',
 	Providers = 'terminal.integrated.suggest.providers',
+	ShowStatusBar = 'terminal.integrated.suggest.showStatusBar',
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
@@ -134,7 +135,14 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		type: 'object',
 		default: {},
 		tags: ['experimental'],
-	}
+	},
+	[TerminalSuggestSettingId.ShowStatusBar]: {
+		restricted: true,
+		markdownDescription: localize('suggest.showStatusBar', "Controls whether the terminal suggestions status bar should be shown."),
+		type: 'boolean',
+		default: true,
+		tags: ['experimental'],
+	},
 };
 
 

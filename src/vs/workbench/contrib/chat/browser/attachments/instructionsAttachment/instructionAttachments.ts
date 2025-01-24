@@ -36,6 +36,14 @@ export class InstructionAttachmentsWidget extends Disposable {
 	}
 
 	/**
+	 * Get the list of all prompt instruction attachment variables, including all
+	 * nested child references of each attachment explicitly attached by user.
+	 */
+	public get chatAttachments() {
+		return this.model.chatAttachments;
+	}
+
+	/**
 	 * Check if child widget list is empty (no attachments present).
 	 */
 	public get empty(): boolean {

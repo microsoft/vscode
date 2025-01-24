@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, constObservable, derived, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { rangeIsSingleLine } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
@@ -18,6 +18,7 @@ import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMappin
 import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../../common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
+import { IInlineEditsView } from './sideBySideDiff.js';
 import { classNames } from './utils.js';
 
 export interface IOriginalEditorInlineDiffViewState {
@@ -28,10 +29,12 @@ export interface IOriginalEditorInlineDiffViewState {
 	modifiedCodeEditor: ICodeEditor;
 }
 
-export class OriginalEditorInlineDiffView extends Disposable {
+export class OriginalEditorInlineDiffView extends Disposable implements IInlineEditsView {
 	public static supportsInlineDiffRendering(mapping: DetailedLineRangeMapping): boolean {
 		return allowsTrueInlineDiffRendering(mapping);
 	}
+
+	readonly isHovered = constObservable(false);
 
 	constructor(
 		private readonly _originalEditor: ICodeEditor,

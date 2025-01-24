@@ -16,6 +16,7 @@ export interface ITreeSitterTokenizationStoreService {
 	getTokens(model: ITextModel, line: number): Uint32Array | undefined;
 	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void;
 	markForRefresh(model: ITextModel, range: Range): void;
+	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[];
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
 }
 
@@ -36,7 +37,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
 		const disposables = new DisposableStore();
 		const store = disposables.add(new TokenStore(model));
-		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: 0 });
+		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: model.getVersionId() });
 
 		store.buildStore(tokens);
 		disposables.add(model.onDidChangeContent(e => {
@@ -117,6 +118,18 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		}
 
 		tree.markForRefresh(model.getOffsetAt(range.getStartPosition()), model.getOffsetAt(range.getEndPosition()));
+	}
+
+	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
+		const needsRefreshOffsetRanges = this.tokens.get(model)?.store.getNeedsRefresh();
+		if (!needsRefreshOffsetRanges) {
+			return [];
+		}
+		return needsRefreshOffsetRanges.map(range => ({
+			range: Range.fromPositions(model.getPositionAt(range.startOffset), model.getPositionAt(range.endOffset)),
+			startOffset: range.startOffset,
+			endOffset: range.endOffset
+		}));
 	}
 
 	dispose(): void {

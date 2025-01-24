@@ -5,7 +5,9 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
+import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
@@ -13,8 +15,55 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
+ * Utility to convert a {@link reference} to a chat variable entry.
+ * The `id` of the chat variable can be one of the following:
+ *
+ * - `vscode.prompt.instructions__<URI>`: for all non-root prompt file references
+ * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt file references
+ * - `<URI>`: for the rest of references(the ones that do not point to a prompt file)
+ *
+ * @param reference A reference object to convert to a chat variable entry.
+ * @param isRoot If the reference is the root reference in the references tree.
+ * 				 This object most likely was explicitly attached by the user.
+ */
+const toChatVariable = (
+	reference: Pick<IPromptFileReference, 'uri' | 'isPromptSnippet'>,
+	isRoot: boolean,
+): IChatRequestVariableEntry => {
+	const { uri } = reference;
+
+	// default `id` is the stringified `URI`
+	let id = `${uri}`;
+
+	// for prompt files, we add a prefix to the `id`
+	if (reference.isPromptSnippet) {
+		// the default prefix that is used for all prompt files
+		let prefix = 'vscode.prompt.instructions';
+		// if the reference is the root object, add the `.root` suffix
+		if (isRoot) {
+			prefix += '.root';
+		}
+
+		// final `id` for all `prompt files` starts with the well-defined
+		// part that the copilot extension(or other chatbot) can rely on
+		id = `${prefix}__${id}`;
+	}
+
+	return {
+		id,
+		name: uri.fsPath,
+		value: uri,
+		isSelection: false,
+		enabled: true,
+		isFile: true,
+		isDynamic: true,
+		isMarkedReadonly: true,
+	};
+};
+
+/**
  * Model for a collection of prompt instruction attachments.
- * See {@linkcode ChatInstructionsAttachmentModel}.
+ * See {@linkcode ChatInstructionsAttachmentModel} for individual attachment.
  */
 export class ChatInstructionAttachmentsModel extends Disposable {
 	/**
@@ -40,6 +89,48 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Get the list of all prompt instruction attachment variables, including all
+	 * nested child references of each attachment explicitly attached by user.
+	 */
+	public get chatAttachments(): readonly IChatRequestVariableEntry[] {
+		const result = [];
+		const attachments = [...this.attachments.values()];
+
+		for (const attachment of attachments) {
+			const { reference } = attachment;
+
+			// the usual URIs list of prompt instructions is `bottom-up`, therefore
+			// we do the same herfe - first add all child references of the model
+			result.push(
+				...reference.allValidReferences.map((link) => {
+					return toChatVariable(link, false);
+				}),
+			);
+
+			// then add the root reference of the model itself
+			result.push(
+				toChatVariable(reference, true),
+			);
+		}
+
+		return result;
+	}
+
+	/**
+	 * Promise that resolves when parsing of all attached prompt instruction
+	 * files completes, including parsing of all its possible child references.
+	 */
+	public async allSettled(): Promise<void> {
+		const attachments = [...this.attachments.values()];
+
+		await Promise.allSettled(
+			attachments.map((attachment) => {
+				return attachment.allSettled;
+			}),
+		);
 	}
 
 	/**

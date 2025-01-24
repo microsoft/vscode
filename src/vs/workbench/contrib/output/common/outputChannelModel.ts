@@ -26,7 +26,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { TextModel } from '../../../../editor/common/model/textModel.js';
 import { binarySearch, sortedDiff } from '../../../../base/common/arrays.js';
 
-const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(\[(info|trace|debug|error|warning)\])\s(\[(.*?)\]\s)?/;
+const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(\[(info|trace|debug|error|warning)\])\s(\[(.*?)\])?/;
 
 function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | null {
 	const lineContent = model.getLineContent(lineNumber);
@@ -36,7 +36,7 @@ function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | nul
 		const timestampRange = new Range(lineNumber, 1, lineNumber, match[1].length);
 		const logLevel = parseLogLevel(match[3]);
 		const logLevelRange = new Range(lineNumber, timestampRange.endColumn + 1, lineNumber, timestampRange.endColumn + 1 + match[2].length);
-		const source = match[5];
+		const category = match[5];
 		const startLine = lineNumber;
 		let endLine = lineNumber;
 
@@ -48,7 +48,7 @@ function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | nul
 			endLine++;
 		}
 		const range = new Range(startLine, 1, endLine, model.getLineMaxColumn(endLine));
-		return { range, timestamp, timestampRange, logLevel, logLevelRange, source };
+		return { range, timestamp, timestampRange, logLevel, logLevelRange, category };
 	}
 	return null;
 }
@@ -383,7 +383,7 @@ class MultiFileContentProvider extends Disposable implements IContentProvider {
 			const content = name ? `${lineContent.substring(0, logEntry.logLevelRange.endColumn)} [${name}]${lineContent.substring(logEntry.logLevelRange.endColumn)}` : lineContent;
 			return [{
 				...logEntry,
-				source: name,
+				category: name,
 				range: new Range(logEntry.range.startLineNumber, logEntry.logLevelRange.startColumn, logEntry.range.endLineNumber, name ? logEntry.range.endColumn + name.length + 3 : logEntry.range.endColumn),
 			}, content];
 		};

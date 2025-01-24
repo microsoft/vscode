@@ -25,6 +25,11 @@ declare module 'vscode' {
 		data(): Thenable<Uint8Array>;
 
 		/**
+		 *
+		 */
+		readonly reference?: Uri;
+
+		/**
 		 * @param mimeType The MIME type of the binary data.
 		 * @param data The binary data of the reference.
 		 */

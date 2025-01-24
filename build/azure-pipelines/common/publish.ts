@@ -17,7 +17,7 @@ import os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';
-import * as jws from 'jws';
+import jws from 'jws';
 import { clearInterval, setInterval } from 'node:timers';
 
 function e(name: string): string {
