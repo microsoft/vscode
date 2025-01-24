@@ -966,6 +966,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			});
 		});
 
+		const codeBlocks = this.codeBlocksByResponseId.get(element.id) ?? [];
+		const lastCodeBlocksByCodemapperUri = new ResourceMap<IChatCodeBlockInfo>();
+
+		codeBlocks.forEach(info => {
+			if (info.codemapperUri) {
+				info.isLast = false;
+				lastCodeBlocksByCodemapperUri.set(info.codemapperUri, info);
+			}
+		});
+
+		lastCodeBlocksByCodemapperUri.forEach((info, uri) => {
+			info.isLast = true;
+		});
+
 		return markdownPart;
 	}
 

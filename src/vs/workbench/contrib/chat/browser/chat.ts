@@ -138,6 +138,7 @@ export interface IChatCodeBlockInfo {
 	readonly uri: URI | undefined;
 	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
+	isLast?: boolean;
 	readonly isStreaming: boolean;
 	focus(): void;
 	getContent(): string;

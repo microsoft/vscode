@@ -148,8 +148,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					orderedDisposablesList.push(ref);
 					return ref.object.element;
 				} else {
+					let isLast: boolean | undefined;
 					const requestId = isRequestVM(element) ? element.id : element.requestId;
-					const ref = this.renderCodeBlockPill(element.sessionId, requestId, codeBlockInfo.codemapperUri, !isCodeBlockComplete);
+					const ref = this.renderCodeBlockPill(element.sessionId, requestId, codeBlockInfo.codemapperUri, !isCodeBlockComplete, () => !!isLast);
 					if (isResponseVM(codeBlockInfo.element)) {
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
@@ -168,6 +169,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly codemapperUri = codemapperUri;
 						public get uri() {
 							return undefined;
+						}
+						public set isLast(value: boolean | undefined) {
+							isLast = value;
+						}
+						public get isLast() {
+							return isLast;
 						}
 						readonly uriPromise = Promise.resolve(undefined);
 						public focus() {
@@ -192,10 +199,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.domNode = result.element;
 	}
 
-	private renderCodeBlockPill(sessionId: string, requestId: string, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {
+	private renderCodeBlockPill(sessionId: string, requestId: string, codemapperUri: URI | undefined, isStreaming: boolean, isLast: () => boolean): IDisposableReference<CollapsedCodeBlock> {
 		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, requestId);
 		if (codemapperUri) {
-			codeBlock.render(codemapperUri, isStreaming);
+			codeBlock.render(codemapperUri, isLast, isStreaming);
 		}
 		return {
 			object: codeBlock,
@@ -232,7 +239,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			} else if (ref.object instanceof CollapsedCodeBlock) {
 				const codeblockModel = this.codeblocks[index];
 				if (codeblockModel.codemapperUri && ref.object.uri?.toString() !== codeblockModel.codemapperUri.toString()) {
-					ref.object.render(codeblockModel.codemapperUri, codeblockModel.isStreaming);
+					ref.object.render(codeblockModel.codemapperUri, () => !!codeblockModel.isLast, codeblockModel.isStreaming);
 				}
 			}
 		});
@@ -329,7 +336,7 @@ class CollapsedCodeBlock extends Disposable {
 		}));
 	}
 
-	render(uri: URI, isStreaming?: boolean): void {
+	render(uri: URI, isLast: () => boolean, isStreaming?: boolean): void {
 		this._progressStore.clear();
 
 		this._uri = uri;
@@ -351,11 +358,8 @@ class CollapsedCodeBlock extends Disposable {
 		iconEl.classList.add(...iconClasses);
 
 		const children = [dom.$('span.icon-label', {}, iconText)];
-		if (isStreaming) {
-			children.push(dom.$('span.label-detail', {}, localize('chat.codeblock.generating', "Generating edits...")));
-		} else if (!isComplete) {
-			children.push(dom.$('span.label-detail', {}, ''));
-		}
+		children.push(dom.$('span.label-detail', {}, isStreaming && isLast() ? localize('chat.codeblock.generating', "Generating edits...") : ''));
+
 		this.element.replaceChildren(iconEl, ...children);
 		this.element.title = this.labelService.getUriLabel(uri, { relative: false });
 
@@ -365,7 +369,7 @@ class CollapsedCodeBlock extends Disposable {
 			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
 
 			const labelDetail = this.element.querySelector('.label-detail');
-			const isComplete = !modifiedEntry?.isCurrentlyBeingModified.read(r);
+			const isComplete = !isLast() || !modifiedEntry?.isCurrentlyBeingModified.read(r);
 			if (labelDetail && !isStreaming && !isComplete) {
 				const value = rewriteRatio;
 				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.applying', "Applying edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));
