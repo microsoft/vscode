@@ -1098,6 +1098,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				currentEditingSession?.remove(WorkingSetEntryRemovalReason.User, ...unconfirmedSuggestions);
 			}
 
+			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
+
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
 				userSelectedModelId: this.inputPart.currentLanguageModel,
 				location: this.location,
