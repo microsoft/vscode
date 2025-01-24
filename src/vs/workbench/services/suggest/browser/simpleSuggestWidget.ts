@@ -777,7 +777,8 @@ export class SimpleSuggestWidget extends Disposable {
 		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
 		const letterSpacing: number = this._configurationService.getValue('editor.letterSpacing');
 
-		if (lineHeight <= 1) {
+		if (lineHeight <= 1 && fontSize < 16) {
+			// Scale so icon shows by default
 			lineHeight = Math.ceil(fontSize * 1.5);
 		} else if (lineHeight <= 8) {
 			lineHeight = fontSize * lineHeight;
