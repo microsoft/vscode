@@ -208,7 +208,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 				}
 			} else {
 				const index = workspaceIds.indexOf(workspace.id);
-				if (index !== -1) {
+				if (index > -1) {
 					workspaceIds.splice(index, 1);
 					changed = true;
 				}
@@ -244,13 +244,13 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 		return {
 			...partSplash,
-			layoutInfo: partSplash.layoutInfo ? {
+			layoutInfo: {
 				...partSplash.layoutInfo,
 				// Only apply an auxiliary bar width when we have a workspace specific
 				// override. Auxiliary bar is not visible by default unless explicitly
 				// opened in a workspace.
 				auxiliarySideBarWidth: typeof auxiliarySideBarWidthOverride === 'number' ? auxiliarySideBarWidthOverride : 0
-			} : undefined
+			}
 		};
 	}
 

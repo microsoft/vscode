@@ -193,7 +193,7 @@
 				}
 			}
 
-			// part: auxiliary sidebar (only when width > 0)
+			// part: auxiliary sidebar
 			if (layoutInfo.auxiliarySideBarWidth > 0) {
 				const auxSideDiv = document.createElement('div');
 				auxSideDiv.style.position = 'absolute';
