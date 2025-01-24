@@ -224,8 +224,6 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			this._scrollInitialized = true;
 		}
 
-		let localContentWidth = 0;
-
 		// Zero out cell buffer or rebuild if needed
 		if (this._cellBindBufferLineCapacity < viewportData.endLineNumber - viewportData.startLineNumber + 1) {
 			this._rebuildCellBuffer(viewportData.endLineNumber - viewportData.startLineNumber + 1);
@@ -348,7 +346,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 					}
 
 					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
-					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId);
+					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId, absoluteOffsetX);
 
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)
@@ -364,14 +362,13 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 					);
 
 					cellIndex = ((y - viewportData.startLineNumber) * ViewportRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.floor(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
 					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
 
 					// Adjust the x pixel offset for the next character
 					absoluteOffsetX += charWidth;
-					localContentWidth = Math.max(localContentWidth, absoluteOffsetX);
 				}
 
 				tokenStartIndex = tokenEndIndex;
@@ -397,7 +394,9 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 
 		this._visibleObjectCount = visibleObjectCount;
-		return { localContentWidth };
+		return {
+			localContentWidth: absoluteOffsetX
+		};
 	}
 
 	draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void {

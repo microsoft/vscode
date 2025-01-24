@@ -272,8 +272,6 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			this._scrollInitialized = true;
 		}
 
-		let localContentWidth = 0;
-
 		// Update cell data
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
 		const lineIndexCount = FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
@@ -445,7 +443,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					}
 
 					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
-					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId);
+					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId, absoluteOffsetX);
 
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)
@@ -461,14 +459,13 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					);
 
 					cellIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.floor(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
 					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
 
 					// Adjust the x pixel offset for the next character
 					absoluteOffsetX += charWidth;
-					localContentWidth = Math.max(localContentWidth, absoluteOffsetX);
 				}
 
 				tokenStartIndex = tokenEndIndex;
@@ -504,7 +501,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 		this._visibleObjectCount = visibleObjectCount;
 
-		return { localContentWidth };
+		return {
+			localContentWidth: absoluteOffsetX
+		};
 	}
 
 	draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void {
