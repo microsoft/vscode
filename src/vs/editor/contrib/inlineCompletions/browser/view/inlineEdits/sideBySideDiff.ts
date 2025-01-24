@@ -112,6 +112,7 @@ export interface IInlineEditsView {
 }
 
 const PADDING = 4;
+const ENABLE_OVERFLOW = false;
 
 export class InlineEditsSideBySideDiff extends Disposable implements IInlineEditsView {
 
@@ -545,6 +546,9 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 	private readonly _stickyScrollHeight = this._stickyScrollController ? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight) : constObservable(0);
 
 	private readonly _shouldOverflow = derived(reader => {
+		if (!ENABLE_OVERFLOW) {
+			return false;
+		}
 		const range = this._edit.read(reader)?.originalLineRange;
 		if (!range) {
 			return false;
