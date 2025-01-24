@@ -395,7 +395,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 		this._visibleObjectCount = visibleObjectCount;
 		return {
-			localContentWidth: Math.ceil(absoluteOffsetX / dpr)
+			localContentWidth: absoluteOffsetX
 		};
 	}
 
