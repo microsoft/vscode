@@ -74,6 +74,9 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 			getLineNumber: (): string | undefined => {
 				return resolvedVariables['lineNumber'];
 			},
+			getColumnNumber: (): string | undefined => {
+				return resolvedVariables['columnNumber'];
+			},
 			getExtension: async id => {
 				const installed = await extensionService.getInstalled();
 				const found = installed.find(e => e.identifier.id === id);

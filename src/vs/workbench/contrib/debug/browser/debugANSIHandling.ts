@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { isDefined } from '../../../../base/common/types.js';
-import { editorHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorHoverBackground, listActiveSelectionBackground, listFocusBackground, listInactiveFocusBackground, listInactiveSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
@@ -16,7 +17,7 @@ import { ILinkDetector } from './linkDetector.js';
  * @param text The content to stylize.
  * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
  */
-export function handleANSIOutput(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined): HTMLSpanElement {
+export function handleANSIOutput(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, highlights: IHighlight[] | undefined): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
 	const textLength: number = text.length;
@@ -27,6 +28,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 	let customUnderlineColor: RGBA | string | undefined;
 	let colorsInverted: boolean = false;
 	let currentPos: number = 0;
+	let unprintedChars = 0;
 	let buffer: string = '';
 
 	while (currentPos < textLength) {
@@ -58,8 +60,10 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 			if (sequenceFound) {
 
+				unprintedChars += 2 + ansiSequence.length;
+
 				// Flush buffer with previous styles.
-				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor);
+				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length - unprintedChars);
 
 				buffer = '';
 
@@ -105,7 +109,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 	// Flush remaining text buffer if not empty.
 	if (buffer) {
-		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor);
+		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length);
 	}
 
 	return root;
@@ -395,6 +399,8 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
  * @param customTextColor If provided, will apply custom color with inline style.
  * @param customBackgroundColor If provided, will apply custom backgroundColor with inline style.
  * @param customUnderlineColor If provided, will apply custom textDecorationColor with inline style.
+ * @param highlights The ranges to highlight.
+ * @param offset The starting index of the stringContent in the original text.
  */
 export function appendStylizedStringToContainer(
 	root: HTMLElement,
@@ -402,15 +408,24 @@ export function appendStylizedStringToContainer(
 	cssClasses: string[],
 	linkDetector: ILinkDetector,
 	workspaceFolder: IWorkspaceFolder | undefined,
-	customTextColor?: RGBA | string,
-	customBackgroundColor?: RGBA | string,
-	customUnderlineColor?: RGBA | string,
+	customTextColor: RGBA | string | undefined,
+	customBackgroundColor: RGBA | string | undefined,
+	customUnderlineColor: RGBA | string | undefined,
+	highlights: IHighlight[] | undefined,
+	offset: number,
 ): void {
 	if (!root || !stringContent) {
 		return;
 	}
 
-	const container = linkDetector.linkify(stringContent, true, workspaceFolder);
+	const container = linkDetector.linkify(
+		stringContent,
+		true,
+		workspaceFolder,
+		undefined,
+		undefined,
+		highlights?.map(h => ({ start: h.start - offset, end: h.end - offset, extraClasses: h.extraClasses })),
+	);
 
 	container.className = cssClasses.join(' ');
 	if (customTextColor) {
@@ -472,6 +487,10 @@ registerThemingParticipant((theme, collector) => {
 	const areas = [
 		{ selector: '.monaco-workbench .sidebar, .monaco-workbench .auxiliarybar', bg: theme.getColor(SIDE_BAR_BACKGROUND) },
 		{ selector: '.monaco-workbench .panel', bg: theme.getColor(PANEL_BACKGROUND) },
+		{ selector: '.monaco-workbench .monaco-list-row.selected', bg: theme.getColor(listInactiveSelectionBackground) },
+		{ selector: '.monaco-workbench .monaco-list-row.focused', bg: theme.getColor(listInactiveFocusBackground) },
+		{ selector: '.monaco-workbench .monaco-list:focus .monaco-list-row.focused', bg: theme.getColor(listFocusBackground) },
+		{ selector: '.monaco-workbench .monaco-list:focus .monaco-list-row.selected', bg: theme.getColor(listActiveSelectionBackground) },
 		{ selector: '.debug-hover-widget', bg: theme.getColor(editorHoverBackground) },
 	];
 

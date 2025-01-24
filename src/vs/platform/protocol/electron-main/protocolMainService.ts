@@ -24,7 +24,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
-	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4']); // https://github.com/microsoft/vscode/issues/119384
+	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4', '.otf', '.ttf']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -97,7 +97,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		let headers: Record<string, string> | undefined;
 		if (this.environmentService.crossOriginIsolated) {
 			const pathBasename = basename(path);
-			if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html' || pathBasename === 'workbench.esm.html' || pathBasename === 'workbench-dev.esm.html') {
+			if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
 				headers = COI.CoopAndCoep;
 			} else {
 				headers = COI.getHeadersFromQuery(request.url);

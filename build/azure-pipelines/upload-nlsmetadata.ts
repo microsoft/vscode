@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
-import * as merge from 'gulp-merge-json';
-import * as gzip from 'gulp-gzip';
-import { ClientSecretCredential } from '@azure/identity';
+import es from 'event-stream';
+import Vinyl from 'vinyl';
+import vfs from 'vinyl-fs';
+import merge from 'gulp-merge-json';
+import gzip from 'gulp-gzip';
+import { ClientAssertionCredential } from '@azure/identity';
 import path = require('path');
 import { readFileSync } from 'fs';
 const azure = require('gulp-azure-storage');
 
 const commit = process.env['BUILD_SOURCEVERSION'];
-const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
+const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 
 interface NlsMetadata {
 	keys: { [module: string]: string };

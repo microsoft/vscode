@@ -214,6 +214,33 @@ export class LineRange {
 	public toOffsetRange(): OffsetRange {
 		return new OffsetRange(this.startLineNumber - 1, this.endLineNumberExclusive - 1);
 	}
+
+	public distanceToRange(other: LineRange): number {
+		if (this.endLineNumberExclusive <= other.startLineNumber) {
+			return other.startLineNumber - this.endLineNumberExclusive;
+		}
+		if (other.endLineNumberExclusive <= this.startLineNumber) {
+			return this.startLineNumber - other.endLineNumberExclusive;
+		}
+		return 0;
+	}
+
+	public distanceToLine(lineNumber: number): number {
+		if (this.contains(lineNumber)) {
+			return 0;
+		}
+		if (lineNumber < this.startLineNumber) {
+			return this.startLineNumber - lineNumber;
+		}
+		return lineNumber - this.endLineNumberExclusive;
+	}
+
+	public addMargin(marginTop: number, marginBottom: number): LineRange {
+		return new LineRange(
+			this.startLineNumber - marginTop,
+			this.endLineNumberExclusive + marginBottom
+		);
+	}
 }
 
 export type ISerializedLineRange = [startLineNumber: number, endLineNumberExclusive: number];

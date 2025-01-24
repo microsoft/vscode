@@ -9,16 +9,10 @@ import { onUnexpectedError } from './errors.js';
 import { createSingleCallFunction } from './functional.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 import { LinkedList } from './linkedList.js';
-import { IObservable, IObserver } from './observable.js';
+import { IObservable, IObservableWithChange, IObserver } from './observable.js';
 import { StopWatch } from './stopwatch.js';
 import { MicrotaskDelay } from './symbols.js';
 
-// -----------------------------------------------------------------------------------------------------------------------
-// Uncomment the next line to print warnings whenever a listener is GC'ed without having been disposed. This is a LEAK.
-// -----------------------------------------------------------------------------------------------------------------------
-const _enableListenerGCedWarning = false
-	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
-	;
 
 // -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever an emitter with listeners is disposed. That is a sign of code smell.
@@ -602,8 +596,8 @@ export namespace Event {
 	/**
 	 * Creates a promise out of an event, using the {@link Event.once} helper.
 	 */
-	export function toPromise<T>(event: Event<T>): Promise<T> {
-		return new Promise(resolve => once(event)(resolve));
+	export function toPromise<T>(event: Event<T>, disposables?: IDisposable[] | DisposableStore): Promise<T> {
+		return new Promise(resolve => once(event)(resolve, null, disposables));
 	}
 
 	/**
@@ -666,7 +660,7 @@ export namespace Event {
 		private _counter = 0;
 		private _hasChanged = false;
 
-		constructor(readonly _observable: IObservable<T, any>, store: DisposableStore | undefined) {
+		constructor(readonly _observable: IObservable<T>, store: DisposableStore | undefined) {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
 					_observable.addObserver(this);
@@ -687,21 +681,21 @@ export namespace Event {
 			}
 		}
 
-		beginUpdate<T>(_observable: IObservable<T, void>): void {
+		beginUpdate<T>(_observable: IObservable<T>): void {
 			// assert(_observable === this.obs);
 			this._counter++;
 		}
 
-		handlePossibleChange<T>(_observable: IObservable<T, unknown>): void {
+		handlePossibleChange<T>(_observable: IObservable<T>): void {
 			// assert(_observable === this.obs);
 		}
 
-		handleChange<T, TChange>(_observable: IObservable<T, TChange>, _change: TChange): void {
+		handleChange<T, TChange>(_observable: IObservableWithChange<T, TChange>, _change: TChange): void {
 			// assert(_observable === this.obs);
 			this._hasChanged = true;
 		}
 
-		endUpdate<T>(_observable: IObservable<T, void>): void {
+		endUpdate<T>(_observable: IObservable<T>): void {
 			// assert(_observable === this.obs);
 			this._counter--;
 			if (this._counter === 0) {
@@ -718,7 +712,7 @@ export namespace Event {
 	 * Creates an event emitter that is fired when the observable changes.
 	 * Each listeners subscribes to the emitter.
 	 */
-	export function fromObservable<T>(obs: IObservable<T, any>, store?: DisposableStore): Event<T> {
+	export function fromObservable<T>(obs: IObservable<T>, store?: DisposableStore): Event<T> {
 		const observer = new EmitterObserver(obs, store);
 		return observer.emitter.event;
 	}
@@ -726,7 +720,7 @@ export namespace Event {
 	/**
 	 * Each listener is attached to the observable directly.
 	 */
-	export function fromObservableLight(observable: IObservable<any>): Event<void> {
+	export function fromObservableLight(observable: IObservable<unknown>): Event<void> {
 		return (listener, thisArgs, disposables) => {
 			let count = 0;
 			let didChange = false;
@@ -984,28 +978,6 @@ const forEachListener = <T>(listeners: ListenerOrListeners<T>, fn: (c: ListenerC
 	}
 };
 
-
-let _listenerFinalizers: FinalizationRegistry<string> | undefined;
-
-if (_enableListenerGCedWarning) {
-	const leaks: string[] = [];
-
-	setInterval(() => {
-		if (leaks.length === 0) {
-			return;
-		}
-		console.warn('[LEAKING LISTENERS] GC\'ed these listeners that were NOT yet disposed:');
-		console.warn(leaks.join('\n'));
-		leaks.length = 0;
-	}, 3000);
-
-	_listenerFinalizers = new FinalizationRegistry(heldValue => {
-		if (typeof heldValue === 'string') {
-			leaks.push(heldValue);
-		}
-	});
-}
-
 /**
  * The Emitter can be used to expose an Event to the public
  * to fire it from the insides.
@@ -1155,12 +1127,12 @@ export class Emitter<T> {
 			} else {
 				this._listeners.push(contained);
 			}
+			this._options?.onDidAddListener?.(this);
 
 			this._size++;
 
 
 			const result = toDisposable(() => {
-				_listenerFinalizers?.unregister(result);
 				removeMonitor?.();
 				this._removeListener(contained);
 			});
@@ -1168,12 +1140,6 @@ export class Emitter<T> {
 				disposables.add(result);
 			} else if (Array.isArray(disposables)) {
 				disposables.push(result);
-			}
-
-			if (_listenerFinalizers) {
-				const stack = new Error().stack!.split('\n').slice(2, 3).join('\n').trim();
-				const match = /(file:|vscode-file:\/\/vscode-app)?(\/[^:]*:\d+:\d+)/.exec(stack);
-				_listenerFinalizers.register(result, match?.[2] ?? stack, result);
 			}
 
 			return result;
@@ -1216,7 +1182,7 @@ export class Emitter<T> {
 			for (let i = 0; i < listeners.length; i++) {
 				if (listeners[i]) {
 					listeners[n++] = listeners[i];
-				} else if (adjustDeliveryQueue) {
+				} else if (adjustDeliveryQueue && n < this._deliveryQueue!.end) {
 					this._deliveryQueue!.end--;
 					if (n < this._deliveryQueue!.i) {
 						this._deliveryQueue!.i--;
@@ -1354,6 +1320,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			const [listener, data] = this._asyncDeliveryQueue.shift()!;
 			const thenables: Promise<unknown>[] = [];
 
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			const event = <T>{
 				...data,
 				token,

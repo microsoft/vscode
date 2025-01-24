@@ -6,7 +6,7 @@
 'use strict';
 
 import { spawnSync } from 'child_process';
-import path = require('path');
+import path from 'path';
 import { getChromiumSysroot, getVSCodeSysroot } from './debian/install-sysroot';
 import { generatePackageDeps as generatePackageDepsDebian } from './debian/calculate-deps';
 import { generatePackageDeps as generatePackageDepsRpm } from './rpm/calculate-deps';
@@ -15,7 +15,6 @@ import { referenceGeneratedDepsByArch as rpmGeneratedDeps } from './rpm/dep-list
 import { DebianArchString, isDebianArchString } from './debian/types';
 import { isRpmArchString, RpmArchString } from './rpm/types';
 import product = require('../../product.json');
-import { isAMD } from '../lib/amd';
 
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
@@ -26,7 +25,7 @@ import { isAMD } from '../lib/amd';
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = true;
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/124.0.6367.243:chrome/installer/linux/BUILD.gn;l=64-80
+// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/128.0.6613.186:chrome/installer/linux/BUILD.gn;l=64-80
 // and the Linux Archive build
 // Shared library dependencies that we already bundle.
 const bundledDeps = [
@@ -48,7 +47,7 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 	}
 
 	// Get the files for which we want to find dependencies.
-	const canAsar = isAMD(); // TODO@esm ASAR disabled in ESM
+	const canAsar = false; // TODO@esm ASAR disabled in ESM
 	const nativeModulesPath = path.join(buildDir, 'resources', 'app', canAsar ? 'node_modules.asar.unpacked' : 'node_modules');
 	const findResult = spawnSync('find', [nativeModulesPath, '-name', '*.node']);
 	if (findResult.status) {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import * as tss from './treeshaking';
 
 const REPO_ROOT = path.join(__dirname, '../../');
@@ -115,10 +115,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
 
 	[
-		'vs/css.build.ts',
-		'vs/css.ts',
-		'vs/loader.js',
-		'vs/loader.d.ts'
+		'vs/loader.js'
 	].forEach(copyFile);
 }
 

@@ -16,6 +16,7 @@ export interface IAccountUsage {
 	extensionId: string;
 	extensionName: string;
 	lastUsed: number;
+	scopes?: string[];
 }
 
 export const IAuthenticationUsageService = createDecorator<IAuthenticationUsageService>('IAuthenticationUsageService');
@@ -49,7 +50,7 @@ export interface IAuthenticationUsageService {
 	 * @param extensionId The id of the extension to add a usage for
 	 * @param extensionName The name of the extension to add a usage for
 	 */
-	addAccountUsage(providerId: string, accountName: string, extensionId: string, extensionName: string): void;
+	addAccountUsage(providerId: string, accountName: string, scopes: ReadonlyArray<string>, extensionId: string, extensionName: string): void;
 }
 
 export class AuthenticationUsageService extends Disposable implements IAuthenticationUsageService {
@@ -80,11 +81,11 @@ export class AuthenticationUsageService extends Disposable implements IAuthentic
 			}
 		}
 
-		this._authenticationService.onDidRegisterAuthenticationProvider(
+		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(
 			provider => this._queue.queue(
 				() => this._addExtensionsToCache(provider.id)
 			)
-		);
+		));
 	}
 
 	async initializeExtensionUsageCache(): Promise<void> {
@@ -116,7 +117,7 @@ export class AuthenticationUsageService extends Disposable implements IAuthentic
 		this._storageService.remove(accountKey, StorageScope.APPLICATION);
 	}
 
-	addAccountUsage(providerId: string, accountName: string, extensionId: string, extensionName: string): void {
+	addAccountUsage(providerId: string, accountName: string, scopes: string[], extensionId: string, extensionName: string): void {
 		const accountKey = `${providerId}-${accountName}-usages`;
 		const usages = this.readAccountUsages(providerId, accountName);
 
@@ -125,12 +126,14 @@ export class AuthenticationUsageService extends Disposable implements IAuthentic
 			usages.splice(existingUsageIndex, 1, {
 				extensionId,
 				extensionName,
+				scopes,
 				lastUsed: Date.now()
 			});
 		} else {
 			usages.push({
 				extensionId,
 				extensionName,
+				scopes,
 				lastUsed: Date.now()
 			});
 		}

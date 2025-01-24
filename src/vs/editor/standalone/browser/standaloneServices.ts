@@ -712,7 +712,8 @@ export class StandaloneConfigurationService implements IConfigurationService {
 			defaults: emptyModel,
 			policy: emptyModel,
 			application: emptyModel,
-			user: emptyModel,
+			userLocal: emptyModel,
+			userRemote: emptyModel,
 			workspace: emptyModel,
 			folders: []
 		};
@@ -1077,7 +1078,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 }
 
 export const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
-	amdModuleId: 'vs/editor/common/services/editorSimpleWorker',
+	moduleId: 'vs/editor/common/services/editorSimpleWorker',
 	esmModuleLocation: undefined,
 	label: 'editorWorkerService'
 };

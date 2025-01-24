@@ -114,3 +114,20 @@ export class OpenUserDataFolderAction extends Action2 {
 		return nativeHostService.showItemInFolder(itemToShow.fsPath);
 	}
 }
+
+export class ShowGPUInfoAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.showGPUInfo',
+			title: localize2('showGPUInfo', 'Show GPU Info'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const nativeHostService = accessor.get(INativeHostService);
+		nativeHostService.openGPUInfoWindow();
+	}
+}

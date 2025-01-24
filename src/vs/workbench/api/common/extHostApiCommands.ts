@@ -509,6 +509,16 @@ const newCommands: ApiCommand[] = [
 		[ApiCommandArgument.TestItem],
 		ApiCommandResult.Void
 	),
+	new ApiCommand(
+		'vscode.startContinuousTestRun', 'testing.startContinuousRunFromExtension', 'Starts running the given tests with continuous run mode.',
+		[ApiCommandArgument.TestProfile, ApiCommandArgument.Arr(ApiCommandArgument.TestItem)],
+		ApiCommandResult.Void
+	),
+	new ApiCommand(
+		'vscode.stopContinuousTestRun', 'testing.stopContinuousRunFromExtension', 'Stops running the given tests with continuous run mode.',
+		[ApiCommandArgument.Arr(ApiCommandArgument.TestItem)],
+		ApiCommandResult.Void
+	),
 	// --- continue edit session
 	new ApiCommand(
 		'vscode.experimental.editSession.continue', '_workbench.editSessions.actions.continueEditSession', 'Continue the current edit session in a different workspace',
@@ -523,25 +533,6 @@ const newCommands: ApiCommand[] = [
 			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
 		],
 		ApiCommandResult.Void
-	),
-	// --- mapped edits
-	new ApiCommand(
-		'vscode.executeMappedEditsProvider', '_executeMappedEditsProvider', 'Execute Mapped Edits Provider',
-		[
-			ApiCommandArgument.Uri,
-			ApiCommandArgument.StringArray,
-			new ApiCommandArgument(
-				'MappedEditsContext',
-				'Mapped Edits Context',
-				(v: unknown) => typeConverters.MappedEditsContext.is(v),
-				(v: vscode.MappedEditsContext) => typeConverters.MappedEditsContext.from(v)
-			)
-		],
-		new ApiCommandResult<IWorkspaceEditDto | null, vscode.WorkspaceEdit | null>(
-			'A promise that resolves to a workspace edit or null',
-			(value) => {
-				return value ? typeConverters.WorkspaceEdit.to(value) : null;
-			})
 	),
 	// --- inline chat
 	new ApiCommand(

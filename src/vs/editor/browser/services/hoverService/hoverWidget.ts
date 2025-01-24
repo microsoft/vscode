@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './hover.css';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -23,6 +23,8 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import type { IHoverOptions, IHoverTarget, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
+import { isNumber } from '../../../../base/common/types.js';
 
 const $ = dom.$;
 type TargetRect = {
@@ -110,13 +112,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
 		this._hoverPointer = options.appearance?.showPointer ? $('div.workbench-hover-pointer') : undefined;
-		this._hover = this._register(new BaseHoverWidget());
-		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
+		this._hover = this._register(new BaseHoverWidget(!options.appearance?.skipFadeInAnimation));
+		this._hover.containerDomNode.classList.add('workbench-hover');
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
-		}
-		if (options.appearance?.skipFadeInAnimation) {
-			this._hover.containerDomNode.classList.add('skip-fade-in');
 		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
@@ -128,7 +127,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._enableFocusTraps = true;
 		}
 
-		this._hoverPosition = options.position?.hoverPosition ?? HoverPosition.ABOVE;
+		// Default to position above when the position is unspecified or a mouse event
+		this._hoverPosition = options.position?.hoverPosition === undefined
+			? HoverPosition.ABOVE
+			: isNumber(options.position.hoverPosition)
+				? options.position.hoverPosition
+				: HoverPosition.BELOW;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -395,7 +399,6 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 			this.setHoverPointerPosition(targetRect);
 		}
-
 		this._hover.onContentsChanged();
 	}
 
@@ -623,9 +626,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	public override dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
+			this._target.dispose?.();
 			this._hoverContainer.remove();
 			this._messageListeners.dispose();
-			this._target.dispose();
 			super.dispose();
 		}
 		this._isDisposed = true;
@@ -634,43 +637,41 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 class CompositeMouseTracker extends Widget {
 	private _isMouseIn: boolean = true;
-	private _mouseTimeout: number | undefined;
+	private readonly _mouseTimer: MutableDisposable<TimeoutTimer> = this._register(new MutableDisposable());
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());
 	get onMouseOut(): Event<void> { return this._onMouseOut.event; }
 
 	get isMouseIn(): boolean { return this._isMouseIn; }
 
+	/**
+	 * @param _elements The target elements to track mouse in/out events on.
+	 * @param _eventDebounceDelay The delay in ms to debounce the event firing. This is used to
+	 * allow a short period for the mouse to move into the hover or a nearby target element. For
+	 * example hovering a scroll bar will not hide the hover immediately.
+	 */
 	constructor(
-		private _elements: HTMLElement[]
+		private _elements: HTMLElement[],
+		private _eventDebounceDelay: number = 200
 	) {
 		super();
-		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver(n)));
-		this._elements.forEach(n => this.onmouseleave(n, () => this._onTargetMouseLeave(n)));
+
+		for (const element of this._elements) {
+			this.onmouseover(element, () => this._onTargetMouseOver());
+			this.onmouseleave(element, () => this._onTargetMouseLeave());
+		}
 	}
 
-	private _onTargetMouseOver(target: HTMLElement): void {
+	private _onTargetMouseOver(): void {
 		this._isMouseIn = true;
-		this._clearEvaluateMouseStateTimeout(target);
+		this._mouseTimer.clear();
 	}
 
-	private _onTargetMouseLeave(target: HTMLElement): void {
+	private _onTargetMouseLeave(): void {
 		this._isMouseIn = false;
-		this._evaluateMouseState(target);
-	}
-
-	private _evaluateMouseState(target: HTMLElement): void {
-		this._clearEvaluateMouseStateTimeout(target);
 		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
 		// have the opportunity to first their mouse in event.
-		this._mouseTimeout = dom.getWindow(target).setTimeout(() => this._fireIfMouseOutside(), 0);
-	}
-
-	private _clearEvaluateMouseStateTimeout(target: HTMLElement): void {
-		if (this._mouseTimeout) {
-			dom.getWindow(target).clearTimeout(this._mouseTimeout);
-			this._mouseTimeout = undefined;
-		}
+		this._mouseTimer.value = new TimeoutTimer(() => this._fireIfMouseOutside(), this._eventDebounceDelay);
 	}
 
 	private _fireIfMouseOutside(): void {

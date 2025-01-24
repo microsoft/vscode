@@ -5,7 +5,7 @@
 
 import { IIdentityProvider } from '../list/list.js';
 import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from './tree.js';
-import { splice, tail2 } from '../../../common/arrays.js';
+import { splice, tail } from '../../../common/arrays.js';
 import { Delayer } from '../../../common/async.js';
 import { MicrotaskDelay } from '../../../common/symbols.js';
 import { LcsDiff } from '../../../common/diff/diff.js';
@@ -298,13 +298,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		// update parent's visible children count
 		parentNode.visibleChildrenCount += insertedVisibleChildrenCount - deletedVisibleChildrenCount;
 
-		if (revealed && visible) {
-			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + (node.visible ? node.renderNodeCount : 0), 0);
-
-			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
-			this._onDidSpliceRenderedNodes.fire({ start: listIndex, deleteCount: visibleDeleteCount, elements: treeListElementsToInsert });
-		}
-
 		if (deletedNodes.length > 0 && onDidDeleteNode) {
 			const visit = (node: ITreeNode<T, TFilterData>) => {
 				onDidDeleteNode(node);
@@ -312,6 +305,13 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			};
 
 			deletedNodes.forEach(visit);
+		}
+
+		if (revealed && visible) {
+			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + (node.visible ? node.renderNodeCount : 0), 0);
+
+			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
+			this._onDidSpliceRenderedNodes.fire({ start: listIndex, deleteCount: visibleDeleteCount, elements: treeListElementsToInsert });
 		}
 
 		this._onDidSpliceModel.fire({ insertedNodes: nodesToInsert, deletedNodes });
@@ -762,7 +762,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		} else if (location.length === 1) {
 			return [];
 		} else {
-			return tail2(location)[0];
+			return tail(location)[0];
 		}
 	}
 

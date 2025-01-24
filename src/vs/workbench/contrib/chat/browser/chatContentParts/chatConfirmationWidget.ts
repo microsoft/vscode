@@ -23,6 +23,9 @@ export class ChatConfirmationWidget extends Disposable {
 	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
 	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
 
+	private _onDidChangeHeight = this._register(new Emitter<void>());
+	get onDidChangeHeight(): Event<void> { return this._onDidChangeHeight.event; }
+
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
 		return this._domNode;
@@ -46,12 +49,17 @@ export class ChatConfirmationWidget extends Disposable {
 			dom.h('.chat-confirmation-buttons-container@buttonsContainer'),
 		]);
 		this._domNode = elements.root;
-		const renderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
+		const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
-		const renderedTitle = this._register(renderer.render(new MarkdownString(title)));
+		const renderedTitle = this._register(renderer.render(new MarkdownString(title), {
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+		}));
 		elements.title.appendChild(renderedTitle.element);
 
-		const renderedMessage = this._register(renderer.render(typeof message === 'string' ? new MarkdownString(message) : message));
+		const renderedMessage = this._register(renderer.render(
+			typeof message === 'string' ? new MarkdownString(message) : message,
+			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
+		));
 		elements.message.appendChild(renderedMessage.element);
 
 		buttons.forEach(buttonData => {

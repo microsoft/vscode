@@ -13,12 +13,17 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { IFileMatch, QueryType } from '../../../../services/search/common/search.js';
 import { getElementToFocusAfterRemoved, getLastNodeFromSameType } from '../../browser/searchActionsRemoveReplace.js';
-import { FileMatch, FileMatchOrMatch, FolderMatch, Match, SearchModel } from '../../browser/searchModel.js';
+import { SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
 import { MockObjectTree } from './mockSearchTree.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
+import { ISearchTreeFileMatch, ISearchTreeMatch, FileMatchOrMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
+import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
+import { MatchImpl } from '../../browser/searchTreeModel/match.js';
 
 suite('Search Actions', () => {
 
@@ -108,31 +113,32 @@ suite('Search Actions', () => {
 		assert.strictEqual(undefined, actual);
 	});
 
-	function aFileMatch(): FileMatch {
+	function aFileMatch(): INotebookFileInstanceMatch {
+		const uri = URI.file('somepath' + ++counter);
 		const rawMatch: IFileMatch = {
-			resource: URI.file('somepath' + ++counter),
+			resource: uri,
 			results: []
 		};
 
-		const searchModel = instantiationService.createInstance(SearchModel);
+		const searchModel = instantiationService.createInstance(SearchModelImpl);
 		store.add(searchModel);
-		const folderMatch = instantiationService.createInstance(FolderMatch, URI.file('somepath'), '', 0, {
+		const folderMatch = instantiationService.createInstance(FolderMatchImpl, URI.file('somepath'), '', 0, {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
 		}, searchModel.searchResult.plainTextSearchResult, searchModel.searchResult, null);
 		store.add(folderMatch);
-		const fileMatch = instantiationService.createInstance(FileMatch, {
+		const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
 			pattern: ''
 		}, undefined, undefined, folderMatch, rawMatch, null, '');
-		fileMatch.createMatches(false);
+		fileMatch.createMatches();
 		store.add(fileMatch);
 		return fileMatch;
 	}
 
-	function aMatch(fileMatch: FileMatch): Match {
+	function aMatch(fileMatch: ISearchTreeFileMatch): ISearchTreeMatch {
 		const line = ++counter;
-		const match = new Match(
+		const match = new MatchImpl(
 			fileMatch,
 			['some match'],
 			{

@@ -8,7 +8,7 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IStatusbarEntry, ShowTooltipCommand, StatusbarEntryKinds } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, isTooltipWithCommands, ShowTooltipCommand, StatusbarEntryKinds, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
@@ -24,7 +24,7 @@ import { spinningLoading, syncing } from '../../../../platform/theme/common/icon
 import { isMarkdownString, markdownStringEqual } from '../../../../base/common/htmlContent.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { IManagedHover, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export class StatusbarEntryItem extends Disposable {
@@ -39,8 +39,6 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly commandMouseListener = this._register(new MutableDisposable());
 	private readonly commandTouchListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
-	private readonly focusListener = this._register(new MutableDisposable());
-	private readonly focusOutListener = this._register(new MutableDisposable());
 
 	private hover: IManagedHover | undefined = undefined;
 
@@ -118,21 +116,26 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			const hoverContents = isMarkdownString(entry.tooltip) ? { markdown: entry.tooltip, markdownNotSupportedFallback: undefined } : entry.tooltip;
-			if (this.hover) {
-				this.hover.update(hoverContents);
+			let hoverOptions: IManagedHoverOptions | undefined;
+			let hoverTooltip: TooltipContent | undefined;
+			if (isTooltipWithCommands(entry.tooltip)) {
+				hoverTooltip = entry.tooltip.content;
+				hoverOptions = {
+					actions: entry.tooltip.commands.map(command => ({
+						commandId: command.id,
+						label: command.title,
+						run: () => this.executeCommand(command)
+					}))
+				};
 			} else {
-				this.hover = this._register(this.hoverService.setupManagedHover(this.hoverDelegate, this.container, hoverContents));
+				hoverTooltip = entry.tooltip;
 			}
-			if (entry.command !== ShowTooltipCommand /* prevents flicker on click */) {
-				this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, e => {
-					EventHelper.stop(e);
-					this.hover?.show(false);
-				});
-				this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, e => {
-					EventHelper.stop(e);
-					this.hover?.hide();
-				});
+
+			const hoverContents = isMarkdownString(hoverTooltip) ? { markdown: hoverTooltip, markdownNotSupportedFallback: undefined } : hoverTooltip;
+			if (this.hover) {
+				this.hover.update(hoverContents, hoverOptions);
+			} else {
+				this.hover = this._register(this.hoverService.setupManagedHover(this.hoverDelegate, this.container, hoverContents, hoverOptions));
 			}
 		}
 
@@ -320,7 +323,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 			// If we have text to show, add a space to separate from progress
 			let textContent = text ?? '';
 			if (textContent) {
-				textContent = ` ${textContent}`;
+				textContent = `\u00A0${textContent}`; // prepend non-breaking space
 			}
 
 			// Append new elements

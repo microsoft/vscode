@@ -42,13 +42,15 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 		};
 
 		const request: vscode.MappedEditsRequest = {
+			location: internalRequest.location,
+			chatRequestId: internalRequest.chatRequestId,
 			codeBlocks: internalRequest.codeBlocks.map(block => {
 				return {
 					code: block.code,
-					resource: URI.revive(block.resource)
+					resource: URI.revive(block.resource),
+					markdownBeforeBlock: block.markdownBeforeBlock
 				};
-			}),
-			conversation: internalRequest.conversation
+			})
 		};
 
 		const result = await provider.provideMappedEdits(request, stream, token);
@@ -57,7 +59,7 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 
 	registerMappedEditsProvider(extension: IExtensionDescription, provider: vscode.MappedEditsProvider2): vscode.Disposable {
 		const handle = ExtHostCodeMapper._providerHandlePool++;
-		this._proxy.$registerCodeMapperProvider(handle);
+		this._proxy.$registerCodeMapperProvider(handle, extension.displayName ?? extension.name);
 		this.providers.set(handle, provider);
 		return {
 			dispose: () => {

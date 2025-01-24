@@ -203,6 +203,10 @@ export class LineTokens implements IViewLineTokens {
 		return new SliceLineTokens(this, startOffset, endOffset, deltaOffset);
 	}
 
+	public sliceZeroCopy(range: OffsetRange): IViewLineTokens {
+		return this.sliceAndInflate(range.start, range.endExclusive, 0);
+	}
+
 	/**
 	 * @pure
 	 * @param insertTokens Must be sorted by offset.
@@ -279,6 +283,14 @@ export class LineTokens implements IViewLineTokens {
 		for (let tokenIndex = 0; tokenIndex < tokenCount; tokenIndex++) {
 			callback(tokenIndex);
 		}
+	}
+
+	toString(): string {
+		let result = '';
+		this.forEach((i) => {
+			result += `[${this.getTokenText(i)}]{${this.getClassName(i)}}`;
+		});
+		return result;
 	}
 }
 

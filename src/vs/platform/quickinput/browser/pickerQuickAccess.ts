@@ -330,7 +330,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				if (!event.inBackground) {
 					picker.hide(); // hide picker unless we accept in background
 				}
-				runOptions.handleAccept?.(picker.activeItems[0]);
+				runOptions.handleAccept?.(picker.activeItems[0], event.inBackground);
 				return;
 			}
 

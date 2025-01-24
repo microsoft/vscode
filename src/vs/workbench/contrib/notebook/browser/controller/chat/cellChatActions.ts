@@ -15,7 +15,7 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { InputFocusedContextKey } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, EditMode, InlineChatResponseType, MENU_INLINE_CHAT_WIDGET_STATUS } from '../../../../inlineChat/common/inlineChat.js';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, InlineChatResponseType, MENU_INLINE_CHAT_WIDGET_STATUS } from '../../../../inlineChat/common/inlineChat.js';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_HAS_AGENT, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS } from './notebookChatContext.js';
 import { NotebookChatController } from './notebookChatController.js';
 import { CELL_TITLE_CELL_GROUP_ID, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getContextFromActiveEditor, getEditorFromArgsOrActivePane } from '../coreActions.js';
@@ -26,7 +26,7 @@ import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENE
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT } from '../../../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
 import { AbstractInlineChatAction } from '../../../../inlineChat/browser/inlineChatActions.js';
 import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
 import { HunkInformation } from '../../../../inlineChat/browser/inlineChatSession.js';
@@ -684,7 +684,6 @@ export class AcceptChangesAndRun extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(
 				NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 				CTX_INLINE_CHAT_VISIBLE,
-				ContextKeyExpr.or(CTX_INLINE_CHAT_DOCUMENT_CHANGED.toNegated(), CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview))
 			),
 			keybinding: undefined,
 			menu: [{
@@ -693,7 +692,7 @@ export class AcceptChangesAndRun extends AbstractInlineChatAction {
 				order: 2,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
 				)

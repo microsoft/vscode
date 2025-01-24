@@ -21,6 +21,7 @@ import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from '../../co
 import { INotebookService } from '../../common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
+import { raceCancellation } from '../../../../../base/common/async.js';
 
 export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel, IValueWithChangeEvent<readonly MultiDiffEditorItem[]> {
 	private readonly placeholderAndRelatedCells = new Map<DiffElementPlaceholderViewModel, DiffElementCellViewModelBase[]>();
@@ -130,22 +131,24 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		this._items.splice(0, this._items.length);
 	}
 
-	async computeDiff(token: CancellationToken): Promise<{ firstChangeIndex: number } | undefined> {
-		const diffResult = await this.notebookEditorWorkerService.computeDiff(this.model.original.resource, this.model.modified.resource);
-		if (token.isCancellationRequested) {
+	async computeDiff(token: CancellationToken): Promise<void> {
+		const diffResult = await raceCancellation(this.notebookEditorWorkerService.computeDiff(this.model.original.resource, this.model.modified.resource), token);
+		if (!diffResult || token.isCancellationRequested) {
 			// after await the editor might be disposed.
 			return;
 		}
 
-		prettyChanges(this.model, diffResult.cellsDiff);
+		prettyChanges(this.model.original.notebook, this.model.modified.notebook, diffResult.cellsDiff);
 
-		const { cellDiffInfo, firstChangeIndex } = computeDiff(this.model, diffResult);
+		const { cellDiffInfo, firstChangeIndex } = computeDiff(this.model.original.notebook, this.model.modified.notebook, diffResult);
 		if (isEqual(cellDiffInfo, this.originalCellViewModels, this.model)) {
 			return;
 		} else {
-			await this.updateViewModels(cellDiffInfo, diffResult.metadataChanged);
+			await raceCancellation(this.updateViewModels(cellDiffInfo, diffResult.metadataChanged, firstChangeIndex), token);
+			if (token.isCancellationRequested) {
+				return;
+			}
 			this.updateDiffEditorItems();
-			return { firstChangeIndex };
 		}
 	}
 
@@ -218,7 +221,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		this._onDidChange.fire();
 	}
 
-	private async updateViewModels(cellDiffInfo: CellDiffInfo[], metadataChanged: boolean) {
+	private async updateViewModels(cellDiffInfo: CellDiffInfo[], metadataChanged: boolean, firstChangeIndex: number) {
 		const cellViewModels = await this.createDiffViewModels(cellDiffInfo, metadataChanged);
 		const oldLength = this._items.length;
 		this.clear();
@@ -265,7 +268,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 
 		// Note, ensure all of the height calculations are done before firing the event.
 		// This is to ensure that the diff editor is not resized multiple times, thereby avoiding flickering.
-		this._onDidChangeItems.fire({ start: 0, deleteCount: oldLength, elements: this._items });
+		this._onDidChangeItems.fire({ start: 0, deleteCount: oldLength, elements: this._items, firstChangeIndex });
 	}
 	private async createDiffViewModels(computedCellDiffs: CellDiffInfo[], metadataChanged: boolean) {
 		const originalModel = this.model.original.notebook;
@@ -364,7 +367,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 /**
  * making sure that swapping cells are always translated to `insert+delete`.
  */
-export function prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiffResult) {
+export function prettyChanges(original: NotebookTextModel, modified: NotebookTextModel, diffResult: IDiffResult) {
 	const changes = diffResult.changes;
 	for (let i = 0; i < diffResult.changes.length - 1; i++) {
 		// then we know there is another change after current one
@@ -380,8 +383,8 @@ export function prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiff
 			&& next.originalLength === 0
 			&& next.modifiedStart === y + 1
 			&& next.modifiedLength === 1
-			&& model.original.notebook.cells[x].getHashValue() === model.modified.notebook.cells[y + 1].getHashValue()
-			&& model.original.notebook.cells[x + 1].getHashValue() === model.modified.notebook.cells[y].getHashValue()
+			&& original.cells[x].getHashValue() === modified.cells[y + 1].getHashValue()
+			&& original.cells[x + 1].getHashValue() === modified.cells[y].getHashValue()
 		) {
 			// this is a swap
 			curr.originalStart = x;
@@ -399,7 +402,7 @@ export function prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiff
 	}
 }
 
-type CellDiffInfo = {
+export type CellDiffInfo = {
 	originalCellIndex: number;
 	modifiedCellIndex: number;
 	type: 'unchanged' | 'modified';
@@ -412,11 +415,9 @@ type CellDiffInfo = {
 	modifiedCellIndex: number;
 	type: 'insert';
 };
-function computeDiff(model: INotebookDiffEditorModel, diffResult: INotebookDiffResult) {
+export function computeDiff(originalModel: NotebookTextModel, modifiedModel: NotebookTextModel, diffResult: INotebookDiffResult) {
 	const cellChanges = diffResult.cellsDiff.changes;
 	const cellDiffInfo: CellDiffInfo[] = [];
-	const originalModel = model.original.notebook;
-	const modifiedModel = model.modified.notebook;
 	let originalCellIndex = 0;
 	let modifiedCellIndex = 0;
 

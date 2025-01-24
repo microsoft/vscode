@@ -3,12 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from './buffer.js';
 import * as strings from './strings.js';
+
+type NotSyncHashable = ArrayBufferLike | ArrayBufferView;
 
 /**
  * Return a hash value for an object.
+ *
+ * Note that this should not be used for binary data types. Instead,
+ * prefer {@link hashAsync}.
  */
-export function hash(obj: any): number {
+export function hash<T>(obj: T extends NotSyncHashable ? never : T): number {
 	return doHash(obj, 0);
 }
 
@@ -63,19 +69,32 @@ function objectHash(obj: any, initialHashVal: number): number {
 	}, initialHashVal);
 }
 
-export class Hasher {
 
-	private _value = 0;
 
-	get value(): number {
-		return this._value;
+/** Hashes the input as SHA-1, returning a hex-encoded string. */
+export const hashAsync = (input: string | ArrayBufferView | VSBuffer) => {
+	// Note: I would very much like to expose a streaming interface for hashing
+	// generally, but this is not available in web crypto yet, see
+	// https://github.com/w3c/webcrypto/issues/73
+
+	// StringSHA1 is faster for small string input, use it since we have it:
+	if (typeof input === 'string' && input.length < 250) {
+		const sha = new StringSHA1();
+		sha.update(input);
+		return Promise.resolve(sha.digest());
 	}
 
-	hash(obj: any): number {
-		this._value = doHash(obj, this._value);
-		return this._value;
+	let buff: ArrayBufferView;
+	if (typeof input === 'string') {
+		buff = new TextEncoder().encode(input);
+	} else if (input instanceof VSBuffer) {
+		buff = input.buffer;
+	} else {
+		buff = input;
 	}
-}
+
+	return crypto.subtle.digest('sha-1', buff).then(toHexString);
+};
 
 const enum SHA1Constant {
 	BLOCK_SIZE = 64, // 512 / 8
@@ -93,31 +112,20 @@ function leftRotate(value: number, bits: number, totalBits: number = 32): number
 	return ((value << bits) | ((mask & value) >>> delta)) >>> 0;
 }
 
-function fill(dest: Uint8Array, index: number = 0, count: number = dest.byteLength, value: number = 0): void {
-	for (let i = 0; i < count; i++) {
-		dest[index + i] = value;
-	}
-}
-
-function leftPad(value: string, length: number, char: string = '0'): string {
-	while (value.length < length) {
-		value = char + value;
-	}
-	return value;
-}
-
-export function toHexString(buffer: ArrayBuffer): string;
-export function toHexString(value: number, bitsize?: number): string;
-export function toHexString(bufferOrValue: ArrayBuffer | number, bitsize: number = 32): string {
+function toHexString(buffer: ArrayBuffer): string;
+function toHexString(value: number, bitsize?: number): string;
+function toHexString(bufferOrValue: ArrayBuffer | number, bitsize: number = 32): string {
 	if (bufferOrValue instanceof ArrayBuffer) {
 		return Array.from(new Uint8Array(bufferOrValue)).map(b => b.toString(16).padStart(2, '0')).join('');
 	}
 
-	return leftPad((bufferOrValue >>> 0).toString(16), bitsize / 4);
+	return (bufferOrValue >>> 0).toString(16).padStart(bitsize / 4, '0');
 }
 
 /**
  * A SHA1 implementation that works with strings and does not allocate.
+ *
+ * Prefer to use {@link hashAsync} in async contexts
  */
 export class StringSHA1 {
 	private static _bigBlock32 = new DataView(new ArrayBuffer(320)); // 80 * 4 = 320
@@ -247,11 +255,11 @@ export class StringSHA1 {
 
 	private _wrapUp(): void {
 		this._buff[this._buffLen++] = 0x80;
-		fill(this._buff, this._buffLen);
+		this._buff.subarray(this._buffLen).fill(0);
 
 		if (this._buffLen > 56) {
 			this._step();
-			fill(this._buff);
+			this._buff.fill(0);
 		}
 
 		// this will fit because the mantissa can cover up to 52 bits

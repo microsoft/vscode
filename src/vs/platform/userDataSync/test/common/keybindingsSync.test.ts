@@ -196,11 +196,11 @@ suite('KeybindingsSync', () => {
 			await fileService.del(keybindingsResource);
 		}
 
-		const preview = (await testObject.preview(await client.getResourceManifest(), {}))!;
+		const preview = await testObject.sync(await client.getResourceManifest(), true);
 
 		server.reset();
-		const content = await testObject.resolveContent(preview.resourcePreviews[0].remoteResource);
-		await testObject.accept(preview.resourcePreviews[0].remoteResource, content);
+		const content = await testObject.resolveContent(preview!.resourcePreviews[0].remoteResource);
+		await testObject.accept(preview!.resourcePreviews[0].remoteResource, content);
 		await testObject.apply(false);
 		assert.deepStrictEqual(server.requests, []);
 	});

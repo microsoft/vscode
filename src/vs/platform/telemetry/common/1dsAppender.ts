@@ -23,17 +23,10 @@ const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
 const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
 
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
-	// ESM-comment-begin
-	// if (isWeb) { /* fix the import warning */ }
-	// const oneDs = await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'dist/ms.core.js');
-	// const postPlugin = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
-	// ESM-comment-end
-	// ESM-uncomment-begin
 	// eslint-disable-next-line local/code-amd-node-module
 	const oneDs = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'bundle/ms.core.min.js') : await import('@microsoft/1ds-core-js');
 	// eslint-disable-next-line local/code-amd-node-module
 	const postPlugin = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'bundle/ms.post.min.js') : await import('@microsoft/1ds-post-js');
-	// ESM-uncomment-end
 
 	const appInsightsCore = new oneDs.AppInsightsCore();
 	const collectorChannelPlugin: PostChannel = new postPlugin.PostChannel();
@@ -64,7 +57,7 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 
 	appInsightsCore.initialize(coreConfig, []);
 
-	appInsightsCore.addTelemetryInitializer((envelope) => {
+	appInsightsCore.addTelemetryInitializer((envelope: any) => {
 		// Opt the user out of 1DS data sharing
 		envelope['ext'] = envelope['ext'] ?? {};
 		envelope['ext']['web'] = envelope['ext']['web'] ?? {};

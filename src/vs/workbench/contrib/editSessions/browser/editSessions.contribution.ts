@@ -21,7 +21,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { EditSessionsWorkbenchService } from './editSessionsStorageService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { UserDataSyncErrorCode, UserDataSyncStoreError, IUserDataSynchroniser } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { UserDataSyncErrorCode, UserDataSyncStoreError } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { getFileNamesMessage, IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -53,7 +53,6 @@ import { equals } from '../../../../base/common/objects.js';
 import { EditSessionIdentityMatch, IEditSessionIdentityService } from '../../../../platform/workspace/common/editSessions.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IOutputService } from '../../../services/output/common/output.js';
-import { sha1Hex } from '../../../../base/browser/hash.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -68,6 +67,7 @@ import { IRequestService } from '../../../../platform/request/common/request.js'
 import { EditSessionsStoreClient } from '../common/editSessionsStorageClient.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceIdentityService } from '../../../services/workspaces/common/workspaceIdentityService.js';
+import { hashAsync } from '../../../../base/common/hash.js';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -124,7 +124,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 	private registeredCommands = new Set<string>();
 
-	private workspaceStateSynchronizer: IUserDataSynchroniser | undefined;
+	private workspaceStateSynchronizer: WorkspaceStateSynchroniser | undefined;
 	private editSessionsStorageClient: EditSessionsStoreClient | undefined;
 
 	constructor(
@@ -565,7 +565,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
-			await this.workspaceStateSynchronizer?.apply(false, {});
+			await this.workspaceStateSynchronizer?.apply();
 
 			this.logService.info(`Deleting edit session with ref ${ref} after successfully applying it to current workspace...`);
 			await this.editSessionsStorageService.delete('editSessions', ref);
@@ -663,7 +663,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		switch (type) {
 			case (ChangeType.Addition): {
-				const [originalContents, incomingContents] = await Promise.all([sha1Hex(contents), sha1Hex(encodeBase64((await this.fileService.readFile(uriWithIncomingChanges)).value))]);
+				const [originalContents, incomingContents] = await Promise.all([
+					hashAsync(contents),
+					hashAsync(encodeBase64((await this.fileService.readFile(uriWithIncomingChanges)).value))
+				]);
 				return originalContents !== incomingContents;
 			}
 			case (ChangeType.Deletion): {
@@ -740,7 +743,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 
 		// Store contributed workspace state
-		await this.workspaceStateSynchronizer?.sync(null, {});
+		await this.workspaceStateSynchronizer?.sync();
 
 		if (!hasEdits) {
 			this.logService.info('Skipped storing working changes in the cloud as there are no edits to store.');

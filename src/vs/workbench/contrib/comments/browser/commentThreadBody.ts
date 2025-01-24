@@ -41,7 +41,6 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return this._commentElements.filter(node => node.isEditing)[0];
 	}
 
-
 	constructor(
 		private readonly _parentEditor: LayoutableEditor,
 		readonly owner: string,
@@ -49,7 +48,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		readonly container: HTMLElement,
 		private _options: IMarkdownRendererOptions,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
 		@ICommentService private commentService: ICommentService,
@@ -63,7 +62,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this.commentService.setActiveEditingCommentThread(this._commentThread);
 		}));
 
-		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
+		this._markdownRenderer = new MarkdownRenderer(this._options, this.languageService, this.openerService);
 	}
 
 	focus(commentUniqueId?: number) {
@@ -75,6 +74,10 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			}
 		}
 		this._commentsElement.focus();
+	}
+
+	hasCommentsInEditMode() {
+		return this._commentElements.some(commentNode => commentNode.isEditing);
 	}
 
 	ensureFocusIntoNewEditingComment() {
@@ -142,8 +145,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		});
 	}
 
-	getPendingEdits(): { [key: number]: string } {
-		const pendingEdits: { [key: number]: string } = {};
+	getPendingEdits(): { [key: number]: languages.PendingComment } {
+		const pendingEdits: { [key: number]: languages.PendingComment } = {};
 		this._commentElements.forEach(element => {
 			if (element.isEditing) {
 				const pendingEdit = element.getPendingEdit();

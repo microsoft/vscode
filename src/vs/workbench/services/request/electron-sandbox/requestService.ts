@@ -9,8 +9,11 @@ import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { request } from '../../../../base/parts/request/browser/request.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { request } from '../../../../base/parts/request/common/requestImpl.js';
+import { ILoggerService } from '../../../../platform/log/common/log.js';
+import { localize } from '../../../../nls.js';
+import { windowLogGroup } from '../../log/common/logConstants.js';
+import { LogService } from '../../../../platform/log/common/logService.js';
 
 export class NativeRequestService extends AbstractRequestService implements IRequestService {
 
@@ -19,16 +22,20 @@ export class NativeRequestService extends AbstractRequestService implements IReq
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService logService: ILogService,
+		@ILoggerService loggerService: ILoggerService,
 	) {
+		const logger = loggerService.createLogger(`network`, { name: localize('network', "Network"), group: windowLogGroup });
+		const logService = new LogService(logger);
 		super(logService);
+		this._register(logger);
+		this._register(logService);
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		if (!options.proxyAuthorization) {
-			options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
+			options.proxyAuthorization = this.configurationService.inspect<string>('http.proxyAuthorization').userLocalValue;
 		}
-		return this.logAndRequest(options, () => request(options, token));
+		return this.logAndRequest(options, () => request(options, token, () => navigator.onLine));
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {

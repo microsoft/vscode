@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FuzzyScore } from '../../../../base/common/filters.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
@@ -13,6 +14,10 @@ export interface ISimpleCompletion {
 	 */
 	label: string;
 	/**
+	 * The ID of the provider the completion item came from
+	 */
+	provider: string;
+	/**
 	 * The completion's icon to show on the left of the suggest widget.
 	 */
 	icon?: ThemeIcon;
@@ -20,6 +25,12 @@ export interface ISimpleCompletion {
 	 * The completion's detail which appears on the right of the list.
 	 */
 	detail?: string;
+
+	/**
+	 * A human-readable string that represents a doc-comment.
+	 */
+	documentation?: string | MarkdownString;
+
 	/**
 	 * Whether the completion is a file. Files with the same score will be sorted against each other
 	 * first by extension length and then certain extensions will get a boost based on the OS.
@@ -33,6 +44,16 @@ export interface ISimpleCompletion {
 	 * Whether the completion is a keyword.
 	 */
 	isKeyword?: boolean;
+
+	/**
+	 * The start of the replacement.
+	 */
+	replacementIndex: number;
+
+	/**
+	 * The length of the replacement.
+	 */
+	replacementLength: number;
 }
 
 export class SimpleCompletionItem {

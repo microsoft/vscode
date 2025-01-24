@@ -126,20 +126,28 @@ export interface SerializedError {
 	readonly message: string;
 	readonly stack: string;
 	readonly noTelemetry: boolean;
+	readonly code?: string;
+	readonly cause?: SerializedError;
 }
+
+type ErrorWithCode = Error & {
+	code: string | undefined;
+};
 
 export function transformErrorForSerialization(error: Error): SerializedError;
 export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
-		const { name, message } = error;
+		const { name, message, cause } = error;
 		const stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,
 			name,
 			message,
 			stack,
-			noTelemetry: ErrorNoTelemetry.isErrorNoTelemetry(error)
+			noTelemetry: ErrorNoTelemetry.isErrorNoTelemetry(error),
+			cause: cause ? transformErrorForSerialization(cause) : undefined,
+			code: (<ErrorWithCode>error).code
 		};
 	}
 
@@ -157,6 +165,12 @@ export function transformErrorFromSerialization(data: SerializedError): Error {
 	}
 	error.message = data.message;
 	error.stack = data.stack;
+	if (data.code) {
+		(<ErrorWithCode>error).code = data.code;
+	}
+	if (data.cause) {
+		error.cause = transformErrorFromSerialization(data.cause);
+	}
 	return error;
 }
 
@@ -307,7 +321,6 @@ export class BugIndicatingError extends Error {
 
 		// Because we know for sure only buggy code throws this,
 		// we definitely want to break here and fix the bug.
-		// eslint-disable-next-line no-debugger
 		// debugger;
 	}
 }

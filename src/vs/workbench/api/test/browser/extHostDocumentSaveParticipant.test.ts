@@ -294,6 +294,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			documents.$acceptModelChanged(resource, {
 				changes: [{
 					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+					rangeEndPosition: undefined!,
 					rangeOffset: undefined!,
 					rangeLength: undefined!,
 					text: 'bar'
@@ -329,6 +330,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 						changes: [{
 							range,
 							text,
+							rangeEndPosition: undefined!,
 							rangeOffset: undefined!,
 							rangeLength: undefined!,
 						}],

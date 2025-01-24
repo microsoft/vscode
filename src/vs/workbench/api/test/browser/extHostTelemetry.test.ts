@@ -66,6 +66,7 @@ suite('ExtHostTelemetry', function () {
 		engines: { vscode: '*' },
 		extensionLocation: URI.parse('fake'),
 		enabledApiProposals: undefined,
+		preRelease: false,
 	};
 
 	const createExtHostTelemetry = () => {
@@ -285,11 +286,11 @@ suite('ExtHostTelemetry', function () {
 		const logger = createLogger(functionSpy, extensionTelemetry);
 
 		// Ensure headers are logged on instantiation
-		assert.strictEqual(loggerService.createLogger().logs.length, 2);
+		assert.strictEqual(loggerService.createLogger().logs.length, 0);
 
 		logger.logUsage('test-event', { 'test-data': 'test-data' });
 		// Initial header is logged then the event
-		assert.strictEqual(loggerService.createLogger().logs.length, 3);
-		assert.ok(loggerService.createLogger().logs[2].startsWith('test-extension/test-event'));
+		assert.strictEqual(loggerService.createLogger().logs.length, 1);
+		assert.ok(loggerService.createLogger().logs[0].startsWith('test-extension/test-event'));
 	});
 });

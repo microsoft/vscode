@@ -5,10 +5,12 @@
 
 import { Permutation, compareBy } from '../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, ISettableObservable, autorun, transaction } from '../../../../base/common/observable.js';
-import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue, ISettableObservable, autorun, transaction, IReader } from '../../../../base/common/observable.js';
+import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Position } from '../../../common/core/position.js';
+import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
 import { SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
 
@@ -46,19 +48,20 @@ export function subtractPositions(pos1: Position, pos2: Position): Position {
 }
 
 export function substringPos(text: string, pos: Position): string {
-	let subtext = '';
-	const lines = splitLinesIncludeSeparators(text);
-	for (let i = pos.lineNumber - 1; i < lines.length; i++) {
-		subtext += lines[i].substring(i === pos.lineNumber - 1 ? pos.column - 1 : 0);
-	}
-	return subtext;
+	const transformer = new PositionOffsetTransformer(text);
+	const offset = transformer.getOffset(pos);
+	return text.substring(offset);
 }
 
-export function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
+export function getModifiedRangesAfterApplying(edits: readonly SingleTextEdit[]): Range[] {
 	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
 	const edit = new TextEdit(sortPerm.apply(edits));
 	const sortedNewRanges = edit.getNewRanges();
-	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
+	return sortPerm.inverse().apply(sortedNewRanges);
+}
+
+export function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
+	const newRanges = getModifiedRangesAfterApplying(edits);
 	return newRanges.map(range => range.getEndPosition());
 }
 
@@ -84,4 +87,17 @@ export function convertItemsToStableObservables<T>(items: IObservable<readonly T
 	}));
 
 	return result;
+}
+
+export class ObservableContextKeyService {
+	constructor(
+		private readonly _contextKeyService: IContextKeyService,
+	) {
+	}
+
+	bind<T extends ContextKeyValue>(key: RawContextKey<T>, obs: IObservable<T>): IDisposable;
+	bind<T extends ContextKeyValue>(key: RawContextKey<T>, fn: (reader: IReader) => T): IDisposable;
+	bind<T extends ContextKeyValue>(key: RawContextKey<T>, obs: IObservable<T> | ((reader: IReader) => T)): IDisposable {
+		return bindContextKey(key, this._contextKeyService, obs instanceof Function ? obs : reader => obs.read(reader));
+	}
 }

@@ -3,49 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { EditContext } from './editContextFactory.js';
+
 const COLOR_FOR_CONTROL_BOUNDS = 'blue';
 const COLOR_FOR_SELECTION_BOUNDS = 'red';
 const COLOR_FOR_CHARACTER_BOUNDS = 'green';
 
-export class DebugEditContext extends EditContext {
+export class DebugEditContext {
 	private _isDebugging = true;
 	private _controlBounds: DOMRect | null = null;
 	private _selectionBounds: DOMRect | null = null;
 	private _characterBounds: { rangeStart: number; characterBounds: DOMRect[] } | null = null;
 
-	constructor(options?: EditContextInit | undefined) {
-		super(options);
+	private _editContext: EditContext;
+
+	constructor(window: Window, options?: EditContextInit | undefined) {
+		this._editContext = EditContext.create(window, options);
 	}
 
-	override updateText(rangeStart: number, rangeEnd: number, text: string): void {
-		super.updateText(rangeStart, rangeEnd, text);
+	get text(): DOMString {
+		return this._editContext.text;
+	}
+
+	get selectionStart(): number {
+		return this._editContext.selectionStart;
+	}
+
+	get selectionEnd(): number {
+		return this._editContext.selectionEnd;
+	}
+
+	get characterBoundsRangeStart(): number {
+		return this._editContext.characterBoundsRangeStart;
+	}
+
+	updateText(rangeStart: number, rangeEnd: number, text: string): void {
+		this._editContext.updateText(rangeStart, rangeEnd, text);
 		this.renderDebug();
 	}
-	override updateSelection(start: number, end: number): void {
-		super.updateSelection(start, end);
+	updateSelection(start: number, end: number): void {
+		this._editContext.updateSelection(start, end);
 		this.renderDebug();
 	}
-	override updateControlBounds(controlBounds: DOMRect): void {
-		super.updateControlBounds(controlBounds);
+	updateControlBounds(controlBounds: DOMRect): void {
+		this._editContext.updateControlBounds(controlBounds);
 		this._controlBounds = controlBounds;
 		this.renderDebug();
 	}
-	override updateSelectionBounds(selectionBounds: DOMRect): void {
-		super.updateSelectionBounds(selectionBounds);
+	updateSelectionBounds(selectionBounds: DOMRect): void {
+		this._editContext.updateSelectionBounds(selectionBounds);
 		this._selectionBounds = selectionBounds;
 		this.renderDebug();
 	}
-	override updateCharacterBounds(rangeStart: number, characterBounds: DOMRect[]): void {
-		super.updateCharacterBounds(rangeStart, characterBounds);
+	updateCharacterBounds(rangeStart: number, characterBounds: DOMRect[]): void {
+		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
 		this._characterBounds = { rangeStart, characterBounds };
 		this.renderDebug();
 	}
-	override attachedElements(): HTMLElement[] {
-		return super.attachedElements();
+	attachedElements(): HTMLElement[] {
+		return this._editContext.attachedElements();
 	}
 
-	override characterBounds(): DOMRect[] {
-		return super.characterBounds();
+	characterBounds(): DOMRect[] {
+		return this._editContext.characterBounds();
 	}
 
 	private readonly _ontextupdateWrapper = new EventListenerWrapper('textupdate', this);
@@ -54,22 +74,22 @@ export class DebugEditContext extends EditContext {
 	private readonly _oncompositionstartWrapper = new EventListenerWrapper('compositionstart', this);
 	private readonly _oncompositionendWrapper = new EventListenerWrapper('compositionend', this);
 
-	override get ontextupdate(): EventHandler | null { return this._ontextupdateWrapper.eventHandler; }
-	override set ontextupdate(value: EventHandler | null) { this._ontextupdateWrapper.eventHandler = value; }
-	override get ontextformatupdate(): EventHandler | null { return this._ontextformatupdateWrapper.eventHandler; }
-	override set ontextformatupdate(value: EventHandler | null) { this._ontextformatupdateWrapper.eventHandler = value; }
-	override get oncharacterboundsupdate(): EventHandler | null { return this._oncharacterboundsupdateWrapper.eventHandler; }
-	override set oncharacterboundsupdate(value: EventHandler | null) { this._oncharacterboundsupdateWrapper.eventHandler = value; }
-	override get oncompositionstart(): EventHandler | null { return this._oncompositionstartWrapper.eventHandler; }
-	override set oncompositionstart(value: EventHandler | null) { this._oncompositionstartWrapper.eventHandler = value; }
-	override get oncompositionend(): EventHandler | null { return this._oncompositionendWrapper.eventHandler; }
-	override set oncompositionend(value: EventHandler | null) { this._oncompositionendWrapper.eventHandler = value; }
+	get ontextupdate(): EventHandler | null { return this._ontextupdateWrapper.eventHandler; }
+	set ontextupdate(value: EventHandler | null) { this._ontextupdateWrapper.eventHandler = value; }
+	get ontextformatupdate(): EventHandler | null { return this._ontextformatupdateWrapper.eventHandler; }
+	set ontextformatupdate(value: EventHandler | null) { this._ontextformatupdateWrapper.eventHandler = value; }
+	get oncharacterboundsupdate(): EventHandler | null { return this._oncharacterboundsupdateWrapper.eventHandler; }
+	set oncharacterboundsupdate(value: EventHandler | null) { this._oncharacterboundsupdateWrapper.eventHandler = value; }
+	get oncompositionstart(): EventHandler | null { return this._oncompositionstartWrapper.eventHandler; }
+	set oncompositionstart(value: EventHandler | null) { this._oncompositionstartWrapper.eventHandler = value; }
+	get oncompositionend(): EventHandler | null { return this._oncompositionendWrapper.eventHandler; }
+	set oncompositionend(value: EventHandler | null) { this._oncompositionendWrapper.eventHandler = value; }
 
 
 	private readonly _listenerMap = new Map<EventListenerOrEventListenerObject, EventListenerOrEventListenerObject>();
 
-	override addEventListener<K extends keyof EditContextEventHandlersEventMap>(type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
-	override addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void {
+	addEventListener<K extends keyof EditContextEventHandlersEventMap>(type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+	addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void {
 		if (!listener) { return; }
 
 		const debugListener = (event: Event) => {
@@ -84,22 +104,22 @@ export class DebugEditContext extends EditContext {
 			}
 		};
 		this._listenerMap.set(listener, debugListener);
-		super.addEventListener(type, debugListener, options);
+		this._editContext.addEventListener(type, debugListener, options);
 		this.renderDebug();
 	}
 
-	override removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions | undefined): void {
+	removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions | undefined): void {
 		if (!listener) { return; }
 		const debugListener = this._listenerMap.get(listener);
 		if (debugListener) {
-			super.removeEventListener(type, debugListener, options);
+			this._editContext.removeEventListener(type, debugListener, options);
 			this._listenerMap.delete(listener);
 		}
 		this.renderDebug();
 	}
 
-	override dispatchEvent(event: Event): boolean {
-		return super.dispatchEvent(event);
+	dispatchEvent(event: Event): boolean {
+		return this._editContext.dispatchEvent(event);
 	}
 
 	public startDebugging() {
@@ -131,7 +151,7 @@ export class DebugEditContext extends EditContext {
 				this._disposables.push(createRect(rect, COLOR_FOR_CHARACTER_BOUNDS));
 			}
 		}
-		this._disposables.push(createDiv(this.text, this.selectionStart, this.selectionEnd));
+		this._disposables.push(createDiv(this._editContext.text, this._editContext.selectionStart, this._editContext.selectionEnd));
 	}
 }
 

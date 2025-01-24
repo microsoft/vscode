@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export interface IStoredValueSerialization<T> {
@@ -49,7 +49,7 @@ export class StoredValue<T> extends Disposable {
 		this.scope = options.scope;
 		this.target = options.target;
 		this.serialization = options.serialization ?? defaultSerialization;
-		this.onDidChange = this.storage.onDidChangeValue(this.scope, this.key, this._register(new DisposableStore()));
+		this.onDidChange = this.storage.onDidChangeValue(this.scope, this.key, this._store);
 	}
 
 	/**

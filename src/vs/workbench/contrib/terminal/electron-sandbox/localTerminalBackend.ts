@@ -16,7 +16,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ITerminalInstanceService } from '../browser/terminal.js';
-import { ITerminalConfiguration, ITerminalProfileResolverService, TERMINAL_CONFIG_SECTION } from '../common/terminal.js';
+import { ITerminalProfileResolverService } from '../common/terminal.js';
 import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { LocalPty } from './localPty.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
@@ -49,7 +49,7 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 	) {
 		const backend = instantiationService.createInstance(LocalTerminalBackend);
 		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-		terminalInstanceService.didRegisterBackend(backend.remoteAuthority);
+		terminalInstanceService.didRegisterBackend(backend);
 	}
 }
 
@@ -151,30 +151,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			directProxy.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 			directProxy.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 			directProxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
-
-			// Listen for config changes
-			const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-			for (const match of Object.keys(initialConfig.autoReplies)) {
-				// Ensure the reply is value
-				const reply = initialConfig.autoReplies[match] as string | null;
-				if (reply) {
-					directProxy.installAutoReply(match, reply);
-				}
-			}
-			// TODO: Could simplify update to a single call
-			this._register(this._configurationService.onDidChangeConfiguration(async e => {
-				if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
-					directProxy.uninstallAllAutoReplies();
-					const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-					for (const match of Object.keys(config.autoReplies)) {
-						// Ensure the reply is value
-						const reply = config.autoReplies[match] as string | null;
-						if (reply) {
-							this._proxy.installAutoReply(match, reply);
-						}
-					}
-				}
-			}));
 
 			// Eagerly fetch the backend's environment for memoization
 			this.getEnvironment();
@@ -384,4 +360,15 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	private _getWorkspaceName(): string {
 		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
 	}
+
+	// #region Pty service contribution RPC calls
+
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return this._proxy.installAutoReply(match, reply);
+	}
+	uninstallAllAutoReplies(): Promise<void> {
+		return this._proxy.uninstallAllAutoReplies();
+	}
+
+	// #endregion
 }
