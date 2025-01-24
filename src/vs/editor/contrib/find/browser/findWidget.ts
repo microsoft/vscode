@@ -942,7 +942,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const flexibleHeight = true;
 		const flexibleWidth = true;
 		// Find input
-		const findSearchHistoryConfig = this._codeEditor.getOption(EditorOption.find).findHistory;
+		const findSearchHistoryConfig = this._codeEditor.getOption(EditorOption.find).history;
 		const replaceHistoryConfig = this._codeEditor.getOption(EditorOption.find).replaceHistory;
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
