@@ -4614,6 +4614,7 @@ declare namespace monaco.editor {
 				useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 				useCodeOverlay?: 'never' | 'whenPossible' | 'moveCodeWhenPossible';
+				useMultiLineGhostText?: boolean;
 				useGutterIndicator?: boolean;
 			};
 		};
