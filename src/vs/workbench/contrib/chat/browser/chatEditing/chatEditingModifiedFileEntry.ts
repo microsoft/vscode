@@ -197,7 +197,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
 
-		if (this.modifiedURI.scheme !== Schemas.untitled) {
+		if (this.modifiedURI.scheme !== Schemas.untitled && this.modifiedURI.scheme !== Schemas.vscodeNotebookCell) {
 			this._register(this._fileService.watch(this.modifiedURI));
 			this._register(this._fileService.onDidFilesChange(e => {
 				if (e.affects(this.modifiedURI) && kind === ChatEditKind.Created && e.gotDeleted()) {
