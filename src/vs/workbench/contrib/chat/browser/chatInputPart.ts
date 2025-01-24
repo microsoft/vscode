@@ -1666,6 +1666,8 @@ const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
 class ToggleAgentCheckActionViewItem extends MenuEntryActionViewItem {
+	private readonly agentStateActions: IAction[];
+
 	constructor(
 		action: MenuItemAction,
 		options: IMenuEntryActionViewItemOptions,
@@ -1674,11 +1676,30 @@ class ToggleAgentCheckActionViewItem extends MenuEntryActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAccessibilityService _accessibilityService: IAccessibilityService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
 		options.keybindingNotRenderedWithLabel = true;
 		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
+
+		this.agentStateActions = [
+			{
+				...this.action,
+				id: 'agentMode',
+				label: localize('chat.agentMode', "Agent"),
+				class: undefined,
+				enabled: true,
+				run: () => this.action.run()
+			},
+			{
+				...this.action,
+				id: 'normalMode',
+				label: localize('chat.normalMode', "Normal"),
+				class: undefined,
+				enabled: true,
+				checked: !this.action.checked,
+				run: () => this.action.run()
+			},
+		];
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
@@ -1700,34 +1721,15 @@ class ToggleAgentCheckActionViewItem extends MenuEntryActionViewItem {
 
 	protected override updateLabel(): void {
 		if (this.label) {
-			const state = this.currentState;
+			const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
 			dom.reset(this.label, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		}
 	}
 
-	private get currentState(): string {
-		return this.chatAgentService.toolsAgentModeEnabled ? 'Agent' : 'Normal';
-	}
-
 	private _openContextMenu() {
-		const getEntry = (state: string): IAction => {
-			return {
-				id: state,
-				label: state,
-				tooltip: '',
-				class: undefined,
-				enabled: true,
-				checked: state === this.currentState,
-				run: () => {
-					this.chatAgentService.toggleToolsAgentMode();
-					this.updateLabel();
-				}
-			};
-		};
-
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => this.element!,
-			getActions: () => ['Agent', 'Normal'].map(state => getEntry(state)),
+			getActions: () => this.agentStateActions
 		});
 	}
 }
