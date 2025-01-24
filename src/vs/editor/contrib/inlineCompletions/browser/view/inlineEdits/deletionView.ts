@@ -10,10 +10,11 @@ import { Point } from '../../../../../browser/point.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
+import { IInlineEditsView } from './sideBySideDiff.js';
 import { createRectangle, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
 
-export class InlineEditsDeletionView extends Disposable {
+export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	constructor(
@@ -40,17 +41,6 @@ export class InlineEditsDeletionView extends Disposable {
 	}
 
 	private readonly _display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
-
-	private readonly previewRef = n.ref<HTMLDivElement>();
-	private readonly toolbarRef = n.ref<HTMLDivElement>();
-
-	private readonly _editorContainer = n.div({
-		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.experimental.useGutterIndicator && 'showHover')],
-		style: { position: 'absolute' },
-	}, [
-		n.div({ class: 'preview', style: {}, ref: this.previewRef }),
-		n.div({ class: 'toolbar', style: {}, ref: this.toolbarRef }),
-	]).keepUpdated(this._store);
 
 	private readonly _originalStartPosition = derived(this, (reader) => {
 		const inlineEdit = this._edit.read(reader);
@@ -170,7 +160,8 @@ export class InlineEditsDeletionView extends Disposable {
 			display: this._display,
 		},
 	}, [
-		[this._editorContainer, this._foregroundSvg],
+		[this._foregroundSvg],
 	]).keepUpdated(this._store);
 
+	readonly isHovered = constObservable(false);
 }

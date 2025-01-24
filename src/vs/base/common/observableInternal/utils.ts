@@ -202,20 +202,24 @@ export namespace observableFromEvent {
 }
 
 export function observableSignalFromEvent(
-	debugName: string,
+	owner: DebugOwner | string,
 	event: Event<any>
 ): IObservable<void> {
-	return new FromEventObservableSignal(debugName, event);
+	return new FromEventObservableSignal(typeof owner === 'string' ? owner : new DebugNameData(owner, undefined, undefined), event);
 }
 
 class FromEventObservableSignal extends BaseObservable<void> {
 	private subscription: IDisposable | undefined;
 
+	public readonly debugName: string;
 	constructor(
-		public readonly debugName: string,
+		debugNameDataOrName: DebugNameData | string,
 		private readonly event: Event<any>,
 	) {
 		super();
+		this.debugName = typeof debugNameDataOrName === 'string'
+			? debugNameDataOrName
+			: debugNameDataOrName.getDebugName(this) ?? 'Observable Signal From Event';
 	}
 
 	protected override onFirstObserverAdded(): void {

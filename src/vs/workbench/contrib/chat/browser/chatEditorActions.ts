@@ -131,7 +131,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, hasUndecidedChatEditingResourceContextKey),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -209,7 +209,7 @@ class RejectHunkAction extends EditorAction2 {
 			id: 'chatEditor.action.undoHunk',
 			title: localize2('undo', 'Discard this Change'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.discard,
 			f1: true,
 			keybinding: {
@@ -235,7 +235,7 @@ class AcceptHunkAction extends EditorAction2 {
 			id: 'chatEditor.action.acceptHunk',
 			title: localize2('acceptHunk', 'Accept this Change'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.check,
 			f1: true,
 			keybinding: {

@@ -25,7 +25,7 @@ import { Range } from '../../../../../common/core/range.js';
 import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js';
 import { RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 
-export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader): number {
+export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
 	editor.layoutInfo.read(reader);
 	editor.value.read(reader);
 

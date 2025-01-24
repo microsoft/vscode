@@ -496,11 +496,11 @@
 }
 
 .monaco-hover.history-item-hover p:last-child {
-	margin-bottom: 0;
+	margin-bottom: 2px !important;
 }
 
 .monaco-hover.history-item-hover p:last-child span:not(.codicon) {
-	margin-bottom: 2px !important;
+	padding: 2px 0;
 }
 
 .monaco-hover.history-item-hover hr {

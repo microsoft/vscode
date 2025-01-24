@@ -93,6 +93,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		for (const instance of this._terminalService.instances) {
 			this._onTerminalOpened(instance);
 			instance.processReady.then(() => this._onTerminalProcessIdReady(instance));
+			if (instance.shellType) {
+				this._proxy.$acceptTerminalShellType(instance.instanceId, instance.shellType);
+			}
 		}
 		const activeInstance = this._terminalService.activeInstance;
 		if (activeInstance) {

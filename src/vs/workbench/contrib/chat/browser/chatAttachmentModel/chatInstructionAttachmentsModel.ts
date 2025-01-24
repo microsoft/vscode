@@ -7,6 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
+import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
@@ -14,28 +15,42 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
- * Common instructions attachment variable identifier.
+ * Utility to convert a {@link reference} to a chat variable entry.
+ * The `id` of the chat variable can be one of the following:
+ *
+ * - `vscode.prompt.instructions__<URI>`: for all non-root prompt file references
+ * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt file references
+ * - `<URI>`: for the rest of references(the ones that do not point to a prompt file)
+ *
+ * @param reference A reference object to convert to a chat variable entry.
+ * @param isRoot If the reference is the root reference in the references tree.
+ * 				 This object most likely was explicitly attached by the user.
  */
-type TInstructionsId = 'vscode.prompt.instructions';
+const toChatVariable = (
+	reference: Pick<IPromptFileReference, 'uri' | 'isPromptSnippet'>,
+	isRoot: boolean,
+): IChatRequestVariableEntry => {
+	const { uri } = reference;
 
-/**
- * Instructions attachment variable identifier for
- * the `root` reference.
- */
-type TInstructionsRootId = `${TInstructionsId}.root`;
+	// default `id` is the stringified `URI`
+	let id = `${uri}`;
 
-/**
- * Well-defined instructions attachment variable identifiers.
- */
-type TInstructionsVariableIds = TInstructionsId | TInstructionsRootId;
+	// for prompt files, we add a prefix to the `id`
+	if (reference.isPromptSnippet) {
+		// the default prefix that is used for all prompt files
+		let prefix = 'vscode.prompt.instructions';
+		// if the reference is the root object, add the `.root` suffix
+		if (isRoot) {
+			prefix += '.root';
+		}
 
-/**
- * Utility to convert a reference `URI` to a chat variable
- * entry with the specified variable {@linkcode id}.
- */
-const toChatVariable = (id: TInstructionsVariableIds, uri: URI): IChatRequestVariableEntry => {
+		// final `id` for all `prompt files` starts with the well-defined
+		// part that the copilot extension(or other chatbot) can rely on
+		id = `${prefix}__${id}`;
+	}
+
 	return {
-		id: `${id}__${uri}`,
+		id,
 		name: uri.fsPath,
 		value: uri,
 		isSelection: false,
@@ -90,14 +105,14 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 			// the usual URIs list of prompt instructions is `bottom-up`, therefore
 			// we do the same herfe - first add all child references of the model
 			result.push(
-				...reference.allValidReferencesUris.map((uri) => {
-					return toChatVariable('vscode.prompt.instructions', uri);
+				...reference.allValidReferences.map((link) => {
+					return toChatVariable(link, false);
 				}),
 			);
 
 			// then add the root reference of the model itself
 			result.push(
-				toChatVariable('vscode.prompt.instructions.root', reference.uri),
+				toChatVariable(reference, true),
 			);
 		}
 

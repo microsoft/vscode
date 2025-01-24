@@ -93,7 +93,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 			}
 		}));
 		this._parseSessionDisposables.add(this.model.onDidChangeContent(e => this._onDidChangeContent(treeSitterTree, e)));
-		await this._onDidChangeContent(treeSitterTree, undefined);
+		this._onDidChangeContent(treeSitterTree, undefined);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -122,8 +122,8 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		});
 	}
 
-	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, change: IModelContentChangedEvent | undefined) {
-		return treeSitterTree.onDidChangeContent(this.model, change?.changes ?? []);
+	private _onDidChangeContent(treeSitterTree: TreeSitterParseResult, change: IModelContentChangedEvent | undefined) {
+		return treeSitterTree.onDidChangeContent(this.model, change);
 	}
 }
 
@@ -165,13 +165,11 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		this._isDisposed = true;
 		this._onDidUpdate.dispose();
 		this._tree?.delete();
+		this._lastFullyParsed?.delete();
+		this._lastFullyParsedWithEdits?.delete();
 		this.parser?.delete();
 	}
-	get tree() { return this._tree; }
-	private set tree(newTree: Parser.Tree | undefined) {
-		this._tree?.delete();
-		this._tree = newTree;
-	}
+	get tree() { return this._lastFullyParsed; }
 	get isDisposed() { return this._isDisposed; }
 
 	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree, version: number): ChangedRange[] {
@@ -321,13 +319,13 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	}
 
 	private _onDidChangeContentQueue: LimitedQueue = new LimitedQueue();
-	public async onDidChangeContent(model: ITextModel, changes: IModelContentChange[]): Promise<void> {
+	public onDidChangeContent(model: ITextModel, changes: IModelContentChangedEvent | undefined): void {
 		const version = model.getVersionId();
 		if (version === this._editVersion) {
 			return;
 		}
 
-		this._applyEdits(changes, version);
+		this._applyEdits(changes?.changes ?? [], version);
 
 		this._onDidChangeContentQueue.queue(async () => {
 			if (this.isDisposed) {
@@ -341,7 +339,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			}
 
 			const completed = await this._parseAndUpdateTree(model, version);
-			if (completed && (version === model.getVersionId())) {
+			if (completed) {
 				if (!ranges) {
 					ranges = [{ newRange: model.getFullModelRange(), oldRangeLength: model.getValueLength(), newRangeStartOffset: 0, newRangeEndOffset: model.getValueLength() }];
 				}
@@ -375,12 +373,20 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	private async _parseAndUpdateTree(model: ITextModel, version: number): Promise<Parser.Tree | undefined> {
 		const tree = await this._parse(model);
 		if (tree) {
-			this.tree = tree;
+			this._tree?.delete();
+			this._tree = tree;
+			this._lastFullyParsed?.delete();
 			this._lastFullyParsed = tree.copy();
+			this._lastFullyParsedWithEdits?.delete();
 			this._lastFullyParsedWithEdits = tree.copy();
 			this._versionId = version;
+			return tree;
+		} else if (!this._tree) {
+			// No tree means this is the inial parse and there were edits
+			// parse function doesn't handle this well and we can end up with an incorrect tree, so we reset
+			this.parser.reset();
 		}
-		return tree;
+		return undefined;
 	}
 
 	private _parse(model: ITextModel): Promise<Parser.Tree | undefined> {
@@ -401,7 +407,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		do {
 			const timer = performance.now();
 			try {
-				newTree = this.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index), this.tree);
+				newTree = this.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index), this._tree);
 			} catch (e) {
 				// parsing can fail when the timeout is reached, will resume upon next loop
 			} finally {
@@ -409,7 +415,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				passes++;
 			}
 
-			// Even if the model changes and edits are applied, the tree parsing will continue correctly after the await.
+			// So long as this isn't the initial parse, even if the model changes and edits are applied, the tree parsing will continue correctly after the await.
 			await new Promise<void>(resolve => setTimeout0(resolve));
 
 		} while (!model.isDisposed() && !this.isDisposed && !newTree && inProgressVersion === model.getVersionId());

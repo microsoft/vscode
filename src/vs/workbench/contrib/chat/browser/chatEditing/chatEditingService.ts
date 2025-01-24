@@ -242,7 +242,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		this._currentSessionDisposables.clear();
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, true, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
 
 		// listen for completed responses, run the code mapper and apply the edits to this edit session
@@ -258,7 +258,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	async createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, false, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
 
 		const list = this._adhocSessionsObs.get();

@@ -99,7 +99,7 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			const { matches, matchType, keyMatchSize } = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting), this.configurationService);
+			const { matches, matchType, keyMatchScore } = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting), this.configurationService);
 			const score = strings.equalsIgnoreCase(this._filter, setting.key) ?
 				LocalSearchProvider.EXACT_MATCH_SCORE :
 				orderedScore--;
@@ -108,7 +108,7 @@ export class LocalSearchProvider implements ISearchProvider {
 				{
 					matches,
 					matchType,
-					keyMatchSize,
+					keyMatchScore,
 					score
 				} :
 				null;
@@ -139,8 +139,11 @@ export class LocalSearchProvider implements ISearchProvider {
 export class SettingMatches {
 	readonly matches: IRange[];
 	matchType: SettingMatchType = SettingMatchType.None;
-	/** A more precise match score for key matches. */
-	keyMatchSize: number = 0;
+	/**
+	 * A match score for key matches to allow comparing key matches against each other.
+	 * Otherwise, all key matches are treated the same, and sorting is done by ToC order.
+	 */
+	keyMatchScore: number = 0;
 
 	constructor(
 		searchString: string,
@@ -186,7 +189,7 @@ export class SettingMatches {
 		}
 		if (keyMatchingWords.size) {
 			this.matchType |= SettingMatchType.KeyMatch;
-			this.keyMatchSize = keyMatchingWords.size;
+			this.keyMatchScore = keyMatchingWords.size;
 		}
 
 		// Also check if the user tried searching by id.
@@ -407,7 +410,7 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 				setting: settingsRecord[pick],
 				matches: [settingsRecord[pick].range],
 				matchType: SettingMatchType.RemoteMatch,
-				keyMatchSize: 0,
+				keyMatchScore: 0,
 				score: info.weight
 			});
 		}
@@ -503,7 +506,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 				setting: this._settingsRecord[pick],
 				matches: [this._settingsRecord[pick].range],
 				matchType: SettingMatchType.RemoteMatch,
-				keyMatchSize: 0,
+				keyMatchScore: 0,
 				score: info.score
 			});
 		}

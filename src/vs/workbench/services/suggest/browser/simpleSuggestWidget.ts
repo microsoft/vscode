@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 
 const $ = dom.$;
 
@@ -62,6 +63,11 @@ export interface IWorkbenchSuggestWidgetOptions {
 	 * and `'right'`.
 	 */
 	statusBarMenuId?: MenuId;
+
+	/**
+	 * The setting for showing the status bar.
+	 */
+	showStatusBarSettingId?: string;
 }
 
 export class SimpleSuggestWidget extends Disposable {
@@ -85,7 +91,7 @@ export class SimpleSuggestWidget extends Disposable {
 	private readonly _messageElement: HTMLElement;
 	private readonly _listElement: HTMLElement;
 	private readonly _list: List<SimpleCompletionItem>;
-	private readonly _status?: SuggestWidgetStatus;
+	private _status?: SuggestWidgetStatus;
 	private readonly _details: SimpleSuggestDetailsOverlay;
 
 	private readonly _showTimeout = this._register(new TimeoutTimer());
@@ -109,9 +115,10 @@ export class SimpleSuggestWidget extends Disposable {
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
 		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
-		options: IWorkbenchSuggestWidgetOptions,
+		private readonly _onDidFontConfigurationChange: Event<void>,
+		private readonly _options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
@@ -170,10 +177,10 @@ export class SimpleSuggestWidget extends Disposable {
 			state = undefined;
 		}));
 
-		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !configurationService.getValue('editor.suggest.showIcons'));
+		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !_configurationService.getValue('editor.suggest.showIcons'));
 		applyIconStyle();
 
-		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo);
+		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo, this._configurationService);
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = this._register(new List('SuggestWidget', this._listElement, {
@@ -222,13 +229,13 @@ export class SimpleSuggestWidget extends Disposable {
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 
-		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo));
+		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo, this._onDidFontConfigurationChange));
 		this._register(details.onDidClose(() => this.toggleDetails()));
 		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
 		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
 
-		if (options.statusBarMenuId) {
-			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
+		if (_options.statusBarMenuId && _options.showStatusBarSettingId && _configurationService.getValue(_options.showStatusBarSettingId)) {
+			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
 		}
 
@@ -236,9 +243,28 @@ export class SimpleSuggestWidget extends Disposable {
 		this._register(this._list.onTap(e => this._onListMouseDownOrTap(e)));
 		this._register(this._list.onDidChangeFocus(e => this._onListFocus(e)));
 		this._register(this._list.onDidChangeSelection(e => this._onListSelection(e)));
-		this._register(configurationService.onDidChangeConfiguration(e => {
+		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.suggest.showIcons')) {
 				applyIconStyle();
+			}
+			if (this._completionModel && e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily)) {
+				this._layout(undefined);
+				this._list.splice(0, this._list.length, this._completionModel!.items);
+			}
+			if (_options.statusBarMenuId && _options.showStatusBarSettingId && e.affectsConfiguration(_options.showStatusBarSettingId)) {
+				const showStatusBar: boolean = _configurationService.getValue(_options.showStatusBarSettingId);
+				if (showStatusBar && !this._status) {
+					this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
+					this._status.show();
+				} else if (showStatusBar && this._status) {
+					this._status.show();
+				} else if (this._status) {
+					this._status.element.remove();
+					this._status.dispose();
+					this._status = undefined;
+					this._layout(undefined);
+				}
+				this.element.domNode.classList.toggle('with-status-bar', showStatusBar);
 			}
 		}));
 	}
@@ -428,10 +454,7 @@ export class SimpleSuggestWidget extends Disposable {
 					dom.hide(this._messageElement, this._listElement, this._status.element);
 				}
 				dom.hide(this._listElement);
-				if (this._status) {
-					dom.hide(this._status?.element);
-				}
-				// this._details.hide(true);
+				this._details.hide(true);
 				this._status?.hide();
 				// this._contentWidget.hide();
 				// this._ctxSuggestWidgetVisible.reset();
@@ -449,50 +472,49 @@ export class SimpleSuggestWidget extends Disposable {
 				this._messageElement.textContent = SimpleSuggestWidget.LOADING_MESSAGE;
 				dom.hide(this._listElement);
 				if (this._status) {
-					dom.hide(this._status?.element);
+					dom.hide(this._status.element);
 				}
 				dom.show(this._messageElement);
-				// this._details.hide();
+				this._details.hide();
 				this._show();
-				// this._focusedItem = undefined;
+				this._focusedItem = undefined;
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
 				this._messageElement.textContent = SimpleSuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				dom.hide(this._listElement);
 				if (this._status) {
-					dom.hide(this._status?.element);
+					dom.hide(this._status.element);
 				}
 				dom.show(this._messageElement);
-				// this._details.hide();
+				this._details.hide();
 				this._show();
-				// this._focusedItem = undefined;
+				this._focusedItem = undefined;
 				break;
 			case State.Open:
 				dom.hide(this._messageElement);
-				dom.show(this._listElement);
-				if (this._status) {
-					dom.show(this._status?.element);
-				}
+				this._showListAndStatus();
 				this._show();
 				break;
 			case State.Frozen:
 				dom.hide(this._messageElement);
-				dom.show(this._listElement);
-				if (this._status) {
-					dom.show(this._status?.element);
-				}
+				this._showListAndStatus();
 				this._show();
 				break;
 			case State.Details:
 				dom.hide(this._messageElement);
-				dom.show(this._listElement);
-				if (this._status) {
-					dom.show(this._status?.element);
-				}
-				// this._details.show();
+				this._showListAndStatus();
+				this._details.show();
 				this._show();
 				break;
+		}
+	}
+
+	private _showListAndStatus(): void {
+		if (this._status) {
+			dom.show(this._listElement, this._status.element);
+		} else {
+			dom.show(this._listElement);
 		}
 	}
 
@@ -628,7 +650,7 @@ export class SimpleSuggestWidget extends Disposable {
 
 		// status bar
 		if (this._status) {
-			this._status.element.style.lineHeight = `${info.itemHeight}px`;
+			this._status.element.style.height = `${info.itemHeight}px`;
 		}
 
 		// if (this._state === State.Empty || this._state === State.Loading) {
@@ -734,7 +756,6 @@ export class SimpleSuggestWidget extends Disposable {
 		this._listElement.style.height = `${height - statusBarHeight}px`;
 
 		this._listElement.style.width = `${width}px`;
-		this._listElement.style.height = `${height}px`;
 		this.element.layout(height, width);
 
 		this._positionDetails();
@@ -748,9 +769,9 @@ export class SimpleSuggestWidget extends Disposable {
 
 	private _getLayoutInfo() {
 		const fontInfo = this._getFontInfo();
-		const itemHeight = clamp(Math.ceil(fontInfo.lineHeight), 8, 1000);
-		const statusBarHeight = 0; //!this.editor.getOption(EditorOption.suggest).showStatusBar || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
-		const borderWidth = 1; //this._details.widget.borderWidth;
+		const itemHeight = clamp(fontInfo.lineHeight, 8, 1000);
+		const statusBarHeight = !this._options.statusBarMenuId || !this._options.showStatusBarSettingId || !this._configurationService.getValue(this._options.showStatusBarSettingId) || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
+		const borderWidth = this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
 
 		return {

@@ -7,9 +7,12 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
+import { IChatModel } from '../../chat/common/chatModel.js';
 import { Session, StashedSession } from './inlineChatSession.js';
 
 export interface ISessionKeyComputer {
@@ -25,6 +28,14 @@ export interface IInlineChatSessionEvent {
 
 export interface IInlineChatSessionEndEvent extends IInlineChatSessionEvent {
 	readonly endedByExternalCause: boolean;
+}
+
+export interface IInlineChatSession2 {
+	readonly initialPosition: Position;
+	readonly uri: URI;
+	readonly chatModel: IChatModel;
+	readonly editingSession: IChatEditingSession;
+	dispose(): void;
 }
 
 export interface IInlineChatSessionService {
@@ -50,4 +61,9 @@ export interface IInlineChatSessionService {
 	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable;
 
 	dispose(): void;
+
+
+	createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2>;
+	getSession2(editor: ICodeEditor, uri: URI): IInlineChatSession2 | undefined;
+	onDidChangeSessions: Event<this>;
 }
