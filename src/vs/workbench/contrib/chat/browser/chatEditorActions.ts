@@ -267,6 +267,11 @@ class OpenDiffAction extends EditorAction2 {
 			},
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.diffSingle,
+			keybinding: {
+				when: EditorContextKeys.focus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F7,
+			},
 			menu: [{
 				id: MenuId.ChatEditingEditorHunk,
 				order: 10
