@@ -151,9 +151,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		const modelEndOffset = textModel.getValueLength();
 		const editorEndPosition = textModel.getPositionAt(modelEndOffset);
 		const captures = this._getTreeAndCaptures(new Range(1, 1, editorEndPosition.lineNumber, editorEndPosition.column), textModel);
+		if (captures.captures.length === 0) {
+			return;
+		}
 		// Make empty tokens to populate the store
 		const tokens: TokenUpdate[] = this._createEmptyTokens(captures, modelEndOffset) ?? [];
-
 		this._tokenizationStoreService.setTokens(textModel, tokens);
 		this._setViewPortTokens(textModel, versionId);
 	}
