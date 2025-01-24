@@ -2248,6 +2248,8 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
 	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	getInstallableServers(extension: IGalleryExtension): Promise<IExtensionManagementServer[]> { throw new Error('Method not implemented.'); }
+	isPublisherTrusted(extension: IGalleryExtension): boolean { return false; }
+	trustPublishers(...publishers: string[]): void { }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {
