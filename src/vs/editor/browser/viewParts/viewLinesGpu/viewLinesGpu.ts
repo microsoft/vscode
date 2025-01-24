@@ -478,7 +478,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		// Track the largest local content width so far in this session and use it as the scroll
 		// width. This is how the DOM renderer works as well, so you may not be able to scroll to
 		// the right in a file with long lines until you scroll down.
-		this._maxLocalContentWidthSoFar = Math.max(this._maxLocalContentWidthSoFar, localContentWidth);
+		this._maxLocalContentWidthSoFar = Math.max(this._maxLocalContentWidthSoFar, localContentWidth / this._viewGpuContext.devicePixelRatio.get());
 		this._context.viewModel.viewLayout.setMaxLineWidth(this._maxLocalContentWidthSoFar);
 		this._viewGpuContext.scrollWidthElement.setWidth(this._context.viewLayout.getScrollWidth());
 

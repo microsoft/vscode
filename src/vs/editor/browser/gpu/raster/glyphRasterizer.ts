@@ -112,6 +112,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 		this._ctx.save();
 
+		const xSubPixelOffset = (tokenMetadata & 0b1111) / 10;
+		// console.log('xSubPixelOffset', xSubPixelOffset);
+
 		const bgId = TokenMetadata.getBackground(tokenMetadata);
 		const bg = colorMap[bgId];
 
@@ -157,7 +160,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			this._ctx.globalAlpha = decorationStyleSet.opacity;
 		}
 
-		this._ctx.fillText(chars, originX, originY);
+		this._ctx.fillText(chars, originX + xSubPixelOffset, originY);
 		this._ctx.restore();
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
