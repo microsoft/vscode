@@ -93,13 +93,9 @@ export class ToggleAgentModeAction extends Action2 {
 			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode (Experimental)"),
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-				ChatContextKeys.Editing.hasToolsAgent),
-			icon: Codicon.edit,
+			precondition: ChatContextKeys.Editing.hasToolsAgent,
 			toggled: {
 				condition: ChatContextKeys.Editing.agentMode,
-				icon: Codicon.tools,
 				tooltip: localize('agentEnabled', "Agent Mode Enabled (Experimental)"),
 			},
 			tooltip: localize('agentDisabled', "Agent Mode Disabled"),
