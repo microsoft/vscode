@@ -95,11 +95,6 @@ suite('Terminal Contrib Suggest Recordings', () => {
 
 	setup(async () => {
 		const terminalConfig = {
-			fontFamily: 'monospace',
-			fontSize: 12,
-			fontWeight: 'normal',
-			letterSpacing: 0,
-			lineHeight: 1,
 			integrated: {
 				suggest: {
 					enabled: true,
@@ -121,7 +116,8 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
 				files: { autoSave: false },
-				terminal: terminalConfig
+				terminal: terminalConfig,
+				editor: { fontSize: 14, fontFamily: 'Arial', lineHeight: 12, fontWeight: 'bold' }
 			})
 		}, store);
 		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
