@@ -141,6 +141,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
 				if (homeDirCompletion && terminal.shellIntegration.env.HOME) {
 					homeDirCompletion.documentation = getFriendlyFilePath(vscode.Uri.file(terminal.shellIntegration.env.HOME), pathSeparator);
+					homeDirCompletion.kind = vscode.TerminalCompletionItemKind.Folder;
 				}
 			}
 
