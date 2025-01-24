@@ -381,10 +381,10 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			this._lastFullyParsedWithEdits = tree.copy();
 			this._versionId = version;
 			return tree;
-		} else {
+		} else if (!this._tree) {
+			// No tree means this is the inial parse and there were edits
+			// parse function doesn't handle this well and we can end up with an incorrect tree, so we reset
 			this.parser.reset();
-			this._tree?.delete();
-			this._tree = this._lastFullyParsedWithEdits?.copy();
 		}
 		return undefined;
 	}
@@ -415,7 +415,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				passes++;
 			}
 
-			// Even if the model changes and edits are applied, the tree parsing will continue correctly after the await.
+			// So long as this isn't the initial parse, even if the model changes and edits are applied, the tree parsing will continue correctly after the await.
 			await new Promise<void>(resolve => setTimeout0(resolve));
 
 		} while (!model.isDisposed() && !this.isDisposed && !newTree && inProgressVersion === model.getVersionId());
