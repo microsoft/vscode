@@ -628,17 +628,17 @@ export interface IExtensionTipsService {
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 }
 
+export type AllowedExtensionsConfigValueType = IStringDictionary<boolean | string | string[]>;
+
 export const IAllowedExtensionsService = createDecorator<IAllowedExtensionsService>('IAllowedExtensionsService');
 export interface IAllowedExtensionsService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidChangeAllowedExtensions: Event<void>;
+	readonly allowedExtensionsConfigValue: AllowedExtensionsConfigValueType | undefined;
+	readonly onDidChangeAllowedExtensionsConfigValue: Event<void>;
 
 	isAllowed(extension: IGalleryExtension | IExtension): true | IMarkdownString;
 	isAllowed(extension: { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString;
-
-	isTrusted(extension: IGalleryExtension): boolean;
-	trustPublishers(...publishers: string[]): Promise<void>;
 }
 
 export async function computeSize(location: URI, fileService: IFileService): Promise<number> {
@@ -662,4 +662,3 @@ export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
 export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
-export const TrustedPublishersConfigKey = 'extensions.trustedPublishers';
