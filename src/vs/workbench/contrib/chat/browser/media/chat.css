@@ -392,14 +392,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	max-width: 100%;
 }
 
-.interactive-item-container .monaco-tokenized-source,
-.interactive-item-container code {
-	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
-	color: var(--vscode-textPreformat-foreground);
-	background-color: var(--vscode-textPreformat-background);
-	padding: 1px 3px;
-	border-radius: 4px;
+.chat-tool-hover, .interactive-item-container {
+	.monaco-tokenized-source, code {
+		font-family: var(--monaco-monospace-font);
+		font-size: 12px;
+		color: var(--vscode-textPreformat-foreground);
+		background-color: var(--vscode-textPreformat-background);
+		padding: 1px 3px;
+		border-radius: 4px;
+	}
 }
 
 .interactive-item-container.interactive-item-compact {
@@ -1445,6 +1446,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;
+}
+
+.interactive-item-container .chat-confirmation-widget .rendered-markdown [data-code] {
+	margin-bottom: 8px;
 }
 
 .interactive-item-container .chat-command-button .monaco-button .codicon {
