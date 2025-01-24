@@ -304,8 +304,14 @@ export class ObservableCodeEditor extends Disposable {
 			},
 			getId: () => contentWidgetId,
 			allowEditorOverflow: false,
-			afterRender(position, coordinate) {
-				result.set(coordinate ? new Point(coordinate.left, coordinate.top) : null, undefined);
+			afterRender: (position, coordinate) => {
+				const model = this._model.get();
+				if (model && pos && pos.lineNumber > model.getLineCount()) {
+					// the position is after the last line
+					result.set(new Point(0, this.editor.getBottomForLineNumber(model.getLineCount())), undefined);
+				} else {
+					result.set(coordinate ? new Point(coordinate.left, coordinate.top) : null, undefined);
+				}
 			},
 		};
 		this.editor.addContentWidget(w);
