@@ -611,23 +611,23 @@ export class SimpleSuggestWidget extends Disposable {
 		}
 	}
 
-	hide(): void {
-		this._pendingLayout.clear();
-		this._pendingShowDetails.clear();
-		// this._loadingTimeout?.dispose();
+	// hide(): void {
+	// 	this._pendingLayout.clear();
+	// 	this._pendingShowDetails.clear();
+	// 	// this._loadingTimeout?.dispose();
 
-		this._setState(State.Hidden);
-		this._onDidHide.fire(this);
-		dom.hide(this.element.domNode);
-		this.element.clearSashHoverState();
-		// ensure that a reasonable widget height is persisted so that
-		// accidential "resize-to-single-items" cases aren't happening
-		const dim = this._persistedSize.restore();
-		const minPersistedHeight = Math.ceil(this._getLayoutInfo().itemHeight * 4.3);
-		if (dim && dim.height < minPersistedHeight) {
-			this._persistedSize.store(dim.with(undefined, minPersistedHeight));
-		}
-	}
+	// 	this._setState(State.Hidden);
+	// 	this._onDidHide.fire(this);
+	// 	dom.hide(this.element.domNode);
+	// 	this.element.clearSashHoverState();
+	// 	// ensure that a reasonable widget height is persisted so that
+	// 	// accidential "resize-to-single-items" cases aren't happening
+	// 	const dim = this._persistedSize.restore();
+	// 	const minPersistedHeight = Math.ceil(this._getLayoutInfo().itemHeight * 4.3);
+	// 	if (dim && dim.height < minPersistedHeight) {
+	// 		this._persistedSize.store(dim.with(undefined, minPersistedHeight));
+	// 	}
+	// }
 
 	private _layout(size: dom.Dimension | undefined): void {
 		if (!this._cursorPosition) {
@@ -776,11 +776,13 @@ export class SimpleSuggestWidget extends Disposable {
 		const fontFamily: string = this._configurationService.getValue('editor.fontFamily');
 		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
 		const letterSpacing: number = this._configurationService.getValue('editor.letterSpacing');
-		if (lineHeight === 0) {
-			lineHeight = fontSize;
+
+		if (lineHeight <= 1) {
+			lineHeight = Math.ceil(fontSize * 1.5);
 		} else if (lineHeight <= 8) {
 			lineHeight = fontSize * lineHeight;
 		}
+
 		const fontInfo = {
 			fontSize,
 			lineHeight,
@@ -788,28 +790,12 @@ export class SimpleSuggestWidget extends Disposable {
 			letterSpacing,
 			fontFamily
 		};
-		console.log('fontInfo', fontInfo);
+
 		return fontInfo;
 	}
 
 	private _getLayoutInfo() {
-		let lineHeight: number = this._configurationService.getValue('editor.lineHeight');
-		const fontSize: number = this._configurationService.getValue('editor.fontSize');
-		const fontFamily: string = this._configurationService.getValue('editor.fontFamily');
-		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
-		const letterSpacing: number = this._configurationService.getValue('editor.letterSpacing');
-		if (lineHeight === 0) {
-			lineHeight = fontSize;
-		} else if (lineHeight <= 8) {
-			lineHeight = fontSize * lineHeight;
-		}
-		const fontInfo = {
-			fontSize,
-			lineHeight,
-			fontWeight: fontWeight.toString(),
-			letterSpacing,
-			fontFamily
-		};
+		const fontInfo = this._getFontInfo();
 		const itemHeight = clamp(fontInfo.lineHeight, 8, 1000);
 		const statusBarHeight = !this._options.statusBarMenuId || !this._options.showStatusBarSettingId || !this._configurationService.getValue(this._options.showStatusBarSettingId) || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
 		const borderWidth = this._details.widget.borderWidth;
