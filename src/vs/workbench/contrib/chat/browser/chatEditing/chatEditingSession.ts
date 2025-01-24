@@ -8,8 +8,9 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
-import { Disposable, DisposableMap, dispose } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { autorunDelta, autorunIterableDelta } from '../../../../../base/common/observableInternal/autorun.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -614,6 +615,36 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._sequencer.queue(() => this._resolve());
 	}
 
+	private _trackUntitledWorkingSetEntry(resource: URI) {
+		if (resource.scheme !== Schemas.untitled) {
+			return;
+		}
+		const untitled = this._textFileService.untitled.get(resource);
+		if (!untitled) { // Shouldn't happen
+			return;
+		}
+
+		// Track this file until
+		// 1. it is removed from the working set
+		// 2. it is closed
+		// 3. we are disposed
+		const store = new DisposableStore();
+		store.add(this.onDidChange(e => {
+			if (e === ChatEditingSessionChangeType.WorkingSet && !this._workingSet.get(resource)) {
+				// The user has removed the file from the working set
+				store.dispose();
+			}
+		}));
+		store.add(this._editorService.onDidCloseEditor((e) => {
+			if (isEqual(e.editor.resource, resource)) {
+				this._workingSet.delete(resource);
+				store.dispose();
+				this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
+			}
+		}));
+		this._store.add(store);
+	}
+
 	addFileToWorkingSet(resource: URI, description?: string, proposedState?: WorkingSetEntryState.Suggested): void {
 		const state = this._workingSet.get(resource);
 		if (proposedState === WorkingSetEntryState.Suggested) {
@@ -621,9 +652,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				return;
 			}
 			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Suggested });
+			this._trackUntitledWorkingSetEntry(resource);
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		} else if (state === undefined || state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested) {
 			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Attached });
+			this._trackUntitledWorkingSetEntry(resource);
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}
 	}
