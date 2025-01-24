@@ -1696,7 +1696,7 @@ class ToggleAgentCheckActionViewItem extends MenuEntryActionViewItem {
 			{
 				...this.action,
 				id: 'normalMode',
-				label: localize('chat.normalMode', "Normal"),
+				label: localize('chat.normalMode', "Edit"),
 				class: undefined,
 				enabled: true,
 				checked: !this.action.checked,
