@@ -4250,7 +4250,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					useMixedLinesDiff: 'forStableInsertions',
 					useInterleavedLinesDiff: 'never',
 					useGutterIndicator: true,
-					useCodeOverlay: 'whenPossible',
+					useCodeOverlay: 'moveCodeWhenPossible',
 				},
 			},
 		};

@@ -130,9 +130,8 @@ export class InlineEditsView extends Disposable {
 		this._editor,
 		this._edit,
 		this._uiState.map(s => s && s.state?.kind === 'deletion' ? ({
-			edit: s.edit,
-			originalDisplayRange: s.originalDisplayRange,
-			widgetStartColumn: s.state.widgetStartColumn,
+			originalRange: s.state.originalRange,
+			deletions: s.state.deletions,
 		}) : undefined),
 	));
 
@@ -244,7 +243,7 @@ export class InlineEditsView extends Disposable {
 			const numOriginalLines = edit.originalLineRange.length;
 			const numModifiedLines = edit.modifiedLineRange.length;
 			const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
-			if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1 && useCodeOverlay === 'whenPossible') {
+			if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
 				return 'wordReplacements';
 			} else if (numOriginalLines > 0 && numModifiedLines > 0 && !InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
 				return 'lineReplacement';
@@ -282,9 +281,11 @@ export class InlineEditsView extends Disposable {
 		const inner = diff.flatMap(d => d.innerChanges ?? []);
 
 		if (view === 'deletion') {
-			const trimLength = getPrefixTrimLength(edit, inner, newText);
-			const widgetStartColumn = Math.min(trimLength, ...inner.map(m => m.originalRange.startLineNumber !== m.originalRange.endLineNumber ? 0 : m.originalRange.startColumn - 1));
-			return { kind: 'deletion' as const, widgetStartColumn };
+			return {
+				kind: 'deletion' as const,
+				originalRange: edit.originalLineRange,
+				deletions: inner.map(m => m.originalRange),
+			};
 		}
 
 		const replacements = inner.map(m => new SingleTextEdit(m.originalRange, newText.getValueOfRange(m.modifiedRange)));
@@ -352,30 +353,5 @@ function isSingleLineDeletion(diff: DetailedLineRangeMapping[]): boolean {
 			return false;
 		}
 		return true;
-	}
-}
-
-function getPrefixTrimLength(edit: InlineEditWithChanges, innerChanges: RangeMapping[], newText: StringText) {
-	if (innerChanges.some(m => m.originalRange.startLineNumber !== m.originalRange.endLineNumber)) {
-		return 0;
-	}
-
-	let minTrimLength = Number.MAX_SAFE_INTEGER;
-	for (let i = 0; i < edit.originalLineRange.length; i++) {
-		const lineNumber = edit.originalLineRange.startLineNumber + i;
-		const originalLine = edit.originalText.getLineAt(lineNumber);
-		const editedLine = newText.getLineAt(lineNumber);
-		const trimLength = getLinePrefixTrimLength(originalLine, editedLine);
-		minTrimLength = Math.min(minTrimLength, trimLength);
-	}
-
-	return Math.min(minTrimLength, ...innerChanges.map(m => m.originalRange.startColumn - 1));
-
-	function getLinePrefixTrimLength(originalLine: string, editedLine: string) {
-		let startTrim = 0;
-		while (originalLine[startTrim] === editedLine[startTrim] && (originalLine[startTrim] === ' ' || originalLine[startTrim] === '\t')) {
-			startTrim++;
-		}
-		return startTrim;
 	}
 }
