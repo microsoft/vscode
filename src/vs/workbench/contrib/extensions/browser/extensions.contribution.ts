@@ -78,6 +78,7 @@ import { ProgressLocation } from '../../../../platform/progress/common/progress.
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions } from '../../../common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -1932,31 +1933,34 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 class TrustedPublishersInitializer implements IWorkbenchContribution {
 	constructor(
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IProductService productService: IProductService,
 		@IStorageService storageService: IStorageService,
 	) {
 		const trustedPublishersInitStatusKey = 'trusted-publishers-initialized';
 		if (!storageService.get(trustedPublishersInitStatusKey, StorageScope.APPLICATION)) {
-			extensionManagementService.getInstalled(ExtensionType.User)
-				.then(async extensions => {
-					const trustedPublishers = new Set<string>();
-					for (const extension of extensions) {
-						if (!extension.publisherId) {
-							continue;
+			for (const profile of userDataProfilesService.profiles) {
+				extensionManagementService.getInstalled(ExtensionType.User, profile.extensionsResource)
+					.then(async extensions => {
+						const trustedPublishers = new Set<string>();
+						for (const extension of extensions) {
+							if (!extension.publisherId) {
+								continue;
+							}
+							const publisher = extension.manifest.publisher.toLowerCase();
+							if (productService.trustedExtensionPublishers?.includes(publisher)
+								|| (extension.publisherDisplayName && productService.trustedExtensionPublishers?.includes(extension.publisherDisplayName.toLowerCase()))) {
+								continue;
+							}
+							trustedPublishers.add(publisher);
 						}
-						const publisher = extension.manifest.publisher.toLowerCase();
-						if (productService.trustedExtensionPublishers?.includes(publisher)
-							|| (extension.publisherDisplayName && productService.trustedExtensionPublishers?.includes(extension.publisherDisplayName.toLowerCase()))) {
-							continue;
+						if (trustedPublishers.size) {
+							await allowedExtensionsService.trustPublishers(...trustedPublishers);
 						}
-						trustedPublishers.add(publisher);
-					}
-					if (trustedPublishers.size) {
-						await allowedExtensionsService.trustPublishers(...trustedPublishers);
-					}
-					storageService.store(trustedPublishersInitStatusKey, 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
-				});
+						storageService.store(trustedPublishersInitStatusKey, 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
+					});
+			}
 		}
 	}
 }
