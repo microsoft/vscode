@@ -1630,7 +1630,7 @@
         },
         {
           "command": "typescript.selectTypeScriptVersion",
-          "when": "typescript.isManagedFile"
+          "when": "typescript.isManagedFile || resourceFilename == 'tsconfig.json'"
         },
         {
           "command": "typescript.openTsServerLog",
