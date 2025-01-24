@@ -16,7 +16,7 @@ import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
 import { createContentSegmenter, type IContentSegmenter } from '../contentSegmenter.js';
-import { BindingId } from '../gpu.js';
+import { BindingId, type IGpuRenderStrategyUpdateResult } from '../gpu.js';
 import { GPULifecycle } from '../gpuDisposable.js';
 import { quadVertices } from '../gpuUtils.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
@@ -184,7 +184,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		}
 	}
 
-	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
+	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): IGpuRenderStrategyUpdateResult {
 		// IMPORTANT: This is a hot function. Variables are pre-allocated and shared within the
 		// loop. This is done so we don't need to trust the JIT compiler to do this optimization to
 		// avoid potential additional blocking time in garbage collector which is a common cause of
@@ -223,6 +223,8 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			this.onScrollChanged();
 			this._scrollInitialized = true;
 		}
+
+		let localContentWidth = 0;
 
 		// Zero out cell buffer or rebuild if needed
 		if (this._cellBindBufferLineCapacity < viewportData.endLineNumber - viewportData.startLineNumber + 1) {
@@ -369,6 +371,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 					// Adjust the x pixel offset for the next character
 					absoluteOffsetX += charWidth;
+					localContentWidth = Math.max(localContentWidth, absoluteOffsetX);
 				}
 
 				tokenStartIndex = tokenEndIndex;
@@ -394,7 +397,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 
 		this._visibleObjectCount = visibleObjectCount;
-		return visibleObjectCount;
+		return { localContentWidth };
 	}
 
 	draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void {
