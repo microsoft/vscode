@@ -114,7 +114,6 @@ suite('Terminal Contrib Suggest Recordings', () => {
 						'terminal-suggest': true,
 						'pwsh-shell-integration': true,
 					},
-					enableExtensionCompletions: false
 				} satisfies ITerminalSuggestConfiguration
 			}
 		};

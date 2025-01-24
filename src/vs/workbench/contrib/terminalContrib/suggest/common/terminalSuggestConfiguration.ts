@@ -53,7 +53,6 @@ export interface ITerminalSuggestConfiguration {
 		'terminal-suggest': boolean;
 		'pwsh-shell-integration': boolean;
 	};
-	enableExtensionCompletions: boolean;
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
