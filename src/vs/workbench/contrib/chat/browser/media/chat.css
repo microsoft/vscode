@@ -1448,7 +1448,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 4px 8px;
 }
 
-.interactive-item-container .chat-confirmation-widget .value .rendered-markdown [data-code] {
+.interactive-item-container .chat-confirmation-widget .rendered-markdown [data-code] {
 	margin-bottom: 8px;
 }
 
