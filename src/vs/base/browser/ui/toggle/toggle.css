@@ -52,7 +52,7 @@
 .monaco-action-bar .checkbox-action-item {
 	display: flex;
 	align-items: center;
-	border-radius: 4px;
+	border-radius: 2px;
 	padding-right: 2px;
 }
 
@@ -61,7 +61,7 @@
 }
 
 .monaco-action-bar .checkbox-action-item > .monaco-custom-toggle.monaco-checkbox {
-	margin: 3px 4px 3px 3px;
+	margin-right: 4px;
 }
 
 .monaco-action-bar .checkbox-action-item > .checkbox-label {
