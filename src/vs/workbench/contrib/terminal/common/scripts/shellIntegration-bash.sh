@@ -252,19 +252,17 @@ trackMissingEnvVars() {
 
 	# Compare vsc_env_keys with current_env_keys
 	for key in "${vsc_env_keys[@]}"; do
-		local found=false
+		local found=0
 		for env_key in "${current_env_keys[@]}"; do
 			if [[ "$key" == "$env_key" ]]; then
-				# TODO: Use 1 and 0 over true
-				found=true
+				found=1
 				break
 			fi
 		done
-		if [[ "$found" == false ]]; then
+		if [ "$found" = 0 ]; then
 			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${vsc_env_keys[i]}" "$(__vsc_escape_value "${vsc_env_values[i]}")" "$__vsc_nonce"
-			# TODO: Use `builtin unset`
-			unset 'vsc_env_keys[i]'
-			unset 'vsc_env_values[i]'
+			builtin unset 'vsc_env_keys[i]'
+			builtin unset 'vsc_env_values[i]'
 		fi
 	done
 
