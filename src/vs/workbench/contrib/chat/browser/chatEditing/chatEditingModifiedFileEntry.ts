@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -305,10 +304,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._clearCurrentEditLineDecoration();
 
 		// AUTO accept mode
-		if (!this.reviewMode.get()) {
+		if (!this.reviewMode.get() && !this._autoAcceptCtrl.get()) {
 
 			const future = Date.now() + (this._autoAcceptTimeout.get() * 1000);
-			const cts = new CancellationTokenSource();
 			const update = () => {
 
 				const reviewMode = this.reviewMode.get();
@@ -318,17 +316,15 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 					return;
 				}
 
-				if (cts.token.isCancellationRequested) {
-					this._autoAcceptCtrl.set(undefined, undefined);
-					return;
-				}
-
 				const remain = Math.round((future - Date.now()) / 1000);
 				if (remain <= 0) {
 					this.accept(undefined);
 				} else {
-					this._autoAcceptCtrl.set(new AutoAcceptControl(remain, () => cts.cancel()), undefined);
-					setTimeout(update, 100);
+					const handle = setTimeout(update, 100);
+					this._autoAcceptCtrl.set(new AutoAcceptControl(remain, () => {
+						clearTimeout(handle);
+						this._autoAcceptCtrl.set(undefined, undefined);
+					}), undefined);
 				}
 			};
 			update();

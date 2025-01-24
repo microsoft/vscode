@@ -12,6 +12,7 @@ import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { SaveReason } from '../../../../common/editor.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
@@ -171,7 +172,10 @@ class EditTool implements IToolImpl {
 			dispose.dispose();
 		});
 
-		await this.textFileService.save(uri);
+		await this.textFileService.save(uri, {
+			reason: SaveReason.AUTO,
+			skipSaveParticipants: true,
+		});
 
 		return {
 			content: [{ kind: 'text', value: 'The file was edited successfully' }]

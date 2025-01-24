@@ -9,7 +9,7 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/diffEditor/commands.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ActiveAuxiliaryContext } from '../../../../common/contextkeys.js';
@@ -19,7 +19,7 @@ import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatWidgetService } from '../chat.js';
 
-export class PanelChatAccessibilityHelp implements IAccessibleViewImplentation {
+export class PanelChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 107;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.Help;
@@ -30,7 +30,7 @@ export class PanelChatAccessibilityHelp implements IAccessibleViewImplentation {
 	}
 }
 
-export class QuickChatAccessibilityHelp implements IAccessibleViewImplentation {
+export class QuickChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 107;
 	readonly name = 'quickChat';
 	readonly type = AccessibleViewType.Help;
@@ -41,7 +41,7 @@ export class QuickChatAccessibilityHelp implements IAccessibleViewImplentation {
 	}
 }
 
-export class EditsChatAccessibilityHelp implements IAccessibleViewImplentation {
+export class EditsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 119;
 	readonly name = 'editsView';
 	readonly type = AccessibleViewType.Help;

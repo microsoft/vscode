@@ -108,6 +108,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		commonProperties['common.extversion'] = extension.version;
 		commonProperties['common.vscodemachineid'] = this.initData.telemetryInfo.machineId;
 		commonProperties['common.vscodesessionid'] = this.initData.telemetryInfo.sessionId;
+		commonProperties['common.vscodecommithash'] = this.initData.commit;
 		commonProperties['common.sqmid'] = this.initData.telemetryInfo.sqmId;
 		commonProperties['common.devDeviceId'] = this.initData.telemetryInfo.devDeviceId;
 		commonProperties['common.vscodeversion'] = this.initData.version;

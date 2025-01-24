@@ -18,13 +18,16 @@ import { SingleTextEdit } from '../../../../../common/core/textEdit.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../common/tokens/tokenArray.js';
-import { mapOutFalsy, n, rectToProps } from './utils.js';
+import { getPrefixTrim, mapOutFalsy, n, rectToProps } from './utils.js';
 import { localize } from '../../../../../../nls.js';
 import { IInlineEditsView } from './sideBySideDiff.js';
 import { Range } from '../../../../../common/core/range.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
 import { IModelDecorationOptions, TrackedRangeStickiness } from '../../../../../common/model.js';
+import { $ } from '../../../../../../base/browser/dom.js';
+import { observableValue } from '../../../../../../base/common/observableInternal/base.js';
+import { IViewZoneChangeAccessor } from '../../../../../browser/editorBrowser.js';
 export const transparentHoverBackground = registerColor(
 	'inlineEdit.wordReplacementView.background',
 	{
@@ -271,35 +274,13 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
-	private readonly maxPrefixTrim = derived(this, reader => {
-		const maxPrefixTrim = Math.max(...this._replacements.flatMap(r => [r.originalRange, r.modifiedRange]).map(r => r.isSingleLine() ? r.startColumn - 1 : 0));
-		if (maxPrefixTrim === 0) {
-			return 0;
-		}
-
-		const textModel = this._editor.editor.getModel()!;
-
-		const getLineTrimColLength = (line: string) => {
-			let i = 0;
-			while (i < line.length && line[i] === ' ') { i++; }
-			return i;
-		};
-
-		// TODO: make sure this works for tabs
-		return Math.min(
-			maxPrefixTrim,
-			...this._originalRange.mapToLineArray(line => getLineTrimColLength(textModel.getLineContent(line))),
-			...this._modifiedLines.map(line => getLineTrimColLength(line))
-		);
-	});
+	private readonly _maxPrefixTrim = getPrefixTrim(this._replacements.flatMap(r => [r.originalRange, r.modifiedRange]), this._originalRange, this._modifiedLines, this._editor.editor);
 
 	private readonly _modifiedLineElements = derived(reader => {
-
-		const maxPrefixTrim = this.maxPrefixTrim.read(reader);
-
 		const lines = [];
 		let requiredWidth = 0;
 
+		const maxPrefixTrim = this._maxPrefixTrim.prefixTrim;
 		const modifiedBubbles = rangesToBubbleRanges(this._replacements.map(r => r.modifiedRange)).map(r => new Range(r.startLineNumber, r.startColumn - maxPrefixTrim, r.endLineNumber, r.endColumn - maxPrefixTrim));
 
 		const textModel = this._editor.model.get()!;
@@ -334,6 +315,8 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 		return { lines, requiredWidth: requiredWidth - 10 }; // TODO: Width is always too large, why?
 	});
 
+	private readonly _viewZoneInfo = observableValue<{ height: number; lineNumber: number } | undefined>('viewZoneInfo', undefined);
+
 	private readonly _layout = derived(this, reader => {
 		const { requiredWidth } = this._modifiedLineElements.read(reader);
 
@@ -346,12 +329,12 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 		const PADDING = 4;
 
 		const editorModel = this._editor.editor.getModel()!;
-		const maxPrefixTrim = this.maxPrefixTrim.read(reader);
+		const { prefixTrim, prefixLeftOffset } = this._maxPrefixTrim;
 
-		// TODO, correctly count tabs
+		// TODO: correctly count tabs
 		const originalLineContents: string[] = [];
 		this._originalRange.forEach(line => originalLineContents.push(editorModel.getLineContent(line)));
-		const maxOriginalLineLength = Math.max(...originalLineContents.map(l => l.length)) - maxPrefixTrim;
+		const maxOriginalLineLength = Math.max(...originalLineContents.map(l => l.length)) - prefixTrim;
 		const maxLineWidth = Math.max(maxOriginalLineLength * w, requiredWidth);
 
 		const startLineNumber = this._originalRange.startLineNumber;
@@ -360,39 +343,89 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 		const bottomOfOriginalLines = this._editor.editor.getBottomForLineNumber(endLineNumber) - scrollTop;
 
 		if (bottomOfOriginalLines <= 0) {
+			this._viewZoneInfo.set(undefined, undefined);
 			return undefined;
 		}
 
-		const prefixTrimOffset = maxPrefixTrim * w;
-
 		// Box Widget positioning
-		const originalLine = Rect.fromLeftTopWidthHeight(
-			editorLeftOffset + prefixTrimOffset,
+		const originalLinesOverlay = Rect.fromLeftTopWidthHeight(
+			editorLeftOffset + prefixLeftOffset,
 			topOfOriginalLines,
 			maxLineWidth,
 			bottomOfOriginalLines - topOfOriginalLines + PADDING
 		);
-		const modifiedLine = Rect.fromLeftTopWidthHeight(
-			originalLine.left,
-			originalLine.bottom + PADDING,
-			originalLine.width,
+		const modifiedLinesOverlay = Rect.fromLeftTopWidthHeight(
+			originalLinesOverlay.left,
+			originalLinesOverlay.bottom + PADDING,
+			originalLinesOverlay.width,
 			this._modifiedRange.length * lineHeight
 		);
-		const background = Rect.hull([originalLine, modifiedLine]).withMargin(PADDING);
+		const background = Rect.hull([originalLinesOverlay, modifiedLinesOverlay]).withMargin(PADDING);
 
-		const lowerBackground = background.intersectVertical(new OffsetRange(originalLine.bottom, Number.MAX_SAFE_INTEGER));
+		const lowerBackground = background.intersectVertical(new OffsetRange(originalLinesOverlay.bottom, Number.MAX_SAFE_INTEGER));
 		const lowerText = new Rect(lowerBackground.left + PADDING, lowerBackground.top + PADDING, lowerBackground.right, lowerBackground.bottom);
 
+		// Add ViewZone if needed
+		const shouldShowViewZone = this._editor.editor.getOption(EditorOption.inlineSuggest).edits.experimental.useCodeOverlay === 'moveCodeWhenPossible';
+		if (shouldShowViewZone) {
+			const viewZoneHeight = lowerBackground.height + 2 * PADDING;
+			const viewZoneLineNumber = this._originalRange.endLineNumberExclusive;
+			const activeViewZone = this._viewZoneInfo.get();
+			if (!activeViewZone || activeViewZone.lineNumber !== viewZoneLineNumber || activeViewZone.height !== viewZoneHeight) {
+				this._viewZoneInfo.set({ height: viewZoneHeight, lineNumber: viewZoneLineNumber }, undefined);
+			}
+		}
+
 		return {
-			originalLine,
-			modifiedLine,
+			originalLinesOverlay,
+			modifiedLinesOverlay,
 			background,
 			lowerBackground,
 			lowerText,
 			padding: PADDING,
-			minContentWidthRequired: prefixTrimOffset + maxLineWidth + PADDING * 2,
+			minContentWidthRequired: maxLineWidth + PADDING * 2,
 		};
 	});
+
+	private _previousViewZoneInfo: { height: number; lineNumber: number; id: string } | undefined = undefined;
+	protected readonly _viewZone = derived(this, reader => {
+		const viewZoneInfo = this._viewZoneInfo.read(reader);
+		this._editor.editor.changeViewZones((changeAccessor) => {
+			this.removePreviousViewZone(changeAccessor);
+			if (!viewZoneInfo) { return; }
+			this.addViewZone(viewZoneInfo, changeAccessor);
+		});
+	}).recomputeInitiallyAndOnChange(this._store);
+
+	private removePreviousViewZone(changeAccessor: IViewZoneChangeAccessor) {
+		if (!this._previousViewZoneInfo) {
+			return;
+		}
+
+		changeAccessor.removeZone(this._previousViewZoneInfo.id);
+
+		const cursorLineNumber = this._editor.cursorLineNumber.get();
+		if (cursorLineNumber !== null && cursorLineNumber >= this._previousViewZoneInfo.lineNumber) {
+			this._editor.editor.setScrollTop(this._editor.scrollTop.get() - this._previousViewZoneInfo.height);
+		}
+
+		this._previousViewZoneInfo = undefined;
+	}
+
+	private addViewZone(viewZoneInfo: { height: number; lineNumber: number }, changeAccessor: IViewZoneChangeAccessor) {
+		const activeViewZone = changeAccessor.addZone({
+			afterLineNumber: viewZoneInfo.lineNumber - 1,
+			heightInPx: viewZoneInfo.height, // move computation to layout?
+			domNode: $('div'),
+		});
+
+		const cursorLineNumber = this._editor.cursorLineNumber.get();
+		if (cursorLineNumber !== null && cursorLineNumber >= viewZoneInfo.lineNumber) {
+			this._editor.editor.setScrollTop(this._editor.scrollTop.get() + viewZoneInfo.height);
+		}
+
+		this._previousViewZoneInfo = { height: viewZoneInfo.height, lineNumber: viewZoneInfo.lineNumber, id: activeViewZone };
+	}
 
 	private readonly _div = n.div({
 		class: 'line-replacement',
@@ -512,6 +545,7 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 		super();
 
 		this._register(toDisposable(() => this._originalBubblesDecorationCollection.clear()));
+		this._register(toDisposable(() => this._editor.editor.changeViewZones(accessor => this.removePreviousViewZone(accessor))));
 
 		const originalBubbles = rangesToBubbleRanges(this._replacements.map(r => r.originalRange));
 		this._originalBubblesDecorationCollection.set(originalBubbles.map(r => ({ range: r, options: this._originalBubblesDecorationOptions })));

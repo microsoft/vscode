@@ -14,6 +14,7 @@ import { OS } from '../../../../../../base/common/platform.js';
 import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
 import { Rect } from '../../../../../browser/rect.js';
@@ -24,8 +25,9 @@ import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js';
 import { RangeMapping } from '../../../../../common/diff/rangeMapping.js';
+import { indentOfLine } from '../../../../../common/model/textModel.js';
 
-export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader): number {
+export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
 	editor.layoutInfo.read(reader);
 	editor.value.read(reader);
 
@@ -64,6 +66,22 @@ export function getOffsetForPos(editor: ObservableCodeEditor, pos: Position, rea
 	const lineContentWidth = editor.editor.getOffsetForColumn(pos.lineNumber, pos.column);
 
 	return lineContentWidth;
+}
+
+export function getPrefixTrim(diffRanges: Range[], originalLinesRange: LineRange, modifiedLines: string[], editor: ICodeEditor): { prefixTrim: number; prefixLeftOffset: number } {
+	const textModel = editor.getModel();
+	if (!textModel) {
+		return { prefixTrim: 0, prefixLeftOffset: 0 };
+	}
+
+	const replacementStart = diffRanges.map(r => r.isSingleLine() ? r.startColumn - 1 : 0);
+	const originalIndents = originalLinesRange.mapToLineArray(line => indentOfLine(textModel.getLineContent(line)));
+	const modifiedIndents = modifiedLines.map(line => indentOfLine(line));
+	const prefixTrim = Math.min(...replacementStart, ...originalIndents, ...modifiedIndents);
+
+	const prefixLeftOffset = editor.getOffsetForColumn(originalLinesRange.startLineNumber, prefixTrim + 1);
+
+	return { prefixTrim, prefixLeftOffset };
 }
 
 export class StatusBarViewItem extends MenuEntryActionViewItem {

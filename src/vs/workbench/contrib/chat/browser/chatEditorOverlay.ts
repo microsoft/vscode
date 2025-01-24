@@ -24,8 +24,12 @@ import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './cha
 import { ChatEditorController } from './chatEditorController.js';
 import './media/chatEditorOverlay.css';
 import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
+import { IChatService } from '../common/chatService.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { rcut } from '../../../../base/common/strings.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
-export class ChatEditorOverlayWidget implements IOverlayWidget {
+class ChatEditorOverlayWidget implements IOverlayWidget {
 
 	readonly allowEditorOverflow = true;
 
@@ -43,6 +47,8 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IEditorService editorService: IEditorService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IChatService private readonly _chatService: IChatService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		this._domNode = document.createElement('div');
@@ -212,7 +218,32 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 		return { preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER };
 	}
 
-	show(session: IChatEditingSession, activeEntry: IModifiedFileEntry, next: IModifiedFileEntry) {
+	showRequest(session: IChatEditingSession) {
+
+		this._showStore.clear();
+
+		const chatModel = this._chatService.getSession(session.chatSessionId);
+		const chatRequest = chatModel?.getRequests().at(-1);
+
+		if (!chatRequest || !chatRequest.response) {
+			this.hide();
+			return;
+		}
+
+		this._domNode.classList.toggle('busy', true);
+
+		const message = rcut(chatRequest.message.text, 47);
+		reset(this._progressNode, message);
+
+		this._showStore.add(this._hoverService.setupDelayedHover(this._progressNode, {
+			content: chatRequest.message.text,
+			appearance: { showPointer: true }
+		}));
+
+		this._show();
+	}
+
+	showEntry(session: IChatEditingSession, activeEntry: IModifiedFileEntry, next: IModifiedFileEntry) {
 
 		this._showStore.clear();
 
@@ -226,8 +257,8 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 		this._showStore.add(autorun(r => {
 			const value = activeEntry.rewriteRatio.read(r);
 			reset(this._progressNode, (value === 0
-				? localize('generating', "Generating edits...")
-				: localize('applyingPercentage', "{0}% Applying edits...", Math.round(value * 100))));
+				? localize('generating', "Generating edits")
+				: localize('applyingPercentage', "{0}% Applying edits", Math.round(value * 100))));
 		}));
 
 		this._showStore.add(autorun(r => {
@@ -256,8 +287,12 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 			this._navigationBearings.set({ changeCount: changes, activeIdx, entriesCount: entries.length }, undefined);
 		}));
 
+		this._show();
+	}
 
-		const editorWithObs = observableFromEvent(this._editor.onDidLayoutChange, () => {
+	private _show(): void {
+
+		const editorWidthObs = observableFromEvent(this._editor.onDidLayoutChange, () => {
 			const diffEditor = this._instaService.invokeFunction(findDiffEditorContainingCodeEditor, this._editor);
 			return diffEditor
 				? diffEditor.getOriginalEditor().getLayoutInfo().contentWidth + diffEditor.getModifiedEditor().getLayoutInfo().contentWidth
@@ -265,7 +300,7 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 		});
 
 		this._showStore.add(autorun(r => {
-			const width = editorWithObs.read(r);
+			const width = editorWidthObs.read(r);
 			this._domNode.style.maxWidth = `${width - 20}px`;
 		}));
 
@@ -287,5 +322,42 @@ export class ChatEditorOverlayWidget implements IOverlayWidget {
 			this._isAdded = false;
 			this._showStore.clear();
 		}
+	}
+}
+
+
+export class ChatEditorOverlayController implements IEditorContribution {
+
+	static readonly ID = 'editor.contrib.chatEditorOverlayController';
+
+	static get(editor: ICodeEditor): ChatEditorOverlayController | undefined {
+		return editor.getContribution<ChatEditorOverlayController>(ChatEditorOverlayController.ID) ?? undefined;
+	}
+
+	private readonly _overlayWidget: ChatEditorOverlayWidget;
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+	) {
+		this._overlayWidget = this._instaService.createInstance(ChatEditorOverlayWidget, this._editor);
+
+	}
+
+	dispose(): void {
+		this.hide();
+		this._overlayWidget.dispose();
+	}
+
+	showRequest(session: IChatEditingSession) {
+		this._overlayWidget.showRequest(session);
+	}
+
+	showEntry(session: IChatEditingSession, activeEntry: IModifiedFileEntry, next: IModifiedFileEntry) {
+		this._overlayWidget.showEntry(session, activeEntry, next);
+	}
+
+	hide() {
+		this._overlayWidget.hide();
 	}
 }

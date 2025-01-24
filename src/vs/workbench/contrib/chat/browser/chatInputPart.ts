@@ -89,7 +89,7 @@ import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatModelPickerActionId, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatModelPickerActionId, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { InstructionAttachmentsWidget } from './attachments/instructionsAttachment/instructionAttachments.js';
 import { IChatWidget } from './chat.js';
@@ -124,6 +124,7 @@ interface IChatInputPartOptions {
 	};
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	enableImplicitContext?: boolean;
+	renderWorkingSet?: boolean;
 }
 
 export interface IWorkingSetEntry {
@@ -793,6 +794,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						};
 						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate, { hoverDelegate: options.hoverDelegate, keybinding: options.keybinding ?? undefined });
 					}
+				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(ToggleAgentCheckActionViewItem, action, options as IMenuEntryActionViewItemOptions);
 				}
 
 				return undefined;
@@ -1139,7 +1142,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
-		if (!chatEditingSession) {
+		if (!chatEditingSession || !this.options.renderWorkingSet) {
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
@@ -1664,3 +1667,72 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
+
+class ToggleAgentCheckActionViewItem extends MenuEntryActionViewItem {
+	private readonly agentStateActions: IAction[];
+
+	constructor(
+		action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
+	) {
+		options.keybindingNotRenderedWithLabel = true;
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
+
+		this.agentStateActions = [
+			{
+				...this.action,
+				id: 'agentMode',
+				label: localize('chat.agentMode', "Agent"),
+				class: undefined,
+				enabled: true,
+				run: () => this.action.run()
+			},
+			{
+				...this.action,
+				id: 'normalMode',
+				label: localize('chat.normalMode', "Edit"),
+				class: undefined,
+				enabled: true,
+				checked: !this.action.checked,
+				run: () => this.action.run()
+			},
+		];
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		this._openContextMenu();
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-modelPicker-item');
+
+		// TODO@roblourens this should be a DropdownMenuActionViewItem, but we can't customize how it's rendered yet.
+		this._register(dom.addDisposableListener(container, dom.EventType.KEY_UP, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				this._openContextMenu();
+			}
+		}));
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
+			dom.reset(this.label, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
+		}
+	}
+
+	private _openContextMenu() {
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => this.element!,
+			getActions: () => this.agentStateActions
+		});
+	}
+}

@@ -172,7 +172,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, startSetup: boolean | undefined): Promise<void> {
+			override async run(accessor: ServicesAccessor): Promise<void> {
 				const viewsService = accessor.get(IViewsService);
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const configurationService = accessor.get(IConfigurationService);
@@ -182,10 +182,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				showCopilotView(viewsService, layoutService);
 				ensureSideBarChatViewSize(viewDescriptorService, layoutService);
-
-				if (startSetup === true) {
-					controller.value.setup();
-				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 			}
@@ -313,7 +309,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			},
 			handleURL: async url => {
 				const params = new URLSearchParams(url.query);
-				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: TRIGGER_SETUP_COMMAND_ID, from: params.get('referrer') ?? 'url' });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: TRIGGER_SETUP_COMMAND_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
 				await this.commandService.executeCommand(TRIGGER_SETUP_COMMAND_ID);
 

@@ -8,12 +8,12 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { diffInserted, diffRemoved, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -95,23 +95,31 @@ export const modifiedBorder = registerColor(
 	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
 );
 
-export const acceptedDecorationBackgroundColor = registerColor(
-	'inlineEdit.acceptedBackground',
-	{
-		light: transparent(modifiedChangedTextOverlayColor, 0.75),
-		dark: transparent(modifiedChangedTextOverlayColor, 0.75),
-		hcDark: modifiedChangedTextOverlayColor,
-		hcLight: modifiedChangedTextOverlayColor
-	},
-	localize('inlineEdit.acceptedBackground', 'Background color for the accepted text after applying an inline edit.'),
-	true
-);
-
 export interface IInlineEditsView {
 	isHovered: IObservable<boolean>;
 }
 
+const PADDING = 4;
+const ENABLE_OVERFLOW = false;
+
 export class InlineEditsSideBySideDiff extends Disposable implements IInlineEditsView {
+
+	// This is an approximation and should be improved by using the real parameters used bellow
+	static fitsInsideViewport(editor: ICodeEditor, edit: InlineEditWithChanges, reader: IReader): boolean {
+		const editorObs = observableCodeEditor(editor);
+		const editorWidth = editorObs.layoutInfoWidth.read(reader);
+		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
+		const editorVerticalScrollBar = editor.getLayoutInfo().verticalScrollbarWidth;
+		const w = editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+
+		const maxOriginalContent = maxContentWidthInRange(editorObs, edit.originalLineRange, undefined/* do not reconsider on each layout info change */);
+		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, line.length * w), 0);
+		const endOfEditorPadding = 20; // padding after last line of editor
+		const editorsPadding = edit.modifiedLineRange.length <= edit.originalLineRange.length ? PADDING * 3 + endOfEditorPadding : 60 + endOfEditorPadding * 2;
+
+		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollBar;
+	}
+
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	constructor(
@@ -452,7 +460,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		}
 
 		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
-		const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
+		const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getBottomForLineNumber(range.endLineNumberExclusive - 1) - this._editorObs.scrollTop.read(reader);
 
 		const codeLeft = editorLayout.contentLeft;
 
@@ -471,7 +479,6 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 			: new OffsetRange(60, 61);
 
 		const clipped = dist === 0;
-		const PADDING = 4;
 
 		const codeEditDist = editIsSameHeight ? PADDING : codeEditDistRange.clip(dist); // TODO: Is there a better way to specify the distance?
 
@@ -527,6 +534,9 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 	private readonly _stickyScrollHeight = this._stickyScrollController ? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight) : constObservable(0);
 
 	private readonly _shouldOverflow = derived(reader => {
+		if (!ENABLE_OVERFLOW) {
+			return false;
+		}
 		const range = this._edit.read(reader)?.originalLineRange;
 		if (!range) {
 			return false;

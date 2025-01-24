@@ -23,7 +23,11 @@ import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 import { InlineChatExpandLineAction, InlineChatHintsController, HideInlineChatHintAction, ShowInlineChatHintAction } from './inlineChatCurrentLine.js';
+import { InlineChatController2, StartSessionAction2, StopSessionAction2 } from './inlineChatController2.js';
 
+registerEditorContribution(InlineChatController2.ID, InlineChatController2, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
+registerAction2(StartSessionAction2);
+registerAction2(StopSessionAction2);
 
 // --- browser
 

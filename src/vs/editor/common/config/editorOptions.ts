@@ -4215,6 +4215,8 @@ export interface IInlineSuggestOptions {
 			enabled?: boolean;
 			useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+			useCodeOverlay?: 'never' | 'whenPossible' | 'moveCodeWhenPossible';
+			useMultiLineGhostText?: boolean;
 
 			useGutterIndicator?: boolean;
 		};
@@ -4249,6 +4251,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					useMixedLinesDiff: 'forStableInsertions',
 					useInterleavedLinesDiff: 'never',
 					useGutterIndicator: true,
+					useCodeOverlay: 'moveCodeWhenPossible',
+					useMultiLineGhostText: false
 				},
 			},
 		};
@@ -4295,8 +4299,19 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.edits.experimental.useMixedLinesDiff': {
 					type: 'string',
 					default: defaults.edits.experimental.useMixedLinesDiff,
-					description: nls.localize('inlineSuggest.edits.experimental.useMixedLinesDiff', "Controls whether to enable experimental edits in inline suggestions."),
+					description: nls.localize('inlineSuggest.edits.experimental.useMixedLinesDiff', "Controls whether to enable experimental mixed lines diff in inline suggestions."),
 					enum: ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible'],
+				},
+				'editor.inlineSuggest.edits.experimental.useCodeOverlay': {
+					type: 'string',
+					default: defaults.edits.experimental.useCodeOverlay,
+					description: nls.localize('inlineSuggest.edits.experimental.useCodeOverlay', "Controls whether suggestions may be shown above the code."),
+					enum: ['never', 'whenPossible', 'moveCodeWhenPossible'],
+				},
+				'editor.inlineSuggest.edits.experimental.useMultiLineGhostText': {
+					type: 'boolean',
+					default: defaults.edits.experimental.useMultiLineGhostText,
+					description: nls.localize('inlineSuggest.edits.experimental.useMultiLineGhostText', "Controls whether multi line insertions can be shown with Ghost text."),
 				},
 				'editor.inlineSuggest.edits.experimental.useInterleavedLinesDiff': {
 					type: 'string',
@@ -4330,8 +4345,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				experimental: {
 					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
 					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
+					useCodeOverlay: stringSet(input.edits?.experimental?.useCodeOverlay, this.defaultValue.edits.experimental.useCodeOverlay, ['never', 'whenPossible', 'moveCodeWhenPossible']),
 					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
 					useGutterIndicator: boolean(input.edits?.experimental?.useGutterIndicator, this.defaultValue.edits.experimental.useGutterIndicator),
+					useMultiLineGhostText: boolean(input.edits?.experimental?.useMultiLineGhostText, this.defaultValue.edits.experimental.useMultiLineGhostText),
 				},
 			},
 		};
