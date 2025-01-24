@@ -70,6 +70,13 @@ export default class LanguageProvider extends Disposable {
 			vscode.window.visibleTextEditors.forEach(async editor => {
 				this._registerDecorationsForEditor(editor);
 			});
+			vscode.workspace.onDidChangeTextDocument(e => {
+				const activeTextEditor = vscode.window.activeTextEditor;
+				if (!activeTextEditor) {
+					return;
+				}
+				this._registerDecorationsForEditor(activeTextEditor);
+			});
 		});
 	}
 
