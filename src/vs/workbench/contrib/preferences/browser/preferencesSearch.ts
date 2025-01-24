@@ -139,7 +139,7 @@ export class LocalSearchProvider implements ISearchProvider {
 export class SettingMatches {
 	readonly matches: IRange[];
 	/** Whether to use the new key matching search algorithm that calculates more weights for each result */
-	useNewKeyMatchingSearch = false;
+	useNewKeyMatchingSearch: boolean = false;
 	matchType: SettingMatchType = SettingMatchType.None;
 	/**
 	 * A match score for key matches to allow comparing key matches against each other.
