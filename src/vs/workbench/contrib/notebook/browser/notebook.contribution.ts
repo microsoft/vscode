@@ -1256,5 +1256,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false
 		},
+		[NotebookSetting.markupFontFamily]: {
+			markdownDescription: nls.localize('notebook.markupFontFamily', "Controls the font family of rendered markup in notebooks."),
+			type: 'string',
+			default: '',
+			tags: ['notebookLayout']
+		},
 	}
 });
