@@ -235,7 +235,7 @@ export class InlineEditsView extends Disposable {
 			return 'ghostText';
 		}
 
-		if (inner.every(m => newText.getValueOfRange(m.modifiedRange).trim() === '')) {
+		if (inner.every(m => newText.getValueOfRange(m.modifiedRange).trim() === '' && edit.originalText.getValueOfRange(m.originalRange).trim() !== '')) {
 			return 'deletion';
 		}
 
