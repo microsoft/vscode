@@ -760,7 +760,9 @@ export class SimpleSuggestWidget extends Disposable {
 
 		this._listElement.style.width = `${width}px`;
 		this.element.layout(height, width);
-
+		if (this._cursorPosition) {
+			this.element.domNode.style.top = `${this._cursorPosition.top - height}px`;
+		}
 		this._positionDetails();
 	}
 
