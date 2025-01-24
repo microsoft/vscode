@@ -19,16 +19,14 @@ import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../.
 import type { IPromptInputModel, IPromptInputModelState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { getListStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { activeContrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
-import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
-import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
-import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -80,8 +78,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
-	private readonly _onDidFontConfigurationChange = this._register(new Emitter<void>());
-	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	private _kindToIconMap = new Map<number, ThemeIcon>([
 		[TerminalCompletionItemKind.File, Codicon.file],
@@ -100,7 +96,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		super();
@@ -395,36 +390,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
-	private _getFontInfo(): ISimpleSuggestWidgetFontInfo {
-		const c = this._terminalConfigurationService.config;
-		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
-		const fontInfo: ISimpleSuggestWidgetFontInfo = {
-			fontFamily: font.fontFamily,
-			fontSize: font.fontSize,
-			// In the editor's world, lineHeight is the pixels between the baselines of two lines of text
-			// In the terminal's world, lineHeight is the multiplier of the font size
-			// 1.5 is needed so that it's taller than a 16px icon
-			lineHeight: Math.ceil(c.lineHeight * font.fontSize * 1.5),
-			fontWeight: c.fontWeight.toString(),
-			letterSpacing: font.letterSpacing
-		};
-		return fontInfo;
-	}
+
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
 		if (!this._suggestWidget) {
-
-			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily')) {
-					this._onDidFontConfigurationChange.fire();
-				}
-			}
-			));
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				this._container!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
-				this._getFontInfo.bind(this),
-				this.onDidFontConfigurationChange,
 				{
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
 					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
