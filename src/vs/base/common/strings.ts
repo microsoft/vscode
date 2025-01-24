@@ -786,21 +786,20 @@ export function rcut(text: string, n: number, suffix = ''): string {
 		return trimmed;
 	}
 
-	const re = /\b/g;
-	let lastWordBreak = trimmed.length;
-
-	while (re.test(trimmed)) {
-		if (trimmed.length - re.lastIndex > n) {
-			lastWordBreak = re.lastIndex;
+	const parts = text.split(/\b/);
+	let result = '';
+	for (const part of parts) {
+		if (result.length > 0 && result.length + part.length > n) {
+			break;
 		}
-		re.lastIndex += 1;
+		result += part;
 	}
 
-	if (lastWordBreak === trimmed.length) {
-		return trimmed;
+	if (result === trimmed) {
+		return result;
 	}
 
-	return (trimmed.substring(0, lastWordBreak) + suffix).trimEnd();
+	return result.trim().replace(/b$/, '') + suffix;
 }
 
 // Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_

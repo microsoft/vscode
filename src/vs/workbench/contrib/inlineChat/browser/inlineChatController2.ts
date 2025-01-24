@@ -36,7 +36,7 @@ import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSess
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 
 
-export const CTX_HAS_SESSION = new RawContextKey<boolean>('inlineChatHasSession', undefined, localize('chat.hasInlineChatSession', "The current editor has an active inline chat session"));
+export const CTX_HAS_SESSION = new RawContextKey<undefined | 'empty' | 'active'>('inlineChatHasSession', undefined, localize('chat.hasInlineChatSession', "The current editor has an active inline chat session"));
 
 
 export class InlineChatController2 implements IEditorContribution {
@@ -103,6 +103,8 @@ export class InlineChatController2 implements IEditorContribution {
 			this._editor
 		);
 
+		zone.domNode.classList.add('inline-chat-2');
+
 		const overlay = ChatEditorOverlayController.get(_editor)!;
 
 		const editorObs = observableCodeEditor(_editor);
@@ -117,9 +119,16 @@ export class InlineChatController2 implements IEditorContribution {
 		});
 
 
-		this._store.add(autorun(r => {
+		this._store.add(autorunWithStore((r, store) => {
 			const session = sessionObs.read(r);
-			ctxHasSession.set(Boolean(session));
+
+			if (!session) {
+				ctxHasSession.set(undefined);
+			} else {
+				const checkRequests = () => ctxHasSession.set(session.chatModel.getRequests().length === 0 ? 'empty' : 'active');
+				store.add(session.chatModel.onDidChange(checkRequests));
+				checkRequests();
+			}
 		}));
 
 		const visibleSessionObs = observableValue<IInlineChatSession2 | undefined>(this, undefined);
@@ -166,9 +175,8 @@ export class InlineChatController2 implements IEditorContribution {
 				zone.widget.setChatModel(session.chatModel);
 				if (!zone.position) {
 					zone.show(session.initialPosition);
-				} else {
-					zone.reveal(zone.position);
 				}
+				zone.reveal(zone.position!);
 				zone.widget.focus();
 				session.editingSession.getEntry(session.uri)?.autoAcceptController.get()?.cancel();
 			}
@@ -303,12 +311,11 @@ export class StopSessionAction2 extends AbstractInlineChatAction {
 			id: 'inlineChat2.stop',
 			title: localize2('stop', "Stop"),
 			f1: true,
-			precondition: ContextKeyExpr.and(
-				CTX_HAS_SESSION, CTX_INLINE_CHAT_VISIBLE
-			),
+			precondition: ContextKeyExpr.and(CTX_HAS_SESSION.isEqualTo('empty'), CTX_INLINE_CHAT_VISIBLE),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.CtrlCmd | KeyCode.KeyI]
 			},
 		});
 	}
