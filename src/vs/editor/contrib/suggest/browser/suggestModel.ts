@@ -112,8 +112,8 @@ function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKey
 	}
 	const suppressSuggestionConfig = !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
-	if (suppressSuggestions !== undefined) {
-		return !suppressSuggestions || suppressSuggestionConfig;
+	if (suppressSuggestionConfig && suppressSuggestions !== undefined) {
+		return !suppressSuggestions;
 	}
 	return suppressSuggestionConfig;
 }
@@ -125,8 +125,8 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 	}
 	const suppressSuggestionConfig = !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
-	if (suppressSuggestions !== undefined) {
-		return !suppressSuggestions || suppressSuggestionConfig;
+	if (suppressSuggestionConfig && suppressSuggestions !== undefined) {
+		return !suppressSuggestions;
 	}
 	return suppressSuggestionConfig;
 }
