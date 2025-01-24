@@ -611,23 +611,23 @@ export class SimpleSuggestWidget extends Disposable {
 		}
 	}
 
-	// hide(): void {
-	// 	this._pendingLayout.clear();
-	// 	this._pendingShowDetails.clear();
-	// 	// this._loadingTimeout?.dispose();
+	hide(): void {
+		this._pendingLayout.clear();
+		this._pendingShowDetails.clear();
+		// this._loadingTimeout?.dispose();
 
-	// 	this._setState(State.Hidden);
-	// 	this._onDidHide.fire(this);
-	// 	dom.hide(this.element.domNode);
-	// 	this.element.clearSashHoverState();
-	// 	// ensure that a reasonable widget height is persisted so that
-	// 	// accidential "resize-to-single-items" cases aren't happening
-	// 	const dim = this._persistedSize.restore();
-	// 	const minPersistedHeight = Math.ceil(this._getLayoutInfo().itemHeight * 4.3);
-	// 	if (dim && dim.height < minPersistedHeight) {
-	// 		this._persistedSize.store(dim.with(undefined, minPersistedHeight));
-	// 	}
-	// }
+		this._setState(State.Hidden);
+		this._onDidHide.fire(this);
+		dom.hide(this.element.domNode);
+		this.element.clearSashHoverState();
+		// ensure that a reasonable widget height is persisted so that
+		// accidential "resize-to-single-items" cases aren't happening
+		const dim = this._persistedSize.restore();
+		const minPersistedHeight = Math.ceil(this._getLayoutInfo().itemHeight * 4.3);
+		if (dim && dim.height < minPersistedHeight) {
+			this._persistedSize.store(dim.with(undefined, minPersistedHeight));
+		}
+	}
 
 	private _layout(size: dom.Dimension | undefined): void {
 		if (!this._cursorPosition) {
