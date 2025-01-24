@@ -354,9 +354,7 @@ export class RenderLineOutput {
 }
 
 export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {
-	console.log('renderViewLine');
 	if (input.lineContent.length === 0) {
-
 		if (input.lineDecorations.length > 0) {
 			// This line is empty, but it contains inline decorations
 			sb.appendString(`<span>`);
@@ -365,7 +363,6 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 			let afterCount = 0;
 			let containsForeignElements = ForeignElementType.None;
 			for (const lineDecoration of input.lineDecorations) {
-				console.log('lineDecoration.className : ', lineDecoration.className);
 				if (lineDecoration.type === InlineDecorationType.Before || lineDecoration.type === InlineDecorationType.After) {
 					sb.appendString(`<span class="`);
 					sb.appendString(lineDecoration.className);
@@ -875,8 +872,6 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 
 		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset < tokenEndIndex) {
 			const lineDecoration = lineDecorations[lineDecorationIndex];
-			// for some reason the deocration setting and the line heights are not synchronized, these should be set at the same time
-			console.log('lineDecoration.className : ', lineDecoration.className);
 
 			if (lineDecoration.startOffset > lastResultEndIndex) {
 				lastResultEndIndex = lineDecoration.startOffset;
@@ -919,9 +914,6 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
  * Notice how all the needed data is fully resolved and passed in (i.e. no other calls).
  */
 function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderLineOutput {
-
-	console.log('_renderLine');
-
 	const fontIsMonospace = input.fontIsMonospace;
 	const canUseHalfwidthRightwardsArrow = input.canUseHalfwidthRightwardsArrow;
 	const containsForeignElements = input.containsForeignElements;
@@ -961,7 +953,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partEndIndex = part.endIndex;
 		const partType = part.type;
 		console.log('partType : ', partType);
-
 		const partContainsRTL = part.containsRTL;
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
@@ -1146,9 +1137,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	}
 
 	sb.appendString('</span>');
-
-	const string = sb.build();
-	console.log('string : ', string);
 
 	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);
 }
