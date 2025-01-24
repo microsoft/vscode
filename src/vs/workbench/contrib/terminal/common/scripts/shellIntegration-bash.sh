@@ -222,7 +222,7 @@ updateEnvCache() {
 	local key="$1"
 	local value="$2"
 
-	builtin printf "Start %s\n" $(date +%s%3N)
+	# builtin printf "Start %s\n" $(date +%s%3N)
 	for i in "${!vsc_env_keys[@]}"; do
 		# builtin printf "i $i $(date +%s%3N)\n"
 		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
@@ -275,28 +275,34 @@ trackMissingEnvVars() {
 
 __vsc_update_env() {
 
-	start_time=$(date +%s%3N)
-	builtin printf "Start time: %s\n" "$start_time"
-
-	# TODO: Come up with shorter escape sequence ids (~10ms gain on Daniel's PC)
+	# start_time=$(date +%s%3N)
+	# builtin printf "Start time: %s\n" "$start_time"
 	# TODO: Send everything the first time, don't bother diffing (array is empty)
-	# TODO: Only send EnvSingleStart, EnvSingleEnd when there is updated content
+
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
+	# This surprisingly doesnt break even when value contains = or multiple =
 	while IFS='=' read -r key value; do
 		updateEnvCache "$key" "$value"
 	done < <(env)
 
-	mid_time=$(date +%s%3N)
+	# IMPORTANT: Trying to use cut like this with echo really slow things down.
+	# while IFS= read -r line; do
+	# 	key=$(echo "$line" | cut -d '=' -f 1)
+	# 	value=$(echo "$line" | cut -d '=' -f 2-)
+	# 	updateEnvCache "$key" "$value"
+	# done < <(env)
+
+	# mid_time=$(date +%s%3N)
 	trackMissingEnvVars
 
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 
-	end_time=$(date +%s%3N)
-	elapsed_time=$(($end_time - $start_time))
-	builtin printf "updateEnvCache: $(($mid_time - $start_time)) ms\n"
-	builtin printf "trackMissingEnvVars: $(($end_time - $mid_time)) ms\n"
-	builtin printf "Total: $(($end_time - $start_time)) ms\n"
+	# end_time=$(date +%s%3N)
+	# elapsed_time=$(($end_time - $start_time))
+	# builtin printf "updateEnvCache: $(($mid_time - $start_time)) ms\n"
+	# builtin printf "trackMissingEnvVars: $(($end_time - $mid_time)) ms\n"
+	# builtin printf "Total: $(($end_time - $start_time)) ms\n"
 }
 
 __vsc_command_output_start() {
@@ -325,6 +331,10 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
+	# IMPORTANT: We may have to bring back __vsc_update_env here, as now it takes one additional prompt execution for us to see unset env in effect
+	if [ "$__vsc_stable" = "0" ]; then
+		__vsc_update_env
+	fi
 }
 __vsc_update_prompt() {
 	# in command execution
