@@ -577,18 +577,23 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 				const now = Date.now();
 				const wordCount = countWords(_model.response.getMarkdown());
 
-				const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
-				const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
-				const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (newTotalTime / 1000);
-				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
-				this._contentUpdateTimings = {
-					totalTime: this._contentUpdateTimings.totalTime !== 0 || this.response.value.some(v => v.kind === 'markdownContent') ?
-						newTotalTime :
-						this._contentUpdateTimings.totalTime,
-					lastUpdateTime: now,
-					impliedWordLoadRate,
-					lastWordCount: wordCount
-				};
+				if (wordCount > 0 && wordCount === this._contentUpdateTimings.lastWordCount) {
+					this.trace('onDidChange', `Update- no new words`);
+				} else {
+					const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
+					const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
+					const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (newTotalTime / 1000);
+					this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
+					this._contentUpdateTimings = {
+						totalTime: this._contentUpdateTimings.totalTime !== 0 || this.response.value.some(v => v.kind === 'markdownContent') ?
+							newTotalTime :
+							this._contentUpdateTimings.totalTime,
+						lastUpdateTime: now,
+						impliedWordLoadRate,
+						lastWordCount: wordCount
+					};
+				}
+
 			} else {
 				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
 			}
