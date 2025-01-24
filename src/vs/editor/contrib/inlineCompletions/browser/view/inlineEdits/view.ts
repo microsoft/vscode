@@ -33,7 +33,12 @@ export class InlineEditsView extends Disposable {
 	private readonly _useInterleavedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useInterleavedLinesDiff);
 	private readonly _useCodeOverlay = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useCodeOverlay);
 
-	private _previousView: { id: string; view: ReturnType<typeof InlineEditsView.prototype.determineView>; userJumpedToIt: boolean } | undefined;
+	private _previousView: {
+		id: string;
+		view: ReturnType<typeof InlineEditsView.prototype.determineView>;
+		userJumpedToIt: boolean;
+		editorWidth: number;
+	} | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -202,10 +207,17 @@ export class InlineEditsView extends Disposable {
 				(this._useMixedLinesDiff.read(reader) === 'afterJumpWhenPossible' && this._previousView?.view !== 'mixedLines') ||
 				(this._useInterleavedLinesDiff.read(reader) === 'afterJump' && this._previousView?.view !== 'interleavedLines')
 			);
+		const reconsiderViewEditorWidthChange = this._previousView?.editorWidth !== this._editor.getLayoutInfo().width &&
+			(
+				(this._previousView?.view === 'sideBySide' && this._useCodeOverlay.read(reader) !== 'never') ||
+				(this._previousView?.view === 'lineReplacement')
+			);
 
-		if (canUseCache && !reconsiderViewAfterJump) {
+		if (canUseCache && !reconsiderViewAfterJump && !reconsiderViewEditorWidthChange) {
 			return this._previousView!.view;
 		}
+
+		// Determine the view based on the edit / diff
 
 		if (edit.isCollapsed) {
 			return 'collapsed';
@@ -234,7 +246,7 @@ export class InlineEditsView extends Disposable {
 			const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
 			if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1 && useCodeOverlay === 'whenPossible') {
 				return 'wordReplacements';
-			} else if (numOriginalLines > 0 && numModifiedLines > 0) {
+			} else if (numOriginalLines > 0 && numModifiedLines > 0 && !InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
 				return 'lineReplacement';
 			}
 		}
@@ -256,7 +268,8 @@ export class InlineEditsView extends Disposable {
 	private determineRenderState(edit: InlineEditWithChanges, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText) {
 
 		const view = this.determineView(edit, reader, diff, newText);
-		this._previousView = { id: edit.inlineCompletion.id, view, userJumpedToIt: edit.userJumpedToIt };
+
+		this._previousView = { id: edit.inlineCompletion.id, view, userJumpedToIt: edit.userJumpedToIt, editorWidth: this._editor.getLayoutInfo().width };
 
 		switch (view) {
 			case 'collapsed': return { kind: 'collapsed' as const };

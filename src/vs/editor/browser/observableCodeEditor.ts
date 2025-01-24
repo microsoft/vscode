@@ -231,6 +231,7 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly layoutInfo = observableFromEvent(this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
 	public readonly layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
 	public readonly layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
+	public readonly layoutInfoWidth = this.layoutInfo.map(l => l.width);
 
 	public readonly contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 
