@@ -12,6 +12,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { createMatches } from '../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 
 export function getAriaId(index: number): string {
 	return `simple-suggest-aria-id-${index}`;
@@ -55,13 +57,16 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 	private readonly _onDidToggleDetails = new Emitter<void>();
 	readonly onDidToggleDetails: Event<void> = this._onDidToggleDetails.event;
 
+	private readonly _disposables = new DisposableStore();
+
 	readonly templateId = 'suggestion';
 
-	constructor(private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo) {
+	constructor(private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo, @IConfigurationService private readonly _configurationService: IConfigurationService) {
 	}
 
 	dispose(): void {
 		this._onDidToggleDetails.dispose();
+		this._disposables.dispose();
 	}
 
 	renderTemplate(container: HTMLElement): ISimpleSuggestionTemplateData {
@@ -111,11 +116,11 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 
 		configureFont();
 
-		// data.disposables.add(this._editor.onDidChangeConfiguration(e => {
-		// 	if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
-		// 		configureFont();
-		// 	}
-		// }));
+		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontWeight) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
+				configureFont();
+			}
+		}));
 
 		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, disposables };
 	}

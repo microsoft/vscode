@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 
 const $ = dom.$;
 
@@ -179,7 +180,7 @@ export class SimpleSuggestWidget extends Disposable {
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !_configurationService.getValue('editor.suggest.showIcons'));
 		applyIconStyle();
 
-		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo);
+		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo, this._configurationService);
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = this._register(new List('SuggestWidget', this._listElement, {
@@ -245,6 +246,10 @@ export class SimpleSuggestWidget extends Disposable {
 		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.suggest.showIcons')) {
 				applyIconStyle();
+			}
+			if (this._completionModel && e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily)) {
+				this._layout(undefined);
+				this._list.splice(0, this._list.length, this._completionModel!.items);
 			}
 			if (_options.statusBarMenuId && _options.showStatusBarSettingId && e.affectsConfiguration(_options.showStatusBarSettingId)) {
 				const showStatusBar: boolean = _configurationService.getValue(_options.showStatusBarSettingId);
@@ -764,9 +769,9 @@ export class SimpleSuggestWidget extends Disposable {
 
 	private _getLayoutInfo() {
 		const fontInfo = this._getFontInfo();
-		const itemHeight = clamp(Math.ceil(fontInfo.lineHeight), 8, 1000);
+		const itemHeight = clamp(fontInfo.lineHeight, 8, 1000);
 		const statusBarHeight = !this._options.statusBarMenuId || !this._options.showStatusBarSettingId || !this._configurationService.getValue(this._options.showStatusBarSettingId) || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
-		const borderWidth = 1; //this._details.widget.borderWidth;
+		const borderWidth = this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
 
 		return {
