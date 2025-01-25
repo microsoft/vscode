@@ -126,7 +126,7 @@ const configurationEntrySchema: IJSONSchema = {
 // build up a delta across two ext points and only apply it once
 let _configDelta: IConfigurationDelta | undefined;
 
-
+// My test here
 // BEGIN VSCode extension point `configurationDefaults`
 const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
 	extensionPoint: 'configurationDefaults',
