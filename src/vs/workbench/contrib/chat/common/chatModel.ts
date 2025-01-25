@@ -132,6 +132,7 @@ export interface IChatRequestModel {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly workingSet?: URI[];
 	readonly isCompleteAddedRequest: boolean;
+	readonly paused: boolean;
 	readonly response?: IChatResponseModel;
 	shouldBeRemovedOnSend: boolean;
 }
@@ -268,6 +269,15 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	public get workingSet(): URI[] | undefined {
 		return this._workingSet;
+	}
+
+	private _paused = false;
+	public get paused(): boolean {
+		return this._paused;
+	}
+
+	public set paused(paused: boolean) {
+		this._paused = paused;
 	}
 
 	constructor(
@@ -722,6 +732,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 }
 
+export const enum ChatPauseState {
+	NotPausable,
+	Paused,
+	Unpaused,
+}
+
 export interface IChatModel {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
@@ -732,7 +748,9 @@ export interface IChatModel {
 	readonly welcomeMessage: IChatWelcomeMessageContent | undefined;
 	readonly sampleQuestions: IChatFollowup[] | undefined;
 	readonly requestInProgress: boolean;
+	readonly requestPausibility: ChatPauseState;
 	readonly inputPlaceholder?: string;
+	toggleLastRequestPaused(paused?: boolean): void;
 	disableRequests(requestIds: ReadonlyArray<string>): void;
 	getRequests(): IChatRequestModel[];
 	toExport(): IExportableChatData;
@@ -1005,6 +1023,15 @@ export class ChatModel extends Disposable implements IChatModel {
 		return !lastRequest.response.isComplete;
 	}
 
+	get requestPausibility(): ChatPauseState {
+		const lastRequest = this.lastRequest;
+		if (!lastRequest?.response?.agent || lastRequest.response.isComplete || lastRequest.response.isPendingConfirmation) {
+			return ChatPauseState.NotPausable;
+		}
+
+		return lastRequest.paused ? ChatPauseState.Paused : ChatPauseState.Unpaused;
+	}
+
 	get hasRequests(): boolean {
 		return this._requests.length > 0;
 	}
@@ -1171,6 +1198,15 @@ export class ChatModel extends Disposable implements IChatModel {
 		};
 	}
 
+	toggleLastRequestPaused(isPaused?: boolean) {
+		if (this.requestPausibility !== ChatPauseState.NotPausable && this.lastRequest?.response?.agent) {
+			const pausedValue = isPaused ?? !this.lastRequest.paused;
+			this.lastRequest.paused = pausedValue;
+			this.chatAgentService.setRequestPaused(this.lastRequest.response.agent.id, this.lastRequest.id, pausedValue);
+			this._onDidChange.fire({ kind: 'changedRequest', request: this.lastRequest });
+		}
+	}
+
 	startInitialize(): void {
 		if (this.initState !== ChatModelInitState.Created) {
 			throw new Error(`ChatModel is in the wrong state for startInitialize: ${ChatModelInitState[this.initState]}`);
@@ -1250,6 +1286,11 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	setCustomTitle(title: string): void {
 		this._customTitle = title;
+	}
+
+	setRequestPaused(request: ChatRequestModel, isPaused: boolean) {
+		request.paused = isPaused;
+		this._onDidChange.fire({ kind: 'changedRequest', request });
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {

@@ -240,6 +240,17 @@ declare module 'vscode' {
 		 * Provide a set of variables that can only be used with this participant.
 		 */
 		participantVariableProvider?: { provider: ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
+
+		/**
+		 * Event that fires when a request is paused or unpaused.
+		 * Chat requests are initialy unpaused in the {@link requestHandler}.
+		 */
+		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
+	}
+
+	export interface ChatParticipantPauseStateEvent {
+		request: ChatRequest;
+		isPaused: boolean;
 	}
 
 	export interface ChatParticipantCompletionItemProvider {
