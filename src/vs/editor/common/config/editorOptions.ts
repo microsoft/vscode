@@ -1670,10 +1670,10 @@ export interface IEditorFindOptions {
 	 * @internal
 	 * Controls how the find widget search history should be stored
 	 */
-	findHistory?: 'never' | 'workspace';
+	history?: 'never' | 'workspace';
 	/**
 	 * @internal
-	 * Controls how the find widget search history should be stored
+	 * Controls how the replace widget search history should be stored
 	 */
 	replaceHistory?: 'never' | 'workspace';
 }
@@ -1693,7 +1693,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true,
-			findHistory: 'workspace',
+			history: 'workspace',
 			replaceHistory: 'workspace',
 		};
 		super(
@@ -1752,15 +1752,15 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					],
 					description: nls.localize('find.history', "Controls how the find widget history should be stored")
 				},
-				'editor.replace.history': {
+				'editor.find.replaceHistory': {
 					type: 'string',
 					enum: ['never', 'workspace'],
 					default: 'workspace',
 					enumDescriptions: [
-						nls.localize('editor.replace.history.never', 'Do not store history from the replace widget.'),
-						nls.localize('editor.replace.history.workspace', 'Store replace history across the active workspace'),
+						nls.localize('editor.find.replaceHistory.never', 'Do not store history from the replace widget.'),
+						nls.localize('editor.find.replaceHistory.workspace', 'Store replace history across the active workspace'),
 					],
-					description: nls.localize('replace.history', "Controls how the replace widget history should be stored")
+					description: nls.localize('find.replaceHistory', "Controls how the replace widget history should be stored")
 				}
 			}
 		);
@@ -1782,7 +1782,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
-			findHistory: stringSet<'never' | 'workspace'>(input.findHistory, this.defaultValue.findHistory, ['never', 'workspace']),
+			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
 		};
 	}
@@ -4216,6 +4216,7 @@ export interface IInlineSuggestOptions {
 			useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 			useCodeOverlay?: 'never' | 'whenPossible' | 'moveCodeWhenPossible';
+			useMultiLineGhostText?: boolean;
 
 			useGutterIndicator?: boolean;
 		};
@@ -4251,6 +4252,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					useInterleavedLinesDiff: 'never',
 					useGutterIndicator: true,
 					useCodeOverlay: 'moveCodeWhenPossible',
+					useMultiLineGhostText: false
 				},
 			},
 		};
@@ -4306,6 +4308,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.experimental.useCodeOverlay', "Controls whether suggestions may be shown above the code."),
 					enum: ['never', 'whenPossible', 'moveCodeWhenPossible'],
 				},
+				'editor.inlineSuggest.edits.experimental.useMultiLineGhostText': {
+					type: 'boolean',
+					default: defaults.edits.experimental.useMultiLineGhostText,
+					description: nls.localize('inlineSuggest.edits.experimental.useMultiLineGhostText', "Controls whether multi line insertions can be shown with Ghost text."),
+				},
 				'editor.inlineSuggest.edits.experimental.useInterleavedLinesDiff': {
 					type: 'string',
 					default: defaults.edits.experimental.useInterleavedLinesDiff,
@@ -4341,6 +4348,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					useCodeOverlay: stringSet(input.edits?.experimental?.useCodeOverlay, this.defaultValue.edits.experimental.useCodeOverlay, ['never', 'whenPossible', 'moveCodeWhenPossible']),
 					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
 					useGutterIndicator: boolean(input.edits?.experimental?.useGutterIndicator, this.defaultValue.edits.experimental.useGutterIndicator),
+					useMultiLineGhostText: boolean(input.edits?.experimental?.useMultiLineGhostText, this.defaultValue.edits.experimental.useMultiLineGhostText),
 				},
 			},
 		};

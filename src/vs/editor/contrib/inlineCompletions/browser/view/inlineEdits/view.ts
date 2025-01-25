@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, constObservable, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -15,7 +15,9 @@ import { SingleTextEdit, StringText } from '../../../../../common/core/textEdit.
 import { TextLength } from '../../../../../common/core/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
+import { GhostText, GhostTextPart } from '../../model/ghostText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
+import { GhostTextView } from '../ghostText/ghostTextView.js';
 import { InlineEditsDeletionView } from './deletionView.js';
 import { InlineEditsGutterIndicator } from './gutterIndicatorView.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './indicatorView.js';
@@ -32,6 +34,7 @@ export class InlineEditsView extends Disposable {
 	private readonly _useMixedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useMixedLinesDiff);
 	private readonly _useInterleavedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useInterleavedLinesDiff);
 	private readonly _useCodeOverlay = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useCodeOverlay);
+	private readonly _useMultiLineGhostText = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useMultiLineGhostText);
 
 	private _previousView: {
 		id: string;
@@ -135,10 +138,32 @@ export class InlineEditsView extends Disposable {
 		}) : undefined),
 	));
 
+	protected readonly _insertion = this._register(this._instantiationService.createInstance(GhostTextView,
+		this._editor,
+		{
+			ghostText: derived<GhostText | undefined>(reader => {
+				const state = this._uiState.read(reader)?.state;
+				if (!state || state.kind !== 'insertion') { return undefined; }
+
+				const textModel = this._editor.getModel()!;
+
+				// Try to not insert on the same line where there is other content
+				if (state.column === 1 && state.lineNumber > 1 && textModel.getLineLength(state.lineNumber) !== 0 && state.text.endsWith('\n') && !state.text.startsWith('\n')) {
+					const endOfLineColumn = textModel.getLineLength(state.lineNumber - 1) + 1;
+					return new GhostText(state.lineNumber - 1, [new GhostTextPart(endOfLineColumn, '\n' + state.text.slice(0, -1), false)]);
+				}
+
+				return new GhostText(state.lineNumber, [new GhostTextPart(state.column, state.text, false)]);
+			}),
+			minReservedLineCount: constObservable(0),
+			targetTextModel: this._model.map(v => v?.textModel),
+		}
+	));
+
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 		const e = this._uiState.read(reader);
 		if (!e || !e.state) { return undefined; }
-		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement') {
+		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertion') {
 			return undefined;
 		}
 		return {
@@ -238,6 +263,10 @@ export class InlineEditsView extends Disposable {
 			return 'deletion';
 		}
 
+		if (isSingleMultiLineInsertion(diff) && this._useMultiLineGhostText.read(reader)) {
+			return 'insertion';
+		}
+
 		const useCodeOverlay = this._useCodeOverlay.read(reader);
 		if (useCodeOverlay !== 'never') {
 			const numOriginalLines = edit.originalLineRange.length;
@@ -285,6 +314,16 @@ export class InlineEditsView extends Disposable {
 				kind: 'deletion' as const,
 				originalRange: edit.originalLineRange,
 				deletions: inner.map(m => m.originalRange),
+			};
+		}
+
+		if (view === 'insertion') {
+			const change = inner[0];
+			return {
+				kind: 'insertion' as const,
+				lineNumber: change.originalRange.startLineNumber,
+				column: change.originalRange.startColumn,
+				text: newText.getValueOfRange(change.modifiedRange),
 			};
 		}
 
@@ -339,6 +378,24 @@ function isSingleLineInsertionAfterPosition(diff: DetailedLineRangeMapping[], po
 		}
 		return false;
 	}
+}
+
+function isSingleMultiLineInsertion(diff: DetailedLineRangeMapping[]) {
+	const inner = diff.flatMap(d => d.innerChanges ?? []);
+	if (inner.length !== 1) {
+		return false;
+	}
+
+	const change = inner[0];
+	if (!change.originalRange.isEmpty()) {
+		return false;
+	}
+
+	if (change.modifiedRange.startLineNumber === change.modifiedRange.endLineNumber) {
+		return false;
+	}
+
+	return true;
 }
 
 function isSingleLineDeletion(diff: DetailedLineRangeMapping[]): boolean {

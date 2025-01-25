@@ -14,7 +14,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
-import { ITerminalSuggestConfiguration, terminalSuggestConfigSection, TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
+import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -65,6 +65,7 @@ export interface TerminalResourceRequestConfig {
 	cwd?: URI;
 	pathSeparator: string;
 	shouldNormalizePrefix?: boolean;
+	env?: { [key: string]: string | null | undefined };
 }
 
 
@@ -130,7 +131,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return undefined;
 		}
 
-		const extensionCompletionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
 		let providers;
 		if (triggerCharacter) {
 			const providersToRequest: ITerminalCompletionProvider[] = [];
@@ -150,7 +150,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			providers = [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]);
 		}
 
-		if (!extensionCompletionsEnabled || skipExtensionCompletions) {
+		if (skipExtensionCompletions) {
 			providers = providers.filter(p => p.isBuiltin);
 			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, token);
 		}
@@ -246,6 +246,24 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const lastWordFolderHasDotPrefix = lastWordFolder.match(/^\.\.?[\\\/]/);
 
+		const lastWordFolderHasTildePrefix = lastWordFolder.match(/^~[\\\/]/);
+		if (lastWordFolderHasTildePrefix) {
+			// Handle specially
+			const resolvedFolder = resourceRequestConfig.env?.HOME ? URI.file(resourceRequestConfig.env.HOME) : undefined;
+			if (resolvedFolder) {
+				resourceCompletions.push({
+					label: lastWordFolder,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					detail: getFriendlyPath(resolvedFolder, resourceRequestConfig.pathSeparator),
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+				return resourceCompletions;
+			}
+		}
 		// Add current directory. This should be shown at the top because it will be an exact match
 		// and therefore highlight the detail, plus it improves the experience when runOnEnter is
 		// used.

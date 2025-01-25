@@ -100,18 +100,6 @@ export const modifiedBorder = registerColor(
 	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
 );
 
-export const acceptedDecorationBackgroundColor = registerColor(
-	'inlineEdit.acceptedBackground',
-	{
-		light: transparent(modifiedChangedTextOverlayColor, 0.75),
-		dark: transparent(modifiedChangedTextOverlayColor, 0.75),
-		hcDark: modifiedChangedTextOverlayColor,
-		hcLight: modifiedChangedTextOverlayColor
-	},
-	localize('inlineEdit.acceptedBackground', 'Background color for the accepted text after applying an inline edit.'),
-	true
-);
-
 export interface IInlineEditsView {
 	isHovered: IObservable<boolean>;
 }

@@ -24,6 +24,7 @@ import { PromiseResult } from '../../../../base/common/observable.js';
 import { Range } from '../../core/range.js';
 import { Position } from '../../core/position.js';
 import { LimitedQueue } from '../../../../base/common/async.js';
+import { TextLength } from '../../core/textLength.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -350,22 +351,19 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 
 	private _applyEdits(changes: IModelContentChange[], version: number) {
 		for (const change of changes) {
-			this._tree?.edit({
+			const originalTextLength = TextLength.ofRange(Range.lift(change.range));
+			const newTextLength = TextLength.ofText(change.text);
+			const summedTextLengths = change.text.length === 0 ? newTextLength : originalTextLength.add(newTextLength);
+			const edit = {
 				startIndex: change.rangeOffset,
 				oldEndIndex: change.rangeOffset + change.rangeLength,
 				newEndIndex: change.rangeOffset + change.text.length,
 				startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
 				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
-				newEndPosition: { row: change.rangeEndPosition.lineNumber - 1, column: change.rangeEndPosition.column - 1 }
-			});
-			this._lastFullyParsedWithEdits?.edit({
-				startIndex: change.rangeOffset,
-				oldEndIndex: change.rangeOffset + change.rangeLength,
-				newEndIndex: change.rangeOffset + change.text.length,
-				startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
-				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
-				newEndPosition: { row: change.rangeEndPosition.lineNumber - 1, column: change.rangeEndPosition.column - 1 }
-			});
+				newEndPosition: { row: change.range.startLineNumber + summedTextLengths.lineCount - 1, column: summedTextLengths.columnCount }
+			};
+			this._tree?.edit(edit);
+			this._lastFullyParsedWithEdits?.edit(edit);
 		}
 		this._editVersion = version;
 	}

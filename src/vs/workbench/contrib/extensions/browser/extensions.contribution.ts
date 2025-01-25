@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey, TrustedPublishersConfigKey, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -271,16 +271,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['onExp', 'usesOnlineServices']
-			},
-			[TrustedPublishersConfigKey]: {
-				type: 'array',
-				markdownDescription: localize('extensions.trustedPublishers', "Specify a list of trusted publishers. Extensions from these publishers will be allowed to install without consent from the user."),
-				scope: ConfigurationScope.APPLICATION,
-				items: {
-					type: 'string',
-					pattern: '^[a-z0-9A-Z][a-z0-9-A-Z]*$',
-					patternErrorMessage: localize('extensions.trustedPublishers.patternError', "Publisher names must only contain letters and numbers."),
-				}
 			},
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
@@ -1932,13 +1922,13 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 
 class TrustedPublishersInitializer implements IWorkbenchContribution {
 	constructor(
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IProductService productService: IProductService,
 		@IStorageService storageService: IStorageService,
 	) {
-		const trustedPublishersInitStatusKey = 'trusted-publishers-initialized';
+		const trustedPublishersInitStatusKey = 'trusted-publishers-migration';
 		if (!storageService.get(trustedPublishersInitStatusKey, StorageScope.APPLICATION)) {
 			for (const profile of userDataProfilesService.profiles) {
 				extensionManagementService.getInstalled(ExtensionType.User, profile.extensionsResource)
@@ -1956,7 +1946,7 @@ class TrustedPublishersInitializer implements IWorkbenchContribution {
 							trustedPublishers.add(publisher);
 						}
 						if (trustedPublishers.size) {
-							await allowedExtensionsService.trustPublishers(...trustedPublishers);
+							extensionManagementService.trustPublishers(...trustedPublishers);
 						}
 						storageService.store(trustedPublishersInitStatusKey, 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
 					});

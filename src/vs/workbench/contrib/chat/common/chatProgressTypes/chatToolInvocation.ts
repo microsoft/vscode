@@ -38,6 +38,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	constructor(
 		public readonly invocationMessage: string | IMarkdownString,
+		public readonly pastTenseMessage: string | IMarkdownString | undefined,
+		public readonly tooltip: string | IMarkdownString | undefined,
 		private _confirmationMessages: IToolConfirmationMessages | undefined) {
 		if (!_confirmationMessages) {
 			// No confirmation needed
@@ -63,6 +65,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return {
 			kind: 'toolInvocationSerialized',
 			invocationMessage: this.invocationMessage,
+			pastTenseMessage: this.pastTenseMessage,
+			tooltip: this.tooltip,
 			isConfirmed: this._isConfirmed ?? false,
 			isComplete: this._isComplete,
 		};

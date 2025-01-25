@@ -2915,10 +2915,6 @@ declare namespace monaco.editor {
 		 */
 		readonly rangeLength: number;
 		/**
-		 * The new end position of the range that got replaced.
-		 */
-		readonly rangeEndPosition: Position;
-		/**
 		 * The new text for the range.
 		 */
 		readonly text: string;
@@ -4614,6 +4610,7 @@ declare namespace monaco.editor {
 				useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 				useCodeOverlay?: 'never' | 'whenPossible' | 'moveCodeWhenPossible';
+				useMultiLineGhostText?: boolean;
 				useGutterIndicator?: boolean;
 			};
 		};

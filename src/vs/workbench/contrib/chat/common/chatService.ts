@@ -203,6 +203,8 @@ export interface IChatToolInvocation {
 	/** A 3-way: undefined=don't know yet. */
 	isConfirmed: boolean | undefined;
 	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
 
 	isComplete: boolean;
 	isCompleteDeferred: DeferredPromise<void>;
@@ -214,6 +216,8 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
 	isConfirmed: boolean;
 	isComplete: boolean;
 	kind: 'toolInvocationSerialized';

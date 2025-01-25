@@ -17,7 +17,7 @@ import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../..
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Promises } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -1601,7 +1601,8 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IAccessibilityService _accessibilityService: IAccessibilityService
+		@IAccessibilityService _accessibilityService: IAccessibilityService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
 
@@ -1660,7 +1661,16 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		models.sort((a, b) => a.model.name.localeCompare(b.model.name));
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => this.element!,
-			getActions: () => models.map(entry => setLanguageModelAction(entry.id, entry.model)),
+			getActions: () => {
+				const actions = models.map(entry => setLanguageModelAction(entry.id, entry.model));
+
+				if (this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
+					actions.push(new Separator());
+					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Enable More Models..."), run: () => this._commandService.executeCommand('workbench.action.chat.upgradePlan') }));
+				}
+
+				return actions;
+			},
 		});
 	}
 }
@@ -1696,7 +1706,7 @@ class ToggleAgentCheckActionViewItem extends MenuEntryActionViewItem {
 			{
 				...this.action,
 				id: 'normalMode',
-				label: localize('chat.normalMode', "Normal"),
+				label: localize('chat.normalMode', "Edit"),
 				class: undefined,
 				enabled: true,
 				checked: !this.action.checked,
