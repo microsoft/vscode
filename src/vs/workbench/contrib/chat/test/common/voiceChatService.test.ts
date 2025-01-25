@@ -66,6 +66,7 @@ suite('VoiceChat', () => {
 	class TestChatAgentService implements IChatAgentService {
 		_serviceBrand: undefined;
 		readonly onDidChangeAgents = Event.None;
+		readonly onDidChangeToolsAgentModeEnabled = Event.None;
 		registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable { throw new Error(); }
 		registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable { throw new Error('Method not implemented.'); }
 		invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error(); }
