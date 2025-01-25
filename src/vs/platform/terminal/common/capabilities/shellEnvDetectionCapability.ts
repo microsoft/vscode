@@ -69,6 +69,7 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		if (key !== undefined && value !== undefined) {
 			this._env.delete(key);
 			this._pendingEnv?.delete(key);
+			this._onDidChangeEnv.fire(this._env);
 		}
 		return;
 	}

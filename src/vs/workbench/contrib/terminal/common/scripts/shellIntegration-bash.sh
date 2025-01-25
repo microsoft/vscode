@@ -12,6 +12,14 @@ VSCODE_SHELL_INTEGRATION=1
 
 vsc_env_keys=()
 vsc_env_values=()
+use_associative_array=0
+bash_major_version=$(echo $BASH_VERSION | cut -d'.' -f1)
+
+if [ "$bash_major_version" -gt 4 ]; then
+	use_associative_array=1
+	# Associative arrays are only available in bash 4.0+
+	declare -A vsc_aa_env
+fi
 
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
@@ -222,13 +230,10 @@ updateEnvCache() {
 	local key="$1"
 	local value="$2"
 
-	# builtin printf "Start %s\n" $(date +%s%3N)
 	for i in "${!vsc_env_keys[@]}"; do
-		# builtin printf "i $i $(date +%s%3N)\n"
 		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
 			if [[ "${vsc_env_values[$i]}" != "$value" ]]; then
 				vsc_env_values[$i]="$value"
-				# printf "Updated value for %s\n" "$key"
 				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 			fi
 			return
@@ -237,15 +242,44 @@ updateEnvCache() {
 
 	vsc_env_keys+=("$key")
 	vsc_env_values+=("$value")
-	# printf "Added new variable %s\n" "$key"
 	builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+}
+
+updateEnvCacheAA() {
+	local key="$1"
+	local value="$2"
+
+	if [[ "${vsc_aa_env[$key]}" != "$value" ]]; then
+		vsc_aa_env["$key"]="$value"
+		builtin printf 'I found smth to update!!! \n ;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+	fi
+}
+
+trackMissingEnvVarsAA() {
+	if [ "$use_associative_array" = 1 ]; then
+		declare -A currentEnvMap
+		while IFS='=' read -r key value; do
+			currentEnvMap["$key"]="$value"
+		done < <(env)
+
+		for key in "${!vsc_aa_env[@]}"; do
+			if [ -z "${currentEnvMap[$key]}" ]; then
+				builtin printf 'Im pretty sure we are deleting something here \n'
+				# print which key and value we are deleting
+				builtin printf '%s;%s;%s\a' "$key" "$(__vsc_escape_value "${vsc_aa_env[$key]}")" "$__vsc_nonce"
+				builtin printf 'Did you see that? \n'
+				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${vsc_aa_env[$key]}")" "$__vsc_nonce"
+				builtin unset "vsc_aa_env[$key]"
+			fi
+		done
+	fi
 }
 
 trackMissingEnvVars() {
 	# Capture current environment variables in an array
 	local current_env_keys=()
 
-	# TODO: I think this will break for values that contain `=`, see `cut` command in `VSCODE_ENV_REPLACE` code
 	while IFS='=' read -r key value; do
 		current_env_keys+=("$key")
 	done < <(env)
@@ -274,20 +308,37 @@ trackMissingEnvVars() {
 __vsc_update_env() {
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
-	if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
-		while IFS='=' read -r key value; do
-			vsc_env_keys+=("$key")
-			vsc_env_values+=("$value")
-			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-		done < <(env)
+	if [ "$use_associative_array" = 1 ]; then
+		if [ ${#vsc_aa_env[@]} -eq 0 ]; then
+			# Associative array is empty, do not diff, just add
+			while IFS='=' read -r key value; do
+				vsc_aa_env["$key"]="$value"
+				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			done < <(env)
+		else
+			# Diff
+			while IFS='=' read -r key value; do
+				updateEnvCacheAA "$key" "$value"
+			done < <(env)
+			trackMissingEnvVarsAA
+		fi
+
 	else
-		while IFS='=' read -r key value; do
-			updateEnvCache "$key" "$value"
-		done < <(env)
+		if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
+			while IFS='=' read -r key value; do
+				vsc_env_keys+=("$key")
+				vsc_env_values+=("$value")
+				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			done < <(env)
+		else
+			while IFS='=' read -r key value; do
+				updateEnvCache "$key" "$value"
+			done < <(env)
+			trackMissingEnvVars
+		fi
+
+
 	fi
-
-	trackMissingEnvVars
-
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 }
 
