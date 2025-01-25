@@ -155,7 +155,11 @@ export namespace PromptFilesConfig {
 		}
 
 		if (Array.isArray(value)) {
-			return value;
+			if (value.length !== 0) {
+				return value;
+			}
+
+			return PROMPT_FILES_DEFAULT_LOCATION;
 		}
 
 		return PROMPT_FILES_DEFAULT_LOCATION;
