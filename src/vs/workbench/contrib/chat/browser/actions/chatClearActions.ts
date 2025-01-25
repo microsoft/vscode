@@ -19,6 +19,7 @@ import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatViewId, EditsViewId, IChatWidgetService } from '../chat.js';
+import { ctxIsGlobalEditingSession } from '../chatEditorController.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -315,7 +316,6 @@ export function registerNewChatActions() {
 				title: localize2('chat.openEdits.label', "Open {0}", 'Copilot Edits'),
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
@@ -333,6 +333,7 @@ export function registerNewChatActions() {
 					order: 2
 				}, {
 					id: MenuId.ChatEditingEditorContent,
+					when: ctxIsGlobalEditingSession,
 					group: 'navigate',
 					order: 4,
 				}],

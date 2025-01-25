@@ -6,23 +6,10 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { dirname, extUri } from '../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
-
-/**
- * Configuration setting name for the prompt instructions source folder paths.
- */
-const PROMPT_FILES_LOCATION_SETTING_NAME = 'chat.experimental.prompt-files.location';
-
-/**
- * Default prompt instructions source folder paths.
- */
-const PROMPT_FILES_DEFAULT_LOCATION = ['.copilot/prompts'];
-
-/**
- * Extension of the prompt instructions files.
- */
-const INSTRUCTIONS_FILE_EXTENSION = '.md';
+import { PROMP_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
 
 /**
  * Class to locate prompt instructions files.
@@ -70,7 +57,7 @@ export class ChatInstructionsFileLocator {
 			return [];
 		}
 
-		const sourceLocations = this.getSourceLocationsConfigValue();
+		const sourceLocations = PromptFilesConfig.sourceLocations(this.configService);
 		const result = [];
 
 		// otherwise for each folder provided in the configuration, create
@@ -93,37 +80,6 @@ export class ChatInstructionsFileLocator {
 				result.push(folderUri);
 			}
 		}
-
-		return result;
-	}
-
-	/**
-	 * Get the configuation value for the prompt instructions source locations.
-	 * Defaults to {@linkcode PROMPT_FILES_DEFAULT_LOCATION} if the value is not set.
-	 *
-	 * @returns List of prompt instructions source locations that were provided in
-	 * user settings.
-	 */
-	private getSourceLocationsConfigValue(): readonly string[] {
-		const value = this.configService.getValue(PROMPT_FILES_LOCATION_SETTING_NAME);
-
-		if (value === undefined || value === null) {
-			return PROMPT_FILES_DEFAULT_LOCATION;
-		}
-
-		if (typeof value === 'string') {
-			return [value];
-		}
-
-		// if not a string nor an array, return an empty array
-		if (!Array.isArray(value)) {
-			return [];
-		}
-
-		// filter out non-string values from the list
-		const result = value.filter((item) => {
-			return typeof item === 'string';
-		});
 
 		return result;
 	}
@@ -164,7 +120,7 @@ export class ChatInstructionsFileLocator {
 					continue;
 				}
 
-				if (!name.endsWith(INSTRUCTIONS_FILE_EXTENSION)) {
+				if (!name.endsWith(PROMP_SNIPPET_FILE_EXTENSION)) {
 					continue;
 				}
 

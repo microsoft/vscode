@@ -329,7 +329,8 @@ class AttachSelectionToChatAction extends Action2 {
 				const selection = activeEditor?.getSelection();
 				if (selection) {
 					(await showChatView(accessor.get(IViewsService)))?.focusInput();
-					variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.Panel);
+					const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
+					variablesService.attachContext('file', { uri: activeUri, range }, ChatAgentLocation.Panel);
 				}
 			}
 		}
@@ -401,7 +402,8 @@ class AttachSelectionToEditingSessionAction extends Action2 {
 			const selection = activeEditor?.getSelection();
 			if (selection) {
 				(await showEditsView(accessor.get(IViewsService)))?.focusInput();
-				variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.EditingSession);
+				const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
+				variablesService.attachContext('file', { uri: activeUri, range }, ChatAgentLocation.EditingSession);
 			}
 		}
 	}
@@ -827,12 +829,12 @@ export class AttachContextAction extends Action2 {
 		}
 
 		// if the `prompt instructions` feature is enabled, add
-		// the `Prompt Instructions` attachment type to the list
+		// the `Instructions` attachment type to the list
 		if (widget.attachmentModel.promptInstructions.featureEnabled) {
 			quickPickItems.push({
 				kind: 'prompt-instructions',
 				id: 'prompt-instructions',
-				label: localize('chatContext.promptInstructions', 'Prompt Instructions'),
+				label: localize('chatContext.promptInstructions', 'Instructions'),
 				iconClass: ThemeIcon.asClassName(Codicon.lightbulbSparkle),
 			});
 		}

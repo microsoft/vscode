@@ -111,7 +111,7 @@ suite('TerminalCompletionService', () => {
 
 			assertCompletions(result, [
 				{ label: '.', detail: '/test/' },
-				{ label: './folder1/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: '../', detail: '/' },
 			], { replacementIndex: 1, replacementLength: 0 });
 		});
@@ -127,7 +127,7 @@ suite('TerminalCompletionService', () => {
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
-				{ label: './folder1/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
 			], { replacementIndex: 1, replacementLength: 2 });
 		});
@@ -143,7 +143,7 @@ suite('TerminalCompletionService', () => {
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
-				{ label: './folder1/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 2 });
 		});
@@ -158,9 +158,23 @@ suite('TerminalCompletionService', () => {
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
-				{ label: './folder1/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 3 });
+		});
+		test('cd ~/| should return home folder completions', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
+				foldersRequested: true,
+				pathSeparator,
+				shouldNormalizePrefix: true,
+				env: { HOME: '/test/' }
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ~/', 5, provider);
+
+			assertCompletions(result, [
+				{ label: '~/', detail: '/test/' },
+			], { replacementIndex: 3, replacementLength: 2 });
 		});
 	});
 
@@ -187,10 +201,10 @@ suite('TerminalCompletionService', () => {
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
-				{ label: './.hiddenFile', kind: TerminalCompletionItemKind.File },
-				{ label: './.hiddenFolder/' },
-				{ label: './folder1/' },
-				{ label: './file1.txt', kind: TerminalCompletionItemKind.File },
+				{ label: './.hiddenFile', detail: '/test/.hiddenFile', kind: TerminalCompletionItemKind.File },
+				{ label: './.hiddenFolder/', detail: '/test/.hiddenFolder/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
+				{ label: './file1.txt', detail: '/test/file1.txt', kind: TerminalCompletionItemKind.File },
 				{ label: './../', detail: '/' },
 			], { replacementIndex: 0, replacementLength: 2 });
 		});
@@ -207,10 +221,10 @@ suite('TerminalCompletionService', () => {
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
-				{ label: './.hiddenFile', kind: TerminalCompletionItemKind.File },
-				{ label: './.hiddenFolder/' },
-				{ label: './folder1/' },
-				{ label: './file1.txt', kind: TerminalCompletionItemKind.File },
+				{ label: './.hiddenFile', detail: '/test/.hiddenFile', kind: TerminalCompletionItemKind.File },
+				{ label: './.hiddenFolder/', detail: '/test/.hiddenFolder/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
+				{ label: './file1.txt', detail: '/test/file1.txt', kind: TerminalCompletionItemKind.File },
 				{ label: './../', detail: '/' },
 			], { replacementIndex: 0, replacementLength: 3 });
 		});
@@ -257,8 +271,8 @@ suite('TerminalCompletionService', () => {
 
 				assertCompletions(result, [
 					{ label: '.\\', detail: 'C:\\test\\' },
-					{ label: '.\\FolderA\\' },
-					{ label: '.\\anotherFolder\\' },
+					{ label: '.\\FolderA\\', detail: 'C:\\test\\FolderA\\' },
+					{ label: '.\\anotherFolder\\', detail: 'C:\\test\\anotherFolder\\' },
 					{ label: '.\\..\\', detail: 'C:\\' },
 				], { replacementIndex: 0, replacementLength: 8 });
 			});
@@ -280,8 +294,8 @@ suite('TerminalCompletionService', () => {
 
 				assertCompletions(result, [
 					{ label: './', detail: '/test/' },
-					{ label: './FolderA/' },
-					{ label: './foldera/' },
+					{ label: './FolderA/', detail: '/test/FolderA/' },
+					{ label: './foldera/', detail: '/test/foldera/' },
 					{ label: './../', detail: '/' }
 				], { replacementIndex: 0, replacementLength: 8 });
 			});
@@ -303,8 +317,8 @@ suite('TerminalCompletionService', () => {
 
 			assertCompletions(result, [
 				{ label: '.', detail: '/test/' },
-				{ label: './folder1/' },
-				{ label: './folder2/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
+				{ label: './folder2/', detail: '/test/folder2/' },
 				{ label: '../', detail: '/' }
 			], { replacementIndex: 0, replacementLength: 0 });
 		});
@@ -346,8 +360,8 @@ suite('TerminalCompletionService', () => {
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
-				{ label: './folder1/' },
-				{ label: './folder2/' },
+				{ label: './folder1/', detail: '/test/folder1/' },
+				{ label: './folder2/', detail: '/test/folder2/' },
 				{ label: './../', detail: '/' }
 			], { replacementIndex: 1, replacementLength: 9 });
 		});

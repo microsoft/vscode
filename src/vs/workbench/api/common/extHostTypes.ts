@@ -4698,9 +4698,11 @@ export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
 export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	mimeType: string;
 	data: () => Thenable<Uint8Array>;
-	constructor(mimeType: string, data: () => Thenable<Uint8Array>) {
+	reference?: vscode.Uri;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri) {
 		this.mimeType = mimeType;
 		this.data = data;
+		this.reference = reference;
 	}
 }
 

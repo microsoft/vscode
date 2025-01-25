@@ -32,6 +32,7 @@
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
+    "statusBarItemTooltip",
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
@@ -932,6 +933,16 @@
       {
         "command": "git.copyCommitMessage",
         "title": "%command.timelineCopyCommitMessage%",
+        "category": "Git"
+      },
+      {
+        "command": "git.blame.toggleEditorDecoration",
+        "title": "%command.blameToggleEditorDecoration%",
+        "category": "Git"
+      },
+      {
+        "command": "git.blame.toggleStatusBarItem",
+        "title": "%command.blameToggleStatusBarItem%",
         "category": "Git"
       }
     ],
@@ -3257,7 +3268,7 @@
         },
         "git.blame.statusBarItem.enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%config.blameStatusBarItem.enabled%"
         },
         "git.blame.statusBarItem.template": {

@@ -12,11 +12,9 @@ import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-
-
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -68,6 +66,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				parameters: options.input,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
+				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
 			}, token);
 			return typeConvert.LanguageModelToolResult.to(result);
 		} finally {
@@ -100,7 +99,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions<Object> = { input: dto.parameters, toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined };
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
+			input: dto.parameters,
+			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
+			chatRequestId: dto.chatRequestId,
+		};
 		if (dto.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
@@ -133,16 +136,18 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			return undefined;
 		}
 
+		if (result.pastTenseMessage || result.tooltip) {
+			checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
+		}
+
 		return {
 			confirmationMessages: result.confirmationMessages ? {
 				title: result.confirmationMessages.title,
 				message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
 			} : undefined,
-			invocationMessage: typeof result.invocationMessage === 'string' ?
-				result.invocationMessage :
-				(result.invocationMessage ?
-					typeConvert.MarkdownString.from(result.invocationMessage) :
-					undefined),
+			invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
+			pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
+			tooltip: result.tooltip ? typeConvert.MarkdownString.fromStrict(result.tooltip) : undefined,
 		};
 	}
 

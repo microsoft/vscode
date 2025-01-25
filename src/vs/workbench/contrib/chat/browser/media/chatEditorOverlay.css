@@ -38,6 +38,8 @@
 	padding: 0px 5px;
 	font-size: 12px;
 	font-variant-numeric: tabular-nums;
+	overflow: hidden;
+	white-space: nowrap;
 }
 
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress {
@@ -47,6 +49,33 @@
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress .busy-label {
 	padding: 5px;
 	/* font-style: italic; */
+}
+
+@keyframes ellipsis {
+	0% {
+		content: "";
+	}
+	25% {
+		content: ".";
+	}
+	50% {
+		content: "..";
+	}
+	75% {
+		content: "...";
+	}
+	100% {
+		content: "";
+	}
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .busy-label::after {
+	content: "";
+	display: inline-flex;
+	white-space: nowrap;
+	overflow: hidden;
+	width: 3ch;
+	animation: ellipsis steps(4, end) 1s infinite;
 }
 
 .chat-editor-overlay-widget.busy .chat-editor-overlay-toolbar {

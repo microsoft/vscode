@@ -19,19 +19,18 @@ import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../.
 import type { IPromptInputModel, IPromptInputModelState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { getListStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { activeContrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
-import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
-import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
-import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -97,7 +96,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		super();
@@ -158,8 +156,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			doNotRequestExtensionCompletions = true;
 		}
 
-		const enableExtensionCompletions = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
-		if (enableExtensionCompletions && !doNotRequestExtensionCompletions) {
+		if (!doNotRequestExtensionCompletions) {
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
 		this._currentPromptInputState = {
@@ -266,13 +263,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// If input has been added
 			let sent = false;
 
-			// Quick suggestions
+			// Quick suggestions - Trigger whenever a new non-whitespace character is used
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
-					// TODO: Make the regex code generic
-					// TODO: Don't use `\[` in bash/zsh
-					// If first character or first character after a space (or `[` in pwsh), request completions
-					if (promptInputState.cursorIndex === 1 || promptInputState.prefix.match(/([\s\[])[^\s]$/)) {
+					if (promptInputState.prefix.match(/[^\s]$/)) {
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
 						if (!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/)) {
@@ -395,23 +389,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
+
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
 		if (!this._suggestWidget) {
-			const c = this._terminalConfigurationService.config;
-			const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
-			const fontInfo: ISimpleSuggestWidgetFontInfo = {
-				fontFamily: font.fontFamily,
-				fontSize: font.fontSize,
-				lineHeight: Math.ceil(1.5 * font.fontSize),
-				fontWeight: c.fontWeight.toString(),
-				letterSpacing: font.letterSpacing
-			};
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				this._container!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
-				() => fontInfo,
-				{}
+				{
+					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
+					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
+				},
 			));
 			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,

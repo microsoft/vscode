@@ -2903,7 +2903,7 @@ declare namespace monaco.editor {
 
 	export interface IModelContentChange {
 		/**
-		 * The range that got replaced.
+		 * The old range that got replaced.
 		 */
 		readonly range: IRange;
 		/**
@@ -4609,8 +4609,8 @@ declare namespace monaco.editor {
 				enabled?: boolean;
 				useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
-				useWordInsertionView?: 'never' | 'whenPossible';
-				useWordReplacementView?: 'never' | 'whenPossible';
+				useCodeOverlay?: 'never' | 'whenPossible' | 'moveCodeWhenPossible';
+				useMultiLineGhostText?: boolean;
 				useGutterIndicator?: boolean;
 			};
 		};
@@ -6903,6 +6903,17 @@ declare namespace monaco.languages {
 		 * Describes the number of characters to remove from the new line's indentation.
 		 */
 		removeText?: number;
+	}
+
+	export interface SyntaxNode {
+		startIndex: number;
+		endIndex: number;
+	}
+
+	export interface QueryCapture {
+		name: string;
+		text?: string;
+		node: SyntaxNode;
 	}
 
 	/**

@@ -676,7 +676,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: string, statusId: string, extensionId: string | undefined, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
+	$setEntry(id: string, statusId: string, extensionId: string | undefined, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, hasTooltipProvider: boolean, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
 	$disposeEntry(id: string): void;
 }
 
@@ -693,6 +693,7 @@ export type StatusBarItemDto = {
 
 export interface ExtHostStatusBarShape {
 	$acceptStaticEntries(added?: StatusBarItemDto[]): void;
+	$provideTooltip(entryId: string, cancellation: CancellationToken): Promise<string | IMarkdownString | undefined>;
 }
 
 export interface MainThreadStorageShape extends IDisposable {
@@ -1606,6 +1607,7 @@ export interface SCMHistoryItemDto {
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
+	readonly authorIcon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 	readonly authorEmail?: string;
 	readonly timestamp?: number;
 	readonly statistics?: {
@@ -1620,7 +1622,6 @@ export interface SCMHistoryItemChangeDto {
 	readonly uri: UriComponents;
 	readonly originalUri: UriComponents | undefined;
 	readonly modifiedUri: UriComponents | undefined;
-	readonly renameUri: UriComponents | undefined;
 }
 
 export interface MainThreadSCMShape extends IDisposable {

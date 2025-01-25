@@ -110,10 +110,15 @@ export class TextureAtlas extends Disposable {
 		this._onDidDeleteGlyphs.fire();
 	}
 
-	getGlyph(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, decorationStyleSetId: number): Readonly<ITextureAtlasPageGlyph> {
+	getGlyph(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, decorationStyleSetId: number, x: number): Readonly<ITextureAtlasPageGlyph> {
 		// TODO: Encode font size and family into key
 		// Ignore metadata that doesn't affect the glyph
 		tokenMetadata &= ~(MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
+
+		// Add x offset for sub-pixel rendering to the unused portion or tokenMetadata. This
+		// converts the decimal part of the x to a range from 0 to 9, where 0 = 0.0px x offset,
+		// 9 = 0.9px x offset
+		tokenMetadata |= Math.floor((x % 1) * 10);
 
 		// Warm up common glyphs
 		if (!this._warmedUpRasterizers.has(rasterizer.id)) {
@@ -167,27 +172,33 @@ export class TextureAtlas extends Disposable {
 		// Warm up using roughly the larger glyphs first to help optimize atlas allocation
 		// A-Z
 		for (let code = CharCode.A; code <= CharCode.Z; code++) {
-			taskQueue.enqueue(() => {
-				for (const fgColor of colorMap.keys()) {
-					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK, 0);
-				}
-			});
+			for (const fgColor of colorMap.keys()) {
+				taskQueue.enqueue(() => {
+					for (let x = 0; x < 1; x += 0.1) {
+						this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK, 0, x);
+					}
+				});
+			}
 		}
 		// a-z
 		for (let code = CharCode.a; code <= CharCode.z; code++) {
-			taskQueue.enqueue(() => {
-				for (const fgColor of colorMap.keys()) {
-					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK, 0);
-				}
-			});
+			for (const fgColor of colorMap.keys()) {
+				taskQueue.enqueue(() => {
+					for (let x = 0; x < 1; x += 0.1) {
+						this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK, 0, x);
+					}
+				});
+			}
 		}
 		// Remaining ascii
 		for (let code = CharCode.ExclamationMark; code <= CharCode.Tilde; code++) {
-			taskQueue.enqueue(() => {
-				for (const fgColor of colorMap.keys()) {
-					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK, 0);
-				}
-			});
+			for (const fgColor of colorMap.keys()) {
+				taskQueue.enqueue(() => {
+					for (let x = 0; x < 1; x += 0.1) {
+						this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK, 0, x);
+					}
+				});
+			}
 		}
 	}
 }

@@ -256,6 +256,7 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		if (this._viewGpuContext) {
 			this._overflowGuardContainer.appendChild(this._viewGpuContext.canvas);
+			this._linesContent.appendChild(this._viewGpuContext.scrollWidthElement);
 		}
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());

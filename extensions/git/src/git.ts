@@ -1098,7 +1098,7 @@ function parseGitBlame(data: string): BlameInformation[] {
 			authorName = line.substring('author '.length);
 		}
 		if (commitHash && line.startsWith('author-mail ')) {
-			authorEmail = line.substring('author-mail '.length);
+			authorEmail = line.substring('author-mail <'.length, line.length - 1);
 		}
 		if (commitHash && line.startsWith('author-time ')) {
 			authorTime = Number(line.substring('author-time '.length)) * 1000;
@@ -1367,14 +1367,17 @@ export class Repository {
 	}
 
 	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number }> {
-		if (!treeish) { // index
+		if (!treeish || treeish === ':1' || treeish === ':2' || treeish === ':3') { // index
 			const elements = await this.lsfiles(path);
 
 			if (elements.length === 0) {
 				throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 			}
 
-			const { mode, object } = elements[0];
+			const { mode, object } = treeish !== ''
+				? elements.find(e => e.stage === treeish.substring(1)) ?? elements[0]
+				: elements[0];
+
 			const catFile = await this.exec(['cat-file', '-s', object]);
 			const size = parseInt(catFile.stdout);
 
@@ -1592,8 +1595,14 @@ export class Repository {
 		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
 
-	async diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
-		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR', treeish1];
+	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<Change[]> {
+		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR'];
+
+		if (options?.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		args.push(treeish1);
 
 		if (treeish2) {
 			args.push(treeish2);
@@ -2445,7 +2454,9 @@ export class Repository {
 
 				// Upstream commit
 				if (HEAD && HEAD.upstream) {
-					const ref = `refs/remotes/${HEAD.upstream.remote}/${HEAD.upstream.name}`;
+					const ref = HEAD.upstream.remote !== '.'
+						? `refs/remotes/${HEAD.upstream.remote}/${HEAD.upstream.name}`
+						: `refs/heads/${HEAD.upstream.name}`;
 					const commit = await this.revParse(ref);
 					HEAD = { ...HEAD, upstream: { ...HEAD.upstream, commit } };
 				}

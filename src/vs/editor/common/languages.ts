@@ -28,6 +28,8 @@ import { ExtensionIdentifier } from '../../platform/extensions/common/extensions
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { IModelTokensChangedEvent } from './textModelEvents.js';
 import type { Parser } from '@vscode/tree-sitter-wasm';
+import { ITextModel } from './model.js';
+import { TokenUpdate } from './model/tokenStore.js';
 
 /**
  * @internal
@@ -84,14 +86,29 @@ export class EncodedTokenizationResult {
 	}
 }
 
+export interface SyntaxNode {
+	startIndex: number;
+	endIndex: number;
+}
+
+export interface QueryCapture {
+	name: string;
+	text?: string;
+	node: SyntaxNode;
+}
+
 /**
  * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
  * @internal
  */
 export interface ITreeSitterTokenizationSupport {
+	/**
+	 * exposed for testing
+	 */
+	getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
-	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
-	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
+	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
+	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
