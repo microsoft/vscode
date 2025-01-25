@@ -364,7 +364,7 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
-	# IMPORTANT: We may have to bring back __vsc_update_env here, as now it takes one additional prompt execution for us to see unset env in effect
+
 	if [ "$__vsc_stable" = "0" ]; then
 		__vsc_update_env
 	fi
