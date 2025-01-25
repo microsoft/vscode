@@ -63,7 +63,8 @@
 }
 
 .explorer-folders-view .monaco-list-row[aria-expanded="false"] .explorer-item.highlight-badge .monaco-count-badge {
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
 }
 
 .explorer-folders-view .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
