@@ -324,6 +324,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 //#region Chat Setup Request Service
 
 type EntitlementClassification = {
+	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
 	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
 	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
@@ -334,6 +335,7 @@ type EntitlementClassification = {
 
 type EntitlementEvent = {
 	entitlement: ChatEntitlement;
+	tid: string;
 	quotaChat: number | undefined;
 	quotaCompletions: number | undefined;
 	quotaResetDate: string | undefined;
@@ -344,6 +346,7 @@ interface IEntitlementsResponse {
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
 	readonly chat_enabled: boolean;
+	readonly analytics_tracking_id: string;
 	readonly limited_user_quotas?: {
 		readonly chat: number;
 		readonly completions: number;
@@ -570,6 +573,7 @@ class ChatSetupRequests extends Disposable {
 		this.logService.trace(`[chat setup] entitlement: resolved to ${entitlements.entitlement}, quotas: ${JSON.stringify(entitlements.quotas)}`);
 		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
 			entitlement: entitlements.entitlement,
+			tid: entitlementsResponse.analytics_tracking_id,
 			quotaChat: entitlementsResponse.limited_user_quotas?.chat,
 			quotaCompletions: entitlementsResponse.limited_user_quotas?.completions,
 			quotaResetDate: entitlementsResponse.limited_user_reset_date

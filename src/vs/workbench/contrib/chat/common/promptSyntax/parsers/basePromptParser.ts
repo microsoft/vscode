@@ -42,11 +42,6 @@ const errorMessages = {
 export type TErrorCondition = FileOpenFailed | RecursiveReference | NonPromptSnippetFile;
 
 /**
- * Configuration key for the prompt snippets feature.
- */
-const PROMPT_SNIPPETS_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
-
-/**
  * Base prompt parser class that provides a common interface for all
  * prompt parsers that are responsible for parsing chat prompt syntax.
  */
@@ -347,26 +342,6 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 */
 	public get dirname() {
 		return URI.joinPath(this.uri, '..');
-	}
-
-	/**
-	 * Check if the prompt snippets feature is enabled.
-	 * @see {@link PROMPT_SNIPPETS_CONFIG_KEY}
-	 */
-	public static promptSnippetsEnabled(
-		configService: IConfigurationService,
-	): boolean {
-		const value = configService.getValue(PROMPT_SNIPPETS_CONFIG_KEY);
-
-		if (!value) {
-			return false;
-		}
-
-		if (typeof value === 'string') {
-			return value.trim().toLowerCase() === 'true';
-		}
-
-		return !!value;
 	}
 
 	/**

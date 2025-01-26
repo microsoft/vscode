@@ -136,26 +136,17 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		}));
 	}
 
-	private _createEmptyTokens(captures: { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] }, modelEndOffset: number) {
+	private _createEmptyTokens(textModel: ITextModel) {
 		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 		const emptyToken = this._emptyToken(languageId);
-		const capturedTokens = this._createTokensFromCaptures(captures.tree, captures.captures, 0, modelEndOffset);
-		if (!capturedTokens) {
-			return;
-		}
-		const emptyTokens: EndOffsetToken[] = capturedTokens.endOffsets.map(capture => ({ endOffset: capture.endOffset, metadata: emptyToken }));
-		return this._rangeTokensAsUpdates(0, emptyTokens);
+		const modelEndOffset = textModel.getValueLength();
+
+		const emptyTokens: TokenUpdate[] = [{ token: emptyToken, length: modelEndOffset, startOffsetInclusive: 0 }];
+		return emptyTokens;
 	}
 
 	private _firstTreeUpdate(textModel: ITextModel, versionId: number, ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[]) {
-		const modelEndOffset = textModel.getValueLength();
-		const editorEndPosition = textModel.getPositionAt(modelEndOffset);
-		const captures = this._getTreeAndCaptures(new Range(1, 1, editorEndPosition.lineNumber, editorEndPosition.column), textModel);
-		if (captures.captures.length === 0) {
-			return;
-		}
-		// Make empty tokens to populate the store
-		const tokens: TokenUpdate[] = this._createEmptyTokens(captures, modelEndOffset) ?? [];
+		const tokens: TokenUpdate[] = this._createEmptyTokens(textModel);
 		this._tokenizationStoreService.setTokens(textModel, tokens);
 		this._setViewPortTokens(textModel, versionId);
 	}

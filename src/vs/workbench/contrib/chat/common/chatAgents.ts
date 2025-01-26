@@ -206,6 +206,7 @@ export interface IChatAgentService {
 	 * undefined when an agent was removed
 	 */
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
+	readonly onDidChangeToolsAgentModeEnabled: Event<void>;
 	readonly toolsAgentModeEnabled: boolean;
 	toggleToolsAgentMode(): void;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
@@ -251,6 +252,9 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private readonly _onDidChangeAgents = new Emitter<IChatAgent | undefined>();
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
+
+	private readonly _onDidChangeToolsAgentModeEnabled = new Emitter<void>();
+	readonly onDidChangeToolsAgentModeEnabled: Event<void> = this._onDidChangeToolsAgentModeEnabled.event;
 
 	private readonly _agentsContextKeys = new Set<string>();
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
@@ -423,6 +427,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	toggleToolsAgentMode(): void {
 		this._agentModeContextKey.set(!this._agentModeContextKey.get());
+		this._onDidChangeToolsAgentModeEnabled.fire();
 		this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.EditingSession));
 	}
 

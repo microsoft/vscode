@@ -4,14 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITask, Sequencer, timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
+import { Disposable, DisposableMap, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorunDelta, autorunIterableDelta } from '../../../../../base/common/observableInternal/autorun.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
+import { IOffsetEdit, ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -19,29 +25,26 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IEditorCloseEvent } from '../../../../common/editor.js';
+import { IEditorCloseEvent, SaveReason } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedFileEntry, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
-import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
-import { isEqual, joinPath } from '../../../../../base/common/resources.js';
-import { StringSHA1 } from '../../../../../base/common/hash.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { IOffsetEdit, ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatService } from '../../common/chatService.js';
-import { INotebookService } from '../../../notebook/common/notebookService.js';
+import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
-import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
+import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -174,6 +177,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatService private readonly _chatService: IChatService,
 		@INotebookService private readonly _notebookService: INotebookService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
 		super();
 	}
@@ -193,6 +197,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		// Add the currently active editors to the working set
 		this._trackCurrentEditorsInWorkingSet();
+		this._triggerSaveParticipantsOnAccept();
 		this._register(this._editorService.onDidVisibleEditorsChange(() => {
 			this._trackCurrentEditorsInWorkingSet();
 		}));
@@ -223,6 +228,39 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			linearHistory: this._linearHistory.get(),
 		};
 		return storage.storeState(state);
+	}
+
+	private _triggerSaveParticipantsOnAccept() {
+		const im = this._register(new DisposableMap<ChatEditingModifiedFileEntry>());
+		const attachToEntry = (entry: ChatEditingModifiedFileEntry) => {
+			return autorunDelta(entry.state, ({ lastValue, newValue }) => {
+				if (newValue === WorkingSetEntryState.Accepted && lastValue === WorkingSetEntryState.Modified) {
+					// Don't save a file if there's still pending changes. If there's not (e.g.
+					// the agentic flow with autosave) then save again to trigger participants.
+					if (!this._textFileService.isDirty(entry.modifiedURI)) {
+						this._textFileService.save(entry.modifiedURI, {
+							reason: SaveReason.EXPLICIT,
+							force: true,
+							ignoreErrorHandler: true,
+						}).catch(() => {
+							// ignored
+						});
+					}
+				}
+			});
+		};
+
+		this._register(autorunIterableDelta(
+			reader => this._entriesObs.read(reader),
+			({ addedValues, removedValues }) => {
+				for (const entry of addedValues) {
+					im.set(entry, attachToEntry(entry));
+				}
+				for (const entry of removedValues) {
+					im.deleteAndDispose(entry);
+				}
+			}
+		));
 	}
 
 	private _trackCurrentEditorsInWorkingSet(e?: IEditorCloseEvent) {
@@ -577,6 +615,36 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._sequencer.queue(() => this._resolve());
 	}
 
+	private _trackUntitledWorkingSetEntry(resource: URI) {
+		if (resource.scheme !== Schemas.untitled) {
+			return;
+		}
+		const untitled = this._textFileService.untitled.get(resource);
+		if (!untitled) { // Shouldn't happen
+			return;
+		}
+
+		// Track this file until
+		// 1. it is removed from the working set
+		// 2. it is closed
+		// 3. we are disposed
+		const store = new DisposableStore();
+		store.add(this.onDidChange(e => {
+			if (e === ChatEditingSessionChangeType.WorkingSet && !this._workingSet.get(resource)) {
+				// The user has removed the file from the working set
+				store.dispose();
+			}
+		}));
+		store.add(this._editorService.onDidCloseEditor((e) => {
+			if (isEqual(e.editor.resource, resource)) {
+				this._workingSet.delete(resource);
+				store.dispose();
+				this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
+			}
+		}));
+		this._store.add(store);
+	}
+
 	addFileToWorkingSet(resource: URI, description?: string, proposedState?: WorkingSetEntryState.Suggested): void {
 		const state = this._workingSet.get(resource);
 		if (proposedState === WorkingSetEntryState.Suggested) {
@@ -584,9 +652,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				return;
 			}
 			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Suggested });
+			this._trackUntitledWorkingSetEntry(resource);
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		} else if (state === undefined || state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested) {
 			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Attached });
+			this._trackUntitledWorkingSetEntry(resource);
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}
 	}

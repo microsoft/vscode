@@ -11,7 +11,7 @@ import {
 	ExtensionInstallSource,
 	DidUpdateExtensionMetadata,
 	UninstallExtensionInfo,
-	IAllowedExtensionsService
+	IAllowedExtensionsService,
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, IWorkbenchInstallOptions, UninstallExtensionOnServerEvent } from './extensionManagement.js';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
@@ -49,6 +49,8 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { verifiedPublisherIcon } from './extensionsIcons.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 
+const TrustedPublishersStorageKey = 'extensions.trustedPublishers';
+
 function isGalleryExtension(extension: IResourceExtension | IGalleryExtension): extension is IGalleryExtension {
 	return extension.type === 'gallery';
 }
@@ -56,6 +58,8 @@ function isGalleryExtension(extension: IResourceExtension | IGalleryExtension): 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly defaultTrustedPublishers: readonly string[];
 
 	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionOnServerEvent>());
 	readonly onInstallExtension: Event<InstallExtensionOnServerEvent>;
@@ -104,10 +108,12 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
+		this.defaultTrustedPublishers = productService.trustedExtensionPublishers ?? [];
 		this.workspaceExtensionManagementService = this._register(this.instantiationService.createInstance(WorkspaceExtensionsManagementService));
 		this.onDidEnableExtensions = this.workspaceExtensionManagementService.onDidChangeInvalidExtensions;
 
@@ -165,6 +171,18 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			this._register(onDidProfileAwareUpdateExtensionMetadaEventMultiplexer.add(server.extensionManagementService.onProfileAwareDidUpdateExtensionMetadata));
 			this._register(onDidChangeProfileEventMultiplexer.add(Event.map(server.extensionManagementService.onDidChangeProfile, e => ({ ...e, server }))));
 		}
+
+		this._register(this.onProfileAwareDidInstallExtensions(results => {
+			const untrustedPublishers = new Set<string>();
+			for (const result of results) {
+				if (result.local && result.source && !URI.isUri(result.source) && !this.isPublisherTrusted(result.source)) {
+					untrustedPublishers.add(result.source.publisher);
+				}
+			}
+			if (untrustedPublishers.size) {
+				this.trustPublishers(...untrustedPublishers);
+			}
+		}));
 	}
 
 	async getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {
@@ -772,7 +790,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	private async checkForTrustedPublisher(extension: IGalleryExtension): Promise<void> {
-		if (this.allowedExtensionsService.isTrusted(extension)) {
+		if (this.isPublisherTrusted(extension)) {
 			return;
 		}
 
@@ -789,9 +807,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		const installButton: IPromptButton<void> = {
 			label: localize({ key: 'trust and install', comment: ['&& denotes a mnemonic'] }, "Trust Publisher & &&Install"),
-			run: async () => {
+			run: () => {
 				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'trust', extensionId: extension.identifier.id });
-				await this.allowedExtensionsService.trustPublishers(extension.publisher);
+				this.trustPublishers(extension.publisher);
 			}
 		};
 
@@ -965,6 +983,31 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	registerParticipant() { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
+
+	isPublisherTrusted(extension: IGalleryExtension): boolean {
+		const publisher = extension.publisher.toLowerCase();
+		if (this.defaultTrustedPublishers.includes(publisher) || this.defaultTrustedPublishers.includes(extension.publisherDisplayName.toLowerCase())) {
+			return true;
+		}
+
+		// Check if the extension is allowed by publisher or extension id
+		if (this.allowedExtensionsService.allowedExtensionsConfigValue && this.allowedExtensionsService.isAllowed(extension)) {
+			return true;
+		}
+
+		const trustedPublishers = this.storageService.getObject<string[]>(TrustedPublishersStorageKey, StorageScope.APPLICATION, []).map(p => p.toLowerCase());
+		this.logService.debug('Trusted publishers', trustedPublishers);
+		return trustedPublishers.includes(publisher);
+	}
+
+	trustPublishers(...publishers: string[]): void {
+		const trustedPublishers = this.storageService.getObject<string[]>(TrustedPublishersStorageKey, StorageScope.APPLICATION, []).map(p => p.toLowerCase());
+		publishers = publishers.map(p => p.toLowerCase()).filter(p => !trustedPublishers.includes(p));
+		if (publishers.length) {
+			trustedPublishers.push(...publishers);
+			this.storageService.store(TrustedPublishersStorageKey, trustedPublishers, StorageScope.APPLICATION, StorageTarget.USER);
+		}
+	}
 }
 
 class WorkspaceExtensionsManagementService extends Disposable {

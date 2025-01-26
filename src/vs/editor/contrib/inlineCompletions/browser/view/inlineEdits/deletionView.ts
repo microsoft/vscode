@@ -7,11 +7,11 @@ import { IObservable, constObservable, derived, derivedObservableWithCache } fro
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
-import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
+import { Range } from '../../../../../common/core/range.js';
 import { IInlineEditsView } from './sideBySideDiff.js';
-import { createRectangle, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
+import { createRectangle, getPrefixTrim, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
@@ -21,9 +21,8 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
 		private readonly _uiState: IObservable<{
-			edit: InlineEditWithChanges;
-			originalDisplayRange: LineRange;
-			widgetStartColumn: number;
+			originalRange: LineRange;
+			deletions: Range[];
 		} | undefined>,
 	) {
 		super();
@@ -55,7 +54,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 	private readonly _originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
 	private readonly _originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
 
-	private readonly _originalDisplayRange = this._uiState.map(s => s?.originalDisplayRange);
+	private readonly _originalDisplayRange = this._uiState.map(s => s?.originalRange);
 	private readonly _editorMaxContentWidthInRange = derived(this, reader => {
 		const originalDisplayRange = this._originalDisplayRange.read(reader);
 		if (!originalDisplayRange) {
@@ -71,6 +70,14 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		});
 	}).map((v, r) => v.read(r));
 
+	private readonly _maxPrefixTrim = derived(reader => {
+		const state = this._uiState.read(reader);
+		if (!state) {
+			return { prefixTrim: 0, prefixLeftOffset: 0 };
+		}
+		return getPrefixTrim(state.deletions, state.originalRange, [], this._editor);
+	});
+
 	private readonly _editorLayoutInfo = derived(this, (reader) => {
 		const inlineEdit = this._edit.read(reader);
 		if (!inlineEdit) {
@@ -81,7 +88,6 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			return null;
 		}
 
-		const w = this._editorObs.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 
@@ -91,7 +97,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
 		const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
 
-		const codeLeft = editorLayout.contentLeft + state.widgetStartColumn * w;
+		const codeLeft = editorLayout.contentLeft + this._maxPrefixTrim.read(reader).prefixLeftOffset;
 
 		if (left <= codeLeft) {
 			return null;

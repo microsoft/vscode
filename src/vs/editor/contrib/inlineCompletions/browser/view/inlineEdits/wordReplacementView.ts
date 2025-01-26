@@ -18,7 +18,7 @@ import { SingleTextEdit } from '../../../../../common/core/textEdit.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../common/tokens/tokenArray.js';
-import { mapOutFalsy, n, rectToProps } from './utils.js';
+import { getPrefixTrim, mapOutFalsy, n, rectToProps } from './utils.js';
 import { localize } from '../../../../../../nls.js';
 import { IInlineEditsView } from './sideBySideDiff.js';
 import { Range } from '../../../../../common/core/range.js';
@@ -274,35 +274,13 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
-	private readonly maxPrefixTrim = derived(this, reader => {
-		const maxPrefixTrim = Math.max(...this._replacements.flatMap(r => [r.originalRange, r.modifiedRange]).map(r => r.isSingleLine() ? r.startColumn - 1 : 0));
-		if (maxPrefixTrim === 0) {
-			return 0;
-		}
-
-		const textModel = this._editor.editor.getModel()!;
-
-		const getLineTrimColLength = (line: string) => {
-			let i = 0;
-			while (i < line.length && line[i] === ' ') { i++; }
-			return i;
-		};
-
-		// TODO: make sure this works for tabs
-		return Math.min(
-			maxPrefixTrim,
-			...this._originalRange.mapToLineArray(line => getLineTrimColLength(textModel.getLineContent(line))),
-			...this._modifiedLines.map(line => getLineTrimColLength(line))
-		);
-	});
+	private readonly _maxPrefixTrim = getPrefixTrim(this._replacements.flatMap(r => [r.originalRange, r.modifiedRange]), this._originalRange, this._modifiedLines, this._editor.editor);
 
 	private readonly _modifiedLineElements = derived(reader => {
-
-		const maxPrefixTrim = this.maxPrefixTrim.read(reader);
-
 		const lines = [];
 		let requiredWidth = 0;
 
+		const maxPrefixTrim = this._maxPrefixTrim.prefixTrim;
 		const modifiedBubbles = rangesToBubbleRanges(this._replacements.map(r => r.modifiedRange)).map(r => new Range(r.startLineNumber, r.startColumn - maxPrefixTrim, r.endLineNumber, r.endColumn - maxPrefixTrim));
 
 		const textModel = this._editor.model.get()!;
@@ -351,12 +329,12 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 		const PADDING = 4;
 
 		const editorModel = this._editor.editor.getModel()!;
-		const maxPrefixTrim = this.maxPrefixTrim.read(reader);
+		const { prefixTrim, prefixLeftOffset } = this._maxPrefixTrim;
 
-		// TODO, correctly count tabs
+		// TODO: correctly count tabs
 		const originalLineContents: string[] = [];
 		this._originalRange.forEach(line => originalLineContents.push(editorModel.getLineContent(line)));
-		const maxOriginalLineLength = Math.max(...originalLineContents.map(l => l.length)) - maxPrefixTrim;
+		const maxOriginalLineLength = Math.max(...originalLineContents.map(l => l.length)) - prefixTrim;
 		const maxLineWidth = Math.max(maxOriginalLineLength * w, requiredWidth);
 
 		const startLineNumber = this._originalRange.startLineNumber;
@@ -369,11 +347,9 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 			return undefined;
 		}
 
-		const prefixTrimOffset = maxPrefixTrim * w;
-
 		// Box Widget positioning
 		const originalLinesOverlay = Rect.fromLeftTopWidthHeight(
-			editorLeftOffset + prefixTrimOffset,
+			editorLeftOffset + prefixLeftOffset,
 			topOfOriginalLines,
 			maxLineWidth,
 			bottomOfOriginalLines - topOfOriginalLines + PADDING
@@ -407,7 +383,7 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 			lowerBackground,
 			lowerText,
 			padding: PADDING,
-			minContentWidthRequired: prefixTrimOffset + maxLineWidth + PADDING * 2,
+			minContentWidthRequired: maxLineWidth + PADDING * 2,
 		};
 	});
 
@@ -519,8 +495,7 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 								left: 0,
 								width: '100%',
 								height: '100%',
-								background: 'var(--vscode-diffEditor-insertedLineBackground)',
-								opacity: '0.5',
+								background: 'var(--vscode-inlineEdit-modifiedChangedLineBackground)',
 							},
 						})
 					]),

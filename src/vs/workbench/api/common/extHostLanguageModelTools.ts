@@ -12,7 +12,7 @@ import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
 
@@ -136,16 +136,18 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			return undefined;
 		}
 
+		if (result.pastTenseMessage || result.tooltip) {
+			checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
+		}
+
 		return {
 			confirmationMessages: result.confirmationMessages ? {
 				title: result.confirmationMessages.title,
 				message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
 			} : undefined,
-			invocationMessage: typeof result.invocationMessage === 'string' ?
-				result.invocationMessage :
-				(result.invocationMessage ?
-					typeConvert.MarkdownString.from(result.invocationMessage) :
-					undefined),
+			invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
+			pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
+			tooltip: result.tooltip ? typeConvert.MarkdownString.fromStrict(result.tooltip) : undefined,
 		};
 	}
 

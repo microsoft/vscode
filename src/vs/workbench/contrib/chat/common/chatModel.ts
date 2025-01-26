@@ -208,6 +208,7 @@ export interface IChatResponseModel {
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
+	readonly isPendingConfirmation: boolean;
 	readonly shouldBeRemovedOnSend: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
@@ -399,6 +400,14 @@ export class Response extends Disposable implements IResponse {
 				this._updateRepr(false);
 			});
 
+		} else if (progress.kind === 'toolInvocation') {
+			if (progress.confirmationMessages) {
+				progress.confirmed.p.then(() => {
+					this._updateRepr(false);
+				});
+			}
+			this._responseParts.push(progress);
+			this._updateRepr(quiet);
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -593,6 +602,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _isStale: boolean = false;
 	public get isStale(): boolean {
 		return this._isStale;
+	}
+
+	public get isPendingConfirmation() {
+		return this._response.value.some(part =>
+			part.kind === 'toolInvocation' && part.isConfirmed === undefined
+			|| part.kind === 'confirmation' && part.isUsed === false);
 	}
 
 	constructor(
@@ -979,7 +994,15 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get requestInProgress(): boolean {
 		const lastRequest = this.lastRequest;
-		return !!lastRequest?.response && !lastRequest.response.isComplete;
+		if (!lastRequest?.response) {
+			return false;
+		}
+
+		if (lastRequest.response.isPendingConfirmation) {
+			return false;
+		}
+
+		return !lastRequest.response.isComplete;
 	}
 
 	get hasRequests(): boolean {
