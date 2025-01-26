@@ -6,7 +6,7 @@
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
- * Configuration helper for the `prompt files` feature.
+ * Configuration helper for the `prompt snippets` feature.
  * @see {@link PROMPT_FILES_CONFIG_KEY} and {@link PROMPT_FILES_DEFAULT_LOCATION}
  *
  * ### Functions
@@ -21,21 +21,21 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * (see {@link PROMPT_FILES_DEFAULT_LOCATION}):
  * ```json
  * {
- *   "chat.experimental.prompt-files": true,
+ *   "chat.experimental.prompt-snippets": true,
  * }
  * ```
  *
- * Enable the feature specifying a single prompt files source folder location:
+ * Enable the feature, specifying a single prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.prompt-files": '.copilot/prompts',
+ *   "chat.experimental.prompt-snippets": '.copilot/prompts',
  * }
  * ```
  *
- * Enable the feature specifying multiple prompt files source folder location:
+ * Enable the feature, specifying multiple prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.prompt-files": [
+ *   "chat.experimental.prompt-snippets": [
  *     '.copilot/prompts',
  *     '.github/prompts',
  *     '/Users/legomushroom/repos/prompts',
@@ -74,10 +74,10 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  */
 export namespace PromptFilesConfig {
 	/**
-	 * Configuration key for the `prompt files` feature (also
+	 * Configuration key for the `prompt snippets` feature (also
 	 * known as `prompt snippets`, `prompt instructions`, etc.).
 	 */
-	const PROMPT_FILES_CONFIG_KEY: string = 'chat.experimental.prompt-files';
+	const PROMPT_FILES_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
 
 	/**
 	 * Default prompt instructions source folder paths.
@@ -85,7 +85,7 @@ export namespace PromptFilesConfig {
 	const PROMPT_FILES_DEFAULT_LOCATION = ['.copilot/prompts', '.github/prompts'];
 
 	/**
-	 * Get value of the `prompt files` configuration setting.
+	 * Get value of the `prompt snippets` configuration setting.
 	 */
 	export const getValue = (
 		configService: IConfigurationService,
