@@ -12,8 +12,8 @@ import { IObservable, IReader, autorun, constObservable, derived, derivedObserva
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { diffInserted, diffRemoved, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
+import { diffInserted, diffInsertedLine, diffRemoved, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -62,7 +62,12 @@ export const originalChangedTextOverlayColor = registerColor(
 
 export const modifiedChangedLineBackgroundColor = registerColor(
 	'inlineEdit.modifiedChangedLineBackground',
-	Color.transparent,
+	{
+		light: transparent(diffInsertedLine, 0.5),
+		dark: transparent(diffInsertedLine, 0.5),
+		hcDark: diffInsertedLine,
+		hcLight: diffInsertedLine
+	},
 	localize('inlineEdit.modifiedChangedLineBackground', 'Background color for the changed lines in the modified text of inline edits.'),
 	true
 );
@@ -462,6 +467,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
 		const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getBottomForLineNumber(range.endLineNumberExclusive - 1) - this._editorObs.scrollTop.read(reader);
 
+		// TODO: const { prefixLeftOffset } = getPrefixTrim(inlineEdit.edit.edits.map(e => e.range), inlineEdit.originalLineRange, [], this._editor);
 		const codeLeft = editorLayout.contentLeft;
 
 		let code1 = new Point(left, selectionTop);
@@ -553,24 +559,25 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		return true;
 	});
 
-
 	private readonly _extendedModifiedPath = derived(reader => {
 		const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 		if (!layoutInfo) { return undefined; }
 
-		const extendedModifiedPathBuilder = createRectangle(
-			{ topLeft: layoutInfo.editStart1, width: layoutInfo.edit1.x - layoutInfo.editStart1.x, height: layoutInfo.editStart2.y - layoutInfo.editStart1.y },
-			0,
-			{ topLeft: 0, bottomLeft: 0, topRight: layoutInfo.borderRadius, bottomRight: layoutInfo.borderRadius },
-			{ hideLeft: true }
-		);
+		const path = new PathBuilder()
+			.moveTo(layoutInfo.code2)
+			.lineTo(layoutInfo.code1)
+			.lineTo(layoutInfo.editStart1)
+			.lineTo(layoutInfo.edit1.deltaX(-layoutInfo.borderRadius))
+			.curveTo(layoutInfo.edit1, layoutInfo.edit1.deltaY(layoutInfo.borderRadius))
+			.lineTo(layoutInfo.edit2.deltaY(-layoutInfo.borderRadius))
+			.curveTo(layoutInfo.edit2, layoutInfo.edit2.deltaX(-layoutInfo.borderRadius))
+			.lineTo(layoutInfo.editStart2);
 
 		if (layoutInfo.editStart2.y !== layoutInfo.code2.y) {
-			extendedModifiedPathBuilder.moveTo(layoutInfo.editStart2);
-			extendedModifiedPathBuilder.curveTo2(layoutInfo.editStart2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
+			path.curveTo2(layoutInfo.editStart2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
 		}
-		extendedModifiedPathBuilder.lineTo(layoutInfo.code2).moveTo(layoutInfo.code1).lineTo(layoutInfo.editStart1);
-		return extendedModifiedPathBuilder.build();
+		path.lineTo(layoutInfo.code2);
+		return path.build();
 	});
 
 	private readonly _originalBackgroundColor = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => {
@@ -606,7 +613,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		}),
 	]).keepUpdated(this._store);
 
-	private readonly _foregroundBackgroundSvg = n.svg({
+	private readonly _modifiedBackgroundSvg = n.svg({
 		transform: 'translate(-0.5 -0.5)',
 		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
 	}, [
@@ -615,6 +622,20 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 			d: this._extendedModifiedPath,
 			style: {
 				fill: 'var(--vscode-editor-background, transparent)',
+				strokeWidth: '0px',
+			}
+		}),
+	]).keepUpdated(this._store);
+
+	private readonly _foregroundBackgroundSvg = n.svg({
+		transform: 'translate(-0.5 -0.5)',
+		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
+	}, [
+		n.svgElem('path', {
+			class: 'extendedModifiedBackgroundCoverUp',
+			d: this._extendedModifiedPath,
+			style: {
+				fill: 'var(--vscode-inlineEdit-modifiedChangedLineBackground, transparent)',
 				strokeWidth: '1px',
 			}
 		}),
@@ -693,7 +714,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		},
 	}, [
 		this._backgroundSvg,
-		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg, this._middleBorderWithShadow]),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._modifiedBackgroundSvg, this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg, this._middleBorderWithShadow]),
 	]).keepUpdated(this._store);
 
 	private readonly _overflowView = n.div({
@@ -704,6 +725,6 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 			display: this._display,
 		},
 	}, [
-		derived(this, reader => this._shouldOverflow.read(reader) ? [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg, this._middleBorderWithShadow] : []),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [this._modifiedBackgroundSvg, this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg, this._middleBorderWithShadow] : []),
 	]).keepUpdated(this._store);
 }

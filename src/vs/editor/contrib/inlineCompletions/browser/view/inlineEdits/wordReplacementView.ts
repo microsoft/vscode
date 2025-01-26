@@ -495,8 +495,7 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 								left: 0,
 								width: '100%',
 								height: '100%',
-								background: 'var(--vscode-diffEditor-insertedLineBackground)',
-								opacity: '0.5',
+								background: 'var(--vscode-inlineEdit-modifiedChangedLineBackground)',
 							},
 						})
 					]),
