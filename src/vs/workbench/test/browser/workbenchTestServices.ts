@@ -19,7 +19,7 @@ import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPositio
 import { TextModelResolverService } from '../../services/textmodelResolver/common/textModelResolverService.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { IEditorOptions, IResourceEditorInput, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from '../../../platform/editor/common/editor.js';
-import { IUntitledTextEditorService, UntitledTextEditorService } from '../../services/untitled/common/untitledTextEditorService.js';
+import { IUntitledTextEditorModelManager, IUntitledTextEditorService, UntitledTextEditorService } from '../../services/untitled/common/untitledTextEditorService.js';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent, IWillShutdownEventJoiner } from '../../services/lifecycle/common/lifecycle.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
@@ -414,7 +414,7 @@ export class TestTextFileService extends BrowserTextFileService {
 
 	constructor(
 		@IFileService fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorModelManager,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
