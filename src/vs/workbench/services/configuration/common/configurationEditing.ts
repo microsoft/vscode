@@ -605,7 +605,7 @@ export class ConfigurationEditing {
 			if (key === TASKS_CONFIGURATION_KEY) {
 				return this.userDataProfileService.currentProfile.tasksResource;
 			} else {
-				if (!this.userDataProfileService.currentProfile.isDefault && scope !== ConfigurationScope.APPLICATION_MACHINE && this.configurationService.isSettingAppliedForAllProfiles(key)) {
+				if (!this.userDataProfileService.currentProfile.isDefault && this.configurationService.isSettingAppliedForAllProfiles(key)) {
 					return this.userDataProfilesService.defaultProfile.settingsResource;
 				}
 				return this.userDataProfileService.currentProfile.settingsResource;

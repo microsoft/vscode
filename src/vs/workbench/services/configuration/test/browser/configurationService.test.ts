@@ -751,7 +751,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'default': 'isSet',
 					scope: ConfigurationScope.MACHINE
 				},
-				'configurationService.folder.applicationMachineOverridableSetting': {
+				'configurationService.folder.applicationMachineSetting': {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION_MACHINE
@@ -845,7 +845,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				'folder': {
 					'applicationSetting': 'isSet',
 					'machineSetting': 'isSet',
-					'applicationMachineOverridableSetting': 'isSet',
+					'applicationMachineSetting': 'isSet',
 					'machineOverridableSetting': 'isSet',
 					'testSetting': 'isSet',
 					'languageSetting': 'isSet',
@@ -960,21 +960,21 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	}));
 
 	test('application machine overridable settings are not read from workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineOverridableSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineOverridableSetting": "workspaceValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineOverridableSetting'), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting'), 'userValue');
 	}));
 
 	test('application machine overridable settings are not read from workspace when workspace folder uri is passed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineOverridableSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineOverridableSetting": "workspaceValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineOverridableSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
 	}));
 
 	test('get application scope settings are loaded after defaults are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1028,17 +1028,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	}));
 
 	test('get application machine overridable scope settings are loaded after defaults are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineOverridableSetting-2": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineOverridableSetting-2": "workspaceValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting-2": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting-2": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineOverridableSetting-2'), 'workspaceValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-2'), 'workspaceValue');
 
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
 			'properties': {
-				'configurationService.folder.applicationMachineOverridableSetting-2': {
+				'configurationService.folder.applicationMachineSetting-2': {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
@@ -1046,24 +1046,24 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineOverridableSetting-2'), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-2'), 'userValue');
 
 		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineOverridableSetting-2'), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-2'), 'userValue');
 	}));
 
 	test('get application machine overridable scope settings are loaded after defaults are registered when workspace folder uri is passed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineOverridableSetting-3": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineOverridableSetting-3": "workspaceValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting-3": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting-3": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineOverridableSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
 
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
 			'properties': {
-				'configurationService.folder.applicationMachineOverridableSetting-3': {
+				'configurationService.folder.applicationMachineSetting-3': {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
@@ -1071,10 +1071,10 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineOverridableSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
 
 		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineOverridableSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
 	}));
 
 	test('get machine scope settings are not loaded after defaults are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1441,7 +1441,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('update application machine overridable setting into workspace configuration in a workspace is not supported', () => {
-		return testObject.updateValue('configurationService.folder.applicationMachineOverridableSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, { donotNotifyError: true })
+		return testObject.updateValue('configurationService.folder.applicationMachineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, { donotNotifyError: true })
 			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
 	});
 
@@ -1699,6 +1699,11 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
 				},
+				'configurationService.profiles.applicationMachineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION_MACHINE
+				},
 				'configurationService.profiles.testSetting': {
 					'type': 'string',
 					'default': 'isSet',
@@ -1803,6 +1808,13 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 
 		assert.deepStrictEqual(JSON.parse((await fileService.readFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource)).value.toString()), { 'configurationService.profiles.applicationSetting': 'applicationValue', 'configurationService.profiles.applicationSetting2': 'applicationValue', 'configurationService.profiles.testSetting2': 'userValue' });
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
+	}));
+
+	test('update application machine setting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue('configurationService.profiles.applicationMachineSetting', 'applicationValue');
+
+		assert.deepStrictEqual(JSON.parse((await fileService.readFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource)).value.toString()), { 'configurationService.profiles.applicationMachineSetting': 'applicationValue', 'configurationService.profiles.applicationSetting2': 'applicationValue', 'configurationService.profiles.testSetting2': 'userValue' });
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationMachineSetting'), 'applicationValue');
 	}));
 
 	test('update normal setting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -2800,7 +2812,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 					'default': 'isSet',
 					scope: ConfigurationScope.MACHINE
 				},
-				'configurationService.remote.applicationMachineOverridableSetting': {
+				'configurationService.remote.applicationMachineSetting': {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION_MACHINE
@@ -2934,31 +2946,31 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	}));
 
 	test('remote application machine settings override globals', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineOverridableSetting": "remoteValue" }'));
+		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "remoteValue" }'));
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();
-		assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineOverridableSetting'), 'remoteValue');
+		assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'remoteValue');
 	}));
 
 	test('remote application machine settings override globals after remote provider is registered on activation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineOverridableSetting": "remoteValue" }'));
+		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "remoteValue" }'));
 		resolveRemoteEnvironment();
 		registerRemoteFileSystemProviderOnActivation();
 		await initialize();
-		assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineOverridableSetting'), 'remoteValue');
+		assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'remoteValue');
 	}));
 
 	test('remote application machine settings override globals after remote environment is resolved', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineOverridableSetting": "remoteValue" }'));
+		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "remoteValue" }'));
 		registerRemoteFileSystemProvider();
 		await initialize();
 		const promise = new Promise<void>((c, e) => {
 			disposables.add(testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.applicationMachineOverridableSetting']);
-					assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineOverridableSetting'), 'remoteValue');
+					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.applicationMachineSetting']);
+					assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
 					e(error);
@@ -2970,15 +2982,15 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	}));
 
 	test('remote application machine settings override globals after remote provider is registered on activation and remote environment is resolved', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineOverridableSetting": "remoteValue" }'));
+		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "remoteValue" }'));
 		registerRemoteFileSystemProviderOnActivation();
 		await initialize();
 		const promise = new Promise<void>((c, e) => {
 			disposables.add(testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.applicationMachineOverridableSetting']);
-					assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineOverridableSetting'), 'remoteValue');
+					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.applicationMachineSetting']);
+					assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
 					e(error);
@@ -2990,11 +3002,11 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	}));
 
 	test('application machine settings in local user settings does not override defaults', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineOverridableSetting": "globalValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "globalValue" }'));
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();
-		assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineOverridableSetting'), 'isSet');
+		assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'isSet');
 	}));
 
 	test('machine overridable settings in local user settings does not override defaults', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -3027,9 +3039,9 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();
-		await testObject.updateValue('configurationService.remote.applicationMachineOverridableSetting', 'machineValue');
+		await testObject.updateValue('configurationService.remote.applicationMachineSetting', 'machineValue');
 		await testObject.reloadConfiguration();
-		const actual = testObject.inspect('configurationService.remote.applicationMachineOverridableSetting');
+		const actual = testObject.inspect('configurationService.remote.applicationMachineSetting');
 		assert.strictEqual(actual.userRemoteValue, 'machineValue');
 	}));
 
