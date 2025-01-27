@@ -1055,6 +1055,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 
 				// add prompt instruction references to the attached context, if enabled
+				const promptInstructionUris = new ResourceSet(promptInstructions.chatAttachments.map((v) => v.value) as URI[]);
 				if (instructionsEnabled) {
 					editingSessionAttachedContext
 						.push(...promptInstructions.chatAttachments);
@@ -1073,7 +1074,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					for (const variable of request.variableData.variables) {
 						if (URI.isUri(variable.value) && variable.isFile && maximumFileEntries > 0) {
 							const uri = variable.value;
-							if (!uniqueWorkingSetEntries.has(uri)) {
+							if (!uniqueWorkingSetEntries.has(uri) && !promptInstructionUris.has(uri)) {
 								editingSessionAttachedContext.push(variable);
 								uniqueWorkingSetEntries.add(variable.value);
 								maximumFileEntries -= 1;
