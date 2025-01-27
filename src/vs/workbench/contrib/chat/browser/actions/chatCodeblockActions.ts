@@ -7,18 +7,23 @@ import { AsyncIterableObject } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Disposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
-import { localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -79,6 +84,44 @@ abstract class ChatCodeBlockAction extends Action2 {
 	}
 
 	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
+}
+
+const APPLY_IN_EDITOR_ID = 'workbench.action.chat.applyInEditor';
+
+export class CodeBlockActionRendering extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.codeBlockActionRendering';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILabelService labelService: ILabelService,
+	) {
+		super();
+
+		const disposable = actionViewItemService.register(MenuId.ChatCodeBlock, APPLY_IN_EDITOR_ID, (action, options) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(class extends MenuEntryActionViewItem {
+				protected override getTooltip(): string {
+					const context = this._context;
+					if (isCodeBlockActionContext(context) && context.codemapperUri) {
+						const label = labelService.getUriLabel(context.codemapperUri, { relative: true });
+						return localize('interactive.applyInEditorWithURL.label', "Apply in {0}", label);
+					}
+					return super.getTooltip();
+				}
+				override setActionContext(newContext: unknown): void {
+					super.setActionContext(newContext);
+					this.updateTooltip();
+				}
+			}, action, undefined);
+		});
+
+		// Reduces flicker a bit on reload/restart
+		markAsSingleton(disposable);
+	}
 }
 
 export function registerChatCodeBlockActions() {
@@ -187,7 +230,7 @@ export function registerChatCodeBlockActions() {
 
 		constructor() {
 			super({
-				id: 'workbench.action.chat.applyInEditor',
+				id: APPLY_IN_EDITOR_ID,
 				title: localize2('interactive.applyInEditor.label', "Apply in Editor"),
 				precondition: ChatContextKeys.enabled,
 				f1: true,
@@ -227,7 +270,7 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
-	registerAction2(class SmartApplyInEditorAction extends ChatCodeBlockAction {
+	registerAction2(class InsertAtCursorAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
