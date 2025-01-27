@@ -129,12 +129,12 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * Same as {@linkcode settled} but also waits for all possible
 	 * nested child prompt references and their children to be settled.
 	 */
-	public async settledAll(): Promise<this> {
+	public async allSettled(): Promise<this> {
 		await this.settled();
 
 		await Promise.allSettled(
 			this.references.map((reference) => {
-				return reference.settledAll();
+				return reference.allSettled();
 			}),
 		);
 
