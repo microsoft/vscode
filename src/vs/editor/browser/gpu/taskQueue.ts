@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 
 /**
  * Copyright (c) 2022 The xterm.js authors. All rights reserved.
  * @license MIT
  */
 
-interface ITaskQueue {
+export interface ITaskQueue extends IDisposable {
 	/**
 	 * Adds a task to the queue which will run in a future idle callback.
 	 * To avoid perceivable stalls on the mainthread, tasks with heavy workload
