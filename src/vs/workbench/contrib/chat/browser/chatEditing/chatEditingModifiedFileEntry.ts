@@ -41,6 +41,7 @@ import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelConten
 
 class AutoAcceptControl {
 	constructor(
+		readonly total: number,
 		readonly remaining: number,
 		readonly cancel: () => void
 	) { }
@@ -103,7 +104,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	readonly reviewMode: IObservable<boolean>;
 
 	private readonly _autoAcceptCtrl = observableValue<AutoAcceptControl | undefined>(this, undefined);
-	readonly autoAcceptController: IObservable<{ remaining: number; cancel(): void } | undefined> = this._autoAcceptCtrl;
+	readonly autoAcceptController: IObservable<AutoAcceptControl | undefined> = this._autoAcceptCtrl;
 
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
@@ -306,7 +307,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		// AUTO accept mode
 		if (!this.reviewMode.get() && !this._autoAcceptCtrl.get()) {
 
-			const future = Date.now() + (this._autoAcceptTimeout.get() * 1000);
+			const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
+			const future = Date.now() + acceptTimeout;
 			const update = () => {
 
 				const reviewMode = this.reviewMode.get();
@@ -316,12 +318,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 					return;
 				}
 
-				const remain = Math.round((future - Date.now()) / 1000);
+				const remain = Math.round(future - Date.now());
 				if (remain <= 0) {
 					this.accept(undefined);
 				} else {
 					const handle = setTimeout(update, 100);
-					this._autoAcceptCtrl.set(new AutoAcceptControl(remain, () => {
+					this._autoAcceptCtrl.set(new AutoAcceptControl(acceptTimeout, remain, () => {
 						clearTimeout(handle);
 						this._autoAcceptCtrl.set(undefined, undefined);
 					}), undefined);

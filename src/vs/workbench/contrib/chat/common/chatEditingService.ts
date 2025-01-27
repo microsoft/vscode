@@ -141,7 +141,7 @@ export interface IModifiedFileEntry {
 	reject(transaction: ITransaction | undefined): Promise<void>;
 
 	reviewMode: IObservable<boolean>;
-	autoAcceptController: IObservable<{ remaining: number; cancel(): void } | undefined>;
+	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
 }
 
