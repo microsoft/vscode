@@ -22,6 +22,14 @@ const useId = localize('useId', "Make sure you use the full extension ID, includ
 type InstallVSIXInfo = { vsix: URI; installOptions: InstallOptions };
 type InstallGalleryExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
 
+export class ExtensionInstallationError extends Error {
+	constructor(message: string, public failed: string[], public innerError?: Error) {
+		super(innerError?.message ?? message);
+		this.name = innerError?.name ?? 'ExtensionInstallationError';
+		this.stack = innerError?.stack;
+	}
+}
+
 export class ExtensionManagementCLI {
 
 	constructor(
@@ -119,11 +127,19 @@ export class ExtensionManagementCLI {
 			}
 		} catch (error) {
 			this.logger.error(localize('error while installing extensions', "Error while installing extensions: {0}", getErrorMessage(error)));
-			throw error;
+			throw new ExtensionInstallationError(
+				'Error while installing extensions',
+				extensions.map(ext => ext instanceof URI ? ext.toString() : ext), // TODO: This could use some work
+				error);
 		}
 
 		if (failed.length) {
-			throw new Error(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', ')));
+			throw new ExtensionInstallationError(
+				localize(
+					'installation failed',
+					"Failed installing extensions: {0}",
+					failed.join(', ')),
+				failed);
 		}
 	}
 

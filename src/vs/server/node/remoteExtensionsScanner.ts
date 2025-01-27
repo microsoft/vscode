@@ -13,7 +13,7 @@ import { IURITransformer, transformOutgoingURIs } from '../../base/common/uriIpc
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterEqualsExpr, ContextKeyGreaterExpr, ContextKeyInExpr, ContextKeyNotEqualsExpr, ContextKeyNotExpr, ContextKeyNotInExpr, ContextKeyRegexExpr, ContextKeySmallerEqualsExpr, ContextKeySmallerExpr, IContextKeyExprMapper } from '../../platform/contextkey/common/contextkey.js';
 import { IExtensionGalleryService, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
-import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
+import { ExtensionInstallationError, ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { IExtensionsScannerService, toExtensionDescription } from '../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ExtensionType, IExtensionDescription } from '../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -30,6 +30,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 	private readonly _whenBuiltinExtensionsReady = Promise.resolve();
 	private readonly _whenExtensionsReady = Promise.resolve();
+	private failedExtensionInstallations: Set<string> = new Set(); // TODO: Should probably track a more complex type than 'string'. Could also have a VSIX uri
 
 	constructor(
 		private readonly _extensionManagementCLI: ExtensionManagementCLI,
@@ -51,6 +52,12 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 					_logService.trace('Finished installing builtin extensions');
 				}, error => {
 					_logService.error(error);
+					if (error instanceof ExtensionInstallationError) {
+						_logService.error(`Capturing failed builtin extension installations: ${error.failed.join(', ')}`);
+						for (const extension of error.failed) {
+							this.failedExtensionInstallations.add(extension);
+						}
+					}
 				});
 		}
 
@@ -67,8 +74,19 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 					_logService.trace('Finished installing extensions');
 				}, error => {
 					_logService.error(error);
+					if (error instanceof ExtensionInstallationError) {
+						_logService.error(`Capturing failed extension installations: ${error.failed.join(', ')}`);
+						for (const extension of error.failed) {
+							this.failedExtensionInstallations.add(extension);
+						}
+					}
 				});
 		}
+	}
+
+	async failed(): Promise<string[]> {
+		await this._whenExtensionsReady;
+		return Array.from(this.failedExtensionInstallations);
 	}
 
 	private _asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
@@ -308,6 +326,7 @@ export class RemoteExtensionsScannerChannel implements IServerChannel {
 	async call(context: any, command: string, args?: any): Promise<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (command) {
+			case 'failed': return this.service.failed();
 			case 'whenExtensionsReady': return this.service.whenExtensionsReady();
 			case 'scanExtensions': {
 				const language = args[0];

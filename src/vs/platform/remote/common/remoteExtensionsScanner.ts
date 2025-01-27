@@ -15,4 +15,5 @@ export interface IRemoteExtensionsScannerService {
 
 	whenExtensionsReady(): Promise<void>;
 	scanExtensions(): Promise<IExtensionDescription[]>;
+	failed(): Promise<string[]>;
 }
