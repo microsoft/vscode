@@ -187,7 +187,7 @@ export function createRectangle(
 	padding: number | { top: number; right: number; bottom: number; left: number },
 	borderRadius: number | { topLeft: number; topRight: number; bottomLeft: number; bottomRight: number },
 	options: { hideLeft?: boolean; hideRight?: boolean; hideTop?: boolean; hideBottom?: boolean } = {}
-): PathBuilder {
+): string {
 
 	const topLeftInner = layout.topLeft;
 	const topRightInner = topLeftInner.deltaX(layout.width);
@@ -232,33 +232,41 @@ export function createRectangle(
 
 	if (!options.hideLeft && !options.hideTop) {
 		path.curveTo(topLeft, topLeftAfter);
+	} else {
+		path.moveTo(topLeftAfter);
 	}
 
 	if (!options.hideTop) {
-		path.moveTo(topLeftAfter).lineTo(topRightBefore);
+		path.lineTo(topRightBefore);
 	}
 
 	if (!options.hideTop && !options.hideRight) {
 		path.curveTo(topRight, topRightAfter);
+	} else {
+		path.moveTo(topRightAfter);
 	}
 
 	if (!options.hideRight) {
-		path.moveTo(topRightAfter).lineTo(bottomRightBefore);
+		path.lineTo(bottomRightBefore);
 	}
 
 	if (!options.hideRight && !options.hideBottom) {
 		path.curveTo(bottomRight, bottomRightAfter);
+	} else {
+		path.moveTo(bottomRightAfter);
 	}
 
 	if (!options.hideBottom) {
-		path.moveTo(bottomRightAfter).lineTo(bottomLeftBefore);
+		path.lineTo(bottomLeftBefore);
 	}
 
 	if (!options.hideBottom && !options.hideLeft) {
 		path.curveTo(bottomLeft, bottomLeftAfter);
+	} else {
+		path.moveTo(bottomLeftAfter);
 	}
 
-	return path;
+	return path.build();
 }
 
 type Value<T> = T | IObservable<T>;
