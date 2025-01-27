@@ -227,7 +227,7 @@ export class DynamicWorkbenchSecurityConfiguration extends Disposable implements
 					'type': 'boolean',
 					'default': true,
 					'markdownDescription': localize('security.restrictUNCAccess', 'If enabled, only allows access to UNC host names that are allowed by the `#security.allowedUNCHosts#` setting or after user confirmation. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
-					'scope': ConfigurationScope.MACHINE
+					'scope': ConfigurationScope.APPLICATION_MACHINE
 				}
 			}
 		});
