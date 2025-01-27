@@ -210,15 +210,15 @@ export class TokenStore implements IDisposable {
 		this._root = this.createFromUpdates(tokens, true);
 	}
 
-	private createFromUpdates(tokens: TokenUpdate[], isNew?: boolean): Node {
+	private createFromUpdates(tokens: TokenUpdate[], needsRefresh?: boolean): Node {
 		let newRoot: Node = {
 			length: tokens[0].length,
 			token: tokens[0].token,
 			height: 0,
-			needsRefresh: isNew
+			needsRefresh
 		};
 		for (let j = 1; j < tokens.length; j++) {
-			newRoot = append(newRoot, { length: tokens[j].length, token: tokens[j].token, height: 0, needsRefresh: isNew });
+			newRoot = append(newRoot, { length: tokens[j].length, token: tokens[j].token, height: 0, needsRefresh });
 		}
 		return newRoot;
 	}
@@ -227,22 +227,22 @@ export class TokenStore implements IDisposable {
 	 *
 	 * @param tokens tokens are in sequence in the document.
 	 */
-	update(length: number, tokens: TokenUpdate[]) {
+	update(length: number, tokens: TokenUpdate[], needsRefresh?: boolean) {
 		if (tokens.length === 0) {
 			return;
 		}
-		this.replace(length, tokens[0].startOffsetInclusive, tokens);
+		this.replace(length, tokens[0].startOffsetInclusive, tokens, needsRefresh);
 	}
 
 	delete(length: number, startOffset: number) {
-		this.replace(length, startOffset, []);
+		this.replace(length, startOffset, [], true);
 	}
 
 	/**
 	 *
 	 * @param tokens tokens are in sequence in the document.
 	 */
-	private replace(length: number, updateOffsetStart: number, tokens: TokenUpdate[]) {
+	private replace(length: number, updateOffsetStart: number, tokens: TokenUpdate[], needsRefresh?: boolean) {
 		const firstUnchangedOffsetAfterUpdate = updateOffsetStart + length;
 		// Find the last unchanged node preceding the update
 		const precedingNodes: Node[] = [];
@@ -260,7 +260,7 @@ export class TokenStore implements IDisposable {
 				continue;
 			} else if (isLeaf(node.node) && (currentOffset < updateOffsetStart)) {
 				// We have a partial preceding node
-				precedingNodes.push({ length: updateOffsetStart - currentOffset, token: node.node.token, height: 0 });
+				precedingNodes.push({ length: updateOffsetStart - currentOffset, token: node.node.token, height: 0, needsRefresh: needsRefresh || node.node.needsRefresh });
 				// Node could also be postceeding, so don't continue
 			}
 
@@ -274,7 +274,7 @@ export class TokenStore implements IDisposable {
 				continue;
 			} else if (isLeaf(node.node) && (currentOffset + node.node.length >= firstUnchangedOffsetAfterUpdate)) {
 				// we have a partial postceeding node
-				postcedingNodes.push({ length: currentOffset + node.node.length - firstUnchangedOffsetAfterUpdate, token: node.node.token, height: 0 });
+				postcedingNodes.push({ length: currentOffset + node.node.length - firstUnchangedOffsetAfterUpdate, token: node.node.token, height: 0, needsRefresh: needsRefresh || node.node.needsRefresh });
 				continue;
 			}
 
@@ -290,7 +290,7 @@ export class TokenStore implements IDisposable {
 
 		let allNodes: Node[];
 		if (tokens.length > 0) {
-			allNodes = precedingNodes.concat(this.createFromUpdates(tokens), postcedingNodes);
+			allNodes = precedingNodes.concat(this.createFromUpdates(tokens, needsRefresh), postcedingNodes);
 		} else {
 			allNodes = precedingNodes.concat(postcedingNodes);
 		}
@@ -445,7 +445,7 @@ export class TokenStore implements IDisposable {
 			const indent = '  '.repeat(depth);
 
 			if (isLeaf(node)) {
-				result.push(`${indent}Leaf(length: ${node.length}, token: ${node.token})\n`);
+				result.push(`${indent}Leaf(length: ${node.length}, token: ${node.token}, refresh: ${node.needsRefresh})\n`);
 			} else {
 				result.push(`${indent}List(length: ${node.length})\n`);
 				// Push children in reverse order so they get processed left-to-right

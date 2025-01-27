@@ -460,7 +460,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				range: range,
 				rangeOffset: rangeOffset,
 				rangeLength: rangeLength,
-				rangeEndPosition: rangeEndPosition,
 				text: text,
 			}],
 			eol: this._buffer.getEOL(),

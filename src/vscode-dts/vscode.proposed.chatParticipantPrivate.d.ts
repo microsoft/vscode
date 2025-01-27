@@ -124,4 +124,9 @@ declare module 'vscode' {
 		chatRequestId?: string;
 		readonly chatRequestMetadata?: { readonly [key: string]: any };
 	}
+
+	export interface PreparedToolInvocation {
+		pastTenseMessage?: string | MarkdownString;
+		tooltip?: string | MarkdownString;
+	}
 }

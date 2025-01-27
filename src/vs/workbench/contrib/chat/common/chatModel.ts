@@ -132,6 +132,7 @@ export interface IChatRequestModel {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly workingSet?: URI[];
 	readonly isCompleteAddedRequest: boolean;
+	readonly paused: boolean;
 	readonly response?: IChatResponseModel;
 	shouldBeRemovedOnSend: boolean;
 }
@@ -208,6 +209,7 @@ export interface IChatResponseModel {
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
+	readonly isPendingConfirmation: boolean;
 	readonly shouldBeRemovedOnSend: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
@@ -267,6 +269,15 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	public get workingSet(): URI[] | undefined {
 		return this._workingSet;
+	}
+
+	private _paused = false;
+	public get paused(): boolean {
+		return this._paused;
+	}
+
+	public set paused(paused: boolean) {
+		this._paused = paused;
 	}
 
 	constructor(
@@ -399,6 +410,14 @@ export class Response extends Disposable implements IResponse {
 				this._updateRepr(false);
 			});
 
+		} else if (progress.kind === 'toolInvocation') {
+			if (progress.confirmationMessages) {
+				progress.confirmed.p.then(() => {
+					this._updateRepr(false);
+				});
+			}
+			this._responseParts.push(progress);
+			this._updateRepr(quiet);
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -595,6 +614,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._isStale;
 	}
 
+	public get isPendingConfirmation() {
+		return this._response.value.some(part =>
+			part.kind === 'toolInvocation' && part.isConfirmed === undefined
+			|| part.kind === 'confirmation' && part.isUsed === false);
+	}
+
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>,
 		private _session: ChatModel,
@@ -707,6 +732,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 }
 
+export const enum ChatPauseState {
+	NotPausable,
+	Paused,
+	Unpaused,
+}
+
 export interface IChatModel {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
@@ -717,7 +748,9 @@ export interface IChatModel {
 	readonly welcomeMessage: IChatWelcomeMessageContent | undefined;
 	readonly sampleQuestions: IChatFollowup[] | undefined;
 	readonly requestInProgress: boolean;
+	readonly requestPausibility: ChatPauseState;
 	readonly inputPlaceholder?: string;
+	toggleLastRequestPaused(paused?: boolean): void;
 	disableRequests(requestIds: ReadonlyArray<string>): void;
 	getRequests(): IChatRequestModel[];
 	toExport(): IExportableChatData;
@@ -979,7 +1012,24 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get requestInProgress(): boolean {
 		const lastRequest = this.lastRequest;
-		return !!lastRequest?.response && !lastRequest.response.isComplete;
+		if (!lastRequest?.response) {
+			return false;
+		}
+
+		if (lastRequest.response.isPendingConfirmation) {
+			return false;
+		}
+
+		return !lastRequest.response.isComplete;
+	}
+
+	get requestPausibility(): ChatPauseState {
+		const lastRequest = this.lastRequest;
+		if (!lastRequest?.response?.agent || lastRequest.response.isComplete || lastRequest.response.isPendingConfirmation) {
+			return ChatPauseState.NotPausable;
+		}
+
+		return lastRequest.paused ? ChatPauseState.Paused : ChatPauseState.Unpaused;
 	}
 
 	get hasRequests(): boolean {
@@ -1148,6 +1198,15 @@ export class ChatModel extends Disposable implements IChatModel {
 		};
 	}
 
+	toggleLastRequestPaused(isPaused?: boolean) {
+		if (this.requestPausibility !== ChatPauseState.NotPausable && this.lastRequest?.response?.agent) {
+			const pausedValue = isPaused ?? !this.lastRequest.paused;
+			this.lastRequest.paused = pausedValue;
+			this.chatAgentService.setRequestPaused(this.lastRequest.response.agent.id, this.lastRequest.id, pausedValue);
+			this._onDidChange.fire({ kind: 'changedRequest', request: this.lastRequest });
+		}
+	}
+
 	startInitialize(): void {
 		if (this.initState !== ChatModelInitState.Created) {
 			throw new Error(`ChatModel is in the wrong state for startInitialize: ${ChatModelInitState[this.initState]}`);
@@ -1227,6 +1286,11 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	setCustomTitle(title: string): void {
 		this._customTitle = title;
+	}
+
+	setRequestPaused(request: ChatRequestModel, isPaused: boolean) {
+		request.paused = isPaused;
+		this._onDidChange.fire({ kind: 'changedRequest', request });
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {

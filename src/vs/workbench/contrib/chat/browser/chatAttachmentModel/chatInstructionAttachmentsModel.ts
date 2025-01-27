@@ -7,10 +7,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
+import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
@@ -229,6 +229,6 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	 * Checks if the prompt instructions feature is enabled in the user settings.
 	 */
 	public get featureEnabled(): boolean {
-		return BasePromptParser.promptSnippetsEnabled(this.configService);
+		return PromptFilesConfig.enabled(this.configService);
 	}
 }

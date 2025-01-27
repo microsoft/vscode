@@ -48,17 +48,18 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 
 			storeInfo.guessVersion = e.versionId;
 			for (const change of e.changes) {
-				storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + change.rangeLength);
 				if (change.text.length > change.rangeLength) {
 					const oldToken = storeInfo.store.getTokenAt(change.rangeOffset)!;
 					// Insert. Just grow the token at this position to include the insert.
 					const newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
-					storeInfo.store.update(oldToken.length, [newToken]);
+					storeInfo.store.update(oldToken.length, [newToken], true);
 				} else if (change.text.length < change.rangeLength) {
 					// Delete. Delete the tokens at the corresponding range.
 					const deletedCharCount = change.rangeLength - change.text.length;
 					storeInfo.store.delete(deletedCharCount, change.rangeOffset);
 				}
+				const refreshLength = change.rangeLength > change.text.length ? change.rangeLength : change.text.length;
+				storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + refreshLength);
 			}
 		}));
 		disposables.add(model.onWillDispose(() => {
@@ -105,8 +106,8 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 
 		existingTokens.accurateVersion = version;
 		for (const update of updates) {
-			const lastToken = update.newTokens[update.newTokens.length - 1];
-			const oldRangeLength = (existingTokens.guessVersion >= version) ? (lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive) : update.oldRangeLength;
+			const lastToken = update.newTokens.length > 0 ? update.newTokens[update.newTokens.length - 1] : undefined;
+			const oldRangeLength = ((existingTokens.guessVersion >= version) && lastToken) ? (lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive) : update.oldRangeLength;
 			existingTokens.store.update(oldRangeLength, update.newTokens);
 		}
 	}
