@@ -173,7 +173,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	get tree() { return this._lastFullyParsed; }
 	get isDisposed() { return this._isDisposed; }
 
-	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree, version: number): ChangedRange[] {
+	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree): ChangedRange[] {
 		const newCursor = newTree.walk();
 		const oldCursor = oldTree.walk();
 		const gotoNextSibling = () => {
@@ -258,7 +258,6 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				return undefined;
 			}
 		};
-		const childrenToVisit: Map<number, { new: Parser.SyntaxNode; old: Parser.SyntaxNode }> = new Map();
 		do {
 			if (newCursor.currentNode.hasChanges) {
 				// Check if only one of the children has changes.
@@ -274,16 +273,16 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 					return c.hasChanges;
 				});
 				if (changedChildren.length >= 1) {
-					if (changedChildren.length > 1) {
-						// We need to visit each child eventually
-						for (let i = 1; i < changedChildren.length; i++) {
-							childrenToVisit.set(changedChildren[i].id, { new: changedChildren[i], old: oldCursor.currentNode.children[i] });
-						}
-					}
 					next = gotoNthChild(indexChangedChildren[0]);
 				} else if (changedChildren.length === 0) {
+					// walk up again until we get to the first one that's named as unnamed nodes can be too granular
+					while (newCursor.currentNode.parent && !newCursor.currentNode.isNamed && next) {
+						next = gotoParent();
+					}
+
 					const newNode = newCursor.currentNode;
 					const oldNode = oldCursor.currentNode;
+
 					const newEndPosition = new Position(newNode.endPosition.row + 1, newNode.endPosition.column + 1);
 					const oldEndIndex = oldNode.endIndex;
 
@@ -298,13 +297,6 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				}
 			} else {
 				next = nextSiblingOrParentSibling();
-			}
-			if (!next && childrenToVisit.size > 0) {
-				const nextChildId = childrenToVisit.keys().next().value?.valueOf()!;
-				const nextChild = childrenToVisit.get(nextChildId)!;
-				childrenToVisit.delete(nextChildId);
-				newCursor.reset(nextChild.new);
-				oldCursor.reset(nextChild.old);
 			}
 		} while (next);
 
@@ -356,7 +348,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 
 			let ranges: RangeChange[] | undefined;
 			if (this._lastFullyParsedWithEdits && this._lastFullyParsed) {
-				ranges = this.calculateRangeChange(this.findChangedNodes(this._lastFullyParsedWithEdits, this._lastFullyParsed, version));
+				ranges = this.calculateRangeChange(this.findChangedNodes(this._lastFullyParsedWithEdits, this._lastFullyParsed));
 			}
 
 			const completed = await this._parseAndUpdateTree(model, version);
