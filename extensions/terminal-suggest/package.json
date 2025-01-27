@@ -22,7 +22,6 @@
     "compile": "npx gulp compile-extension:terminal-suggest",
     "watch": "npx gulp watch-extension:terminal-suggest"
   },
-
   "main": "./out/terminalSuggestMain",
   "activationEvents": [
     "onTerminalCompletionsRequested"
@@ -30,5 +29,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
-  }
+  },
+  "extensionKind": [
+    "workspace"
+  ]
 }
