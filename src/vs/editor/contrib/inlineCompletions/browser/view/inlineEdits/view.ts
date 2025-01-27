@@ -143,11 +143,11 @@ export class InlineEditsView extends Disposable {
 		{
 			ghostText: derived<GhostText | undefined>(reader => {
 				const state = this._uiState.read(reader)?.state;
-				if (!state || state.kind !== 'insertion') { return undefined; }
+				if (!state || state.kind !== 'insertionMultiLine') { return undefined; }
 
 				const textModel = this._editor.getModel()!;
 
-				// Try to not insert on the same line where there is other content
+				// Try to not insert on the same line where there is other content afterwards
 				if (state.column === 1 && state.lineNumber > 1 && textModel.getLineLength(state.lineNumber) !== 0 && state.text.endsWith('\n') && !state.text.startsWith('\n')) {
 					const endOfLineColumn = textModel.getLineLength(state.lineNumber - 1) + 1;
 					return new GhostText(state.lineNumber - 1, [new GhostTextPart(endOfLineColumn, '\n' + state.text.slice(0, -1), false)]);
@@ -163,7 +163,7 @@ export class InlineEditsView extends Disposable {
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 		const e = this._uiState.read(reader);
 		if (!e || !e.state) { return undefined; }
-		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertion') {
+		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertionMultiLine') {
 			return undefined;
 		}
 		return {
@@ -257,7 +257,7 @@ export class InlineEditsView extends Disposable {
 				|| isSingleLineDeletion(diff)
 			)
 		) {
-			return 'ghostText';
+			return 'insertionInline';
 		}
 
 		if (inner.every(m => newText.getValueOfRange(m.modifiedRange).trim() === '' && edit.originalText.getValueOfRange(m.originalRange).trim() !== '')) {
@@ -265,7 +265,7 @@ export class InlineEditsView extends Disposable {
 		}
 
 		if (isSingleMultiLineInsertion(diff) && this._useMultiLineGhostText.read(reader) && this._useCodeShifting.read(reader)) {
-			return 'insertion';
+			return 'insertionMultiLine';
 		}
 
 		const numOriginalLines = edit.originalLineRange.length;
@@ -299,7 +299,7 @@ export class InlineEditsView extends Disposable {
 
 		switch (view) {
 			case 'collapsed': return { kind: 'collapsed' as const };
-			case 'ghostText': return { kind: 'ghostText' as const };
+			case 'insertionInline': return { kind: 'insertionInline' as const };
 			case 'mixedLines': return { kind: 'mixedLines' as const };
 			case 'interleavedLines': return { kind: 'interleavedLines' as const };
 			case 'sideBySide': return { kind: 'sideBySide' as const };
@@ -315,10 +315,10 @@ export class InlineEditsView extends Disposable {
 			};
 		}
 
-		if (view === 'insertion') {
+		if (view === 'insertionMultiLine') {
 			const change = inner[0];
 			return {
-				kind: 'insertion' as const,
+				kind: 'insertionMultiLine' as const,
 				lineNumber: change.originalRange.startLineNumber,
 				column: change.originalRange.startColumn,
 				text: newText.getValueOfRange(change.modifiedRange),

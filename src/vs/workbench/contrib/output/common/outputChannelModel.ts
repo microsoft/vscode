@@ -28,7 +28,7 @@ import { binarySearch, sortedDiff } from '../../../../base/common/arrays.js';
 
 const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(\[(info|trace|debug|error|warning)\])\s(\[(.*?)\])?/;
 
-function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | null {
+export function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | null {
 	const lineContent = model.getLineContent(lineNumber);
 	const match = LOG_ENTRY_REGEX.exec(lineContent);
 	if (match) {
@@ -40,9 +40,11 @@ function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | nul
 		const startLine = lineNumber;
 		let endLine = lineNumber;
 
-		while (endLine < model.getLineCount()) {
+		const lineCount = model.getLineCount();
+		while (endLine < lineCount) {
 			const nextLineContent = model.getLineContent(endLine + 1);
-			if (model.getLineFirstNonWhitespaceColumn(endLine + 1) === 0 || LOG_ENTRY_REGEX.test(nextLineContent)) {
+			const isLastLine = endLine + 1 === lineCount && nextLineContent === ''; // Last line will be always empty
+			if (LOG_ENTRY_REGEX.test(nextLineContent) || isLastLine) {
 				break;
 			}
 			endLine++;

@@ -24,7 +24,7 @@ import { classNames } from './utils.js';
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
 	modifiedText: AbstractText;
-	mode: 'mixedLines' | 'ghostText' | 'interleavedLines' | 'sideBySide' | 'deletion';
+	mode: 'mixedLines' | 'insertionInline' | 'interleavedLines' | 'sideBySide' | 'deletion';
 
 	modifiedCodeEditor: ICodeEditor;
 }
@@ -114,7 +114,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		if (!diff) { return undefined; }
 
 		const modified = diff.modifiedText;
-		const showInline = diff.mode === 'mixedLines' || diff.mode === 'ghostText';
+		const showInline = diff.mode === 'mixedLines' || diff.mode === 'insertionInline';
 
 		const showEmptyDecorations = true;
 
@@ -195,7 +195,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 								shouldFillLineOnLineBreak: false,
 								className: classNames(
 									'inlineCompletions-char-delete',
-									i.originalRange.isSingleLine() && diff.mode === 'ghostText' && 'single-line-inline',
+									i.originalRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
 									i.originalRange.isEmpty() && 'empty',
 									((i.originalRange.isEmpty() || diff.mode === 'deletion' && replacedText === '\n') && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
 								),
@@ -222,7 +222,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 									content: insertedText,
 									inlineClassName: classNames(
 										'inlineCompletions-char-insert',
-										i.modifiedRange.isSingleLine() && diff.mode === 'ghostText' && 'single-line-inline'
+										i.modifiedRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline'
 									),
 								},
 								zIndex: 2,
