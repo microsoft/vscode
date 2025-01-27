@@ -206,7 +206,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 	private readonly toolbarRef = n.ref<HTMLDivElement>();
 
 	private readonly _editorContainer = n.div({
-		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.experimental.useGutterIndicator && 'showHover')],
+		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.useGutterIndicator && 'showHover')],
 		style: { position: 'absolute', overflow: 'hidden' },
 	}, [
 		n.div({ class: 'preview', style: {}, ref: this.previewRef }),
