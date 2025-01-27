@@ -54,7 +54,7 @@ export class GhostTextView extends Disposable {
 	private readonly _useSyntaxHighlighting = this._options.map(o => o.syntaxHighlightingEnabled);
 
 	private readonly _extraClassNames = derived(this, reader => {
-		const extraClasses = this._options.read(reader).extraClasses ?? [];
+		const extraClasses = [...this._options.read(reader).extraClasses ?? []];
 		if (this._useSyntaxHighlighting.read(reader)) {
 			extraClasses.push('syntax-highlighted');
 		}
