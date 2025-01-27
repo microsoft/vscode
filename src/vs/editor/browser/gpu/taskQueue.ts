@@ -134,13 +134,7 @@ export class PriorityTaskQueue extends TaskQueue {
 	}
 }
 
-/**
- * A queue of that runs tasks over several idle callbacks, trying to respect the idle callback's
- * deadline given by the environment. The tasks will run in the order they are enqueued, but they
- * will run some time later, and care should be taken to ensure they're non-urgent and will not
- * introduce race conditions.
- */
-export class IdleTaskQueue extends TaskQueue {
+class IdleTaskQueueInternal extends TaskQueue {
 	protected _requestCallback(callback: IdleRequestCallback): number {
 		return getActiveWindow().requestIdleCallback(callback);
 	}
@@ -149,6 +143,16 @@ export class IdleTaskQueue extends TaskQueue {
 		getActiveWindow().cancelIdleCallback(identifier);
 	}
 }
+
+/**
+ * A queue of that runs tasks over several idle callbacks, trying to respect the idle callback's
+ * deadline given by the environment. The tasks will run in the order they are enqueued, but they
+ * will run some time later, and care should be taken to ensure they're non-urgent and will not
+ * introduce race conditions.
+ *
+ * This reverts to a {@link PriorityTaskQueue} if the environment does not support idle callbacks.
+ */
+export const IdleTaskQueue = ('requestIdleCallback' in getActiveWindow()) ? IdleTaskQueueInternal : PriorityTaskQueue;
 
 /**
  * An object that tracks a single debounced task that will run on the next idle frame. When called
