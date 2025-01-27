@@ -454,9 +454,9 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					if (previousPreviousTokenEndOffset !== intermediateTokenOffset) {
 						endOffsetsAndScopes[tokenIndex - 1] = { endOffset: intermediateTokenOffset, scopes: endOffsetsAndScopes[tokenIndex - 1].scopes };
 						addCurrentTokenToArray();
-						originalPreviousTokenScopes = endOffsetsAndScopes[tokenIndex - 2].scopes;
+						originalPreviousTokenScopes = [...endOffsetsAndScopes[tokenIndex - 2].scopes];
 					} else {
-						originalPreviousTokenScopes = endOffsetsAndScopes[tokenIndex - 1].scopes;
+						originalPreviousTokenScopes = [...endOffsetsAndScopes[tokenIndex - 1].scopes];
 						endOffsetsAndScopes[tokenIndex - 1] = { endOffset: lineRelativeOffset, scopes: [capture.name] };
 					}
 
