@@ -24,6 +24,7 @@ import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
 import { mapOutFalsy, n, rectToProps } from './utils.js';
 import { localize } from '../../../../../../nls.js';
 import { trackFocus } from '../../../../../../base/browser/dom.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 export const inlineEditIndicatorPrimaryForeground = registerColor(
 	'inlineEdit.gutterIndicator.primaryForeground',
 	buttonForeground,
@@ -77,6 +78,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -88,7 +90,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			this._indicator.element.classList.toggle('wiggle', this._isHoveringOverInlineEdit.read(reader));
+			if (!accessibilityService.isMotionReduced()) {
+				this._indicator.element.classList.toggle('wiggle', this._isHoveringOverInlineEdit.read(reader));
+			}
 		}));
 	}
 
