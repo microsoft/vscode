@@ -14,7 +14,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
 import type { IGlyphRasterizer } from '../raster/raster.js';
-import { IdleTaskQueue } from '../taskQueue.js';
+import { IdleTaskQueue, type ITaskQueue } from '../taskQueue.js';
 import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph, GlyphMap } from './atlas.js';
 import { AllocatorType, TextureAtlasPage } from './textureAtlasPage.js';
 
@@ -24,7 +24,7 @@ export interface ITextureAtlasOptions {
 
 export class TextureAtlas extends Disposable {
 	private _colorMap?: string[];
-	private readonly _warmUpTask: MutableDisposable<IdleTaskQueue> = this._register(new MutableDisposable());
+	private readonly _warmUpTask: MutableDisposable<ITaskQueue> = this._register(new MutableDisposable());
 	private readonly _warmedUpRasterizers = new Set<number>();
 	private readonly _allocatorType: AllocatorType;
 
