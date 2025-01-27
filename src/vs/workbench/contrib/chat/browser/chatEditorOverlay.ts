@@ -257,8 +257,8 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		this._showStore.add(autorun(r => {
 			const value = activeEntry.rewriteRatio.read(r);
 			reset(this._progressNode, (value === 0
-				? localize('generating', "Generating edits")
-				: localize('applyingPercentage', "{0}% Applying edits", Math.round(value * 100))));
+				? localize('generating', "Generating Edits")
+				: localize('applyingPercentage', "{0}% Applying Edits", Math.round(value * 100))));
 		}));
 
 		this._showStore.add(autorun(r => {
