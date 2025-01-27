@@ -51,6 +51,8 @@ export class InlineChatController2 implements IEditorContribution {
 
 
 	private readonly _showWidgetOverrideObs = observableValue(this, false);
+	private readonly _isActiveController = observableValue(this, false);
+
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -114,7 +116,7 @@ export class InlineChatController2 implements IEditorContribution {
 		const sessionObs = derived(r => {
 			sessionsSignal.read(r);
 			const model = editorObs.model.read(r);
-			const value = model && inlineChatSessions.getSession2(_editor, model.uri);
+			const value = model && inlineChatSessions.getSession2(model.uri);
 			return value ?? undefined;
 		});
 
@@ -124,6 +126,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 			if (!session) {
 				ctxHasSession.set(undefined);
+				this._isActiveController.set(false, undefined);
 			} else {
 				const checkRequests = () => ctxHasSession.set(session.chatModel.getRequests().length === 0 ? 'empty' : 'active');
 				store.add(session.chatModel.onDidChange(checkRequests));
@@ -136,8 +139,9 @@ export class InlineChatController2 implements IEditorContribution {
 		this._store.add(autorunWithStore((r, store) => {
 
 			const session = sessionObs.read(r);
+			const isActive = this._isActiveController.read(r);
 
-			if (!session) {
+			if (!session || !isActive) {
 				visibleSessionObs.set(undefined, undefined);
 				return;
 			}
@@ -214,6 +218,10 @@ export class InlineChatController2 implements IEditorContribution {
 		const value = this._showWidgetOverrideObs.get();
 		this._showWidgetOverrideObs.set(!value, undefined);
 	}
+
+	markActiveController() {
+		this._isActiveController.set(true, undefined);
+	}
 }
 
 export class StartSessionAction2 extends EditorAction2 {
@@ -251,6 +259,7 @@ export class StartSessionAction2 extends EditorAction2 {
 		}
 		const textModel = editor.getModel();
 		await inlineChatSessions.createSession2(editor, textModel.uri, CancellationToken.None);
+		InlineChatController2.get(editor)?.markActiveController();
 	}
 }
 
@@ -326,7 +335,7 @@ export class StopSessionAction2 extends AbstractInlineChatAction {
 			return;
 		}
 		const textModel = editor.getModel();
-		inlineChatSessions.getSession2(editor, textModel.uri)?.dispose();
+		inlineChatSessions.getSession2(textModel.uri)?.dispose();
 	}
 }
 
@@ -356,8 +365,9 @@ class RevealWidget extends AbstractInlineChatAction {
 		});
 	}
 
-	runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController2, editor: ICodeEditor, ...args: any[]): void {
+	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController2, _editor: ICodeEditor): void {
 		ctrl.toggleWidgetUntilNextRequest();
+		ctrl.markActiveController();
 	}
 }
 
