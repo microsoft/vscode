@@ -159,7 +159,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		});
 
 		for (const m of diff.diff) {
-			const showFullLineDecorations = true;
+			const showFullLineDecorations = diff.mode !== 'sideBySide';
 			if (showFullLineDecorations) {
 				if (!m.original.isEmpty) {
 					originalDecorations.push({

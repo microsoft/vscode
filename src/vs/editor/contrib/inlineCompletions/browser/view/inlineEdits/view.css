@@ -132,6 +132,10 @@
 						border: none;
 					}
 				}
+
+				.monaco-editor-background {
+					background-color: var(--vscode-inlineEdit-modifiedChangedLineBackground)
+				}
 			}
 
 			.inline-edits-view-zone.diagonal-fill {
