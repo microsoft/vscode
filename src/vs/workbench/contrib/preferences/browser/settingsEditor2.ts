@@ -50,7 +50,7 @@ import { Settings2EditorModel, nullRange } from '../../../services/preferences/c
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -792,7 +792,7 @@ export class SettingsEditor2 extends EditorPane {
 			if (options?.revealSetting) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 				const configurationScope = configurationProperties[options?.revealSetting.key]?.scope;
-				if (configurationScope === ConfigurationScope.APPLICATION) {
+				if (configurationScope && APPLICATION_SCOPES.includes(configurationScope)) {
 					return this.preferencesService.openApplicationSettings(openOptions);
 				}
 			}
