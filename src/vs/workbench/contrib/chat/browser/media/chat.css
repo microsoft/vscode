@@ -804,6 +804,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.chat-execute-toolbar .codicon.codicon-debug-pause {
+	color: var(--vscode-icon-foreground) !important;
+}
+
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
