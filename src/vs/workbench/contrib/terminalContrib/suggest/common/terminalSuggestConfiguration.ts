@@ -65,7 +65,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
-		markdownDescription: localize('suggest.providers', "Controls which providers are enabled for terminal suggestions."),
+		markdownDescription: localize('suggest.providers', "Controls which providers are enabled for terminal suggestions. A provider is enabled by default."),
 		type: 'object',
 		properties: {},
 		default: {
