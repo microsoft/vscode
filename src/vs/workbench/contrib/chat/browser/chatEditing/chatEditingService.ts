@@ -21,14 +21,13 @@ import { isString } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { localize } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
@@ -98,7 +97,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@ITextModelService textModelService: ITextModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
-		@IProgressService private readonly _progressService: IProgressService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IFileService private readonly _fileService: IFileService,
@@ -351,6 +349,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 						editsPromise = this._continueEditingSession(session, async (builder, token) => {
 							for await (const item of editsSource!.asyncIterable) {
+								if (responseModel.isCanceled) {
+									break;
+								}
 								if (token.isCancellationRequested) {
 									break;
 								}
@@ -412,15 +413,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const cancellationTokenSource = new CancellationTokenSource();
 		this._currentAutoApplyOperationObs.set(cancellationTokenSource, undefined);
 		try {
-			await this._progressService.withProgress({
-				location: ProgressLocation.Window,
-				title: localize2('chatEditing.startingSession', 'Generating edits...').value,
-			}, async () => {
-				await builder(stream, cancellationTokenSource.token);
-			},
-				() => cancellationTokenSource.cancel()
-			);
-
+			await builder(stream, cancellationTokenSource.token);
 		} finally {
 			cancellationTokenSource.dispose();
 			this._currentAutoApplyOperationObs.set(null, undefined);
