@@ -236,22 +236,29 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			oldFindPrev.resetTo(oldCursor);
 			const startingNode = newCursor.currentNode;
 			do {
-				if (newFindPrev.currentNode.previousSibling) {
+				if (newFindPrev.currentNode.previousSibling && ((newFindPrev.currentNode.endIndex - newFindPrev.currentNode.startIndex) !== 0)) {
 					newFindPrev.gotoPreviousSibling();
 					oldFindPrev.gotoPreviousSibling();
 				} else {
-					newFindPrev.gotoParent();
-					oldFindPrev.gotoParent();
+					while (!newFindPrev.currentNode.previousSibling && newFindPrev.currentNode.parent) {
+						newFindPrev.gotoParent();
+						oldFindPrev.gotoParent();
+					}
+					newFindPrev.gotoPreviousSibling();
+					oldFindPrev.gotoPreviousSibling();
 				}
+			} while ((newFindPrev.currentNode.endIndex > startingNode.startIndex)
+			&& (newFindPrev.currentNode.parent || newFindPrev.currentNode.previousSibling)
 
-			} while (newFindPrev.currentNode.startIndex === startingNode.startIndex && (newFindPrev.currentNode.parent || newFindPrev.currentNode.previousSibling) && (newFindPrev.currentNode.id !== startingNode.id));
-			if ((newFindPrev.currentNode.id !== startingNode.id) && newFindPrev.currentNode.endIndex < startingNode.startIndex) {
+				&& (newFindPrev.currentNode.id !== startingNode.id));
+
+			if ((newFindPrev.currentNode.id !== startingNode.id) && newFindPrev.currentNode.endIndex <= startingNode.startIndex) {
 				return { old: oldFindPrev.currentNode, new: newFindPrev.currentNode };
 			} else {
 				return undefined;
 			}
 		};
-
+		const childrenToVisit: Map<number, { new: Parser.SyntaxNode; old: Parser.SyntaxNode }> = new Map();
 		do {
 			if (newCursor.currentNode.hasChanges) {
 				// Check if only one of the children has changes.
@@ -267,6 +274,12 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 					return c.hasChanges;
 				});
 				if (changedChildren.length >= 1) {
+					if (changedChildren.length > 1) {
+						// We need to visit each child eventually
+						for (let i = 1; i < changedChildren.length; i++) {
+							childrenToVisit.set(changedChildren[i].id, { new: changedChildren[i], old: oldCursor.currentNode.children[i] });
+						}
+					}
 					next = gotoNthChild(indexChangedChildren[0]);
 				} else if (changedChildren.length === 0) {
 					const newNode = newCursor.currentNode;
@@ -285,6 +298,13 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				}
 			} else {
 				next = nextSiblingOrParentSibling();
+			}
+			if (!next && childrenToVisit.size > 0) {
+				const nextChildId = childrenToVisit.keys().next().value?.valueOf()!;
+				const nextChild = childrenToVisit.get(nextChildId)!;
+				childrenToVisit.delete(nextChildId);
+				newCursor.reset(nextChild.new);
+				oldCursor.reset(nextChild.old);
 			}
 		} while (next);
 
