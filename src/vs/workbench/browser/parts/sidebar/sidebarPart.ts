@@ -84,7 +84,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.SIDEBAR_PART,
-			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 },
+			// MEMBRANE: hide title area for Navigator and Logs
+			{ hasTitle: false, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
 			SidebarFocusContext.bindTo(contextKeyService),

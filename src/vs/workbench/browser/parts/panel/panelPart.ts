@@ -81,7 +81,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.PANEL_PART,
-			{ hasTitle: true },
+			// MEMBRANE: hide title area for Navigator and Logs
+			{ hasTitle: false },
 			PanelPart.activePanelSettingsKey,
 			ActivePanelContext.bindTo(contextKeyService),
 			PanelFocusContext.bindTo(contextKeyService),
