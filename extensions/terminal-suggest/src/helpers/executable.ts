@@ -14,11 +14,6 @@ export async function isExecutable(filePath: string, configuredWindowsExecutable
 	try {
 		const stats = await fs.stat(filePath);
 		// On macOS/Linux, check if the executable bit is set
-		if (stats.isSymbolicLink()) {
-			const realPath = await fs.realpath(filePath);
-			const realStats = await fs.stat(realPath);
-			return (realStats.mode & 0o100) !== 0;
-		}
 		return (stats.mode & 0o100) !== 0;
 	} catch (error) {
 		// If the file does not exist or cannot be accessed, it's not executable
