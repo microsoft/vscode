@@ -141,7 +141,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		const disposables = new DisposableStore();
 		const workspaceTrustElement = $('span.setting-indicator.setting-item-workspace-trust');
 		const workspaceTrustLabel = disposables.add(new SimpleIconLabel(workspaceTrustElement));
-		workspaceTrustLabel.text = '$(warning) ' + localize('workspaceUntrustedLabel', "Setting value not applied");
+		workspaceTrustLabel.text = '$(shield) ' + localize('workspaceUntrustedLabel', "Requires workspace trust");
 
 		const content = localize('trustLabel', "The setting value can only be applied in a trusted workspace.");
 		const showHover = (focus: boolean) => {
@@ -370,8 +370,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
-			this.scopeOverridesIndicator.label.text = '$(warning) ' + localize('policyLabelText', "Setting value not applied");
-			const content = localize('policyDescription', "This setting is managed by your organization and its applied value cannot be changed.");
+			this.scopeOverridesIndicator.label.text = '$(briefcase) ' + localize('policyLabelText', "Managed by organization");
+			const content = localize('policyDescription', "This setting is managed by your organization and its actual value cannot be changed.");
 			const showHover = (focus: boolean) => {
 				return this.hoverService.showHover({
 					...this.defaultHoverOptions,
