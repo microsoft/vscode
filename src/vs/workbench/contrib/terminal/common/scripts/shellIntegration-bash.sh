@@ -13,9 +13,12 @@ VSCODE_SHELL_INTEGRATION=1
 vsc_env_keys=()
 vsc_env_values=()
 use_associative_array=0
-bash_major_version=$(echo $BASH_VERSION | cut -d'.' -f1)
+bash_major_version=${BASH_VERSINFO[0]}
 
-if [ "$bash_major_version" -gt 4 ]; then
+__vscode_disable_env_reporting="$VSCODE_DISABLE_ENV_REPORTING"
+unset VSCODE_DISABLE_ENV_REPORTING
+
+if (( BASH_VERSINFO[0] >= 4 )); then
 	use_associative_array=1
 	# Associative arrays are only available in bash 4.0+
 	declare -A vsc_aa_env
@@ -300,42 +303,45 @@ trackMissingEnvVars() {
 }
 
 __vsc_update_env() {
-	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
+	# Only use shell env API for non-Windows, and Windows with newer conpty-dll
+	if [[ "$__vsc_is_windows" = "0" || "$__vscode_disable_env_reporting" != "1" ]]; then
+		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
-	if [ "$use_associative_array" = 1 ]; then
-		if [ ${#vsc_aa_env[@]} -eq 0 ]; then
-			# Associative array is empty, do not diff, just add
-			while IFS='=' read -r key value; do
-				vsc_aa_env["$key"]="$value"
-				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-			done < <(env)
+		if [ "$use_associative_array" = 1 ]; then
+			if [ ${#vsc_aa_env[@]} -eq 0 ]; then
+				# Associative array is empty, do not diff, just add
+				while IFS='=' read -r key value; do
+					vsc_aa_env["$key"]="$value"
+					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+				done < <(env)
+			else
+				# Diff approach for associative array
+				while IFS='=' read -r key value; do
+					updateEnvCacheAA "$key" "$value"
+				done < <(env)
+				trackMissingEnvVarsAA
+			fi
+
 		else
-			# Diff approach for associative array
-			while IFS='=' read -r key value; do
-				updateEnvCacheAA "$key" "$value"
-			done < <(env)
-			trackMissingEnvVarsAA
+			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
+			# Non associative arrays are both empty, do not diff, just add
+				while IFS='=' read -r key value; do
+					vsc_env_keys+=("$key")
+					vsc_env_values+=("$value")
+					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+				done < <(env)
+			else
+				# Diff approach for non-associative arrays
+				while IFS='=' read -r key value; do
+					updateEnvCache "$key" "$value"
+				done < <(env)
+				trackMissingEnvVars
+			fi
+
+
 		fi
-
-	else
-		if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
-		# Non associative arrays are both empty, do not diff, just add
-			while IFS='=' read -r key value; do
-				vsc_env_keys+=("$key")
-				vsc_env_values+=("$value")
-				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-			done < <(env)
-		else
-			# Diff approach for non-associative arrays
-			while IFS='=' read -r key value; do
-				updateEnvCache "$key" "$value"
-			done < <(env)
-			trackMissingEnvVars
-		fi
-
-
+		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 	fi
-	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 }
 
 __vsc_command_output_start() {
@@ -364,10 +370,6 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
-
-	if [ "$__vsc_stable" = "0" ]; then
-		__vsc_update_env
-	fi
 }
 __vsc_update_prompt() {
 	# in command execution
