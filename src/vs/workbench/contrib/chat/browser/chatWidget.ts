@@ -571,8 +571,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderWelcomeViewContentIfNeeded() {
+		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
+			return;
+		}
+
+		const numItems = this.viewModel?.getItems().length ?? 0;
 		const welcomeContent = this.viewModel?.model.welcomeMessage ?? this.persistedWelcomeMessage;
-		if (welcomeContent && this.welcomeMessageContainer.children.length === 0 && !this.viewOptions.renderStyle) {
+		if (welcomeContent && !numItems && (this.welcomeMessageContainer.children.length === 0 || this.location === ChatAgentLocation.EditingSession)) {
+			dom.clearNode(this.welcomeMessageContainer);
 			const tips = this.viewOptions.supportsAdditionalParticipants
 				? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
@@ -584,10 +590,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			dom.append(this.welcomeMessageContainer, welcomePart.element);
 		}
 
-		if (!this.viewOptions.renderStyle && this.viewModel) {
-			const treeItems = this.viewModel.getItems();
-			dom.setVisibility(treeItems.length === 0, this.welcomeMessageContainer);
-			dom.setVisibility(treeItems.length !== 0, this.listContainer);
+		if (this.viewModel) {
+			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
+			dom.setVisibility(numItems !== 0, this.listContainer);
 		}
 	}
 
@@ -852,7 +857,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.parsedChatRequest = undefined;
 			this.updateChatInputContext();
 		}));
-		this._register(this.chatAgentService.onDidChangeAgents(() => this.parsedChatRequest = undefined));
+		this._register(this.chatAgentService.onDidChangeAgents(() => {
+			this.parsedChatRequest = undefined;
+
+			// Tools agent loads -> welcome content changes
+			this.renderWelcomeViewContentIfNeeded();
+		}));
 	}
 
 	private onDidStyleChange(): void {

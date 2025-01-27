@@ -26,8 +26,8 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
-
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
+export const ChatDoneActionId = 'workbench.action.chat.done';
 
 export function registerNewChatActions() {
 	registerAction2(class NewChatEditorAction extends Action2 {
@@ -211,7 +211,7 @@ export function registerNewChatActions() {
 	registerAction2(class GlobalEditsDoneAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.done',
+				id: ChatDoneActionId,
 				title: localize2('chat.done.label', "Done"),
 				category: CHAT_CATEGORY,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
