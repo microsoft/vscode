@@ -9,8 +9,6 @@ import { autorunWithStore } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
 
 export class InlineCompletionLanguageStatusBarContribution extends Disposable {
@@ -18,22 +16,15 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 
 	public static Id = 'vs.editor.contrib.inlineCompletionLanguageStatusBarContribution';
 
-	// TODO always enable this!
-	private readonly _inlineCompletionInlineEdits = observableConfigValue('editor.inlineSuggest.experimentalInlineEditsEnabled', false, this._configurationService);
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
 		const c = InlineCompletionsController.get(this._editor);
 
 		this._register(autorunWithStore((reader, store) => {
-			// TODO always enable this feature!
-			if (!this._inlineCompletionInlineEdits.read(reader)) { return; }
-
 			const model = c?.model.read(reader);
 			if (!model) { return; }
 

@@ -1101,7 +1101,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}));
 
-		this._register(this.allowedExtensionsService.onDidChangeAllowedExtensions(() => {
+		this._register(this.allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => {
 			if (this.isAutoCheckUpdatesEnabled()) {
 				this.checkForUpdates();
 			}

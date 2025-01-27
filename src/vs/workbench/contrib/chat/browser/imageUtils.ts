@@ -22,14 +22,16 @@ export async function resizeImage(data: Uint8Array): Promise<Uint8Array> {
 			URL.revokeObjectURL(url);
 			let { width, height } = img;
 
+			if (width < 768 || height < 768) {
+				resolve(data);
+				return;
+			}
+
 			// Calculate the new dimensions while maintaining the aspect ratio
 			if (width > 2048 || height > 2048) {
 				const scaleFactor = 2048 / Math.max(width, height);
 				width = Math.round(width * scaleFactor);
 				height = Math.round(height * scaleFactor);
-			} else {
-				resolve(data);
-				return;
 			}
 
 			const scaleFactor = 768 / Math.min(width, height);

@@ -187,6 +187,7 @@ export interface IChatWidgetViewOptions {
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	enableImplicitContext?: boolean;
+	enableWorkingSet?: 'explicit' | 'implicit';
 }
 
 export interface IChatViewViewContext {
@@ -245,6 +246,7 @@ export interface IChatWidget {
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): void;
 	getViewState(): IChatViewState;
+	togglePaused(): void;
 }
 
 

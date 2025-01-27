@@ -42,11 +42,6 @@ const errorMessages = {
 export type TErrorCondition = FileOpenFailed | RecursiveReference | NonPromptSnippetFile;
 
 /**
- * Configuration key for the prompt snippets feature.
- */
-const PROMPT_SNIPPETS_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
-
-/**
  * Base prompt parser class that provides a common interface for all
  * prompt parsers that are responsible for parsing chat prompt syntax.
  */
@@ -350,26 +345,6 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	}
 
 	/**
-	 * Check if the prompt snippets feature is enabled.
-	 * @see {@link PROMPT_SNIPPETS_CONFIG_KEY}
-	 */
-	public static promptSnippetsEnabled(
-		configService: IConfigurationService,
-	): boolean {
-		const value = configService.getValue(PROMPT_SNIPPETS_CONFIG_KEY);
-
-		if (!value) {
-			return false;
-		}
-
-		if (typeof value === 'string') {
-			return value.trim().toLowerCase() === 'true';
-		}
-
-		return !!value;
-	}
-
-	/**
 	 * Get a list of immediate child references of the prompt.
 	 */
 	public get references(): readonly IPromptFileReference[] {
@@ -401,7 +376,9 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		return this.allReferences
 			// filter out unresolved references
 			.filter((reference) => {
-				return !reference.resolveFailed;
+				const { errorCondition } = reference;
+
+				return !errorCondition || (errorCondition instanceof NonPromptSnippetFile);
 			});
 	}
 
@@ -443,6 +420,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 
 				return errorCondition;
 			});
+
 		result.push(...childErrorConditions);
 
 		return result;

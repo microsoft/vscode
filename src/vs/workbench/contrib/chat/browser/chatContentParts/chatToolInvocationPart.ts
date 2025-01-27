@@ -6,10 +6,11 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Relay } from '../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
@@ -75,6 +76,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		context: IChatContentPartRenderContext,
 		renderer: MarkdownRenderer,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
@@ -91,11 +93,21 @@ class ChatToolInvocationSubPart extends Disposable {
 				toolInvocation.confirmed.complete(button.data);
 			}));
 			this._onDidChangeHeight.input = confirmWidget.onDidChangeHeight;
-			toolInvocation.confirmed.p.then(() => this._onNeedsRerender.fire());
+			toolInvocation.confirmed.p.then(() => {
+				this._onNeedsRerender.fire();
+			});
 		} else {
-			const content = typeof toolInvocation.invocationMessage === 'string' ?
-				new MarkdownString().appendText(toolInvocation.invocationMessage + '…') :
-				new MarkdownString(toolInvocation.invocationMessage.value + '…');
+			let content: IMarkdownString;
+			if (toolInvocation.isComplete && toolInvocation.isConfirmed !== false && toolInvocation.pastTenseMessage) {
+				content = typeof toolInvocation.pastTenseMessage === 'string' ?
+					new MarkdownString().appendText(toolInvocation.pastTenseMessage) :
+					toolInvocation.pastTenseMessage;
+			} else {
+				content = typeof toolInvocation.invocationMessage === 'string' ?
+					new MarkdownString().appendText(toolInvocation.invocationMessage + '…') :
+					new MarkdownString(toolInvocation.invocationMessage.value + '…');
+			}
+
 			const progressMessage: IChatProgressMessage = {
 				kind: 'progressMessage',
 				content
@@ -105,6 +117,10 @@ class ChatToolInvocationSubPart extends Disposable {
 				toolInvocation.isComplete ?
 					Codicon.check : undefined;
 			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, progressMessage, renderer, context, undefined, true, iconOverride));
+			if (toolInvocation.tooltip) {
+				this._register(hoverService.setupDelayedHover(progressPart.domNode, { content: toolInvocation.tooltip, additionalClasses: ['chat-tool-hover'] }));
+			}
+
 			this.domNode = progressPart.domNode;
 		}
 

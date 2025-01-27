@@ -92,6 +92,9 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension>;
+
+	isPublisherTrusted(extension: IGalleryExtension): boolean;
+	trustPublishers(...publishers: string[]): void;
 }
 
 export const enum EnablementState {

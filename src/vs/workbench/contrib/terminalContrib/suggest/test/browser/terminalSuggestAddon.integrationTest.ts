@@ -95,11 +95,6 @@ suite('Terminal Contrib Suggest Recordings', () => {
 
 	setup(async () => {
 		const terminalConfig = {
-			fontFamily: 'monospace',
-			fontSize: 12,
-			fontWeight: 'normal',
-			letterSpacing: 0,
-			lineHeight: 1,
 			integrated: {
 				suggest: {
 					enabled: true,
@@ -114,14 +109,14 @@ suite('Terminal Contrib Suggest Recordings', () => {
 						'terminal-suggest': true,
 						'pwsh-shell-integration': true,
 					},
-					enableExtensionCompletions: false
 				} satisfies ITerminalSuggestConfiguration
 			}
 		};
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
 				files: { autoSave: false },
-				terminal: terminalConfig
+				terminal: terminalConfig,
+				editor: { fontSize: 14, fontFamily: 'Arial', lineHeight: 12, fontWeight: 'bold' }
 			})
 		}, store);
 		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
@@ -130,7 +125,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		instantiationService.stub(ITerminalCompletionService, store.add(completionService));
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
 		pwshCompletionProvider = store.add(instantiationService.createInstance(PwshCompletionProviderAddon, new Set(parseCompletionsFromShell(testRawPwshCompletions, -1, -1)), shellIntegrationAddon.capabilities));
-		store.add(completionService.registerTerminalCompletionProvider('builtin-pwsh', 'pwsh', pwshCompletionProvider));
+		store.add(completionService.registerTerminalCompletionProvider('builtin-pwsh', PwshCompletionProviderAddon.ID, pwshCompletionProvider));
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		capabilities = shellIntegrationAddon.capabilities;

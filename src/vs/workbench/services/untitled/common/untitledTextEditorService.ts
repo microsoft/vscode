@@ -61,7 +61,29 @@ export interface INewUntitledTextEditorWithAssociatedResourceOptions extends INe
 
 type IInternalUntitledTextEditorOptions = IExistingUntitledTextEditorOptions & INewUntitledTextEditorWithAssociatedResourceOptions;
 
-export interface IUntitledTextEditorModelManager {
+export interface IUntitledTextEditorModelSaveEvent {
+
+	/**
+	 * The source untitled file that was saved. It is disposed at this point.
+	 */
+	readonly source: URI;
+
+	/**
+	 * The target file the untitled was saved to. Is never untitled.
+	 */
+	readonly target: URI;
+}
+
+export interface IUntitledTextEditorService {
+
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * An event for when an untitled editor model was saved to disk.
+	 * At the point the event fires, the untitled editor model is
+	 * disposed.
+	 */
+	readonly onDidSave: Event<IUntitledTextEditorModelSaveEvent>;
 
 	/**
 	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
@@ -131,16 +153,22 @@ export interface IUntitledTextEditorModelManager {
 	canDispose(model: IUntitledTextEditorModel): true | Promise<true>;
 }
 
-export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
+export interface IUntitledTextEditorModelManager extends IUntitledTextEditorService {
 
-	readonly _serviceBrand: undefined;
+	/**
+	 * Internal method: triggers the onDidSave event.
+	 */
+	notifyDidSave(source: URI, target: URI): void;
 }
 
-export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
+export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorModelManager {
 
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX = /Untitled-\d+/;
+
+	private readonly _onDidSave = this._register(new Emitter<IUntitledTextEditorModelSaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -310,6 +338,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		}
 
 		return true;
+	}
+
+	notifyDidSave(source: URI, target: URI): void {
+		this._onDidSave.fire({ source, target });
 	}
 }
 

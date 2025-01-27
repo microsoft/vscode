@@ -22,7 +22,7 @@ let cachedAvailableCommandsPath: string | undefined;
 let cachedWindowsExecutableExtensions: { [key: string]: boolean | undefined } | undefined;
 const cachedWindowsExecutableExtensionsSettingId = 'terminal.integrated.suggest.windowsExecutableExtensions';
 let cachedAvailableCommands: Set<ICompletionResource> | undefined;
-const cachedBuiltinCommands: Map<string, ICompletionResource[] | undefined> = new Map();
+const cachedBuiltinCommands: Map<TerminalShellType, ICompletionResource[] | undefined> = new Map();
 
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
@@ -33,34 +33,37 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
-async function getBuiltinCommands(shell: string, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
+async function getBuiltinCommands(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
-		const shellType = path.basename(shell, path.extname(shell));
 		const cachedCommands = cachedBuiltinCommands.get(shellType);
 		if (cachedCommands) {
 			return cachedCommands;
 		}
 		const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
+		const shell = getShell(shellType);
+		if (!shell) {
+			return;
+		}
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
 		let commands: string[] | undefined;
 		switch (shellType) {
-			case 'bash': {
+			case TerminalShellType.Bash: {
 				const bashOutput = execSync('compgen -b', options);
 				commands = bashOutput.split('\n').filter(filter);
 				break;
 			}
-			case 'zsh': {
+			case TerminalShellType.Zsh: {
 				const zshOutput = execSync('printf "%s\\n" ${(k)builtins}', options);
 				commands = zshOutput.split('\n').filter(filter);
 				break;
 			}
-			case 'fish': {
+			case TerminalShellType.Fish: {
 				// TODO: Ghost text in the command line prevents completions from working ATM for fish
 				const fishOutput = execSync('functions -n', options);
 				commands = fishOutput.split(', ').filter(filter);
 				break;
 			}
-			case 'pwsh': {
+			case TerminalShellType.PowerShell: {
 				const output = await new Promise<string>((resolve, reject) => {
 					exec('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
 						...options,
@@ -119,24 +122,31 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
-			const shellPath = ('shellPath' in terminal.creationOptions ? terminal.creationOptions.shellPath : undefined) ?? vscode.env.shell;
-			if (!shellPath) {
+			const shellType: TerminalShellType | undefined = 'shellType' in terminal.state ? terminal.state.shellType as TerminalShellType : undefined;
+			if (!shellType) {
 				return;
 			}
 
 			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
-			const builtinCommands = await getBuiltinCommands(shellPath, commandsInPath?.labels) ?? [];
+			const builtinCommands = await getBuiltinCommands(shellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				return;
 			}
 			const commands = [...commandsInPath.completionResources, ...builtinCommands];
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
-
+			const pathSeparator = isWindows ? '\\' : '/';
 			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, terminal.shellIntegration?.cwd, token);
+			if (terminal.shellIntegration?.env) {
+				const homeDirCompletion = result.items.find(i => i.label === '~');
+				if (homeDirCompletion && terminal.shellIntegration.env.HOME) {
+					homeDirCompletion.documentation = getFriendlyResourcePath(vscode.Uri.file(terminal.shellIntegration.env.HOME), pathSeparator, vscode.TerminalCompletionItemKind.Folder);
+					homeDirCompletion.kind = vscode.TerminalCompletionItemKind.Folder;
+				}
+			}
+
 			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: isWindows ? '\\' : '/' });
+				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: isWindows ? '\\' : '/', env: terminal.shellIntegration?.env });
 			}
 			return result.items;
 		}
@@ -267,7 +277,7 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			const fileResource = vscode.Uri.file(path);
 			const files = await vscode.workspace.fs.readDirectory(fileResource);
 			for (const [file, fileType] of files) {
-				const formattedPath = getFriendlyFilePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
+				const formattedPath = getFriendlyResourcePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
 				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, cachedWindowsExecutableExtensions)) {
 					executables.add({ label: file, detail: formattedPath });
 					labels.add(file);
@@ -537,11 +547,51 @@ function getFirstCommand(commandLine: string): string | undefined {
 	return firstCommand;
 }
 
-function getFriendlyFilePath(uri: vscode.Uri, pathSeparator: string): string {
+function getFriendlyResourcePath(uri: vscode.Uri, pathSeparator: string, kind?: vscode.TerminalCompletionItemKind): string {
 	let path = uri.fsPath;
 	// Ensure drive is capitalized on Windows
 	if (pathSeparator === '\\' && path.match(/^[a-zA-Z]:\\/)) {
 		path = `${path[0].toUpperCase()}:${path.slice(2)}`;
 	}
+	if (kind === vscode.TerminalCompletionItemKind.Folder) {
+		if (!path.endsWith(pathSeparator)) {
+			path += pathSeparator;
+		}
+	}
 	return path;
 }
+
+// TODO: remove once API is finalized
+export enum TerminalShellType {
+	Sh = 1,
+	Bash = 2,
+	Fish = 3,
+	Csh = 4,
+	Ksh = 5,
+	Zsh = 6,
+	CommandPrompt = 7,
+	GitBash = 8,
+	PowerShell = 9,
+	Python = 10,
+	Julia = 11,
+	NuShell = 12,
+	Node = 13
+}
+
+
+function getShell(shellType: TerminalShellType): string | undefined {
+	switch (shellType) {
+		case TerminalShellType.Bash:
+			return 'bash';
+		case TerminalShellType.Fish:
+			return 'fish';
+		case TerminalShellType.Zsh:
+			return 'zsh';
+		case TerminalShellType.PowerShell:
+			return 'pwsh';
+		default: {
+			return undefined;
+		}
+	}
+}
+

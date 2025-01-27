@@ -620,8 +620,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.parent);
-		this.stateModel.load();
+		this._mainContainerDimension = getClientArea(this.parent);
+
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
+		this.stateModel.load(this._mainContainerDimension);
 
 		// Both editor and panel should not be hidden on startup
 		if (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) && this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN)) {
@@ -2373,7 +2375,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private createGridDescriptor(): ISerializedGrid {
-		const { width, height } = this.stateModel.getInitializationValue(LayoutStateKeys.GRID_SIZE);
+		const { width, height } = this._mainContainerDimension!;
 		const sideBarSize = this.stateModel.getInitializationValue(LayoutStateKeys.SIDEBAR_SIZE);
 		const auxiliaryBarPartSize = this.stateModel.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE);
 		const panelSize = this.stateModel.getInitializationValue(LayoutStateKeys.PANEL_SIZE);
@@ -2579,7 +2581,6 @@ const LayoutStateKeys = {
 	}),
 
 	// Part Sizing
-	GRID_SIZE: new InitializationStateKey('grid.size', StorageScope.PROFILE, StorageTarget.MACHINE, { width: 800, height: 600 }),
 	SIDEBAR_SIZE: new InitializationStateKey<number>('sideBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 200),
 	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 200),
 	PANEL_SIZE: new InitializationStateKey<number>('panel.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
@@ -2632,8 +2633,7 @@ class LayoutStateModel extends Disposable {
 	constructor(
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
-		private readonly contextService: IWorkspaceContextService,
-		private readonly container: HTMLElement
+		private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -2669,7 +2669,7 @@ class LayoutStateModel extends Disposable {
 		}
 	}
 
-	load(): void {
+	load(mainContainerDimension: IDimension): void {
 		let key: keyof typeof LayoutStateKeys;
 
 		// Load stored values for all keys
@@ -2688,12 +2688,10 @@ class LayoutStateModel extends Disposable {
 		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
 		// Set dynamic defaults: part sizing and side bar visibility
-		const workbenchDimensions = getClientArea(this.container);
 		LayoutStateKeys.PANEL_POSITION.defaultValue = positionFromString(this.configurationService.getValue(WorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom');
-		LayoutStateKeys.GRID_SIZE.defaultValue = { height: workbenchDimensions.height, width: workbenchDimensions.width };
-		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, workbenchDimensions.width / 4);
-		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, workbenchDimensions.width / 4);
-		LayoutStateKeys.PANEL_SIZE.defaultValue = (this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? isHorizontal(LayoutStateKeys.PANEL_POSITION.defaultValue)) ? workbenchDimensions.height / 3 : workbenchDimensions.width / 4;
+		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.PANEL_SIZE.defaultValue = (this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? isHorizontal(LayoutStateKeys.PANEL_POSITION.defaultValue)) ? mainContainerDimension.height / 3 : mainContainerDimension.width / 4;
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 
 		// Apply all defaults

@@ -73,7 +73,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _originalRange: IObservable<LineRange | undefined>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
-		private readonly _shouldShowHover: IObservable<boolean>,
+		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -88,11 +88,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			if (this._shouldShowHover.read(reader)) {
-				this._showHover();
-			} else {
-				this._hoverService.hideHover();
-			}
+			this._indicator.element.classList.toggle('wiggle', this._isHoveringOverInlineEdit.read(reader));
 		}));
 	}
 

@@ -13,6 +13,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { derived, IObservable, observableValue, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -26,6 +27,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -34,6 +36,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
@@ -104,6 +107,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
@@ -161,7 +165,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// todo@connor4312: temporary until chatReadonlyPromptReference proposal is finalized
 		const readonlyEnabledContextKey = chatEditingAgentSupportsReadonlyReferencesContextKey.bindTo(contextKeyService);
 		const setReadonlyFilesEnabled = () => {
-			const enabled = extensionService.extensions.some(e => e.enabledApiProposals?.includes('chatReadonlyPromptReference'));
+			const enabled = productService.quality !== 'stable' && extensionService.extensions.some(e => e.enabledApiProposals?.includes('chatReadonlyPromptReference'));
 			readonlyEnabledContextKey.set(enabled);
 		};
 		setReadonlyFilesEnabled();
@@ -242,7 +246,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		this._currentSessionDisposables.clear();
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, true, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
 
 		// listen for completed responses, run the code mapper and apply the edits to this edit session
@@ -258,7 +262,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	async createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, false, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
 
 		const list = this._adhocSessionsObs.get();
@@ -314,9 +318,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				if (part.kind === 'codeblockUri' || part.kind === 'textEditGroup') {
 					// ensure editor is open asap
 					if (!editedFilesExist.get(part.uri)) {
-						editedFilesExist.set(part.uri, this._fileService.exists(part.uri).then((e) => {
+						const uri = part.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(part.uri)?.notebook ?? part.uri : part.uri;
+						editedFilesExist.set(part.uri, this._fileService.exists(uri).then((e) => {
 							if (e) {
-								this._editorService.openEditor({ resource: part.uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+								this._editorService.openEditor({ resource: uri, options: { inactive: true, preserveFocus: true, pinned: true } });
 							}
 							return e;
 						}));
