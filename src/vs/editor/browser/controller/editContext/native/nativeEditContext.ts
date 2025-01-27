@@ -407,20 +407,19 @@ export class NativeEditContext extends AbstractEditContext {
 		const options = this._context.configuration.options;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 		const parentBounds = this._parent.getBoundingClientRect();
-		const modelStartPosition = this._primarySelection.getStartPosition();
-		const viewStartPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelStartPosition);
-		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewStartPosition.lineNumber);
+		const viewSelection = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(this._primarySelection);
+		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewSelection.startLineNumber);
 
 		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		let height = 0;
-		for (let line = this._primarySelection.startLineNumber; line <= this._primarySelection.endLineNumber; line++) {
+		for (let line = viewSelection.startLineNumber; line <= viewSelection.endLineNumber; line++) {
 			height += this._context.viewLayout.getLineHeightForLineNumber(line);
 		}
 		let left = parentBounds.left + contentLeft - this._scrollLeft;
 		let width: number;
 
 		if (this._primarySelection.isEmpty()) {
-			const linesVisibleRanges = ctx.visibleRangeForPosition(viewStartPosition);
+			const linesVisibleRanges = ctx.visibleRangeForPosition(viewSelection.getStartPosition());
 			if (linesVisibleRanges) {
 				left += linesVisibleRanges.left;
 			}

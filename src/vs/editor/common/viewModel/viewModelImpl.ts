@@ -422,10 +422,15 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 				const lineNumber = change.lineNumber;
 				const lineHeight = change.lineHeight;
+				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 				if (lineHeight !== null) {
-					this.viewLayout.addSpecialLineHeight(lineNumber, lineHeight);
+					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
+						this.viewLayout.addSpecialLineHeight(lineNumber, lineHeight);
+					}
 				} else {
-					this.viewLayout.removeSpecialLineHeight(lineNumber);
+					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
+						this.viewLayout.removeSpecialLineHeight(lineNumber);
+					}
 				}
 			});
 		}));
