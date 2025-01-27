@@ -33,6 +33,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
 import { assertType } from '../../../../base/common/types.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 
 
 type SessionData = {
@@ -318,7 +319,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	// ---- NEW
 
-	private readonly _sessions2 = new Map<string, IInlineChatSession2>();
+	private readonly _sessions2 = new ResourceMap<IInlineChatSession2>();
 
 	private readonly _onDidChangeSessions = this._store.add(new Emitter<this>());
 	readonly onDidChangeSessions: Event<this> = this._onDidChangeSessions.event;
@@ -328,8 +329,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		assertType(editor.hasModel());
 
-		const key = this._key(editor, uri);
-		if (this._sessions2.has(key)) {
+		if (this._sessions2.has(uri)) {
 			throw new Error('Session already exists');
 		}
 
@@ -343,7 +343,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
 			editingSession.reject();
-			this._sessions2.delete(key);
+			this._sessions2.delete(uri);
 			this._onDidChangeSessions.fire(this);
 		}));
 		store.add(editingSession);
@@ -365,14 +365,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			editingSession,
 			dispose: store.dispose.bind(store)
 		};
-		this._sessions2.set(key, result);
+		this._sessions2.set(uri, result);
 		this._onDidChangeSessions.fire(this);
 		return result;
 	}
 
-	getSession2(editor: ICodeEditor, uri: URI): IInlineChatSession2 | undefined {
-		const key = this._key(editor, uri);
-		return this._sessions2.get(key);
+	getSession2(uri: URI): IInlineChatSession2 | undefined {
+		return this._sessions2.get(uri);
 	}
 }
 

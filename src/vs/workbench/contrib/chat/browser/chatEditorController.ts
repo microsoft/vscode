@@ -36,6 +36,7 @@ import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../common/editor.js';
 import { ChatEditorOverlayController } from './chatEditorOverlay.js';
+import { IChatService } from '../common/chatService.js';
 
 export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chat.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
@@ -82,6 +83,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 
@@ -116,8 +118,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					? entries.findIndex(e => isEqual(e.modifiedURI, model.uri))
 					: -1;
 
-				if (idx >= 0) {
-					return { session, entry: entries[idx], entries, idx };
+				const chatModel = chatService.getSession(session.chatSessionId);
+
+				if (idx >= 0 && chatModel) {
+					return { session, chatModel, entry: entries[idx], entries, idx };
 				}
 			}
 
@@ -143,7 +147,13 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				return;
 			}
 
-			const { session, entries, idx, entry } = currentEditorEntry;
+			const { session, chatModel, entries, idx, entry } = currentEditorEntry;
+
+			store.add(chatModel.onDidChange(e => {
+				if (e.kind === 'addRequest') {
+					didReval = false;
+				}
+			}));
 
 			this._ctxIsGlobalEditsSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModelEnabled.set(entry.reviewMode.read(r));
