@@ -61,6 +61,7 @@ import { isKeyboardEvent, isMouseEvent, isPointerEvent } from '../../../../base/
 import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { InstanceContext } from './terminalContextMenu.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { TerminalTabList } from './terminalTabsList.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1463,7 +1464,8 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	const terminalGroupService = accessor.get(ITerminalGroupService);
 	const result: ITerminalInstance[] = [];
 
-	const list = listService.lastFocusedList;
+	// Assign list only if it's an instance of TerminalTabList (#234791)
+	const list = listService.lastFocusedList instanceof TerminalTabList ? listService.lastFocusedList : undefined;
 	// Get selected tab list instance(s)
 	const selections = list?.getSelection();
 	// Get inline tab instance if there are not tab list selections #196578
