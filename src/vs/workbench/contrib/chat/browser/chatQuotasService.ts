@@ -52,7 +52,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	private readonly chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
 	private readonly completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
 
-	private ExtensionQuotaContextKeys = { // TODO@bpasero move into product.json or turn into core keys
+	private ExtensionQuotaContextKeys = {
 		chatQuotaExceeded: 'github.copilot.chat.quotaExceeded',
 		completionsQuotaExceeded: 'github.copilot.completions.quotaExceeded',
 	};
@@ -176,8 +176,6 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 
 	static readonly ID = 'chat.quotasStatusBarEntry';
 
-	private static readonly COPILOT_STATUS_ID = 'GitHub.copilot.status'; // TODO@bpasero unify into 1 core indicator
-
 	private readonly entry = this._register(new DisposableStore());
 
 	constructor(
@@ -187,11 +185,6 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 		super();
 
 		this._register(Event.runAndSubscribe(this.chatQuotasService.onDidChangeQuotas, () => this.updateStatusbarEntry()));
-		this._register(this.statusbarService.onDidChangeEntryVisibility(e => {
-			if (e.id === ChatQuotasStatusBarEntry.COPILOT_STATUS_ID) {
-				this.updateStatusbarEntry();
-			}
-		}));
 	}
 
 	private updateStatusbarEntry(): void {
@@ -208,30 +201,15 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 				text = localize('chatAndCompletionsQuotaExceededStatus', "Copilot limit reached");
 			}
 
-			const isCopilotStatusVisible = this.statusbarService.isEntryVisible(ChatQuotasStatusBarEntry.COPILOT_STATUS_ID);
-			if (!isCopilotStatusVisible) {
-				text = `$(copilot-warning) ${text}`;
-			}
-
 			this.entry.add(this.statusbarService.addEntry({
 				name: localize('indicator', "Copilot Limit Indicator"),
-				text,
+				text: `$(copilot-warning) ${text}`,
 				ariaLabel: text,
 				command: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
 				showInAllWindows: true,
 				kind: 'prominent',
 				tooltip: quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded })
-			}, ChatQuotasStatusBarEntry.ID, StatusbarAlignment.RIGHT, {
-				id: ChatQuotasStatusBarEntry.COPILOT_STATUS_ID,
-				alignment: StatusbarAlignment.RIGHT,
-				compact: isCopilotStatusVisible
-			}));
-
-			this.entry.add(this.statusbarService.overrideEntry(ChatQuotasStatusBarEntry.COPILOT_STATUS_ID, {
-				text: '$(copilot-warning)',
-				ariaLabel: text,
-				kind: 'prominent'
-			}));
+			}, ChatQuotasStatusBarEntry.ID, StatusbarAlignment.RIGHT, 1));
 		}
 	}
 }
