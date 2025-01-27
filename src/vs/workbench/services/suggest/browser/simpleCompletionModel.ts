@@ -187,6 +187,16 @@ export class SimpleCompletionModel {
 					return score;
 				}
 			}
+
+			// Check for exact matches, including ignoring file extensions
+			const exactMatchA = a.labelLow === wordLow || (a.completion.isFile && a.labelLowExcludeFileExt === wordLow);
+			const exactMatchB = b.labelLow === wordLow || (b.completion.isFile && b.labelLowExcludeFileExt === wordLow);
+			if (exactMatchA && !exactMatchB) {
+				return -1;
+			} else if (!exactMatchA && exactMatchB) {
+				return 1;
+			}
+
 			// Sort by the score
 			score = b.score[0] - a.score[0];
 			if (score !== 0) {
