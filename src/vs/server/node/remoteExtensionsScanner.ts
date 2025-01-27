@@ -28,9 +28,8 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _whenBuiltinExtensionsReady = Promise.resolve();
-	private readonly _whenExtensionsReady = Promise.resolve();
-	private failedExtensionInstallations: Set<string> = new Set(); // TODO: Should probably track a more complex type than 'string'. Could also have a VSIX uri
+	private readonly _whenBuiltinExtensionsReady = Promise.resolve<Array<string | URI>>([]);
+	private readonly _whenExtensionsReady = Promise.resolve<Array<string | URI>>([]);
 
 	constructor(
 		private readonly _extensionManagementCLI: ExtensionManagementCLI,
@@ -50,14 +49,14 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 				.then(() => {
 					performance.mark('code/server/didInstallBuiltinExtensions');
 					_logService.trace('Finished installing builtin extensions');
+					return [];
 				}, error => {
 					_logService.error(error);
 					if (error instanceof ExtensionInstallationError) {
-						_logService.error(`Capturing failed builtin extension installations: ${error.failed.join(', ')}`);
-						for (const extension of error.failed) {
-							this.failedExtensionInstallations.add(extension);
-						}
+						_logService.error(`Failed installing builtin extensions`);
+						return error.failed;
 					}
+					return [];
 				});
 		}
 
@@ -72,28 +71,23 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 				}, !!environmentService.args['force']))
 				.then(() => {
 					_logService.trace('Finished installing extensions');
+					return [];
 				}, error => {
 					_logService.error(error);
 					if (error instanceof ExtensionInstallationError) {
-						_logService.error(`Capturing failed extension installations: ${error.failed.join(', ')}`);
-						for (const extension of error.failed) {
-							this.failedExtensionInstallations.add(extension);
-						}
+						_logService.error(`Failed installing extensions`);
+						return error.failed;
 					}
+					return [];
 				});
 		}
-	}
-
-	async failed(): Promise<string[]> {
-		await this._whenExtensionsReady;
-		return Array.from(this.failedExtensionInstallations);
 	}
 
 	private _asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
 		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 	}
 
-	whenExtensionsReady(): Promise<void> {
+	whenExtensionsReady(): Promise<Array<string | URI>> {
 		return this._whenExtensionsReady;
 	}
 
@@ -326,7 +320,6 @@ export class RemoteExtensionsScannerChannel implements IServerChannel {
 	async call(context: any, command: string, args?: any): Promise<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (command) {
-			case 'failed': return this.service.failed();
 			case 'whenExtensionsReady': return this.service.whenExtensionsReady();
 			case 'scanExtensions': {
 				const language = args[0];

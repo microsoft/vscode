@@ -23,7 +23,7 @@ type InstallVSIXInfo = { vsix: URI; installOptions: InstallOptions };
 type InstallGalleryExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
 
 export class ExtensionInstallationError extends Error {
-	constructor(message: string, public failed: string[], public innerError?: Error) {
+	constructor(message: string, public failed: Array<string | URI>, public innerError?: Error) {
 		super(innerError?.message ?? message);
 		this.name = innerError?.name ?? 'ExtensionInstallationError';
 		this.stack = innerError?.stack;
@@ -79,7 +79,7 @@ export class ExtensionManagementCLI {
 	}
 
 	public async installExtensions(extensions: (string | URI)[], builtinExtensions: (string | URI)[], installOptions: InstallOptions, force: boolean): Promise<void> {
-		const failed: string[] = [];
+		const failed: (string | URI)[] = [];
 
 		try {
 			if (extensions.length) {
@@ -116,7 +116,7 @@ export class ExtensionManagementCLI {
 						await this.installVSIX(vsix, installOptions, force, installed);
 					} catch (err) {
 						this.logger.error(err);
-						failed.push(vsix.toString());
+						failed.push(vsix);
 					}
 				}));
 			}
@@ -129,7 +129,7 @@ export class ExtensionManagementCLI {
 			this.logger.error(localize('error while installing extensions', "Error while installing extensions: {0}", getErrorMessage(error)));
 			throw new ExtensionInstallationError(
 				'Error while installing extensions',
-				extensions.map(ext => ext instanceof URI ? ext.toString() : ext), // TODO: This could use some work
+				extensions,
 				error);
 		}
 
@@ -138,7 +138,7 @@ export class ExtensionManagementCLI {
 				localize(
 					'installation failed',
 					"Failed installing extensions: {0}",
-					failed.join(', ')),
+					failed.map(ext => ext instanceof URI ? ext.toString() : ext).join(', ')),
 				failed);
 		}
 	}

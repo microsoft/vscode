@@ -32,23 +32,11 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	whenExtensionsReady(): Promise<void> {
+	whenExtensionsReady(): Promise<Array<string | URI>> {
 		return this.withChannel(
-			channel => channel.call('whenExtensionsReady'),
-			undefined
+			channel => channel.call<Array<string | URI>>('whenExtensionsReady'),
+			[],
 		);
-	}
-
-	async failed(): Promise<string[]> {
-		try {
-			return await this.withChannel(
-				channel => channel.call<string[]>('failed'),
-				[]
-			);
-		} catch (error) {
-			this.logService.error(error);
-			return [];
-		}
 	}
 
 	async scanExtensions(): Promise<IExtensionDescription[]> {
