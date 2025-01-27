@@ -669,7 +669,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 					0,
 					{ topLeft: layoutInfo.borderRadius, bottomLeft: layoutInfo.borderRadius, topRight: 0, bottomRight: 0 },
 					{ hideRight: true, hideLeft: layoutInfo.codeScrollLeft !== 0 }
-				).build()),
+				)),
 				style: {
 					fill: 'var(--vscode-inlineEdit-originalBackground, transparent)',
 					stroke: 'var(--vscode-inlineEdit-originalBorder)',

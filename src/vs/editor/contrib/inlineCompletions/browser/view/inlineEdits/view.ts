@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, constObservable, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -15,13 +15,12 @@ import { SingleTextEdit, StringText } from '../../../../../common/core/textEdit.
 import { TextLength } from '../../../../../common/core/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
-import { GhostText, GhostTextPart } from '../../model/ghostText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { GhostTextView } from '../ghostText/ghostTextView.js';
 import { InlineEditsDeletionView } from './deletionView.js';
 import { InlineEditsGutterIndicator } from './gutterIndicatorView.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './indicatorView.js';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
+import { InlineEditsInsertionView } from './insertionView.js';
 import { InlineEditsSideBySideDiff } from './sideBySideDiff.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils.js';
 import './view.css';
@@ -138,26 +137,13 @@ export class InlineEditsView extends Disposable {
 		}) : undefined),
 	));
 
-	protected readonly _insertion = this._register(this._instantiationService.createInstance(GhostTextView,
+	protected readonly _insertion = this._register(this._instantiationService.createInstance(InlineEditsInsertionView,
 		this._editor,
-		{
-			ghostText: derived<GhostText | undefined>(reader => {
-				const state = this._uiState.read(reader)?.state;
-				if (!state || state.kind !== 'insertionMultiLine') { return undefined; }
-
-				const textModel = this._editor.getModel()!;
-
-				// Try to not insert on the same line where there is other content afterwards
-				if (state.column === 1 && state.lineNumber > 1 && textModel.getLineLength(state.lineNumber) !== 0 && state.text.endsWith('\n') && !state.text.startsWith('\n')) {
-					const endOfLineColumn = textModel.getLineLength(state.lineNumber - 1) + 1;
-					return new GhostText(state.lineNumber - 1, [new GhostTextPart(endOfLineColumn, '\n' + state.text.slice(0, -1), false)]);
-				}
-
-				return new GhostText(state.lineNumber, [new GhostTextPart(state.column, state.text, false)]);
-			}),
-			minReservedLineCount: constObservable(0),
-			targetTextModel: this._model.map(v => v?.textModel),
-		}
+		this._uiState.map(s => s && s.state?.kind === 'insertionMultiLine' ? ({
+			lineNumber: s.state.lineNumber,
+			startColumn: s.state.column,
+			text: s.state.text,
+		}) : undefined),
 	));
 
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
