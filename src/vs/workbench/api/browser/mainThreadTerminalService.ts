@@ -18,7 +18,7 @@ import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCol
 import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService } from '../../contrib/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../services/remote/common/remoteAgentService.js';
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
-import { TerminalEditorLocationOptions } from 'vscode';
+import { TerminalCompletionItemKind, TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from '../../../base/common/async.js';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
 import { ITerminalLinkProviderService } from '../../contrib/terminalContrib/links/browser/links.js';
@@ -277,9 +277,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			provideCompletions: async (commandLine, cursorPosition, token) => {
 				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition }, token);
 				if (Array.isArray(completions)) {
-					return completions.map(c => ({ ...c, provider: id }));
+					return completions.map(c => ({ ...c, provider: id, kind: c.isFile ? TerminalCompletionItemKind.File : c.isDirectory ? TerminalCompletionItemKind.Folder : undefined }));
 				} else {
-					return { items: completions?.items.map(c => ({ ...c, provider: id })), resourceRequestConfig: completions?.resourceRequestConfig };
+					return { items: completions?.items.map(c => ({ ...c, provider: id, kind: c.isFile ? TerminalCompletionItemKind.File : c.isDirectory ? TerminalCompletionItemKind.Folder : undefined })), resourceRequestConfig: completions?.resourceRequestConfig };
 				}
 			}
 		}, ...triggerCharacters));

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalCompletion, ITerminalCompletionProvider } from './terminalCompletionService.js';
+import { ITerminalCompletion, ITerminalCompletionProvider, TerminalCompletionItemKind } from './terminalCompletionService.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { Event, Emitter } from '../../../../../base/common/event.js';
@@ -351,6 +351,7 @@ function rawCompletionToITerminalCompletion(rawCompletion: PwshCompletion, repla
 		provider: PwshCompletionProviderAddon.ID,
 		icon,
 		detail,
+		kind: rawCompletion.ResultType === 3 ? TerminalCompletionItemKind.File : rawCompletion.ResultType === 4 ? TerminalCompletionItemKind.Folder : undefined,
 		isFile: rawCompletion.ResultType === 3,
 		isDirectory: rawCompletion.ResultType === 4,
 		isKeyword: rawCompletion.ResultType === 12,
