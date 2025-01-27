@@ -9,7 +9,7 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { IObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
-import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
+import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
 import { OffsetEdit, SingleOffsetEdit } from '../../../../../common/core/offsetEdit.js';
@@ -215,8 +215,8 @@ function computeGhostTextViewData(ghostText: GhostText | GhostTextReplacement, t
 }
 
 export class AdditionalLinesWidget extends Disposable {
-	private _viewZoneId: string | undefined = undefined;
-	public get viewZoneId(): string | undefined { return this._viewZoneId; }
+	private _viewZoneInfo: { viewZoneId: string; heightInLines: number; lineNumber: number } | undefined;
+	public get viewZoneId(): string | undefined { return this._viewZoneInfo?.viewZoneId; }
 
 	private readonly editorOptionsChanged = observableSignalFromEvent('editorOptionChanged', Event.filter(
 		this.editor.onDidChangeConfiguration,
@@ -260,10 +260,7 @@ export class AdditionalLinesWidget extends Disposable {
 
 	private clear(): void {
 		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = undefined;
-			}
+			this.removeActiveViewZone(changeAccessor);
 		});
 	}
 
@@ -276,24 +273,46 @@ export class AdditionalLinesWidget extends Disposable {
 		const { tabSize } = textModel.getOptions();
 
 		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = undefined;
-			}
+			this.removeActiveViewZone(changeAccessor);
 
 			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
 			if (heightInLines > 0) {
 				const domNode = document.createElement('div');
 				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions());
 
-				this._viewZoneId = changeAccessor.addZone({
-					afterLineNumber: lineNumber,
-					heightInLines: heightInLines,
-					domNode,
-					afterColumnAffinity: PositionAffinity.Right
-				});
+				this.addViewZone(changeAccessor, lineNumber, heightInLines, domNode);
 			}
 		});
+	}
+
+	private addViewZone(changeAccessor: IViewZoneChangeAccessor, afterLineNumber: number, heightInLines: number, domNode: HTMLElement): void {
+		const id = changeAccessor.addZone({
+			afterLineNumber: afterLineNumber,
+			heightInLines: heightInLines,
+			domNode,
+			afterColumnAffinity: PositionAffinity.Right
+		});
+
+		this.keepCursorStable(afterLineNumber, heightInLines);
+
+		this._viewZoneInfo = { viewZoneId: id, heightInLines, lineNumber: afterLineNumber };
+	}
+
+	private removeActiveViewZone(changeAccessor: IViewZoneChangeAccessor): void {
+		if (this._viewZoneInfo) {
+			changeAccessor.removeZone(this._viewZoneInfo.viewZoneId);
+
+			this.keepCursorStable(this._viewZoneInfo.lineNumber, -this._viewZoneInfo.heightInLines);
+
+			this._viewZoneInfo = undefined;
+		}
+	}
+
+	private keepCursorStable(lineNumber: number, heightInLines: number): void {
+		const cursorLineNumber = this.editor.getSelection()?.getStartPosition()?.lineNumber;
+		if (cursorLineNumber !== undefined && lineNumber < cursorLineNumber) {
+			this.editor.setScrollTop(this.editor.getScrollTop() + heightInLines * this.editor.getOption(EditorOption.lineHeight));
+		}
 	}
 }
 
