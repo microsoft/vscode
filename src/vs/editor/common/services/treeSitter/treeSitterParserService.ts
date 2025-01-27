@@ -380,7 +380,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				newEndIndex: change.rangeOffset + change.text.length,
 				startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
 				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
-				newEndPosition: { row: change.range.startLineNumber + summedTextLengths.lineCount - 1, column: summedTextLengths.columnCount }
+				newEndPosition: { row: change.range.startLineNumber + summedTextLengths.lineCount - 1, column: summedTextLengths.lineCount ? summedTextLengths.columnCount : (change.range.endColumn + summedTextLengths.columnCount) }
 			};
 			this._tree?.edit(edit);
 			this._lastFullyParsedWithEdits?.edit(edit);
