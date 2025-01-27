@@ -243,6 +243,7 @@ function createCompletionItem(cursorPosition: number, prefix: string, commandRes
 interface ICompletionResource {
 	label: string;
 	detail?: string;
+	documentation?: string;
 }
 async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 	const labels: Set<string> = new Set<string>();
@@ -276,14 +277,41 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 			}
 			const fileResource = vscode.Uri.file(path);
 			const files = await vscode.workspace.fs.readDirectory(fileResource);
+
 			for (const [file, fileType] of files) {
-				const formattedPath = getFriendlyResourcePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
-				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, cachedWindowsExecutableExtensions)) {
-					executables.add({ label: file, detail: formattedPath });
+				let actualFileUri = vscode.Uri.joinPath(fileResource, file);
+				const originalFileUri = actualFileUri;
+				let actualFilePath = actualFileUri.fsPath;
+				let hasSymlink = false;
+				if (fileType === vscode.FileType.SymbolicLink) {
+					try {
+						// Verify the symlink exists and is valid
+						await fs.lstat(actualFilePath);
+
+						// Resolve the symlink path
+						const resolvedPath = await fs.realpath(actualFilePath, { encoding: 'utf-8' });
+						const resolvedResource = vscode.Uri.file(resolvedPath);
+						actualFileUri = vscode.Uri.joinPath(resolvedResource, file);
+						actualFilePath = resolvedPath;
+						hasSymlink = true;
+						console.log('symlink', actualFilePath);
+					} catch {
+						continue; // Skip invalid or broken symlinks
+					}
+				}
+
+				const originalPath = getFriendlyResourcePath(originalFileUri, pathSeparator);
+				const actualPath = getFriendlyResourcePath(actualFileUri, pathSeparator);
+				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(originalPath, cachedWindowsExecutableExtensions)) {
+					executables.add({
+						label: file,
+						detail: originalPath,
+						documentation: hasSymlink ? `${originalPath} => ${actualPath}` : ''
+					});
 					labels.add(file);
 				}
 			}
-		} catch (e) {
+		} catch {
 			// Ignore errors for directories that can't be read
 			continue;
 		}
@@ -390,7 +418,7 @@ export async function getCompletionItemsFromSpecs(
 		const labels = new Set(items.map((i) => i.label));
 		for (const command of availableCommands) {
 			if (!labels.has(command.label)) {
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail, command.documentation));
 			}
 		}
 	}
