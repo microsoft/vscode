@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 
@@ -178,6 +178,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
+			for (const completion of completionItems) {
+				completion.isFile ??= completion.kind === TerminalCompletionItemKind.File || (shellType === GeneralShellType.PowerShell && completion.kind === TerminalCompletionItemKind.Method && completion.replacementIndex === 0);
+				completion.isDirectory ??= completion.kind === TerminalCompletionItemKind.Folder;
+			}
 			if (provider.isBuiltin) {
 				//TODO: why is this needed?
 				for (const item of completionItems) {
