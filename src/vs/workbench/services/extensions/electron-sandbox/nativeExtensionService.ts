@@ -401,6 +401,18 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				connection.onReconnecting(() => this._resolveAuthorityAgain());
 			}
 
+			// Install extensions that remote server could not install on its own
+			// ie: Due to lack of internet access on the remote
+			const failedFromRemote = await this._remoteExtensionsScannerService.failed();
+			if (failedFromRemote.length) {
+				this._logService.debug('Failed from remote', failedFromRemote);
+				const exts = await this._extensionGalleryService.getExtensions(failedFromRemote.map(id => ({ id })), CancellationToken.None);
+				for (const ext of exts) {
+					// TODO: These could be VSIX's
+					await this._extensionManagementService.installFromGallery(ext);
+				}
+			}
+
 			// fetch the remote environment
 			[remoteEnv, remoteExtensions] = await Promise.all([
 				this._remoteAgentService.getEnvironment(),

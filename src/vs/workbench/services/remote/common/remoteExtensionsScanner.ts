@@ -39,6 +39,18 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 		);
 	}
 
+	async failed(): Promise<string[]> {
+		try {
+			return await this.withChannel(
+				channel => channel.call<string[]>('failed'),
+				[]
+			);
+		} catch (error) {
+			this.logService.error(error);
+			return [];
+		}
+	}
+
 	async scanExtensions(): Promise<IExtensionDescription[]> {
 		try {
 			const languagePack = await this.activeLanguagePackService.getExtensionIdProvidingCurrentLocale();
