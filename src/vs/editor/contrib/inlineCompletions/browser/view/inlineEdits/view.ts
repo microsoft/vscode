@@ -31,10 +31,10 @@ import { LineReplacementView, WordInsertView, WordReplacementView } from './word
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
-	private readonly _useMixedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useMixedLinesDiff);
-	private readonly _useInterleavedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useInterleavedLinesDiff);
-	private readonly _useCodeOverlay = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useCodeOverlay);
-	private readonly _useMultiLineGhostText = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useMultiLineGhostText);
+	private readonly _useMixedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useMixedLinesDiff);
+	private readonly _useInterleavedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useInterleavedLinesDiff);
+	private readonly _useCodeShifting = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.codeShifting);
+	private readonly _useMultiLineGhostText = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
 
 	private _previousView: {
 		id: string;
@@ -188,7 +188,7 @@ export class InlineEditsView extends Disposable {
 		return store.add(this._instantiationService.createInstance(LineReplacementView, this._editorObs, e.originalRange, e.modifiedRange, e.modifiedLines, e.replacements));
 	}).recomputeInitiallyAndOnChange(this._store);
 
-	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useGutterIndicator);
+	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useGutterIndicator);
 
 	private readonly _inlineEditsIsHovered = derived(this, reader => {
 		return this._sideBySide.isHovered.read(reader)
@@ -233,8 +233,8 @@ export class InlineEditsView extends Disposable {
 			);
 		const reconsiderViewEditorWidthChange = this._previousView?.editorWidth !== this._editor.getLayoutInfo().width &&
 			(
-				(this._previousView?.view === 'sideBySide' && this._useCodeOverlay.read(reader) !== 'never') ||
-				(this._previousView?.view === 'lineReplacement')
+				this._previousView?.view === 'sideBySide' ||
+				this._previousView?.view === 'lineReplacement'
 			);
 
 		if (canUseCache && !reconsiderViewAfterJump && !reconsiderViewEditorWidthChange) {
@@ -252,6 +252,7 @@ export class InlineEditsView extends Disposable {
 		if (
 			isSingleInnerEdit && (
 				this._useMixedLinesDiff.read(reader) === 'forStableInsertions'
+				&& this._useCodeShifting.read(reader)
 				&& isSingleLineInsertionAfterPosition(diff, edit.cursorPosition)
 				|| isSingleLineDeletion(diff)
 			)
@@ -263,20 +264,17 @@ export class InlineEditsView extends Disposable {
 			return 'deletion';
 		}
 
-		if (isSingleMultiLineInsertion(diff) && this._useMultiLineGhostText.read(reader)) {
+		if (isSingleMultiLineInsertion(diff) && this._useMultiLineGhostText.read(reader) && this._useCodeShifting.read(reader)) {
 			return 'insertionMultiLine';
 		}
 
-		const useCodeOverlay = this._useCodeOverlay.read(reader);
-		if (useCodeOverlay !== 'never') {
-			const numOriginalLines = edit.originalLineRange.length;
-			const numModifiedLines = edit.modifiedLineRange.length;
-			const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
-			if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
-				return 'wordReplacements';
-			} else if (numOriginalLines > 0 && numModifiedLines > 0 && !InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
-				return 'lineReplacement';
-			}
+		const numOriginalLines = edit.originalLineRange.length;
+		const numModifiedLines = edit.modifiedLineRange.length;
+		const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
+		if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
+			return 'wordReplacements';
+		} else if (numOriginalLines > 0 && numModifiedLines > 0 && !InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
+			return 'lineReplacement';
 		}
 
 		if (
