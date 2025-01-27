@@ -503,7 +503,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		if (installOptions?.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT] !== ExtensionInstallSource.SETTINGS_SYNC) {
-			await this.checkForTrustedPublisher(gallery);
+			await this.checkForTrustedPublisher(gallery, manifest);
 
 			await this.checkForWorkspaceTrust(manifest, false);
 
@@ -789,7 +789,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		throw new Error('No extension server found');
 	}
 
-	private async checkForTrustedPublisher(extension: IGalleryExtension): Promise<void> {
+	private async checkForTrustedPublisher(extension: IGalleryExtension, manifest: IExtensionManifest): Promise<void> {
 		if (this.isPublisherTrusted(extension)) {
 			return;
 		}
@@ -822,14 +822,21 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			}
 		};
 
-		const customMessage = new MarkdownString('', { supportThemeIcons: true });
+		const customMessage = new MarkdownString('', { supportThemeIcons: true, isTrusted: true });
 		customMessage.appendMarkdown(localize('message1', "The extension {0} is published by {1}. This is the first extension you're installing from this publisher.", `[${extension.displayName}](${this.productService.extensionsGallery!.itemUrl}?itemName=${extension.identifier.id})`, `[${extension.publisherDisplayName}](${joinPath(URI.parse(this.productService.extensionsGallery!.publisherUrl), extension.publisher)})`));
+
 		customMessage.appendText('\n');
 		if (extension.publisherDomain?.verified) {
 			const publisherVerifiedMessage = localize('verifiedPublisher', "This publisher has verified ownership of {0}.", `[${URI.parse(extension.publisherDomain.link).authority}](${extension.publisherDomain.link})`);
 			customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
 		} else {
 			customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisher', "This publisher is **not** [verified](https://aka.ms/vscode-verify-publisher).")}`);
+		}
+
+		if (await this.hasDepsAndPacksFromOtherUntrustedPublishers(manifest)) {
+			const commandUri = URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([extension.identifier.id, manifest.extensionPack?.length ? 'extensionPack' : 'dependencies']))}`);
+			customMessage.appendText('\n');
+			customMessage.appendMarkdown(localize('message3', "Installing this extension will also install [extensions]({0}) from other publishers, and trusting this publisher will automatically trust those publishers.", commandUri.toString()));
 		}
 
 		customMessage.appendText('\n');
@@ -851,6 +858,25 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			}
 		});
 
+	}
+
+	private async hasDepsAndPacksFromOtherUntrustedPublishers(manifest: IExtensionManifest): Promise<boolean> {
+		const infos = [];
+		for (const id of [...(manifest.extensionPack ?? []), ...(manifest.extensionDependencies ?? [])]) {
+			const [publisherId] = id.split('.');
+			if (publisherId.toLowerCase() === manifest.publisher.toLowerCase()) {
+				continue;
+			}
+			if (this.isPublisherUserTrusted(publisherId.toLowerCase())) {
+				continue;
+			}
+			infos.push({ id });
+		}
+		if (!infos.length) {
+			return false;
+		}
+		const extensions = await this.extensionGalleryService.getExtensions(infos, CancellationToken.None);
+		return extensions.some(e => !this.isPublisherTrusted(e));
 	}
 
 	private async checkForWorkspaceTrust(manifest: IExtensionManifest, requireTrust: boolean): Promise<void> {
@@ -995,6 +1021,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			return true;
 		}
 
+		return this.isPublisherUserTrusted(publisher);
+	}
+
+	private isPublisherUserTrusted(publisher: string): boolean {
 		const trustedPublishers = this.storageService.getObject<string[]>(TrustedPublishersStorageKey, StorageScope.APPLICATION, []).map(p => p.toLowerCase());
 		this.logService.debug('Trusted publishers', trustedPublishers);
 		return trustedPublishers.includes(publisher);
