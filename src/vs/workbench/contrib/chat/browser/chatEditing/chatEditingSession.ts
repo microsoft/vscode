@@ -635,6 +635,15 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				store.dispose();
 			}
 		}));
+		store.add(this._textFileService.untitled.onDidSave(e => {
+			const existing = this._workingSet.get(resource);
+			if (isEqual(e.source, resource) && existing) {
+				this._workingSet.delete(resource);
+				this._workingSet.set(e.target, existing);
+				store.dispose();
+				this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
+			}
+		}));
 		store.add(this._editorService.onDidCloseEditor((e) => {
 			if (isEqual(e.editor.resource, resource)) {
 				this._workingSet.delete(resource);
