@@ -265,7 +265,7 @@ class OpenDiffAction extends EditorAction2 {
 				condition: EditorContextKeys.inDiffEditor,
 				icon: Codicon.goToFile,
 			},
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.diffSingle,
 			keybinding: {
 				when: EditorContextKeys.focus,
