@@ -2167,7 +2167,7 @@ export class TestRemoteExtensionsScannerService implements IRemoteExtensionsScan
 		throw new Error('Method not implemented.');
 	}
 	declare readonly _serviceBrand: undefined;
-	async whenExtensionsReady(): Promise<void> { }
+	async whenExtensionsReady(): Promise<Array<string | URI>> { return []; }
 	scanExtensions(): Promise<IExtensionDescription[]> { throw new Error('Method not implemented.'); }
 }
 
