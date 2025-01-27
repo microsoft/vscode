@@ -836,7 +836,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (await this.hasDepsAndPacksFromOtherUntrustedPublishers(manifest)) {
 			const commandUri = URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([extension.identifier.id, manifest.extensionPack?.length ? 'extensionPack' : 'dependencies']))}`);
 			customMessage.appendText('\n');
-			customMessage.appendMarkdown(localize('message3', "Installing this extension will also install [extensions]({0}) from other publishers, and trusting this publisher will automatically trust those publishers.", commandUri.toString()));
+			customMessage.appendMarkdown(localize('message3', "Installing this extension will also install [extensions]({0}) from other publishers. Trusting this publisher will automatically trust the other publishers.", commandUri.toString()));
 		}
 
 		customMessage.appendText('\n');
