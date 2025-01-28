@@ -5,6 +5,7 @@
 
 import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
+import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 
 export interface ITypeData {
 	text: string;
@@ -17,15 +18,26 @@ export class FocusTracker extends Disposable {
 	private _isFocused: boolean = false;
 
 	constructor(
+		private readonly _context: ViewContext,
 		private readonly _domNode: HTMLElement,
 		private readonly _onFocusChange: (newFocusValue: boolean) => void,
 	) {
 		super();
 		this._register(addDisposableListener(this._domNode, 'focus', () => this._handleFocusedChanged(true)));
 		this._register(addDisposableListener(this._domNode, 'blur', () => this._handleFocusedChanged(false)));
+		this._register(addDisposableListener(this._domNode, 'focusout', () => {
+			console.log('focusout');
+			console.log('uri : ', this._context.viewModel.model.uri);
+		}));
 	}
 
 	private _handleFocusedChanged(focused: boolean): void {
+		console.log('_handleFocusedChanged');
+		console.log('uri : ', this._context.viewModel.model.uri);
+		console.log('focused : ', focused);
+		console.log('this._isFocused : ', this._isFocused);
+		const activeElement = getActiveWindow().document.activeElement;
+		console.log('activeElement : ', activeElement);
 		if (this._isFocused === focused) {
 			return;
 		}
@@ -34,14 +46,26 @@ export class FocusTracker extends Disposable {
 	}
 
 	public focus(): void {
+		console.log('focus');
+		console.log('uri : ', this._context.viewModel.model.uri);
+		console.log('this._domNode : ', this._domNode);
 		// fixes: https://github.com/microsoft/vscode/issues/228147
 		// Immediately call this method in order to directly set the field isFocused to true so the textInputFocus context key is evaluated correctly
 		this._handleFocusedChanged(true);
 		this._domNode.focus();
+
+		const activeElement = getActiveWindow().document.activeElement;
+		console.log('activeElement : ', activeElement);
 	}
 
 	public refreshFocusState(): void {
-		const focused = this._domNode === getActiveWindow().document.activeElement;
+		const activeElement = getActiveWindow().document.activeElement;
+		const focused = this._domNode === activeElement;
+		console.log('refreshFocusState');
+		console.log('uri : ', this._context.viewModel.model.uri);
+		console.log('this._domNode : ', this._domNode);
+		console.log('activeElement : ', activeElement);
+		console.log('refreshFocusState', focused);
 		this._handleFocusedChanged(focused);
 	}
 
