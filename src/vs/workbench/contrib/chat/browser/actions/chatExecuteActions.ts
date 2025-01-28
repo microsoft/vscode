@@ -8,6 +8,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -15,12 +16,14 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, IChatEditingService } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
+import { discardAllEditsWithConfirmation } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { ChatDoneActionId } from './chatClearActions.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -96,7 +99,9 @@ export class ToggleAgentModeAction extends Action2 {
 			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode (Experimental)"),
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.Editing.hasToolsAgent,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Editing.hasToolsAgent,
+				ChatContextKeys.requestInProgress.negate()),
 			toggled: {
 				condition: ChatContextKeys.Editing.agentMode,
 				tooltip: localize('agentEnabled', "Agent Mode Enabled (Experimental)"),
@@ -122,13 +127,44 @@ export class ToggleAgentModeAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const agentService = accessor.get(IChatAgentService);
+		const chatEditingService = accessor.get(IChatEditingService);
+		const chatService = accessor.get(IChatService);
+		const commandService = accessor.get(ICommandService);
+		const dialogService = accessor.get(IDialogService);
+		const currentEditingSession = chatEditingService.currentEditingSession;
+		if (!currentEditingSession) {
+			return;
+		}
+
+		const entries = currentEditingSession.entries.get();
+		if (entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
+			if (!await discardAllEditsWithConfirmation(accessor)) {
+				// User cancelled
+				return;
+			}
+		} else {
+			const chatSession = chatService.getSession(currentEditingSession.chatSessionId);
+			if (chatSession?.getRequests().length) {
+				const confirmation = await dialogService.confirm({
+					title: localize('agent.newSession', "Start new session?"),
+					message: localize('agent.newSessionMessage', "Toggling agent mode will start a new session. Would you like to continue?"),
+					primaryButton: localize('agent.newSession.confirm', "Yes"),
+					type: 'info'
+				});
+				if (!confirmation.confirmed) {
+					return;
+				}
+			}
+		}
+
 		agentService.toggleToolsAgentMode();
+		await commandService.executeCommand(ChatDoneActionId);
 	}
 }
 
-export const ToggleRequestPausedActionId = 'workbench.action.chat.toggleRequestPausd';
+export const ToggleRequestPausedActionId = 'workbench.action.chat.toggleRequestPaused';
 export class ToggleRequestPausedAction extends Action2 {
 	static readonly ID = ToggleRequestPausedActionId;
 

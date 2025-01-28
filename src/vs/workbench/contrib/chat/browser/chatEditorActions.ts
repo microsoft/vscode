@@ -327,17 +327,16 @@ export function registerChatEditorActions() {
 	registerAction2(RejectHunkAction);
 	registerAction2(OpenDiffAction);
 
+	MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
+		command: {
+			id: navigationBearingFakeActionId,
+			title: localize('label', "Navigation Status"),
+			precondition: ContextKeyExpr.false(),
+		},
+		group: 'navigate',
+		order: -1,
+		when: ctxReviewModeEnabled,
+	});
 }
 
 export const navigationBearingFakeActionId = 'chatEditor.navigation.bearings';
-
-MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
-	command: {
-		id: navigationBearingFakeActionId,
-		title: localize('label', "Navigation Status"),
-		precondition: ContextKeyExpr.false(),
-	},
-	group: 'navigate',
-	order: -1,
-	when: ctxReviewModeEnabled,
-});

@@ -823,7 +823,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate, { hoverDelegate: options.hoverDelegate, keybinding: options.keybinding ?? undefined });
 					}
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ToggleAgentCheckActionViewItem, action, options as IMenuEntryActionViewItemOptions);
+					return this.instantiationService.createInstance(ToggleAgentActionViewItem, action, options as IMenuEntryActionViewItemOptions);
 				}
 
 				return undefined;
@@ -1700,7 +1700,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
-class ToggleAgentCheckActionViewItem extends MenuEntryActionViewItem {
+class ToggleAgentActionViewItem extends MenuEntryActionViewItem {
 	private readonly agentStateActions: IAction[];
 
 	constructor(
