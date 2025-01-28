@@ -404,6 +404,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			),
 		);
 
+		// trigger re-layout of chat input when number of instruction attachment changes
+		this.instructionAttachmentsPart.onAttachmentsCountChange(() => {
+			this._onDidChangeHeight.fire();
+		});
+
 		this.initSelectedModel();
 	}
 
