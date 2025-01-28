@@ -539,6 +539,7 @@ export class SettingsEditor2 extends EditorPane {
 			// Wait for editor to be removed from DOM #106303
 			setTimeout(() => {
 				this.searchWidget.onHide();
+				this.settingRenderers.cancelSuggesters();
 			}, 0);
 		}
 	}
