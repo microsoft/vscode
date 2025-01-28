@@ -26,7 +26,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { ChatInstructionsAttachmentModel } from '../../chatAttachmentModel/chatInstructionsAttachment.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { PROMP_SNIPPET_FILE_EXTENSION } from '../../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
+import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
 
 /**
  * Widget for a single prompt instructions attachment.
@@ -132,7 +132,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 			title += `\n-\n[${errorCaption}]: ${details}`;
 		}
 
-		const fileWithoutExtension = fileBasename.replace(PROMP_SNIPPET_FILE_EXTENSION, '');
+		const fileWithoutExtension = fileBasename.replace(PROMPT_SNIPPET_FILE_EXTENSION, '');
 		label.setFile(URI.file(fileWithoutExtension), {
 			fileKind: FileKind.FILE,
 			hidePath: true,
