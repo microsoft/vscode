@@ -82,6 +82,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	private _editingSessionFileLimitPromise: Promise<number>;
 	private _editingSessionFileLimit: number | undefined;
 	get editingSessionFileLimit() {
+		if (this._chatAgentService.toolsAgentModeEnabled) {
+			return Number.MAX_SAFE_INTEGER;
+		}
+
 		return this._editingSessionFileLimit ?? defaultChatEditingMaxFileLimit;
 	}
 
@@ -102,6 +106,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IFileService private readonly _fileService: IFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
