@@ -120,7 +120,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 			const isWarning = !isRootError;
 
 			this.domNode.classList.add(
-				(isWarning) ? 'error' : 'warning',
+				(isWarning) ? 'warning' : 'error',
 			);
 
 			const errorCaption = (isWarning)
