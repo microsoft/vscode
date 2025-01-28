@@ -26,6 +26,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { ChatInstructionsAttachmentModel } from '../../chatAttachmentModel/chatInstructionsAttachment.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { PROMP_SNIPPET_FILE_EXTENSION } from '../../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
 
 /**
  * Widget for a single prompt instructions attachment.
@@ -114,7 +115,8 @@ export class InstructionsAttachmentWidget extends Disposable {
 
 		// if there are some errors/warning during the process of resolving
 		// attachment references (including all the nested child references),
-		// add the issue details in the hover title for the attachment
+		// add the issue details in the hover title for the attachment, one
+		// error/warning at a time because there is a limited space available
 		if (topError) {
 			const { isRootError, message: details } = topError;
 			const isWarning = !isRootError;
@@ -130,7 +132,8 @@ export class InstructionsAttachmentWidget extends Disposable {
 			title += `\n-\n[${errorCaption}]: ${details}`;
 		}
 
-		label.setFile(file, {
+		const fileWithoutExtension = fileBasename.replace(PROMP_SNIPPET_FILE_EXTENSION, '');
+		label.setFile(URI.file(fileWithoutExtension), {
 			fileKind: FileKind.FILE,
 			hidePath: true,
 			range: undefined,
