@@ -453,6 +453,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this.inTerminal();
 	}
 
+	public async getTaskForTerminal(instanceId: number): Promise<Task | undefined> {
+		return this._taskSystem?.getTaskForTerminal(instanceId);
+	}
+
 	private async _registerCommands(): Promise<void> {
 		CommandsRegistry.registerCommand({
 			id: 'workbench.action.tasks.runTask',

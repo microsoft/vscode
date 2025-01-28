@@ -62,6 +62,7 @@ import { editorGroupToColumn } from '../../../services/editor/common/editorGroup
 import { InstanceContext } from './terminalContextMenu.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { TerminalTabList } from './terminalTabsList.js';
+import { ITaskService } from '../../tasks/common/taskService.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1431,6 +1432,24 @@ export function registerTerminalActions() {
 				}
 			} else {
 				console.warn(`Unmatched terminal item: "${item}"`);
+			}
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.RerunTaskTerminal,
+		title: localize2('workbench.action.terminal.rerunTaskTerminal', 'Rerun Task Terminal'),
+		precondition: sharedWhenClause.terminalAvailable,
+		run: async (c, accessor, args) => {
+			const terminalService = accessor.get(ITerminalService);
+			const taskSystem = accessor.get(ITaskService);
+			const instance = terminalService.activeInstance;
+
+			if (instance) {
+				const task = await taskSystem.getTaskForTerminal(instance.instanceId);
+				if (task) {
+					await taskSystem.run(task);
+				}
 			}
 		}
 	});

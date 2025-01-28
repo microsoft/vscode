@@ -480,6 +480,7 @@ export const enum TerminalCommandId {
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	StartVoice = 'workbench.action.terminal.startVoice',
 	StopVoice = 'workbench.action.terminal.stopVoice',
+	RerunTaskTerminal = 'workbench.action.terminal.rerunTaskTerminal',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

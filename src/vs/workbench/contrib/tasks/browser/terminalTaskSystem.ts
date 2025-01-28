@@ -1823,6 +1823,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return 'other';
 	}
 
+	public getTaskForTerminal(instanceId: number): Task | undefined {
+		for (const key in this._activeTasks) {
+			const activeTask = this._activeTasks[key];
+			if (activeTask.terminal?.instanceId === instanceId) {
+				return activeTask.task;
+			}
+		}
+		return undefined;
+	}
+
 	private _appendOutput(output: string): void {
 		const outputChannel = this._outputService.getChannel(this._outputChannelId);
 		outputChannel?.append(output);
