@@ -17,7 +17,7 @@ import { cancelPreviousCalls } from '../../../../../../base/common/decorators/ca
 /**
  * File extension for the prompt snippets.
  */
-export const PROMP_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
+export const PROMPT_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
 
 /**
  * Base class for prompt contents providers. Classes that extend this one are responsible to:
@@ -149,6 +149,6 @@ export abstract class PromptContentsProviderBase<
 	 * Check if the current URI points to a prompt snippet.
 	 */
 	public isPromptSnippet(): boolean {
-		return this.uri.path.endsWith(PROMP_SNIPPET_FILE_EXTENSION);
+		return this.uri.path.endsWith(PROMPT_SNIPPET_FILE_EXTENSION);
 	}
 }

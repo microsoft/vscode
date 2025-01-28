@@ -275,7 +275,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
 	/**
-	 * Context key is set when prompt instructions are attached.3
+	 * Context key is set when prompt instructions are attached.
 	 */
 	private promptInstructionsAttached: IContextKey<boolean>;
 

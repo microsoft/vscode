@@ -9,7 +9,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
-import { PROMP_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
+import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
 
 /**
  * Class to locate prompt instructions files.
@@ -120,7 +120,7 @@ export class ChatInstructionsFileLocator {
 					continue;
 				}
 
-				if (!name.endsWith(PROMP_SNIPPET_FILE_EXTENSION)) {
+				if (!name.endsWith(PROMPT_SNIPPET_FILE_EXTENSION)) {
 					continue;
 				}
 
