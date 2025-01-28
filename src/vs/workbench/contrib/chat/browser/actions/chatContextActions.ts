@@ -834,7 +834,7 @@ export class AttachContextAction extends Action2 {
 			quickPickItems.push({
 				kind: 'prompt-instructions',
 				id: 'prompt-instructions',
-				label: localize('chatContext.promptInstructions', 'Instructions'),
+				label: localize('prompt', 'Prompt'),
 				iconClass: ThemeIcon.asClassName(Codicon.lightbulbSparkle),
 			});
 		}
