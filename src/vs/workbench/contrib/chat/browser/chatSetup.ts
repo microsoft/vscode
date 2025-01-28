@@ -64,7 +64,7 @@ import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extension
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
@@ -119,7 +119,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -137,6 +137,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		this.registerChatWelcome(controller, context);
 		this.registerActions(controller, context, requests);
 		this.registerUrlLinkHandler();
+		this.registerSetting(context);
 	}
 
 	private registerChatWelcome(controller: Lazy<ChatSetupController>, context: ChatSetupContext): void {
@@ -316,6 +317,29 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				return true;
 			}
 		}));
+	}
+
+	private registerSetting(context: ChatSetupContext): void {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+		let lastNode: IConfigurationNode | undefined;
+		const registerSetting = () => {
+			const node: IConfigurationNode = {
+				id: 'chatSidebar',
+				title: localize('interactiveSessionConfigurationTitle', "Chat"),
+				type: 'object',
+				properties: {
+					'chat.agent.maxRequests': {
+						type: 'number',
+						description: localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use in agent mode."),
+						default: context.state.entitlement === ChatEntitlement.Limited ? 5 : 15
+					},
+				}
+			};
+			configurationRegistry.updateConfigurations({ remove: lastNode ? [lastNode] : [], add: [node] });
+			lastNode = node;
+		};
+		this._register(Event.runAndSubscribe(context.onDidChange, () => registerSetting()));
 	}
 }
 
