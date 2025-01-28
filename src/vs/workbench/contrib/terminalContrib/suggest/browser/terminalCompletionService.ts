@@ -158,7 +158,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
 		providers = providers.filter(p => {
 			const providerId = p.id;
-			return providerId && providerId in providerConfig && providerConfig[providerId];
+			return providerId && providerId in providerConfig && providerConfig[providerId] !== false;
 		});
 
 		if (!providers.length) {
