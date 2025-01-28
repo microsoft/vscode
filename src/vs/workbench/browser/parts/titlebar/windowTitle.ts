@@ -29,6 +29,7 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/brow
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { getWindowById } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -94,7 +95,8 @@ export class WindowTitle extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService
 	) {
 		super();
 
@@ -286,6 +288,7 @@ export class WindowTitle extends Disposable {
 	 * {dirty}: indicator
 	 * {focusedView}: e.g. Terminal
 	 * {separator}: conditional separator
+	 * {editorTabDecorations}: e.g. "Modified"
 	 */
 	getWindowTitle(): string {
 		const editor = this.editorService.activeEditor;
@@ -345,6 +348,12 @@ export class WindowTitle extends Disposable {
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
+		let editorTabDecorations: string | undefined = undefined;
+		if (editor?.resource) {
+			// TODO: what happens when there are many decorations?
+			// TODO: why doesn't the spacer get added by default?
+			editorTabDecorations = this.decorationsService.getDecoration(editor?.resource, true)?.tooltip;
+		}
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
 			variables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
@@ -378,6 +387,7 @@ export class WindowTitle extends Disposable {
 			remoteName,
 			profileName,
 			focusedView,
+			editorTabDecorations,
 			separator: { label: separator }
 		});
 	}
