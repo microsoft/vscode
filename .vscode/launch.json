@@ -1,6 +1,17 @@
 {
 	"version": "0.1.0",
+	{
 	"configurations": [
+		{
+			"name": "Launch VSCode with AI",
+			"type": "node",
+			"request": "launch",
+			"runtimeExecutable": "npm",
+			"runtimeArgs": ["run", "watch"],
+			"cwd": "${workspaceFolder}"
+		  }
+		]
+	},
 		{
 			"type": "node",
 			"request": "launch",

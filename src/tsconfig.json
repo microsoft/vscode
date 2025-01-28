@@ -8,6 +8,16 @@
 		"allowJs": true,
 		"resolveJsonModule": true,
 		"isolatedModules": false,
+		"baseUrl": ".",
+	  	"paths": {
+			"vs/*": ["src/vs/*"],
+			"vscode/*": ["src/vscode/*"],
+			"typescript/*": ["src/typescript/*"],
+			"semver/*": ["src/semver/*"],
+			"sinon/*": ["src/sinon/*"],
+			"mocha/*": ["src/mocha/*"],
+		},
+
 		"outDir": "../out/vs",
 		"types": [
 			"@webgpu/types",
@@ -25,6 +35,8 @@
 			}
 		]
 	},
+	"module": "ESNext",
+	"moduleResolution": "NodeNext",
 	"include": [
 		"./*.ts",
 		"./typings",
