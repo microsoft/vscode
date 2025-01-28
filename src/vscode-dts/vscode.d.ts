@@ -14869,22 +14869,41 @@ declare module 'vscode' {
 		/**
 		 * Registers a new {@link DocumentDropEditProvider}.
 		 *
+		 * Multiple drop providers can be registered for a language. When dropping content into an editor, all
+		 * registered providers for the editor's language will be invoked based on the mimetypes they handle
+		 * as specified by their {@linkcode DocumentDropEditProviderMetadata}.
+		 *
+		 * Each provider can return one or more {@linkcode DocumentDropEdit DocumentDropEdits}. The edits are sorted
+		 * using the {@linkcode DocumentDropEdit.yieldTo} property. By default the first edit will be applied. If there
+		 * are any additional edits, these will be shown to the user as selectable drop options in the drop widget.
+		 *
 		 * @param selector A selector that defines the documents this provider applies to.
 		 * @param provider A drop provider.
 		 * @param metadata Additional metadata about the provider.
 		 *
-		 * @returns A {@link Disposable} that unregisters this provider when disposed of.
+		 * @returns A {@linkcode Disposable} that unregisters this provider when disposed of.
 		 */
 		export function registerDocumentDropEditProvider(selector: DocumentSelector, provider: DocumentDropEditProvider, metadata?: DocumentDropEditProviderMetadata): Disposable;
 
 		/**
 		 * Registers a new {@linkcode DocumentPasteEditProvider}.
 		 *
+		 * Multiple providers can be registered for a language. All registered providers for a language will be invoked
+		 * for copy and paste operations based on their handled mimetypes as specified by the {@linkcode DocumentPasteProviderMetadata}.
+		 *
+		 * For {@link DocumentPasteEditProvider.prepareDocumentPaste copy operations}, changes to the {@linkcode DataTransfer}
+		 * made by each provider will be merged into a single {@linkcode DataTransfer} that is used to populate the clipboard.
+		 *
+		 * For {@link DocumentPasteEditProvider.providerDocumentPasteEdits paste operations}, each provider will be invoked
+		 * and can return one or more {@linkcode DocumentPasteEdit DocumentPasteEdits}. The edits are sorted using
+		 * the {@linkcode DocumentPasteEdit.yieldTo} property. By default the first edit will be applied
+		 * and the rest of the edits will be shown to the user as selectable paste options in the paste widget.
+		 *
 		 * @param selector A selector that defines the documents this provider applies to.
 		 * @param provider A paste editor provider.
 		 * @param metadata Additional metadata about the provider.
 		 *
-		 * @returns A {@link Disposable} that unregisters this provider when disposed of.
+		 * @returns A {@linkcode Disposable} that unregisters this provider when disposed of.
 		 */
 		export function registerDocumentPasteEditProvider(selector: DocumentSelector, provider: DocumentPasteEditProvider, metadata: DocumentPasteProviderMetadata): Disposable;
 
