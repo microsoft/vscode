@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import { $ } from '../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, constObservable, derived, derivedWithStore, observableValue } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
+import { EditorOption } from '../../../../../common/config/editorOptions.js';
+import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
@@ -69,7 +71,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			position: constObservable(null),
 			allowEditorOverflow: false,
 			minContentWidthInPx: derived(reader => {
-				const info = this._editorLayoutInfo.read(reader);
+				const info = this._overlayLayout.read(reader);
 				if (info === null) { return 0; }
 				return info.code1.x - info.codeStart1.x;
 			}),
@@ -110,26 +112,32 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		return Math.max(...lineWidths);
 	});
 
-	private readonly _editorLayoutInfo = derived(this, (reader) => {
+	private readonly _overlayLayout = derivedWithStore(this, (reader, store) => {
 		this._ghostText.read(reader);
 		const state = this._state.read(reader);
 		if (!state) {
 			return null;
 		}
 
+		// Update the overlay when the position changes
+		this._editorObs.observePosition(observableValue(this, new Position(state.lineNumber, state.column)), store).read(reader);
+
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const scrollTop = this._editorObs.scrollTop.read(reader);
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 
 		const left = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
 
-		const scrollTop = this._editorObs.scrollTop.read(reader);
-
-		const top = state.text.startsWith('\n')
-			? this._editor.getBottomForLineNumber(state.lineNumber) - scrollTop
-			: this._editor.getTopForLineNumber(state.lineNumber) - scrollTop;
-		const bottom = this._editor.getTopForLineNumber(state.lineNumber + 1) - scrollTop;
+		let height = this._ghostTextView.height.read(reader);
+		let top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop;
+		if (state.text.startsWith('\n')) {
+			height -= lineHeight;
+			top += lineHeight;
+		}
 
 		const codeLeft = editorLayout.contentLeft;
+		const bottom = top + height;
 
 		if (left <= codeLeft) {
 			return null;
@@ -139,14 +147,12 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		const codeStart1 = new Point(codeLeft, top);
 		const code2 = new Point(left, bottom);
 		const codeStart2 = new Point(codeLeft, bottom);
-		const codeHeight = bottom - top;
 
 		return {
 			code1,
 			codeStart1,
 			code2,
 			codeStart2,
-			codeHeight,
 			horizontalScrollOffset,
 			padding: 2,
 			borderRadius: 4,
@@ -157,10 +163,10 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		transform: 'translate(-0.5 -0.5)',
 		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
 	}, derived(reader => {
-		const layoutInfoObs = mapOutFalsy(this._editorLayoutInfo).read(reader);
-		if (!layoutInfoObs) { return undefined; }
+		const overlayLayoutObs = mapOutFalsy(this._overlayLayout).read(reader);
+		if (!overlayLayoutObs) { return undefined; }
 
-		const layoutInfo = layoutInfoObs.read(reader);
+		const layoutInfo = overlayLayoutObs.read(reader);
 
 		const rectangleOverlay = createRectangle(
 			{
