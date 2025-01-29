@@ -968,7 +968,7 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 	if (files.length === 0) {
 		const docsQuickPick: IQuickPickItem & { value: URI } = {
 			type: 'item',
-			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how to add one'),
+			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how create reusable prompts'),
 			description: PROMPT_SNIPPETS_DOCUMENTATION_URL,
 			tooltip: PROMPT_SNIPPETS_DOCUMENTATION_URL,
 			value: URI.parse(PROMPT_SNIPPETS_DOCUMENTATION_URL),
