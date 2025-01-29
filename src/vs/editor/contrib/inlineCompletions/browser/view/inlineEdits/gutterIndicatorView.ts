@@ -126,7 +126,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		const space = 1;
 
-		const targetRect = Rect.fromRanges(OffsetRange.fromTo(space, layout.lineNumbersLeft + layout.lineNumbersWidth + 4), targetVertRange);
+		const targetRect = Rect.fromRanges(OffsetRange.fromTo(space + layout.glyphMarginLeft, layout.lineNumbersLeft + layout.lineNumbersWidth + 4), targetVertRange);
 
 
 		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
