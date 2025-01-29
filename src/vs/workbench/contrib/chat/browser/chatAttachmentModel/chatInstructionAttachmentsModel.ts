@@ -26,7 +26,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * @param isRoot If the reference is the root reference in the references tree.
  * 				 This object most likely was explicitly attached by the user.
  */
-const toChatVariable = (
+export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptSnippet'>,
 	isRoot: boolean,
 ): IChatRequestVariableEntry => {
