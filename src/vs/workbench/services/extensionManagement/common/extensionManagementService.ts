@@ -24,7 +24,7 @@ import { localize } from '../../../../nls.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IDownloadService } from '../../../../platform/download/common/download.js';
-import { coalesce } from '../../../../base/common/arrays.js';
+import { coalesce, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../../base/common/severity.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../platform/userDataSync/common/userDataSync.js';
@@ -503,7 +503,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		if (installOptions?.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT] !== ExtensionInstallSource.SETTINGS_SYNC) {
-			await this.checkForTrustedPublisher(gallery, manifest);
+			await this.checkForTrustedPublisher(gallery, manifest, !installOptions?.donotIncludePackAndDependencies);
 
 			await this.checkForWorkspaceTrust(manifest, false);
 
@@ -789,10 +789,12 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		throw new Error('No extension server found');
 	}
 
-	private async checkForTrustedPublisher(extension: IGalleryExtension, manifest: IExtensionManifest): Promise<void> {
+	private async checkForTrustedPublisher(extension: IGalleryExtension, manifest: IExtensionManifest, checkForPackAndDependencies: boolean): Promise<void> {
 		if (this.isPublisherTrusted(extension)) {
 			return;
 		}
+
+		const otherUntrustedPublishers = checkForPackAndDependencies ? await this.getOtherUntrustedPublishers(manifest) : [];
 
 		type TrustPublisherClassification = {
 			owner: 'sandy081';
@@ -806,7 +808,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		};
 
 		const installButton: IPromptButton<void> = {
-			label: localize({ key: 'trust and install', comment: ['&& denotes a mnemonic'] }, "Trust Publisher & &&Install"),
+			label: otherUntrustedPublishers.length ? localize({ key: 'trust publishers and install', comment: ['&& denotes a mnemonic'] }, "Trust Publishers & &&Install") : localize({ key: 'trust and install', comment: ['&& denotes a mnemonic'] }, "Trust Publisher & &&Install"),
 			run: () => {
 				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'trust', extensionId: extension.identifier.id });
 				this.trustPublishers(extension.publisher);
@@ -822,28 +824,79 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			}
 		};
 
+		const getPublisherLink = ({ publisherDisplayName, publisher }: { publisherDisplayName: string; publisher: string }) => {
+			return `[${publisherDisplayName}](${joinPath(URI.parse(this.productService.extensionsGallery!.publisherUrl), publisher)})`;
+		};
+		const unverifiedLink = 'https://aka.ms/vscode-verify-publisher';
+
+		const title = otherUntrustedPublishers.length
+			? otherUntrustedPublishers.length === 1
+				? localize('checkTwoTrustedPublishersTitle', "Do you trust publishers \"{0}\" and \"{1}\"?", extension.publisherDisplayName, otherUntrustedPublishers[0].publisherDisplayName)
+				: localize('checkAllTrustedPublishersTitle', "Do you trust the publisher \"{0}\" and {1} others?", extension.publisherDisplayName, otherUntrustedPublishers.length)
+			: localize('checkTrustedPublisherTitle', "Do you trust the publisher \"{0}\"?", extension.publisherDisplayName);
+
 		const customMessage = new MarkdownString('', { supportThemeIcons: true, isTrusted: true });
-		customMessage.appendMarkdown(localize('message1', "The extension {0} is published by {1}. This is the first extension you're installing from this publisher.", `[${extension.displayName}](${this.productService.extensionsGallery!.itemUrl}?itemName=${extension.identifier.id})`, `[${extension.publisherDisplayName}](${joinPath(URI.parse(this.productService.extensionsGallery!.publisherUrl), extension.publisher)})`));
 
-		customMessage.appendText('\n');
-		if (extension.publisherDomain?.verified) {
-			const publisherVerifiedMessage = localize('verifiedPublisher', "This publisher has verified ownership of {0}.", `[${URI.parse(extension.publisherDomain.link).authority}](${extension.publisherDomain.link})`);
-			customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
+		if (otherUntrustedPublishers.length) {
+			customMessage.appendMarkdown(localize('extension published by message', "The extension {0} is published by {1}.", `[${extension.displayName}](${this.productService.extensionsGallery!.itemUrl}?itemName=${extension.identifier.id})`, getPublisherLink(extension)));
+			customMessage.appendMarkdown('&nbsp;');
+			const commandUri = URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([extension.identifier.id, manifest.extensionPack?.length ? 'extensionPack' : 'dependencies']))}`).toString();
+			if (otherUntrustedPublishers.length === 1) {
+				customMessage.appendMarkdown(localize('singleUntrustedPublisher', "Installing this extension will also install [extensions]({0}) published by {1}.", commandUri, getPublisherLink(otherUntrustedPublishers[0])));
+			} else {
+				customMessage.appendMarkdown(localize('message3', "Installing this extension will also install [extensions]({0}) published by {1} and {2}.", commandUri, otherUntrustedPublishers.slice(0, otherUntrustedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(otherUntrustedPublishers[otherUntrustedPublishers.length - 1])));
+			}
+			customMessage.appendMarkdown('&nbsp;');
+			customMessage.appendMarkdown(localize('firstTimeInstallingMessage', "This is the first time you're installing extensions from these publishers."));
+
+			const allPublishers = [extension, ...otherUntrustedPublishers];
+			const unverfiiedPublishers = allPublishers.filter(p => !p.publisherDomain?.verified);
+			const verifiedPublishers = allPublishers.filter(p => p.publisherDomain?.verified);
+
+			if (verifiedPublishers.length) {
+				customMessage.appendText('\n');
+				for (const publisher of verifiedPublishers) {
+					if (publisher.publisherDomain?.verified) {
+						customMessage.appendText('\n');
+						const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `[${URI.parse(publisher.publisherDomain.link).authority}](${publisher.publisherDomain.link})`);
+						customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
+					} else {
+						unverfiiedPublishers.push(publisher);
+					}
+				}
+				if (unverfiiedPublishers.length) {
+					customMessage.appendText('\n');
+					if (unverfiiedPublishers.length === 1) {
+						customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisherWithName', "{0} is **not** [verified]({1}).", getPublisherLink(unverfiiedPublishers[0]), unverifiedLink)}`);
+					} else {
+						customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublishers', "{0} and {1} are **not** [verified]({2}).", unverfiiedPublishers.slice(0, unverfiiedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(unverfiiedPublishers[unverfiiedPublishers.length - 1]), unverifiedLink)}`);
+					}
+				}
+			} else {
+				customMessage.appendText('\n');
+				customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('allUnverifed', "All publishers are **not** [verified]({0}).", unverifiedLink)}`);
+			}
+
 		} else {
-			customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisher', "This publisher is **not** [verified](https://aka.ms/vscode-verify-publisher).")}`);
-		}
-
-		if (await this.hasDepsAndPacksFromOtherUntrustedPublishers(manifest)) {
-			const commandUri = URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([extension.identifier.id, manifest.extensionPack?.length ? 'extensionPack' : 'dependencies']))}`);
+			customMessage.appendMarkdown(localize('message1', "The extension {0} is published by {1}. This is the first extension you're installing from this publisher.", `[${extension.displayName}](${this.productService.extensionsGallery!.itemUrl}?itemName=${extension.identifier.id})`, getPublisherLink(extension)));
 			customMessage.appendText('\n');
-			customMessage.appendMarkdown(localize('message3', "Installing this extension will also install [extensions]({0}) from other publishers. Trusting this publisher will automatically trust the other publishers.", commandUri.toString()));
+			if (extension.publisherDomain?.verified) {
+				const publisherVerifiedMessage = localize('verifiedPublisher', "{0} has verified ownership of {1}.", getPublisherLink(extension), `[${URI.parse(extension.publisherDomain.link).authority}](${extension.publisherDomain.link})`);
+				customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
+			} else {
+				customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisher', "{0} is **not** [verified]({1}).", getPublisherLink(extension), unverifiedLink)}`);
+			}
 		}
 
-		customMessage.appendText('\n');
-		customMessage.appendMarkdown(localize('message2', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publisher.", this.productService.nameLong));
+		customMessage.appendText('\n\n');
+		if (otherUntrustedPublishers.length) {
+			customMessage.appendMarkdown(localize('message4', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publishers.", this.productService.nameLong));
+		} else {
+			customMessage.appendMarkdown(localize('message2', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publisher.", this.productService.nameLong));
+		}
 
 		await this.dialogService.prompt({
-			message: localize('checkTrustedPublisherTitle', "Do you trust the publisher \"{0}\"?", extension.publisherDisplayName),
+			message: title,
 			type: Severity.Warning,
 			buttons: [installButton, learnMoreButton],
 			cancelButton: {
@@ -860,7 +913,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	}
 
-	private async hasDepsAndPacksFromOtherUntrustedPublishers(manifest: IExtensionManifest): Promise<boolean> {
+	private async getOtherUntrustedPublishers(manifest: IExtensionManifest): Promise<{ publisher: string; publisherDisplayName: string; publisherDomain?: { link: string; verified: boolean } }[]> {
 		const infos = [];
 		for (const id of [...(manifest.extensionPack ?? []), ...(manifest.extensionDependencies ?? [])]) {
 			const [publisherId] = id.split('.');
@@ -870,13 +923,51 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			if (this.isPublisherUserTrusted(publisherId.toLowerCase())) {
 				continue;
 			}
-			infos.push({ id });
+			infos.push(id);
 		}
 		if (!infos.length) {
-			return false;
+			return [];
 		}
-		const extensions = await this.extensionGalleryService.getExtensions(infos, CancellationToken.None);
-		return extensions.some(e => !this.isPublisherTrusted(e));
+		const extensions = new Map<string, IGalleryExtension>();
+		await this.getDependenciesAndPackedExtensionsRecursively(infos, extensions, CancellationToken.None);
+		const publishers = new Map<string, IGalleryExtension>();
+		for (const [, extension] of extensions) {
+			if (this.isPublisherTrusted(extension)) {
+				continue;
+			}
+			publishers.set(extension.publisherDisplayName, extension);
+		}
+		return [...publishers.values()];
+	}
+
+	private async getDependenciesAndPackedExtensionsRecursively(toGet: string[], result: Map<string, IGalleryExtension>, token: CancellationToken): Promise<void> {
+		if (toGet.length === 0) {
+			return;
+		}
+
+		const extensions = await this.extensionGalleryService.getExtensions(toGet.map(id => ({ id })), token);
+		for (let idx = 0; idx < extensions.length; idx++) {
+			const extension = extensions[idx];
+			result.set(extension.identifier.id.toLowerCase(), extension);
+		}
+		toGet = [];
+		for (const extension of extensions) {
+			if (isNonEmptyArray(extension.properties.dependencies)) {
+				for (const id of extension.properties.dependencies) {
+					if (!result.has(id.toLowerCase())) {
+						toGet.push(id);
+					}
+				}
+			}
+			if (isNonEmptyArray(extension.properties.extensionPack)) {
+				for (const id of extension.properties.extensionPack) {
+					if (!result.has(id.toLowerCase())) {
+						toGet.push(id);
+					}
+				}
+			}
+		}
+		return this.getDependenciesAndPackedExtensionsRecursively(toGet, result, token);
 	}
 
 	private async checkForWorkspaceTrust(manifest: IExtensionManifest, requireTrust: boolean): Promise<void> {
