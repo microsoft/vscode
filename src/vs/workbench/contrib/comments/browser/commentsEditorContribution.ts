@@ -28,6 +28,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/
 import { CommentsInputContentProvider } from './commentsInputContentProvider.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { CommentWidgetFocus } from './commentThreadZoneWidget.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerWorkbenchContribution2(CommentsInputContentProvider.ID, CommentsInputContentProvider, WorkbenchPhase.BlockRestore);
@@ -417,8 +418,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.or(ctxCommentEditorFocused, CommentContextKeys.commentFocused),
-	handler: (accessor, args) => {
+	handler: async (accessor, args) => {
 		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		const keybindingService = accessor.get(IKeybindingService);
+		// Unfortunate, but collapsing the comment thread might cause a dialog to show
+		// If we don't wait for the key up here, then the dialog will consume it and immediately close
+		await keybindingService.enableKeybindingHoldMode(CommentCommandId.Hide);
 		if (activeCodeEditor instanceof SimpleCommentEditor) {
 			activeCodeEditor.getParentThread().collapse();
 		} else if (activeCodeEditor) {
