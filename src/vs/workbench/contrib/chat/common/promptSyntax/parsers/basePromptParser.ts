@@ -469,12 +469,14 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	/**
 	 * Get message for the provided error condition object.
 	 *
-	 * @param error Error object.
+	 * @param error Error object that extends {@link ParseError}.
 	 * @returns Error message.
 	 */
-	protected getErrorMessage(error: ParseError): string {
-		// if failed to resolve prompt contents stream, return
-		// the approprivate message and the prompt path
+	protected getErrorMessage<TError extends ParseError>(error: TError): string {
+		if (error instanceof FileOpenFailed) {
+			return `${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
+		}
+
 		if (error instanceof FailedToResolveContentsStream) {
 			return `${errorMessages.streamOpenFailed} '${error.uri.path}'.`;
 		}
