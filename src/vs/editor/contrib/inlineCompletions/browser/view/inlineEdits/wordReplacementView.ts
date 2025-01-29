@@ -40,6 +40,9 @@ export const transparentHoverBackground = registerColor(
 );
 
 export class WordReplacementView extends Disposable implements IInlineEditsView {
+
+	public static MAX_LENGTH = 100;
+
 	private readonly _start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
 	private readonly _end = this._editor.observePosition(constObservable(this._edit.range.getEndPosition()), this._store);
 
