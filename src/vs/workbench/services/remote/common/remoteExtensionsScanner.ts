@@ -17,6 +17,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IActiveLanguagePackService } from '../../localization/common/locale.js';
 import { IWorkbenchExtensionManagementService } from '../../extensionManagement/common/extensionManagement.js';
 import { Mutable } from '../../../../base/common/types.js';
+import { InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 
 class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
 
@@ -32,10 +33,10 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	whenExtensionsReady(): Promise<Array<string | URI>> {
+	whenExtensionsReady(): Promise<{ extensions: Array<string | URI>; installOptions: InstallOptions }> {
 		return this.withChannel(
-			channel => channel.call<Array<string | URI>>('whenExtensionsReady'),
-			[],
+			channel => channel.call<{ extensions: Array<string | URI>; installOptions: InstallOptions }>('whenExtensionsReady'),
+			{ extensions: [], installOptions: {} },
 		);
 	}
 
