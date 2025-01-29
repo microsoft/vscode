@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isElectron } from '../../../../../base/common/platform.js';
-import { dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -52,6 +52,7 @@ import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
+import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
@@ -811,7 +812,7 @@ export class AttachContextAction extends Action2 {
 				kind: 'prompt-instructions',
 				id: 'prompt-instructions',
 				label: localize('promptWithEllipsis', 'Prompt...'),
-				iconClass: ThemeIcon.asClassName(Codicon.lightbulbSparkle),
+				iconClass: ThemeIcon.asClassName(Codicon.bookmark),
 			});
 		}
 
@@ -947,9 +948,11 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 	const files = await promptInstructions.listNonAttachedFiles()
 		.then((files) => {
 			return files.map((file) => {
+				const fileBasename = basename(file);
+				const fileWithoutExtension = fileBasename.replace(PROMPT_SNIPPET_FILE_EXTENSION, '');
 				const result: IQuickPickItem & { value: URI } = {
 					type: 'item',
-					label: labelService.getUriBasenameLabel(file),
+					label: fileWithoutExtension,
 					description: labelService.getUriLabel(dirname(file), { relative: true }),
 					tooltip: file.fsPath,
 					value: file,
