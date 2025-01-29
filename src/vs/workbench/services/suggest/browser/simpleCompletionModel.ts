@@ -209,8 +209,13 @@ export class SimpleCompletionModel {
 				score = a.fileExtLow.length - b.fileExtLow.length;
 			}
 			if (score === 0 || fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0) {
-				// both files or directories, sort alphabetically
-				score = a.completion.label.localeCompare(b.completion.label);
+				// Sort by label length ascending
+				score = a.completion.label.length - b.completion.label.length;
+				if (score !== 0) {
+					return score;
+				}
+				// Then by label alphabetically ascending
+				score = score = a.completion.label.localeCompare(b.completion.label);
 			}
 			return score;
 		});
