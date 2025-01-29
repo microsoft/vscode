@@ -19,6 +19,7 @@ import { PluginManager } from './plugins';
 import { GetErrRoutingTsServer, ITypeScriptServer, SingleTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerLog, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
+import { NodeVersionManager } from './nodeManager';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -44,6 +45,7 @@ export class TypeScriptServerSpawner {
 	public constructor(
 		private readonly _versionProvider: ITypeScriptVersionProvider,
 		private readonly _versionManager: TypeScriptVersionManager,
+		private readonly _nodeVersionManager: NodeVersionManager,
 		private readonly _logDirectoryProvider: ILogDirectoryProvider,
 		private readonly _pluginPathsProvider: TypeScriptPluginPathsProvider,
 		private readonly _logger: Logger,
@@ -114,12 +116,9 @@ export class TypeScriptServerSpawner {
 				return CompositeServerType.Single;
 
 			case SyntaxServerConfiguration.Auto:
-				if (version.apiVersion?.gte(API.v340)) {
-					return version.apiVersion?.gte(API.v400)
-						? CompositeServerType.DynamicSeparateSyntax
-						: CompositeServerType.SeparateSyntax;
-				}
-				return CompositeServerType.Single;
+				return version.apiVersion?.gte(API.v400)
+					? CompositeServerType.DynamicSeparateSyntax
+					: CompositeServerType.SeparateSyntax;
 		}
 	}
 
@@ -160,7 +159,7 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, tsServerLog);
+		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, this._nodeVersionManager, tsServerLog);
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new SingleTsServer(
@@ -240,7 +239,7 @@ export class TypeScriptServerSpawner {
 		if (configuration.enableTsServerTracing && !isWeb()) {
 			tsServerTraceDirectory = this._logDirectoryProvider.getNewLogDirectory();
 			if (tsServerTraceDirectory) {
-				args.push('--traceDirectory', tsServerTraceDirectory.fsPath);
+				args.push('--traceDirectory', `"${tsServerTraceDirectory.fsPath}"`);
 			}
 		}
 
@@ -268,6 +267,22 @@ export class TypeScriptServerSpawner {
 		args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
 
 		args.push('--noGetErrOnBackgroundUpdate');
+
+		const configUseVsCodeWatcher = configuration.useVsCodeWatcher;
+		const isYarnPnp = apiVersion.isYarnPnp();
+		if (
+			apiVersion.gte(API.v544)
+			&& configUseVsCodeWatcher
+			&& !isYarnPnp // Disable for yarn pnp as it currently breaks with the VS Code watcher
+		) {
+			args.push('--canUseWatchEvents');
+		} else {
+			if (!configUseVsCodeWatcher) {
+				this._logger.info(`<${kind}> Falling back to legacy node.js based file watching because of user settings.`);
+			} else if (isYarnPnp) {
+				this._logger.info(`<${kind}> Falling back to legacy node.js based file watching because of Yarn PnP.`);
+			}
+		}
 
 		args.push('--validateDefaultNpmLocation');
 

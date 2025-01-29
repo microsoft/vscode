@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/environmentVariable';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { URI } from 'vs/base/common/uri';
+import { EnvironmentVariableMutatorType } from '../../../../../platform/terminal/common/environmentVariable.js';
+import { IProcessEnvironment, isWindows } from '../../../../../base/common/platform.js';
+import { MergedEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariableCollection.js';
+import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariableShared.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('ctor', () => {
 		test('Should keep entries that come after a Prepend or Append type mutators', () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([

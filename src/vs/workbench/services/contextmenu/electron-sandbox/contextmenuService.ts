@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from 'vs/base/common/actions';
-import * as dom from 'vs/base/browser/dom';
-import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { getZoomFactor } from 'vs/base/browser/browser';
-import { unmnemonicLabel } from 'vs/base/common/labels';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextMenuDelegate, IContextMenuEvent } from 'vs/base/browser/contextmenu';
-import { once } from 'vs/base/common/functional';
-import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextMenuMenuDelegate, ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { coalesce } from 'vs/base/common/arrays';
-import { Event, Emitter } from 'vs/base/common/event';
-import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IAction, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { getZoomFactor } from '../../../../base/browser/browser.js';
+import { unmnemonicLabel } from '../../../../base/common/labels.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browser/contextmenu.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
+import { popup } from '../../../../base/parts/contextmenu/electron-sandbox/contextmenu.js';
+import { hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextMenuMenuDelegate, ContextMenuService as HTMLContextMenuService } from '../../../../platform/contextview/browser/contextMenuService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -48,7 +48,7 @@ export class ContextMenuService implements IContextMenuService {
 	) {
 
 		// Custom context menu: Linux/Windows if custom title is enabled
-		if (!isMacintosh && getTitleBarStyle(configurationService) === 'custom') {
+		if (!isMacintosh && !hasNativeTitlebar(configurationService)) {
 			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
 		}
 
@@ -82,7 +82,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 	}
@@ -93,7 +93,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 		const actions = delegate.getActions();
 		if (actions.length) {
-			const onHide = once(() => {
+			const onHide = createSingleCallFunction(() => {
 				delegate.onHide?.(false);
 
 				dom.ModifierKeyEmitter.getInstance().resetKeyStatus();
@@ -103,10 +103,10 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			const menu = this.createMenu(delegate, actions, onHide);
 			const anchor = delegate.getAnchor();
 
-			let x: number;
-			let y: number;
+			let x: number | undefined;
+			let y: number | undefined;
 
-			let zoom = getZoomFactor();
+			let zoom = getZoomFactor(dom.isHTMLElement(anchor) ? dom.getWindow(anchor) : dom.getActiveWindow());
 			if (dom.isHTMLElement(anchor)) {
 				const elementPosition = dom.getDomNodePagePosition(anchor);
 
@@ -129,6 +129,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					}
 
 					if (!isMacintosh) {
+						const window = dom.getWindow(anchor);
 						const availableHeightForMenu = window.screen.height - y;
 						if (availableHeightForMenu < actions.length * (isWindows ? 45 : 32) /* guess of 1 menu item height */) {
 							// this is a guess to detect whether the context menu would
@@ -155,20 +156,23 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				if (isMacintosh) {
 					y += 4 / zoom;
 				}
+			} else if (isAnchor(anchor)) {
+				x = anchor.x;
+				y = anchor.y;
 			} else {
-				const pos: { x: number; y: number } = anchor;
-				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
-				y = pos.y;
+				// We leave x/y undefined in this case which will result in
+				// Electron taking care of opening the menu at the cursor position.
 			}
 
-			x *= zoom;
-			y *= zoom;
+			if (typeof x === 'number') {
+				x = Math.floor(x * zoom);
+			}
 
-			popup(menu, {
-				x: Math.floor(x),
-				y: Math.floor(y),
-				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
-			}, () => onHide());
+			if (typeof y === 'number') {
+				y = Math.floor(y * zoom);
+			}
+
+			popup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, }, () => onHide());
 
 			this._onDidShowContextMenu.fire();
 		}

@@ -3,20 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { HydratedTestResult, LiveTestResult, resultItemParents, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { makeEmptyCounts } from 'vs/workbench/contrib/testing/common/testingStates';
-import { getInitializedMainTestCollection, testStubs, TestTestCollection } from 'vs/workbench/contrib/testing/test/common/testStubs';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { TestId } from '../../common/testId.js';
+import { TestProfileService } from '../../common/testProfileService.js';
+import { HydratedTestResult, LiveTestResult, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from '../../common/testResult.js';
+import { TestResultService } from '../../common/testResultService.js';
+import { ITestResultStorage, InMemoryResultStorage } from '../../common/testResultStorage.js';
+import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from '../../common/testTypes.js';
+import { makeEmptyCounts } from '../../common/testingStates.js';
+import { TestTestCollection, getInitializedMainTestCollection, testStubs } from './testStubs.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('Workbench - Test Results Service', () => {
 	const getLabelsIn = (it: Iterable<TestResultItem>) => [...it].map(t => t.item.label).sort();
@@ -28,36 +32,51 @@ suite('Workbench - Test Results Service', () => {
 	let tests: TestTestCollection;
 
 	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
+		group: TestRunProfileBitset.Run,
 		targets: [{
-			profileGroup: TestRunProfileBitset.Run,
 			profileId: 0,
 			controllerId: 'ctrlId',
 			testIds,
 		}]
 	});
 
+	let insertCounter = 0;
+
 	class TestLiveTestResult extends LiveTestResult {
+		constructor(
+			id: string,
+			persist: boolean,
+			request: ResolvedTestRunRequest,
+		) {
+			super(id, persist, request, insertCounter++, NullTelemetryService);
+			ds.add(this);
+		}
+
 		public setAllToStatePublic(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
 			this.setAllToState(state, taskId, when);
 		}
 	}
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
 		changed = new Set();
-		r = new TestLiveTestResult(
+		r = ds.add(new TestLiveTestResult(
 			'foo',
 			true,
 			defaultOpts(['id-a']),
-		);
+		));
 
-		r.onChange(e => changed.add(e));
-		r.addTask({ id: 't', name: undefined, running: true });
+		ds.add(r.onChange(e => changed.add(e)));
+		r.addTask({ id: 't', name: 'n', running: true, ctrlId: 'ctrl' });
 
-		tests = testStubs.nested();
+		tests = ds.add(testStubs.nested());
+		const cts = ds.add(new CancellationTokenSource());
 		const ok = await Promise.race([
 			Promise.resolve(tests.expand(tests.root.id, Infinity)).then(() => true),
-			timeout(1000).then(() => false),
+			timeout(1000, cts.token).then(() => false),
 		]);
+		cts.cancel();
 
 		// todo@connor4312: debug for tests #137853:
 		if (!ok) {
@@ -75,6 +94,8 @@ suite('Workbench - Test Results Service', () => {
 			tests.root.children.get('id-a')!.children.get('id-ab')!.toTestItem(),
 		]);
 	});
+
+	// ensureNoDisposablesAreLeakedInTestSuite(); todo@connor4312
 
 	suite('LiveTestResult', () => {
 		test('is empty if no tests are yet present', async () => {
@@ -190,8 +211,17 @@ suite('Workbench - Test Results Service', () => {
 		}
 
 		setup(() => {
-			storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
-			results = new TestTestResultService(new MockContextKeyService(), storage, new TestProfileService(new MockContextKeyService(), new TestStorageService()));
+			storage = ds.add(new InMemoryResultStorage({
+				asCanonicalUri(uri) {
+					return uri;
+				},
+			} as IUriIdentityService, ds.add(new TestStorageService()), new NullLogService()));
+			results = ds.add(new TestTestResultService(
+				new MockContextKeyService(),
+				storage,
+				ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService()))),
+				NullTelemetryService,
+			));
 		});
 
 		test('pushes new result', () => {
@@ -205,11 +235,12 @@ suite('Workbench - Test Results Service', () => {
 			r.markComplete();
 			await timeout(10); // allow persistImmediately async to happen
 
-			results = new TestResultService(
+			results = ds.add(new TestResultService(
 				new MockContextKeyService(),
 				storage,
-				new TestProfileService(new MockContextKeyService(), new TestStorageService()),
-			);
+				ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService()))),
+				NullTelemetryService,
+			));
 
 			assert.strictEqual(0, results.results.length);
 			await timeout(10); // allow load promise to resolve
@@ -234,31 +265,39 @@ suite('Workbench - Test Results Service', () => {
 				'',
 				false,
 				defaultOpts([]),
+				insertCounter++,
+				NullTelemetryService,
 			));
 			results.clear();
 
 			assert.deepStrictEqual(results.results, [r2]);
 		});
 
-		test('keeps ongoing tests on top', async () => {
+		test('keeps ongoing tests on top, restored order when done', async () => {
 			results.push(r);
 			const r2 = results.push(new LiveTestResult(
 				'',
 				false,
 				defaultOpts([]),
+				insertCounter++,
+				NullTelemetryService,
 			));
 
 			assert.deepStrictEqual(results.results, [r2, r]);
 			r2.markComplete();
 			assert.deepStrictEqual(results.results, [r, r2]);
 			r.markComplete();
-			assert.deepStrictEqual(results.results, [r, r2]);
+			assert.deepStrictEqual(results.results, [r2, r]);
 		});
 
 		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
+			asCanonicalUri(uri) {
+				return uri;
+			},
+		} as IUriIdentityService, {
 			completedAt,
 			id: 'some-id',
-			tasks: [{ id: 't', name: undefined }],
+			tasks: [{ id: 't', name: undefined, ctrlId: 'ctrl', hasCoverage: false }],
 			name: 'hello world',
 			request: defaultOpts([]),
 			items: [{
@@ -326,9 +365,11 @@ suite('Workbench - Test Results Service', () => {
 
 			const a1 = ctrl.append(VSBuffer.fromString('12345'), 1);
 			const a2 = ctrl.append(VSBuffer.fromString('67890'), 1234);
+			const a3 = ctrl.append(VSBuffer.fromString('with new line\r\n'), 4);
 
-			assert.deepStrictEqual(ctrl.getRange(a1, 5), VSBuffer.fromString('12345'));
-			assert.deepStrictEqual(ctrl.getRange(a2, 5), VSBuffer.fromString('67890'));
+			assert.deepStrictEqual(ctrl.getRange(a1.offset, a1.length), VSBuffer.fromString('\x1b]633;SetMark;Id=s1;Hidden\x0712345\x1b]633;SetMark;Id=e1;Hidden\x07'));
+			assert.deepStrictEqual(ctrl.getRange(a2.offset, a2.length), VSBuffer.fromString('\x1b]633;SetMark;Id=s1234;Hidden\x0767890\x1b]633;SetMark;Id=e1234;Hidden\x07'));
+			assert.deepStrictEqual(ctrl.getRange(a3.offset, a3.length), VSBuffer.fromString('\x1b]633;SetMark;Id=s4;Hidden\x07with new line\x1b]633;SetMark;Id=e4;Hidden\x07\r\n'));
 		});
 	});
 });

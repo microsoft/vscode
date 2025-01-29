@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { GestureEvent } from 'vs/base/browser/touch';
+import { IDragAndDropData } from '../../dnd.js';
+import { IKeyboardEvent } from '../../keyboardEvent.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { GestureEvent } from '../../touch.js';
+import { ListViewTargetSector } from './listView.js';
+import { IDisposable } from '../../../common/lifecycle.js';
 
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
@@ -55,13 +58,14 @@ export interface IListDragEvent<T> {
 	readonly browserEvent: DragEvent;
 	readonly element: T | undefined;
 	readonly index: number | undefined;
+	readonly sector: ListViewTargetSector | undefined;
 }
 
 export interface IListContextMenuEvent<T> {
 	readonly browserEvent: UIEvent;
 	readonly element: T | undefined;
 	readonly index: number | undefined;
-	readonly anchor: HTMLElement | { readonly x: number; readonly y: number };
+	readonly anchor: HTMLElement | IMouseEvent;
 }
 
 export interface IIdentityProvider<T> {
@@ -82,9 +86,20 @@ export interface IKeyboardNavigationDelegate {
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
 }
 
-export const enum ListDragOverEffect {
+export const enum ListDragOverEffectType {
 	Copy,
 	Move
+}
+
+export const enum ListDragOverEffectPosition {
+	Over = 'drop-target',
+	Before = 'drop-target-before',
+	After = 'drop-target-after'
+}
+
+export interface ListDragOverEffect {
+	type: ListDragOverEffectType;
+	position?: ListDragOverEffectPosition;
 }
 
 export interface IListDragOverReaction {
@@ -98,13 +113,17 @@ export const ListDragOverReactions = {
 	accept(): IListDragOverReaction { return { accept: true }; },
 };
 
-export interface IListDragAndDrop<T> {
+/**
+ * Warning: Once passed to a list, that list takes up
+ * the responsibility of disposing it.
+ */
+export interface IListDragAndDrop<T> extends IDisposable {
 	getDragURI(element: T): string | null;
 	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined;
 	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void;
-	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
 	onDragLeave?(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
-	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
+	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void;
 	onDragEnd?(originalEvent: DragEvent): void;
 }
 

@@ -113,8 +113,6 @@ class ImagePreview extends MediaPreview {
 		this.updateBinarySize();
 		this.render();
 		this.updateState();
-
-		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	public override dispose(): void {
@@ -156,6 +154,10 @@ class ImagePreview extends MediaPreview {
 			this.sizeStatusBarEntry.hide(this);
 			this.zoomStatusBarEntry.hide(this);
 		}
+	}
+	protected override async render(): Promise<void> {
+		await super.render();
+		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	protected override async getWebviewContents(): Promise<string> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IEncryptionService = createDecorator<IEncryptionService>('encryptionService');
 export interface IEncryptionService extends ICommonEncryptionService {
@@ -25,6 +25,17 @@ export interface ICommonEncryptionService {
 	isEncryptionAvailable(): Promise<boolean>;
 }
 
+// The values provided to the `password-store` command line switch.
+// Notice that they are not the same as the values returned by
+// `getSelectedStorageBackend` in the `safeStorage` API.
+export const enum PasswordStoreCLIOption {
+	kwallet = 'kwallet',
+	kwallet5 = 'kwallet5',
+	gnomeLibsecret = 'gnome-libsecret',
+	basic = 'basic'
+}
+
+// The values returned by `getSelectedStorageBackend` in the `safeStorage` API.
 export const enum KnownStorageProvider {
 	unknown = 'unknown',
 	basicText = 'basic_text',
@@ -36,6 +47,9 @@ export const enum KnownStorageProvider {
 	kwallet = 'kwallet',
 	kwallet5 = 'kwallet5',
 	kwallet6 = 'kwallet6',
+
+	// The rest of these are not returned by `getSelectedStorageBackend`
+	// but these were added for platform completeness.
 
 	// Windows
 	dplib = 'dpapi',

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
-import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { Action } from 'vs/base/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { localize } from 'vs/nls';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from '../../../platform/progress/common/progress.js';
+import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { Action } from '../../../base/common/actions.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { localize } from '../../../nls.js';
+import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 
 class ManageExtensionAction extends Action {
 	constructor(extensionId: string, label: string, commandService: ICommandService) {
@@ -52,7 +53,13 @@ export class MainThreadProgress implements MainThreadProgressShape {
 			options = notificationOptions;
 		}
 
-		this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+		try {
+			this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+		} catch (err) {
+			// the withProgress-method will throw synchronously when invoked with bad options
+			// which is then an enternal/extension error
+			onUnexpectedExternalError(err);
+		}
 	}
 
 	$progressReport(handle: number, message: IProgressStep): void {

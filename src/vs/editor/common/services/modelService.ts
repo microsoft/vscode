@@ -3,41 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
-import { StringSHA1 } from 'vs/base/common/hash';
-import { isEditStackElement } from 'vs/editor/common/model/editStack';
-import { Schemas } from 'vs/base/common/network';
-import { equals } from 'vs/base/common/objects';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import * as platform from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
+import { Range } from '../core/range.js';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
+import { TextModel, createTextBuffer } from '../model/textModel.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { IModelLanguageChangedEvent } from '../textModelEvents.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
+import { ILanguageSelection } from '../languages/language.js';
+import { IModelService } from './model.js';
+import { ITextResourcePropertiesService } from './textResourceConfiguration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IUndoRedoService, ResourceEditStackSnapshot } from '../../../platform/undoRedo/common/undoRedo.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
+import { isEditStackElement } from '../model/editStack.js';
+import { Schemas } from '../../../base/common/network.js';
+import { equals } from '../../../base/common/objects.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
-}
-
-function computeModelSha1(model: ITextModel): string {
-	// compute the sha1
-	const shaComputer = new StringSHA1();
-	const snapshot = model.createSnapshot();
-	let text: string | null;
-	while ((text = snapshot.read())) {
-		shaComputer.update(text);
-	}
-	return shaComputer.digest();
 }
 
 class ModelData implements IDisposable {
@@ -118,8 +107,7 @@ export class ModelService extends Disposable implements IModelService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly _resourcePropertiesService: ITextResourcePropertiesService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
@@ -325,19 +313,21 @@ export class ModelService extends Disposable implements IModelService {
 	private _createModelData(value: string | ITextBufferFactory, languageIdOrSelection: string | ILanguageSelection, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdOrSelection, resource, isForSimpleWidget);
-		const model: TextModel = new TextModel(
+		const model: TextModel = this._instantiationService.createInstance(TextModel,
 			value,
 			languageIdOrSelection,
 			options,
-			resource,
-			this._undoRedoService,
-			this._languageService,
-			this._languageConfigurationService,
+			resource
 		);
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
 			const disposedModelData = this._removeDisposedModel(resource)!;
 			const elements = this._undoRedoService.getElements(resource);
-			const sha1IsEqual = (computeModelSha1(model) === disposedModelData.sha1);
+			const sha1Computer = this._getSHA1Computer();
+			const sha1IsEqual = (
+				sha1Computer.canComputeSHA1(model)
+					? sha1Computer.computeSHA1(model) === disposedModelData.sha1
+					: false
+			);
 			if (sha1IsEqual || disposedModelData.sharesUndoRedoStack) {
 				for (const element of elements.past) {
 					if (isEditStackElement(element) && element.matchesResource(resource)) {
@@ -535,6 +525,7 @@ export class ModelService extends Disposable implements IModelService {
 		}
 
 		const maxMemory = ModelService.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
+		const sha1Computer = this._getSHA1Computer();
 		if (!maintainUndoRedoStack) {
 			if (!sharesUndoRedoStack) {
 				const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
@@ -542,8 +533,8 @@ export class ModelService extends Disposable implements IModelService {
 					this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
 				}
 			}
-		} else if (!sharesUndoRedoStack && heapSize > maxMemory) {
-			// the undo stack for this file would never fit in the configured memory, so don't bother with it.
+		} else if (!sharesUndoRedoStack && (heapSize > maxMemory || !sha1Computer.canComputeSHA1(model))) {
+			// the undo stack for this file would never fit in the configured memory or the file is very large, so don't bother with it.
 			const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
 			if (initialUndoRedoSnapshot !== null) {
 				this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
@@ -552,7 +543,7 @@ export class ModelService extends Disposable implements IModelService {
 			this._ensureDisposedModelsHeapSize(maxMemory - heapSize);
 			// We only invalidate the elements, but they remain in the undo-redo service.
 			this._undoRedoService.setElementsValidFlag(model.uri, false, (element) => (isEditStackElement(element) && element.matchesResource(model.uri)));
-			this._insertDisposedModel(new DisposedModelInfo(model.uri, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
+			this._insertDisposedModel(new DisposedModelInfo(model.uri, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, sha1Computer.computeSHA1(model), model.getVersionId(), model.getAlternativeVersionId()));
 		}
 
 		delete this._models[modelId];
@@ -571,5 +562,34 @@ export class ModelService extends Disposable implements IModelService {
 		const newOptions = this.getCreationOptions(newLanguageId, model.uri, model.isForSimpleWidget);
 		ModelService._setModelOptionsForModel(model, newOptions, oldOptions);
 		this._onModelModeChanged.fire({ model, oldLanguageId: oldLanguageId });
+	}
+
+	protected _getSHA1Computer(): ITextModelSHA1Computer {
+		return new DefaultModelSHA1Computer();
+	}
+}
+
+export interface ITextModelSHA1Computer {
+	canComputeSHA1(model: ITextModel): boolean;
+	computeSHA1(model: ITextModel): string;
+}
+
+export class DefaultModelSHA1Computer implements ITextModelSHA1Computer {
+
+	public static MAX_MODEL_SIZE = 10 * 1024 * 1024; // takes 200ms to compute a sha1 on a 10MB model on a new machine
+
+	canComputeSHA1(model: ITextModel): boolean {
+		return (model.getValueLength() <= DefaultModelSHA1Computer.MAX_MODEL_SIZE);
+	}
+
+	computeSHA1(model: ITextModel): string {
+		// compute the sha1
+		const shaComputer = new StringSHA1();
+		const snapshot = model.createSnapshot();
+		let text: string | null;
+		while ((text = snapshot.read())) {
+			shaComputer.update(text);
+		}
+		return shaComputer.digest();
 	}
 }

@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { FontStyle, ColorId, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { ColorId, FontStyle, MetadataConsts, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
+import { ILanguageConfigurationService, LanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
+import { LineTokens } from '../../../common/tokens/lineTokens.js';
+import { SparseMultilineTokens } from '../../../common/tokens/sparseMultilineTokens.js';
+import { SparseTokensStore } from '../../../common/tokens/sparseTokensStore.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
 
 suite('TokensStore', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const SEMANTIC_COLOR = 5 as ColorId;
 
@@ -253,7 +256,7 @@ suite('TokensStore', () => {
 		const instantiationService = createModelServices(disposables, [
 			[ILanguageConfigurationService, LanguageConfigurationService]
 		]);
-		const model = instantiateTextModel(instantiationService, '--[[\n\n]]');
+		const model = disposables.add(instantiateTextModel(instantiationService, '--[[\n\n]]'));
 		model.tokenization.setSemanticTokens([
 			SparseMultilineTokens.create(1, new Uint32Array([
 				0, 2, 4, 0b100000000000010000,

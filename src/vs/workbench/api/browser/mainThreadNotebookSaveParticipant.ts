@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { ExtHostContext, ExtHostNotebookDocumentSaveParticipantShape } from '../common/extHost.protocol';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { raceCancellationError } from 'vs/base/common/async';
-import { IStoredFileWorkingCopySaveParticipant, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { localize } from '../../../nls.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IProgressStep, IProgress } from '../../../platform/progress/common/progress.js';
+import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostNotebookDocumentSaveParticipantShape } from '../common/extHost.protocol.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { raceCancellationError } from '../../../base/common/async.js';
+import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from '../../services/workingCopy/common/storedFileWorkingCopy.js';
+import { NotebookFileWorkingCopyModel } from '../../contrib/notebook/common/notebookEditorModel.js';
 
 class ExtHostNotebookDocumentSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 
@@ -24,7 +23,7 @@ class ExtHostNotebookDocumentSaveParticipant implements IStoredFileWorkingCopySa
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookDocumentSaveParticipant);
 	}
 
-	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, env: { reason: SaveReason }, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
 			return undefined;
@@ -38,7 +37,7 @@ class ExtHostNotebookDocumentSaveParticipant implements IStoredFileWorkingCopySa
 				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveNotebookDocument-event after 1750ms"))),
 				1750
 			);
-			this._proxy.$participateInSave(workingCopy.resource, env.reason, token).then(_ => {
+			this._proxy.$participateInSave(workingCopy.resource, context.reason, token).then(_ => {
 				clearTimeout(_warningTimeout);
 				return undefined;
 			}).then(resolve, reject);

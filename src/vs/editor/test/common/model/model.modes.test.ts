@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import * as languages from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import * as languages from '../../../common/languages.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { createTextModel } from '../testTextModel.js';
 
 // --------- utils
 
@@ -55,6 +56,8 @@ suite('Editor Model - Model Modes 1', () => {
 		languageRegistration.dispose();
 		calledFor = [];
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('model calls syntax highlighter 1', () => {
 		thisModel.tokenization.forceTokenization(1);
@@ -208,6 +211,8 @@ suite('Editor Model - Model Modes 2', () => {
 		thisModel.dispose();
 		languageRegistration.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getTokensForInvalidLines one text insert', () => {
 		thisModel.tokenization.forceTokenization(5);

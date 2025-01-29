@@ -63,7 +63,7 @@ declare module 'vscode' {
 		 * @param commandLine The command line of the process that is listening on the port. If the command line is unknown, undefined will be passed.
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 */
-		providePortAttributes(port: number, pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes>;
+		providePortAttributes(attributes: { port: number; pid?: number; commandLine?: string }, token: CancellationToken): ProviderResult<PortAttributes>;
 	}
 
 	/**

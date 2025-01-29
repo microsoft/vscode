@@ -5,10 +5,10 @@
 
 'use strict';
 
-import * as fs from 'fs';
-import * as debug from 'debug';
-import * as extract from 'extract-zip';
-import * as path from 'path';
+import fs from 'fs';
+import debug from 'debug';
+import extract from 'extract-zip';
+import path from 'path';
 import { downloadArtifact } from '@electron/get';
 
 const root = path.dirname(path.dirname(__dirname));
@@ -45,14 +45,10 @@ export async function downloadExplorerAppx(outDir: string, quality: string = 'st
 }
 
 async function main(outputDir?: string): Promise<void> {
-	let arch = process.env['VSCODE_ARCH'];
+	const arch = process.env['VSCODE_ARCH'];
 
 	if (!outputDir) {
 		throw new Error('Required build env not set');
-	}
-
-	if (arch === 'ia32') {
-		arch = 'x86';
 	}
 
 	const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));

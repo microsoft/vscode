@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, RenderLineInput, renderViewLine2 as renderViewLine, LineRange, DomPosition, RenderLineOutput2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
+import assert from 'assert';
+import { CharCode } from '../../../../base/common/charCode.js';
+import * as strings from '../../../../base/common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
+import { CharacterMapping, DomPosition, LineRange, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { InlineDecorationType } from '../../../common/viewModel.js';
+import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
 
 function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
 	return new TestLineTokens(viewLineTokens);
@@ -49,6 +50,8 @@ function inflateRenderLineOutput(renderLineOutput: RenderLineOutput2) {
 }
 
 suite('viewLineRenderer.renderLine', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[]): void {
 		const _actual = renderViewLine(new RenderLineInput(
@@ -965,6 +968,8 @@ function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: Charact
 }
 
 suite('viewLineRenderer.renderLine 2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null) {
 		const actual = renderViewLine(new RenderLineInput(

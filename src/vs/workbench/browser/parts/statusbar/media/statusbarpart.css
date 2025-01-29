@@ -88,6 +88,11 @@
 	margin-left: 3px;
 }
 
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.compact-right > .statusbar-item-label {
+	margin-right:0;
+	margin-left: 0;
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
 	padding-left: 7px; /* Add padding to the most left status bar item */
 }
@@ -142,6 +147,7 @@
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
 	text-decoration: none;
+	color: var(--vscode-statusBarItem-hoverForeground);
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a.disabled {
@@ -152,15 +158,6 @@
 	text-align: center;
 	font-size: 14px;
 	color: inherit;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item .status-bar-info {
-	color: var(--vscode-statusBarItem-prominentForeground);
-	background-color: var(--vscode-statusBarItem-prominentBackground);
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item a.status-bar-info:hover:not(.disabled) {
-	background-color: var(--vscode-statusBarItem-prominentHoverBackground);
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
@@ -179,4 +176,66 @@
 
 .monaco-workbench:not(.hc-light):not(.hc-black) .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
 	background-color: var(--vscode-statusBarItem-hoverBackground);
+}
+
+/** Status bar entry item kinds */
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.warning-kind {
+	color: var(--vscode-statusBarItem-warningForeground);
+	background-color: var(--vscode-statusBarItem-warningBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.warning-kind a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-warningHoverForeground);
+	background-color: var(--vscode-statusBarItem-warningHoverBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.error-kind {
+	color: var(--vscode-statusBarItem-errorForeground);
+	background-color: var(--vscode-statusBarItem-errorBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.error-kind a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-errorHoverForeground);
+	background-color: var(--vscode-statusBarItem-errorHoverBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.prominent-kind {
+	color: var(--vscode-statusBarItem-prominentForeground);
+	background-color: var(--vscode-statusBarItem-prominentBackground);
+}
+
+/**
+ * Using :not(.compact-right):not(.compact-left) here to improve the visual appearance
+ * when a prominent item uses `compact: true` with other items. The presence of the
+ * !important directive for `background-color` otherwise blocks our special hover handling
+ * code here:
+ * https://github.com/microsoft/vscode/blob/c2037f152b2bb3119ce1d87f52987776540dd57f/src/vs/workbench/browser/parts/statusbar/statusbarPart.ts#L483-L505
+ *
+ * Note: this is currently only done for the prominent kind, but needs to be expanded if
+ * other kinds use compact feature.
+ */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.prominent-kind:not(.compact-right):not(.compact-left) a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-prominentHoverForeground);
+	background-color: var(--vscode-statusBarItem-prominentHoverBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.remote-kind {
+	color: var(--vscode-statusBarItem-remoteForeground);
+	background-color: var(--vscode-statusBarItem-remoteBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.remote-kind a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-remoteHoverForeground);
+	background-color: var(--vscode-statusBarItem-remoteHoverBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.offline-kind {
+	color: var(--vscode-statusBarItem-offlineForeground);
+	background-color: var(--vscode-statusBarItem-offlineBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.offline-kind a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-offlineHoverForeground);
+	background-color: var(--vscode-statusBarItem-offlineHoverBackground) !important;
 }

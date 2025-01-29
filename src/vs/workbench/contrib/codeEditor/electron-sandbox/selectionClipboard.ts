@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, Handler } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import * as nls from '../../../../nls.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import * as platform from '../../../../base/common/platform.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction, EditorContributionInstantiation } from '../../../../editor/browser/editorExtensions.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { ICursorSelectionChangedEvent } from '../../../../editor/common/cursorEvents.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorContribution, Handler } from '../../../../editor/common/editorCommon.js';
+import { EndOfLinePreference } from '../../../../editor/common/model.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { SelectionClipboardContributionID } from '../browser/selectionClipboard.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Event } from '../../../../base/common/event.js';
+import { addDisposableListener, onDidRegisterWindow } from '../../../../base/browser/dom.js';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static readonly SELECTION_LENGTH_LIMIT = 65536;
@@ -89,12 +90,17 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 	}
 }
 
-class SelectionClipboardPastePreventer implements IWorkbenchContribution {
+class LinuxSelectionClipboardPastePreventer extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.linuxSelectionClipboardPastePreventer';
+
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		if (platform.isLinux) {
-			document.addEventListener('mouseup', (e) => {
+		super();
+
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window.document, 'mouseup', e => {
 				if (e.button === 1) {
 					// middle button
 					const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
@@ -104,8 +110,8 @@ class SelectionClipboardPastePreventer implements IWorkbenchContribution {
 						e.preventDefault();
 					}
 				}
-			});
-		}
+			}));
+		}, { window: mainWindow, disposables: this._store }));
 	}
 }
 
@@ -114,8 +120,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectionClipboardPaste',
-			label: nls.localize('actions.pasteSelectionClipboard', "Paste Selection Clipboard"),
-			alias: 'Paste Selection Clipboard',
+			label: nls.localize2('actions.pasteSelectionClipboard', "Paste Selection Clipboard"),
 			precondition: EditorContextKeys.writable
 		});
 	}
@@ -135,7 +140,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 }
 
 registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard, EditorContributionInstantiation.Eager); // eager because it needs to listen to selection change events
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
 if (platform.isLinux) {
+	registerWorkbenchContribution2(LinuxSelectionClipboardPastePreventer.ID, LinuxSelectionClipboardPastePreventer, WorkbenchPhase.BlockRestore); // eager because it listens to mouse-up events globally
 	registerEditorAction(PasteSelectionClipboardAction);
 }

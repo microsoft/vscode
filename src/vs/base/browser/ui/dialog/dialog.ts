@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, clearNode, EventHelper, EventType, hide, isAncestor, show } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { ICheckboxStyles, Checkbox } from 'vs/base/browser/ui/toggle/toggle';
-import { IInputBoxStyles, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import 'vs/css!./dialog';
-import * as nls from 'vs/nls';
+import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { ActionBar } from '../actionbar/actionbar.js';
+import { ButtonBar, ButtonWithDescription, IButtonStyles } from '../button/button.js';
+import { ICheckboxStyles, Checkbox } from '../toggle/toggle.js';
+import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
+import { Action } from '../../../common/actions.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
+import { mnemonicButtonLabel } from '../../../common/labels.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import { isLinux, isMacintosh, isWindows } from '../../../common/platform.js';
+import './dialog.css';
+import * as nls from '../../../../nls.js';
 
 export interface IDialogInputOptions {
 	readonly placeholder?: string;
@@ -37,6 +37,7 @@ export interface IDialogOptions {
 	readonly icon?: ThemeIcon;
 	readonly buttonDetails?: string[];
 	readonly disableCloseAction?: boolean;
+	readonly closeOnLinkClick?: boolean;
 	readonly disableDefaultAction?: boolean;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
@@ -198,10 +199,32 @@ export class Dialog extends Disposable {
 	}
 
 	async show(): Promise<IDialogResult> {
-		this.focusToReturn = document.activeElement as HTMLElement;
+		this.focusToReturn = this.container.ownerDocument.activeElement as HTMLElement;
 
 		return new Promise<IDialogResult>((resolve) => {
 			clearNode(this.buttonsContainer);
+
+			const close = () => {
+				resolve({
+					button: this.options.cancelId || 0,
+					checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
+				});
+				return;
+			};
+
+			if (this.options.closeOnLinkClick) {
+				for (const el of this.messageContainer.getElementsByTagName('a')) {
+					this._register(addDisposableListener(el, EventType.CLICK, () => {
+						setTimeout(close); // HACK to ensure the link action is triggered before the dialog is closed
+					}));
+					this._register(addDisposableListener(el, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+						const evt = new StandardKeyboardEvent(e);
+						if (evt.equals(KeyCode.Enter)) {
+							setTimeout(close); // HACK to ensure the link action is triggered before the dialog is closed
+						}
+					}));
+				}
+			}
 
 			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
@@ -209,7 +232,7 @@ export class Dialog extends Disposable {
 			// Handle button clicks
 			buttonMap.forEach((entry, index) => {
 				const primary = buttonMap[index].index === 0;
-				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ title: true, secondary: !primary, ...this.buttonStyles })) : this._register(buttonBar.addButton({ title: true, secondary: !primary, ...this.buttonStyles }));
+				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ secondary: !primary, ...this.buttonStyles })) : this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
 					button.description = this.options.buttonDetails![buttonMap[index].index];
@@ -228,6 +251,7 @@ export class Dialog extends Disposable {
 			});
 
 			// Handle keyboard events globally: Tab, Arrow-Left/Right
+			const window = getWindow(this.container);
 			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
 
@@ -243,6 +267,22 @@ export class Dialog extends Disposable {
 
 						resolve({
 							button: buttonMap.find(button => button.index !== this.options.cancelId)?.index ?? 0,
+							checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
+							values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+						});
+					}
+
+					return; // leave default handling
+				}
+
+				// Cmd+D (trigger the "no"/"do not save"-button) (macOS only)
+				if (isMacintosh && evt.equals(KeyMod.CtrlCmd | KeyCode.KeyD)) {
+					EventHelper.stop(e);
+
+					const noButton = buttonMap.find(button => button.index === 1 && button.index !== this.options.cancelId);
+					if (noButton) {
+						resolve({
+							button: noButton.index,
 							checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
 							values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
 						});
@@ -268,7 +308,7 @@ export class Dialog extends Disposable {
 						const links = this.messageContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
-							if (link === document.activeElement) {
+							if (isActiveElement(link)) {
 								focusedIndex = focusableElements.length - 1;
 							}
 						}
@@ -336,10 +376,7 @@ export class Dialog extends Disposable {
 				const evt = new StandardKeyboardEvent(e);
 
 				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape)) {
-					resolve({
-						button: this.options.cancelId || 0,
-						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
-					});
+					close();
 				}
 			}, true));
 
@@ -449,6 +486,8 @@ export class Dialog extends Disposable {
 
 		let color;
 		switch (this.options.type) {
+			case 'none':
+				break;
 			case 'error':
 				color = style.errorIconForeground;
 				break;
@@ -472,7 +511,7 @@ export class Dialog extends Disposable {
 			this.modalElement = undefined;
 		}
 
-		if (this.focusToReturn && isAncestor(this.focusToReturn, document.body)) {
+		if (this.focusToReturn && isAncestor(this.focusToReturn, this.container.ownerDocument.body)) {
 			this.focusToReturn.focus();
 			this.focusToReturn = undefined;
 		}

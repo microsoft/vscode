@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { DocumentSymbol, SymbolKind } from 'vs/editor/common/languages';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from '../../browser/outlineModel';
-import { mock } from 'vs/base/test/common/mock';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import assert from 'assert';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../common/core/range.js';
+import { DocumentSymbol, SymbolKind } from '../../../../common/languages.js';
+import { LanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { IModelService } from '../../../../common/services/model.js';
+import { createModelServices, createTextModel } from '../../../../test/common/testTextModel.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IMarker, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from '../../browser/outlineModel.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('OutlineModel', function () {
 
@@ -27,6 +28,8 @@ suite('OutlineModel', function () {
 	teardown(function () {
 		disposables.clear();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('OutlineModel#create, cached', async function () {
 
@@ -61,6 +64,7 @@ suite('OutlineModel', function () {
 
 		reg.dispose();
 		model.dispose();
+		service.dispose();
 	});
 
 	test('OutlineModel#create, cached/cancel', async function () {
@@ -78,9 +82,10 @@ suite('OutlineModel', function () {
 		const reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
 			provideDocumentSymbols(d, token) {
 				return new Promise(resolve => {
-					token.onCancellationRequested(_ => {
+					const l = token.onCancellationRequested(_ => {
 						isCancelled = true;
 						resolve(null);
+						l.dispose();
 					});
 				});
 			}
@@ -100,6 +105,8 @@ suite('OutlineModel', function () {
 
 		reg.dispose();
 		model.dispose();
+		service.dispose();
+
 	});
 
 	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {

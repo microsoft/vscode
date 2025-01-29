@@ -3,40 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { Range } from 'vs/editor/common/core/range';
-import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
-import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import * as assert from 'assert';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { autorun } from 'vs/base/common/observable';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { Range } from '../../../../common/core/range.js';
+import { CompletionItemKind, CompletionItemProvider } from '../../../../common/languages.js';
+import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
+import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
+import { GhostTextContext } from './utils.js';
+import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
+import { SuggestController } from '../../../suggest/browser/suggestController.js';
+import { ISuggestMemoryService } from '../../../suggest/browser/suggestMemory.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import assert from 'assert';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
+import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Suggest Widget Model', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		setUnexpectedErrorHandler(function (err) {
 			throw err;
@@ -50,8 +53,9 @@ suite('Suggest Widget Model', () => {
 			async ({ editor, editorViewModel, context, model }) => {
 				let last: boolean | undefined = undefined;
 				const history = new Array<boolean>();
-				const d = autorun('debug', reader => {
-					const selectedSuggestItem = !!model.selectedSuggestItem.read(reader);
+				const d = autorun(reader => {
+					/** @description debug */
+					const selectedSuggestItem = !!model.debugGetSelectedSuggestItem().read(reader);
 					if (last !== selectedSuggestItem) {
 						last = selectedSuggestItem;
 						history.push(last);
@@ -135,7 +139,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			const serviceCollection = new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
 				[ILogService, new NullLogService()],
-				[IStorageService, new InMemoryStorageService()],
+				[IStorageService, disposableStore.add(new InMemoryStorageService())],
 				[IKeybindingService, new MockKeybindingService()],
 				[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 					override computeWordRanges() {
@@ -156,17 +160,16 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				}],
 				[ILabelService, new class extends mock<ILabelService>() { }],
 				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
-				[IAudioCueService, {
-					playAudioCue: async () => { },
-					isEnabled(cue: unknown) { return false; },
+				[IAccessibilitySignalService, {
+					playSignal: async () => { },
+					isSoundEnabled(signal: unknown) { return false; },
 				} as any]
 			);
 
 			if (options.provider) {
 				const languageFeaturesService = new LanguageFeaturesService();
 				serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
-				const d = languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider);
-				disposableStore.add(d);
+				disposableStore.add(languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider));
 			}
 
 			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {

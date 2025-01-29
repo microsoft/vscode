@@ -3,19 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { StorageScope, IStorageService, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { Memento } from '../../common/memento.js';
+import { TestStorageService } from './workbenchTestServices.js';
 
 suite('Memento', () => {
+	const disposables = new DisposableStore();
 	let storage: IStorageService;
 
 	setup(() => {
-		storage = new TestStorageService();
+		storage = disposables.add(new TestStorageService());
 		Memento.clear(StorageScope.APPLICATION);
 		Memento.clear(StorageScope.PROFILE);
 		Memento.clear(StorageScope.WORKSPACE);
+	});
+
+	teardown(() => {
+		disposables.clear();
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {
@@ -213,7 +220,7 @@ suite('Memento', () => {
 		myMemento.saveMemento();
 
 		// Clear
-		storage = new TestStorageService();
+		storage = disposables.add(new TestStorageService());
 		Memento.clear(StorageScope.PROFILE);
 		Memento.clear(StorageScope.WORKSPACE);
 
@@ -224,4 +231,6 @@ suite('Memento', () => {
 		assert.deepStrictEqual(profileMemento, {});
 		assert.deepStrictEqual(workspaceMemento, {});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

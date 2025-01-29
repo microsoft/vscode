@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { Range } from 'vs/editor/common/core/range';
-import { IDebugSessionOptions, State, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { createDecorationsForStackFrame } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { Constants } from 'vs/base/common/uint';
-import { getContext, getContextForContributedActions, getSpecificSourceName } from 'vs/workbench/contrib/debug/browser/callStackView';
-import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug/browser/debugService';
-import { generateUuid } from 'vs/base/common/uuid';
-import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Constants } from '../../../../../base/common/uint.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { createDecorationsForStackFrame } from '../../browser/callStackEditorContribution.js';
+import { getContext, getContextForContributedActions, getSpecificSourceName } from '../../browser/callStackView.js';
+import { debugStackframe, debugStackframeFocused } from '../../browser/debugIcons.js';
+import { getStackFrameThreadAndSessionToFocus } from '../../browser/debugService.js';
+import { DebugSession } from '../../browser/debugSession.js';
+import { IDebugService, IDebugSessionOptions, State } from '../../common/debug.js';
+import { DebugModel, StackFrame, Thread } from '../../common/debugModel.js';
+import { Source } from '../../common/debugSource.js';
+import { createMockDebugModel, mockUriIdentityService } from './mockDebugModel.js';
+import { MockRawSession } from '../common/mockDebug.js';
 
 const mockWorkspaceContextService = {
 	getWorkspace: () => {
@@ -32,7 +34,7 @@ const mockWorkspaceContextService = {
 } as any;
 
 export function createTestSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, {
+	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, options, {
 		getViewModel(): any {
 			return {
 				updateViews(): void {
@@ -40,7 +42,7 @@ export function createTestSession(model: DebugModel, name = 'mockSession', optio
 				}
 			};
 		}
-	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService());
+	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService(), undefined!, undefined!, new TestAccessibilityService());
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame; secondStackFrame: StackFrame } {
@@ -70,9 +72,10 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 suite('Debug - CallStack', () => {
 	let model: DebugModel;
 	let mockRawSession: MockRawSession;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		model = createMockDebugModel();
+		model = createMockDebugModel(disposables);
 		mockRawSession = new MockRawSession();
 	});
 
@@ -86,6 +89,7 @@ suite('Debug - CallStack', () => {
 		const threadId = 1;
 		const threadName = 'firstThread';
 		const session = createTestSession(model);
+		disposables.add(session);
 		model.addSession(session);
 
 		assert.strictEqual(model.getSessions(true).length, 1);
@@ -113,6 +117,7 @@ suite('Debug - CallStack', () => {
 
 		// Add the threads
 		const session = createTestSession(model);
+		disposables.add(session);
 		model.addSession(session);
 
 		session['raw'] = <any>mockRawSession;
@@ -193,6 +198,7 @@ suite('Debug - CallStack', () => {
 
 		// Add the threads
 		const session = createTestSession(model);
+		disposables.add(session);
 		model.addSession(session);
 
 		session['raw'] = <any>mockRawSession;
@@ -246,6 +252,7 @@ suite('Debug - CallStack', () => {
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
 		const session = createTestSession(model);
+		disposables.add(session);
 		model.addSession(session);
 
 		session['raw'] = <any>mockRawSession;
@@ -318,6 +325,7 @@ suite('Debug - CallStack', () => {
 
 	test('stack frame get specific source name', () => {
 		const session = createTestSession(model);
+		disposables.add(session);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 
@@ -327,6 +335,7 @@ suite('Debug - CallStack', () => {
 
 	test('stack frame toString()', () => {
 		const session = createTestSession(model);
+		disposables.add(session);
 		const thread = new Thread(session, 'mockthread', 1);
 		const firstSource = new Source({
 			name: 'internalModule.js',
@@ -342,17 +351,17 @@ suite('Debug - CallStack', () => {
 	});
 
 	test('debug child sessions are added in correct order', () => {
-		const session = createTestSession(model);
+		const session = disposables.add(createTestSession(model));
 		model.addSession(session);
-		const secondSession = createTestSession(model, 'mockSession2');
+		const secondSession = disposables.add(createTestSession(model, 'mockSession2'));
 		model.addSession(secondSession);
-		const firstChild = createTestSession(model, 'firstChild', { parentSession: session });
+		const firstChild = disposables.add(createTestSession(model, 'firstChild', { parentSession: session }));
 		model.addSession(firstChild);
-		const secondChild = createTestSession(model, 'secondChild', { parentSession: session });
+		const secondChild = disposables.add(createTestSession(model, 'secondChild', { parentSession: session }));
 		model.addSession(secondChild);
-		const thirdSession = createTestSession(model, 'mockSession3');
+		const thirdSession = disposables.add(createTestSession(model, 'mockSession3'));
 		model.addSession(thirdSession);
-		const anotherChild = createTestSession(model, 'secondChild', { parentSession: secondSession });
+		const anotherChild = disposables.add(createTestSession(model, 'secondChild', { parentSession: secondSession }));
 		model.addSession(anotherChild);
 
 		const sessions = model.getSessions();
@@ -366,6 +375,7 @@ suite('Debug - CallStack', () => {
 
 	test('decorations', () => {
 		const session = createTestSession(model);
+		disposables.add(session);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 		let decorations = createDecorationsForStackFrame(firstStackFrame, true, false);
@@ -398,6 +408,7 @@ suite('Debug - CallStack', () => {
 
 	test('contexts', () => {
 		const session = createTestSession(model);
+		disposables.add(session);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 		let context = getContext(firstStackFrame);
@@ -435,9 +446,11 @@ suite('Debug - CallStack', () => {
 			override get state(): State {
 				return State.Stopped;
 			}
-		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService());
+		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService(), undefined!, undefined!, new TestAccessibilityService());
+		disposables.add(session);
 
 		const runningSession = createTestSession(model);
+		disposables.add(runningSession);
 		model.addSession(runningSession);
 		model.addSession(session);
 

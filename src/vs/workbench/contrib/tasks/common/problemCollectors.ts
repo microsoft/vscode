@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IStringDictionary, INumberDictionary } from '../../../../base/common/collections.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IDisposable, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 
-import { IModelService } from 'vs/editor/common/services/model';
+import { IModelService } from '../../../../editor/common/services/model.js';
 
-import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isWindows } from 'vs/base/common/platform';
+import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from './problemMatcher.js';
+import { IMarkerService, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 export const enum ProblemCollectorEventKind {
 	BackgroundProcessingBegins = 'backgroundProcessingBegins',
@@ -35,7 +35,7 @@ export interface IProblemMatcher {
 	processLine(line: string): void;
 }
 
-export abstract class AbstractProblemCollector implements IDisposable {
+export abstract class AbstractProblemCollector extends Disposable implements IDisposable {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
 	private activeMatcher: ILineMatcher | null;
@@ -68,6 +68,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
 
 	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
+		super();
 		this.matchers = Object.create(null);
 		this.bufferLength = 1;
 		problemMatchers.map(elem => createLineMatcher(elem, fileService)).forEach((matcher) => {
@@ -99,12 +100,12 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this.resourcesToClean = new Map<string, Map<string, URI>>();
 		this.markers = new Map<string, Map<string, Map<string, IMarkerData>>>();
 		this.deliveredMarkers = new Map<string, Map<string, number>>();
-		this.modelService.onModelAdded((model) => {
+		this._register(this.modelService.onModelAdded((model) => {
 			this.openModels[model.uri.toString()] = true;
-		}, this, this.modelListeners);
-		this.modelService.onModelRemoved((model) => {
+		}, this, this.modelListeners));
+		this._register(this.modelService.onModelRemoved((model) => {
 			delete this.openModels[model.uri.toString()];
-		}, this, this.modelListeners);
+		}, this, this.modelListeners));
 		this.modelService.getModels().forEach(model => this.openModels[model.uri.toString()] = true);
 
 		this._onDidStateChange = new Emitter();
@@ -127,7 +128,8 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	protected abstract processLineInternal(line: string): Promise<void>;
 
-	public dispose() {
+	public override dispose() {
+		super.dispose();
 		this.modelListeners.dispose();
 	}
 
@@ -436,10 +438,10 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			let markerChanged: IDisposable | undefined =
 				Event.debounce(this.markerService.onMarkerChanged, (last: readonly URI[] | undefined, e: readonly URI[]) => {
 					return (last ?? []).concat(e);
-				}, 500)(async (markerEvent) => {
+				}, 500, false, true)(async (markerEvent) => {
 					markerChanged?.dispose();
 					markerChanged = undefined;
-					if (!markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
+					if (!markerEvent || !markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
 						return;
 					}
 					const oldLines = Array.from(this.lines);
@@ -448,8 +450,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 					}
 				});
 			setTimeout(async () => {
-				markerChanged?.dispose();
+				// Calling dispose below can trigger the debounce event (via flushOnListenerRemove), so we
+				// have to unset markerChanged first to make sure the handler above doesn't dispose it again.
+				const _markerChanged = markerChanged;
 				markerChanged = undefined;
+				_markerChanged?.dispose();
 			}, 600);
 		}));
 	}

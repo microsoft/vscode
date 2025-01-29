@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { extractRangeFromFilter } from 'vs/workbench/contrib/search/common/search';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { extractRangeFromFilter } from '../../common/search.js';
 
 suite('extractRangeFromFilter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('basics', async function () {
 		assert.ok(!extractRangeFromFilter(''));
@@ -43,7 +46,7 @@ suite('extractRangeFromFilter', () => {
 		assert.strictEqual(res?.range.startColumn, 20);
 	});
 
-	suite('unless', async function () {
+	suite('unless', function () {
 		const testSpecs = [
 			// alpha-only symbol after unless
 			{ filter: '/some/path/file.txt@alphasymbol', unless: ['@'], result: undefined },
@@ -95,4 +98,3 @@ suite('extractRangeFromFilter', () => {
 		}
 	});
 });
-

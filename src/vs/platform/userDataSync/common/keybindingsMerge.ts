@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { parse } from 'vs/base/common/json';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import * as objects from 'vs/base/common/objects';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
+import { equals } from '../../../base/common/arrays.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { parse } from '../../../base/common/json.js';
+import { FormattingOptions } from '../../../base/common/jsonFormatter.js';
+import * as objects from '../../../base/common/objects.js';
+import { ContextKeyExpr } from '../../contextkey/common/contextkey.js';
+import { IUserFriendlyKeybinding } from '../../keybinding/common/keybinding.js';
+import * as contentUtil from './content.js';
+import { IUserDataSyncUtilService } from './userDataSync.js';
 
 interface ICompareResult {
 	added: Set<string>;

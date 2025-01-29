@@ -15,24 +15,6 @@ export interface IFilePathToResourceConverter {
 	toResource(filepath: string): vscode.Uri;
 }
 
-function replaceLinks(text: string): string {
-	return text
-		// Http(s) links
-		.replace(/\{@(link|linkplain|linkcode) (https?:\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}/gi, (_, tag: string, link: string, text?: string) => {
-			switch (tag) {
-				case 'linkcode':
-					return `[\`${text ? text.trim() : link}\`](${link})`;
-
-				default:
-					return `[${text ? text.trim() : link}](${link})`;
-			}
-		});
-}
-
-function processInlineTags(text: string): string {
-	return replaceLinks(text);
-}
-
 function getTagBodyText(
 	tag: Proto.JSDocTagInfo,
 	filePathConverter: IFilePathToResourceConverter,
@@ -46,12 +28,16 @@ function getTagBodyText(
 		if (/^\s*[~`]{3}/m.test(text)) {
 			return text;
 		}
-		return '```\n' + text + '\n```';
+		return '```tsx\n' + text + '\n```';
 	}
 
-	const text = convertLinkTags(tag.text, filePathConverter);
+	let text = convertLinkTags(tag.text, filePathConverter);
 	switch (tag.name) {
 		case 'example': {
+			// Example text does not support `{@link}` as it is considered code.
+			// TODO: should we support it if it appears outside of an explicit code block?
+			text = asPlainText(tag.text);
+
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
 			if (captionTagMatches && captionTagMatches.index === 0) {
@@ -63,18 +49,19 @@ function getTagBodyText(
 		case 'author': {
 			// fix obsucated email address, #80898
 			const emailMatch = text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
-
 			if (emailMatch === null) {
 				return text;
 			} else {
 				return `${emailMatch[1]} ${emailMatch[2]}`;
 			}
 		}
-		case 'default':
+		case 'default': {
 			return makeCodeblock(text);
+		}
+		default: {
+			return text;
+		}
 	}
-
-	return processInlineTags(text);
 }
 
 function getTagDocumentation(
@@ -94,11 +81,10 @@ function getTagDocumentation(
 				if (!doc) {
 					return label;
 				}
-				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` \u2014 ${processInlineTags(doc)}`);
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + doc : ` \u2014 ${doc}`);
 			}
 			break;
 		}
-
 		case 'return':
 		case 'returns': {
 			// For return(s), we require a non-empty body
@@ -132,11 +118,18 @@ function getTagBody(tag: Proto.JSDocTagInfo, filePathConverter: IFilePathToResou
 	return (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
 }
 
+function asPlainText(parts: readonly Proto.SymbolDisplayPart[] | string): string {
+	if (typeof parts === 'string') {
+		return parts;
+	}
+	return parts.map(part => part.text).join('');
+}
+
 export function asPlainTextWithLinks(
 	parts: readonly Proto.SymbolDisplayPart[] | string,
 	filePathConverter: IFilePathToResourceConverter,
 ): string {
-	return processInlineTags(convertLinkTags(parts, filePathConverter));
+	return convertLinkTags(parts, filePathConverter);
 }
 
 /**
@@ -176,11 +169,11 @@ function convertLinkTags(
 						if (text) {
 							if (/^https?:/.test(text)) {
 								const parts = text.split(' ');
-								if (parts.length === 1) {
-									out.push(parts[0]);
-								} else if (parts.length > 1) {
-									const linkText = escapeMarkdownSyntaxTokensForCode(parts.slice(1).join(' '));
-									out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${parts[0]})`);
+								if (parts.length === 1 && !currentLink.linkcode) {
+									out.push(`<${parts[0]}>`);
+								} else {
+									const linkText = parts.length > 1 ? parts.slice(1).join(' ') : parts[0];
+									out.push(`[${currentLink.linkcode ? '`' + escapeMarkdownSyntaxTokensForCode(linkText) + '`' : linkText}](${parts[0]})`);
 								}
 							} else {
 								out.push(escapeMarkdownSyntaxTokensForCode(text));
@@ -213,7 +206,7 @@ function convertLinkTags(
 				break;
 		}
 	}
-	return processInlineTags(out.join(''));
+	return out.join('');
 }
 
 function escapeMarkdownSyntaxTokensForCode(text: string): string {

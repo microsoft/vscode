@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
-import { DocumentRangeMap, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { TextLength } from '../../../../../editor/common/core/textLength.js';
+import { DocumentRangeMap, RangeMapping } from '../../browser/model/mapping.js';
 
 suite('merge editor mapping', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,19 +53,19 @@ function parsePos(str: string): Position {
 	return new Position(parseInt(lineCount, 10), parseInt(columnCount, 10));
 }
 
-function parseLengthObj(str: string): LengthObj {
+function parseLengthObj(str: string): TextLength {
 	const [lineCount, columnCount] = str.split(':');
-	return new LengthObj(parseInt(lineCount, 10), parseInt(columnCount, 10));
+	return new TextLength(parseInt(lineCount, 10), parseInt(columnCount, 10));
 }
 
-function toPosition(length: LengthObj): Position {
+function toPosition(length: TextLength): Position {
 	return new Position(length.lineCount + 1, length.columnCount + 1);
 }
 
 function createDocumentRangeMap(items: ([string, string] | string)[]) {
 	const mappings: RangeMapping[] = [];
-	let lastLen1 = new LengthObj(0, 0);
-	let lastLen2 = new LengthObj(0, 0);
+	let lastLen1 = new TextLength(0, 0);
+	let lastLen2 = new TextLength(0, 0);
 	for (const item of items) {
 		if (typeof item === 'string') {
 			const len = parseLengthObj(item);

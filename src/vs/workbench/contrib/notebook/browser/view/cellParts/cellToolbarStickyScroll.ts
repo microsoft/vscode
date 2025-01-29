@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../../../base/common/numbers.js';
+import { ICellViewModel, INotebookEditor } from '../../notebookBrowser.js';
 
 export function registerCellToolbarStickyScroll(notebookEditor: INotebookEditor, cell: ICellViewModel, element: HTMLElement, opts?: { extraOffset?: number; min?: number }): IDisposable {
 	const extraOffset = opts?.extraOffset ?? 0;
@@ -15,8 +15,7 @@ export function registerCellToolbarStickyScroll(notebookEditor: INotebookEditor,
 		if (cell.isInputCollapsed) {
 			element.style.top = '';
 		} else {
-			const scrollPadding = notebookEditor.notebookOptions.computeTopInsertToolbarHeight(notebookEditor.textModel?.viewType);
-			const scrollTop = notebookEditor.scrollTop - scrollPadding;
+			const scrollTop = notebookEditor.scrollTop;
 			const elementTop = notebookEditor.getAbsoluteTopOfElement(cell);
 			const diff = scrollTop - elementTop + extraOffset;
 			const maxTop = cell.layoutInfo.editorHeight + cell.layoutInfo.statusBarHeight - 45; // subtract roughly the height of the execution order label plus padding

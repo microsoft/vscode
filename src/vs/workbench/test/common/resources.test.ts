@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { ResourceGlobMatcher } from '../../common/resources.js';
+import { TestContextService } from './workbenchTestServices.js';
 
 suite('ResourceGlobMatcher', () => {
 
@@ -16,6 +18,8 @@ suite('ResourceGlobMatcher', () => {
 
 	let contextService: IWorkspaceContextService;
 	let configurationService: TestConfigurationService;
+
+	const disposables = new DisposableStore();
 
 	setup(() => {
 		contextService = new TestContextService();
@@ -27,8 +31,12 @@ suite('ResourceGlobMatcher', () => {
 		});
 	});
 
+	teardown(() => {
+		disposables.clear();
+	});
+
 	test('Basics', async () => {
-		const matcher = new ResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService);
+		const matcher = disposables.add(new ResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService));
 
 		// Matching
 		assert.equal(matcher.matches(URI.file('/foo/bar')), false);
@@ -37,7 +45,7 @@ suite('ResourceGlobMatcher', () => {
 
 		// Events
 		let eventCounter = 0;
-		matcher.onExpressionChange(() => eventCounter++);
+		disposables.add(matcher.onExpressionChange(() => eventCounter++));
 
 		await configurationService.setUserConfiguration(SETTING, { '**/*.foo': true });
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
@@ -64,4 +72,6 @@ suite('ResourceGlobMatcher', () => {
 		assert.equal(matcher.matches(URI.file('/bar/foo.1')), true);
 		assert.equal(matcher.matches(URI.file('C:/bar/foo.1')), true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

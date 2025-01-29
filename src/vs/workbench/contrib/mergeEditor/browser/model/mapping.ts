@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, findLast, lastOrDefault, numberComparator } from 'vs/base/common/arrays';
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { concatArrays } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { LineRangeEdit } from './editing';
-import { LineRange } from './lineRange';
-import { rangeIsBeforeOrTouching, rangeContainsPosition, lengthBetweenPositions, addLength } from 'vs/workbench/contrib/mergeEditor/browser/model/rangeUtils';
+import { compareBy, numberComparator } from '../../../../../base/common/arrays.js';
+import { findLast } from '../../../../../base/common/arraysFind.js';
+import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { concatArrays } from '../utils.js';
+import { LineRangeEdit } from './editing.js';
+import { LineRange } from './lineRange.js';
+import { addLength, lengthBetweenPositions, rangeContainsPosition, rangeIsBeforeOrTouching } from './rangeUtils.js';
 
 /**
  * Represents a mapping of an input line range to an output line range.
@@ -130,7 +131,7 @@ export class DocumentLineRangeMap {
 	}
 
 	public get outputLineCount(): number {
-		const last = lastOrDefault(this.lineRangeMappings);
+		const last = this.lineRangeMappings.at(-1);
 		const diff = last ? last.outputRange.endLineNumberExclusive - last.inputRange.endLineNumberExclusive : 0;
 		return this.inputLineCount + diff;
 	}
@@ -237,33 +238,6 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 		super(inputRange, outputRange);
 
 		this.rangeMappings = rangeMappings || [new RangeMapping(this.inputRange.toRange(), this.outputRange.toRange())];
-
-		assertFn(() => {
-			for (const map of this.rangeMappings) {
-				let inputRangesValid = inputRange.startLineNumber - 1 <= map.inputRange.startLineNumber
-					&& map.inputRange.endLineNumber <= inputRange.endLineNumberExclusive;
-				if (inputRangesValid && map.inputRange.startLineNumber === inputRange.startLineNumber - 1) {
-					inputRangesValid = map.inputRange.endColumn >= inputTextModel.getLineMaxColumn(map.inputRange.startLineNumber);
-				}
-				if (inputRangesValid && map.inputRange.endLineNumber === inputRange.endLineNumberExclusive) {
-					inputRangesValid = map.inputRange.endColumn === 1;
-				}
-
-				let outputRangesValid = outputRange.startLineNumber - 1 <= map.outputRange.startLineNumber
-					&& map.outputRange.endLineNumber <= outputRange.endLineNumberExclusive;
-				if (outputRangesValid && map.outputRange.startLineNumber === outputRange.startLineNumber - 1) {
-					outputRangesValid = map.outputRange.endColumn >= outputTextModel.getLineMaxColumn(map.outputRange.startLineNumber);
-				}
-				if (outputRangesValid && map.outputRange.endLineNumber === outputRange.endLineNumberExclusive) {
-					outputRangesValid = map.outputRange.endColumn === 1;
-				}
-
-				if (!inputRangesValid || !outputRangesValid) {
-					return false;
-				}
-			}
-			return true;
-		});
 	}
 
 	public override addOutputLineDelta(delta: number): DetailedLineRangeMapping {
@@ -411,7 +385,7 @@ export class DocumentRangeMap {
 	}
 
 	public get outputLineCount(): number {
-		const last = lastOrDefault(this.rangeMappings);
+		const last = this.rangeMappings.at(-1);
 		const diff = last ? last.outputRange.endLineNumber - last.inputRange.endLineNumber : 0;
 		return this.inputLineCount + diff;
 	}

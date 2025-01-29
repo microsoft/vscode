@@ -3,65 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { TestContextService, TestStorageService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { randomPath } from 'vs/base/common/extpath';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { TestEnvironmentService, TestFileService, TestLifecycleService, TestPathService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { DeferredPromise } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
-import { basename, dirname, isEqual, joinPath } from 'vs/base/common/resources';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { assertIsDefined } from 'vs/base/common/types';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-
-class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryService {
-
-	readonly _fileService: IFileService;
-	readonly _configurationService: TestConfigurationService;
-	readonly _lifecycleService: TestLifecycleService;
-
-	constructor(testDir: URI | string) {
-		const environmentService = TestEnvironmentService;
-		const logService = new NullLogService();
-		const fileService = new FileService(logService);
-
-		fileService.registerProvider(Schemas.vscodeUserData, new InMemoryFileSystemProvider());
-
-		const remoteAgentService = new TestRemoteAgentService();
-
-		const uriIdentityService = new UriIdentityService(fileService);
-
-		const labelService = new LabelService(environmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), new TestStorageService(), new TestLifecycleService());
-
-		const lifecycleService = new TestLifecycleService();
-
-		const configurationService = new TestConfigurationService();
-
-		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, lifecycleService, logService, configurationService);
-
-		this._fileService = fileService;
-		this._configurationService = configurationService;
-		this._lifecycleService = lifecycleService;
-	}
-}
+import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
+import { TestContextService, TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
+import { randomPath } from '../../../../../base/common/extpath.js';
+import { join } from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { WorkingCopyHistoryTracker } from '../../common/workingCopyHistoryTracker.js';
+import { WorkingCopyService } from '../../common/workingCopyService.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { TestFileService, TestPathService } from '../../../../test/browser/workbenchTestServices.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRedoService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor } from '../../common/workingCopyHistory.js';
+import { assertIsDefined } from '../../../../../base/common/types.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestWorkingCopyHistoryService } from './workingCopyHistoryService.test.js';
 
 suite('WorkingCopyHistoryTracker', () => {
 
@@ -73,12 +39,13 @@ suite('WorkingCopyHistoryTracker', () => {
 	let workingCopyService: WorkingCopyService;
 	let fileService: IFileService;
 	let configurationService: TestConfigurationService;
-	let inMemoryFileSystemDisposable: IDisposable;
 
 	let tracker: WorkingCopyHistoryTracker;
 
 	let testFile1Path: URI;
 	let testFile2Path: URI;
+
+	const disposables = new DisposableStore();
 
 	const testFile1PathContents = 'Hello Foo';
 	const testFile2PathContents = [
@@ -104,14 +71,12 @@ suite('WorkingCopyHistoryTracker', () => {
 		historyHome = joinPath(testDir, 'User', 'History');
 		workHome = joinPath(testDir, 'work');
 
-		workingCopyHistoryService = new TestWorkingCopyHistoryService(testDir);
-		workingCopyService = new WorkingCopyService();
+		workingCopyHistoryService = disposables.add(new TestWorkingCopyHistoryService(disposables));
+		workingCopyService = disposables.add(new WorkingCopyService());
 		fileService = workingCopyHistoryService._fileService;
 		configurationService = workingCopyHistoryService._configurationService;
 
-		inMemoryFileSystemDisposable = fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
-
-		tracker = createTracker();
+		tracker = disposables.add(createTracker());
 
 		await fileService.createFolder(historyHome);
 		await fileService.createFolder(workHome);
@@ -127,7 +92,7 @@ suite('WorkingCopyHistoryTracker', () => {
 		return new WorkingCopyHistoryTracker(
 			workingCopyService,
 			workingCopyHistoryService,
-			new UriIdentityService(new TestFileService()),
+			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
 			new TestPathService(undefined, Schemas.file),
 			configurationService,
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
@@ -137,28 +102,23 @@ suite('WorkingCopyHistoryTracker', () => {
 	}
 
 	teardown(async () => {
-		workingCopyHistoryService.dispose();
-		workingCopyService.dispose();
-		tracker.dispose();
-
 		await fileService.del(testDir, { recursive: true });
-
-		inMemoryFileSystemDisposable.dispose();
+		disposables.clear();
 	});
 
 	test('history entry added on save', async () => {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
-		const workingCopy2 = new TestWorkingCopy(testFile2Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
 		const stat1 = await fileService.resolve(workingCopy1.resource, { resolveMetadata: true });
 		const stat2 = await fileService.resolve(workingCopy2.resource, { resolveMetadata: true });
 
-		workingCopyService.registerWorkingCopy(workingCopy1);
-		workingCopyService.registerWorkingCopy(workingCopy2);
+		disposables.add(workingCopyService.registerWorkingCopy(workingCopy1));
+		disposables.add(workingCopyService.registerWorkingCopy(workingCopy2));
 
 		const saveResult = new DeferredPromise<void>();
 		let addedCounter = 0;
-		workingCopyHistoryService.onDidAddEntry(e => {
+		disposables.add(workingCopyHistoryService.onDidAddEntry(e => {
 			if (isEqual(e.entry.workingCopy.resource, workingCopy1.resource) || isEqual(e.entry.workingCopy.resource, workingCopy2.resource)) {
 				addedCounter++;
 
@@ -166,7 +126,7 @@ suite('WorkingCopyHistoryTracker', () => {
 					saveResult.complete();
 				}
 			}
-		});
+		}));
 
 		await workingCopy1.save(undefined, stat1);
 		await workingCopy2.save(undefined, stat2);
@@ -185,7 +145,7 @@ suite('WorkingCopyHistoryTracker', () => {
 
 		// Recreate to apply settings
 		tracker.dispose();
-		tracker = createTracker();
+		tracker = disposables.add(createTracker());
 
 		return assertNoLocalHistoryEntryAddedWithSettingsConfigured();
 	});
@@ -197,17 +157,17 @@ suite('WorkingCopyHistoryTracker', () => {
 	});
 
 	async function assertNoLocalHistoryEntryAddedWithSettingsConfigured(): Promise<void> {
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
-		const workingCopy2 = new TestWorkingCopy(testFile2Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
 		const stat1 = await fileService.resolve(workingCopy1.resource, { resolveMetadata: true });
 		const stat2 = await fileService.resolve(workingCopy2.resource, { resolveMetadata: true });
 
-		workingCopyService.registerWorkingCopy(workingCopy1);
-		workingCopyService.registerWorkingCopy(workingCopy2);
+		disposables.add(workingCopyService.registerWorkingCopy(workingCopy1));
+		disposables.add(workingCopyService.registerWorkingCopy(workingCopy2));
 
 		const saveResult = new DeferredPromise<void>();
-		workingCopyHistoryService.onDidAddEntry(e => {
+		disposables.add(workingCopyHistoryService.onDidAddEntry(e => {
 			if (isEqual(e.entry.workingCopy.resource, workingCopy1.resource)) {
 				assert.fail('Unexpected working copy history entry: ' + e.entry.workingCopy.resource.toString());
 			}
@@ -215,7 +175,7 @@ suite('WorkingCopyHistoryTracker', () => {
 			if (isEqual(e.entry.workingCopy.resource, workingCopy2.resource)) {
 				saveResult.complete();
 			}
-		});
+		}));
 
 		await workingCopy1.save(undefined, stat1);
 		await workingCopy2.save(undefined, stat2);
@@ -226,7 +186,7 @@ suite('WorkingCopyHistoryTracker', () => {
 	test('entries moved (file rename)', async () => {
 		const entriesMoved = Event.toPromise(workingCopyHistoryService.onDidMoveEntries);
 
-		const workingCopy = new TestWorkingCopy(testFile1Path);
+		const workingCopy = disposables.add(new TestWorkingCopy(testFile1Path));
 
 		const entry1 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
 		const entry2 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
@@ -272,8 +232,8 @@ suite('WorkingCopyHistoryTracker', () => {
 	test('entries moved (folder rename)', async () => {
 		const entriesMoved = Event.toPromise(workingCopyHistoryService.onDidMoveEntries);
 
-		const workingCopy1 = new TestWorkingCopy(testFile1Path);
-		const workingCopy2 = new TestWorkingCopy(testFile2Path);
+		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
+		const workingCopy2 = disposables.add(new TestWorkingCopy(testFile2Path));
 
 		const entry1A = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		const entry2A = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
@@ -352,5 +312,6 @@ suite('WorkingCopyHistoryTracker', () => {
 			}
 		}
 	});
-});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+});

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextSnapshot, SearchData } from 'vs/editor/common/model';
-import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { Position } from '../../core/position.js';
+import { Range } from '../../core/range.js';
+import { FindMatch, ITextSnapshot, SearchData } from '../../model.js';
+import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from './rbTreeBase.js';
+import { Searcher, createFindMatch, isValidMatch } from '../textModelSearch.js';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
 const AverageBufferSize = 65535;
@@ -664,6 +664,27 @@ export class PieceTreeBase {
 	public getCharCode(offset: number): number {
 		const nodePos = this.nodeAt(offset);
 		return this._getCharCode(nodePos);
+	}
+
+	public getNearestChunk(offset: number): string {
+		const nodePos = this.nodeAt(offset);
+		if (nodePos.remainder === nodePos.node.piece.length) {
+			// the offset is at the head of next node.
+			const matchingNode = nodePos.node.next();
+			if (!matchingNode || matchingNode === SENTINEL) {
+				return '';
+			}
+
+			const buffer = this._buffers[matchingNode.piece.bufferIndex];
+			const startOffset = this.offsetInBuffer(matchingNode.piece.bufferIndex, matchingNode.piece.start);
+			return buffer.buffer.substring(startOffset, startOffset + matchingNode.piece.length);
+		} else {
+			const buffer = this._buffers[nodePos.node.piece.bufferIndex];
+			const startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
+			const targetOffset = startOffset + nodePos.remainder;
+			const targetEnd = startOffset + nodePos.node.piece.length;
+			return buffer.buffer.substring(targetOffset, targetEnd);
+		}
 	}
 
 	public findMatchesInNode(node: TreeNode, searcher: Searcher, startLineNumber: number, startColumn: number, startCursor: BufferCursor, endCursor: BufferCursor, searchData: SearchData, captureMatches: boolean, limitResultCount: number, resultLen: number, result: FindMatch[]) {

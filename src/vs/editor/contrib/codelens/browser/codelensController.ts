@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { CancelablePromise, createCancelablePromise, disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLens, Command } from 'vs/editor/common/languages';
-import { CodeLensItem, CodeLensModel, getCodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
-import { ICodeLensCache } from 'vs/editor/contrib/codelens/browser/codeLensCache';
-import { CodeLensHelper, CodeLensWidget } from 'vs/editor/contrib/codelens/browser/codelensWidget';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CancelablePromise, createCancelablePromise, disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
+import { onUnexpectedError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
+import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorOption, EDITOR_FONT_DEFAULTS } from '../../../common/config/editorOptions.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { IModelDecorationsChangeAccessor } from '../../../common/model.js';
+import { CodeLens, Command } from '../../../common/languages.js';
+import { CodeLensItem, CodeLensModel, getCodeLensModel } from './codelens.js';
+import { ICodeLensCache } from './codeLensCache.js';
+import { CodeLensHelper, CodeLensWidget } from './codelensWidget.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 
 export class CodeLensContribution implements IEditorContribution {
 
@@ -39,7 +39,7 @@ export class CodeLensContribution implements IEditorContribution {
 	private readonly _resolveCodeLensesScheduler: RunOnceScheduler;
 
 	private _getCodeLensModelPromise: CancelablePromise<CodeLensModel> | undefined;
-	private _oldCodeLensModels = new DisposableStore();
+	private readonly _oldCodeLensModels = new DisposableStore();
 	private _currentCodeLensModel: CodeLensModel | undefined;
 	private _resolveCodeLensesPromise: CancelablePromise<any> | undefined;
 
@@ -134,7 +134,7 @@ export class CodeLensContribution implements IEditorContribution {
 			return;
 		}
 
-		if (!this._editor.getOption(EditorOption.codeLens)) {
+		if (!this._editor.getOption(EditorOption.codeLens) || model.isTooLargeForTokenization()) {
 			return;
 		}
 
@@ -147,13 +147,13 @@ export class CodeLensContribution implements IEditorContribution {
 			// no provider -> return but check with
 			// cached lenses. they expire after 30 seconds
 			if (cachedLenses) {
-				this._localToDispose.add(disposableTimeout(() => {
+				disposableTimeout(() => {
 					const cachedLensesNow = this._codeLensCache.get(model);
 					if (cachedLenses === cachedLensesNow) {
 						this._codeLensCache.delete(model);
 						this._onModelChange();
 					}
-				}, 30 * 1000));
+				}, 30 * 1000, this._localToDispose);
 			}
 			return;
 		}
@@ -229,8 +229,11 @@ export class CodeLensContribution implements IEditorContribution {
 			this._resolveCodeLensesPromise?.cancel();
 			this._resolveCodeLensesPromise = undefined;
 		}));
-		this._localToDispose.add(this._editor.onDidFocusEditorWidget(() => {
+		this._localToDispose.add(this._editor.onDidFocusEditorText(() => {
 			scheduler.schedule();
+		}));
+		this._localToDispose.add(this._editor.onDidBlurEditorText(() => {
+			scheduler.cancel();
 		}));
 		this._localToDispose.add(this._editor.onDidScrollChange(e => {
 			if (e.scrollTopChanged && this._lenses.length > 0) {
@@ -444,8 +447,12 @@ export class CodeLensContribution implements IEditorContribution {
 		});
 	}
 
-	getModel(): CodeLensModel | undefined {
-		return this._currentCodeLensModel;
+	async getModel(): Promise<CodeLensModel | undefined> {
+		await this._getCodeLensModelPromise;
+		await this._resolveCodeLensesPromise;
+		return !this._currentCodeLensModel?.isDisposed
+			? this._currentCodeLensModel
+			: undefined;
 	}
 }
 
@@ -457,8 +464,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 		super({
 			id: 'codelens.showLensesInCurrentLine',
 			precondition: EditorContextKeys.hasCodeLensProvider,
-			label: localize('showLensOnLine', "Show CodeLens Commands For Current Line"),
-			alias: 'Show CodeLens Commands For Current Line',
+			label: localize2('showLensOnLine', "Show CodeLens Commands For Current Line"),
 		});
 	}
 
@@ -478,7 +484,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			return;
 		}
 
-		const model = codelensController.getModel();
+		const model = await codelensController.getModel();
 		if (!model) {
 			// nothing
 			return;
@@ -499,19 +505,31 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			return;
 		}
 
-		const item = await quickInputService.pick(items, { canPickMany: false });
+		const item = await quickInputService.pick(items, {
+			canPickMany: false,
+			placeHolder: localize('placeHolder', "Select a command")
+		});
 		if (!item) {
 			// Nothing picked
 			return;
 		}
 
+		let command = item.command;
+
 		if (model.isDisposed) {
-			// retry whenever the model has been disposed
-			return await commandService.executeCommand(this.id);
+			// try to find the same command again in-case the model has been re-created in the meantime
+			// this is a best attempt approach which shouldn't be needed because eager model re-creates
+			// shouldn't happen due to focus in/out anymore
+			const newModel = await codelensController.getModel();
+			const newLens = newModel?.lenses.find(lens => lens.symbol.range.startLineNumber === lineNumber && lens.symbol.command?.title === command.title);
+			if (!newLens || !newLens.symbol.command) {
+				return;
+			}
+			command = newLens.symbol.command;
 		}
 
 		try {
-			await commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
+			await commandService.executeCommand(command.id, ...(command.arguments || []));
 		} catch (err) {
 			notificationService.error(err);
 		}

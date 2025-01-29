@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { isWindows } from 'vs/base/common/platform';
-import { assertType } from 'vs/base/common/types';
-import { Mimes } from 'vs/base/common/mime';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { CancellationError } from 'vs/base/common/errors';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import * as types from '../../common/extHostTypes.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { assertType } from '../../../../base/common/types.js';
+import { Mimes } from '../../../../base/common/mime.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -19,6 +20,8 @@ function assertToJSON(a: any, expected: any) {
 }
 
 suite('ExtHostTypes', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('URI, toJSON', function () {
 
@@ -354,7 +357,7 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(edit.newText, '');
 		assertToJSON(edit, { range: [{ line: 1, character: 1 }, { line: 2, character: 11 }], newText: '' });
 
-		edit = new types.TextEdit(range, null!);
+		edit = new types.TextEdit(range, null);
 		assert.strictEqual(edit.newText, '');
 
 		edit = new types.TextEdit(range, '');
@@ -430,6 +433,22 @@ suite('ExtHostTypes', function () {
 		assertType(second._type === types.FileEditType.Text);
 		assert.strictEqual(first.edit.newText, 'Hello');
 		assert.strictEqual(second.edit.newText, 'Foo');
+	});
+
+	test('WorkspaceEdit - set with metadata accepts undefined', function () {
+		const edit = new types.WorkspaceEdit();
+		const uri = URI.parse('foo:bar');
+
+		edit.set(uri, [
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), { needsConfirmation: true, label: 'foo' }],
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), undefined],
+		]);
+
+		const all = edit._allEntries();
+		assert.strictEqual(all.length, 2);
+		const [first, second] = all;
+		assert.ok(first.metadata);
+		assert.ok(!second.metadata);
 	});
 
 	test('DocumentLink', () => {
@@ -553,11 +572,38 @@ suite('ExtHostTypes', function () {
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
-		assert.strictEqual(string.value, 'foo${1|far,\\$boo|}bar');
+		assert.strictEqual(string.value, 'foo${1|far,$boo|}bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
 		assert.strictEqual(string.value, 'foo${1:farboo}${2|far,boo|}bar');
+	});
+
+	test('Snippet choices are incorrectly escaped/applied #180132', function () {
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa$aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa$aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa,aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\,aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa|aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\|aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa\\aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\\\aaa|}bbb\\$bbb');
+		}
 	});
 
 	test('instanceof doesn\'t work for FileSystemError #49386', function () {
@@ -728,5 +774,29 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => types.FileDecoration.validate({ badge: '👋👋👋' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'புன்சிரிப்போடு' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
+	});
+
+	test('No longer possible to set content on LanguageModelChatMessage', function () {
+		const m = types.LanguageModelChatMessage.Assistant('');
+		m.content = [new types.LanguageModelToolCallPart('toolCall.call.callId', 'toolCall.tool.name', 'toolCall.call.parameters')];
+
+		assert.equal(m.content.length, 1);
+		assert.equal(m.content2?.length, 1);
+
+
+		m.content2 = ['foo'];
+		assert.equal(m.content.length, 1);
+		assert.ok(m.content[0] instanceof types.LanguageModelTextPart);
+
+		assert.equal(m.content2?.length, 1);
+		assert.ok(typeof m.content2[0] === 'string');
+	});
+
+	test('runtime stable, type-def changed', function () {
+		// see https://github.com/microsoft/vscode/issues/231938
+		const m = new types.LanguageModelChatMessage(types.LanguageModelChatMessageRole.User, []);
+		assert.deepStrictEqual(m.content, []);
+		m.content = 'Hello';
+		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
 	});
 });

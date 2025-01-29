@@ -11,6 +11,7 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dotnet/csharp-tmLanguage grammars/csharp.tmLanguage ./syntaxes/csharp.tmLanguage.json"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
 	"configurationDefaults": {
 		"[csharp]": {
@@ -36,7 +37,10 @@
       {
         "language": "csharp",
         "scopeName": "source.cs",
-        "path": "./syntaxes/csharp.tmLanguage.json"
+        "path": "./syntaxes/csharp.tmLanguage.json",
+        "tokenTypes": {
+          "meta.interpolation": "other"
+        }
       }
     ],
     "snippets": [

@@ -3,31 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import minimist from 'minimist';
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
-import * as minimist from 'minimist';
-import * as performance from 'vs/base/common/performance';
-import type { MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
-import { isCancellationError, isSigPipeError, onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import product from 'vs/platform/product/common/product';
-import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain, IExitFn } from 'vs/workbench/api/common/extensionHostMain';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { Promises } from 'vs/base/node/pfs';
-import { realpath } from 'vs/base/node/extpath';
-import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
-import { boolean } from 'vs/editor/common/config/editorOptions';
-import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
-import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
-
-import 'vs/workbench/api/common/extHost.common.services';
-import 'vs/workbench/api/node/extHost.node.services';
+import { ProcessTimeRunOnceScheduler } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { isCancellationError, isSigPipeError, onUnexpectedError } from '../../../base/common/errors.js';
+import { Event } from '../../../base/common/event.js';
+import * as performance from '../../../base/common/performance.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { realpath } from '../../../base/node/extpath.js';
+import { Promises } from '../../../base/node/pfs.js';
+import { IMessagePassingProtocol } from '../../../base/parts/ipc/common/ipc.js';
+import { BufferedEmitter, PersistentProtocol, ProtocolConstants } from '../../../base/parts/ipc/common/ipc.net.js';
+import { NodeSocket, WebSocketNodeSocket } from '../../../base/parts/ipc/node/ipc.net.js';
+import type { MessagePortMain } from '../../../base/parts/sandbox/node/electronTypes.js';
+import { boolean } from '../../../editor/common/config/editorOptions.js';
+import product from '../../../platform/product/common/product.js';
+import { ExtensionHostMain, IExitFn } from '../common/extensionHostMain.js';
+import { IHostUtils } from '../common/extHostExtensionService.js';
+import { createURITransformer } from './uriTransformer.js';
+import { ExtHostConnectionType, readExtHostConnection } from '../../services/extensions/common/extensionHostEnv.js';
+import { ExtensionHostExitCode, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, IExtHostSocketMessage, IExtensionHostInitData, MessageType, createMessageOfType, isMessageOfType } from '../../services/extensions/common/extensionHostProtocol.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import '../common/extHost.common.services.js';
+import './extHost.node.services.js';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
 interface ParsedExtHostArgs {
 	transformURIs?: boolean;
@@ -62,7 +64,7 @@ const args = minimist(process.argv.slice(2), {
 // happening we essentially blocklist this module from getting loaded in any
 // extension by patching the node require() function.
 (function () {
-	const Module = globalThis._VSCODE_NODE_MODULES.module as any;
+	const Module = require('module');
 	const originalLoad = Module._load;
 
 	Module._load = function (request: string) {
@@ -76,6 +78,7 @@ const args = minimist(process.argv.slice(2), {
 
 // custom process.exit logic...
 const nativeExit: IExitFn = process.exit.bind(process);
+const nativeOn = process.on.bind(process);
 function patchProcess(allowExit: boolean) {
 	process.exit = function (code?: number) {
 		if (allowExit) {
@@ -97,6 +100,23 @@ function patchProcess(allowExit: boolean) {
 	// on the desktop.
 	// Refs https://github.com/microsoft/vscode/issues/151012#issuecomment-1156593228
 	process.env['ELECTRON_RUN_AS_NODE'] = '1';
+
+	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
+		if (event === 'uncaughtException') {
+			listener = function () {
+				try {
+					return listener.call(undefined, arguments);
+				} catch {
+					// DO NOT HANDLE NOR PRINT the error here because this can and will lead to
+					// more errors which will cause error handling to be reentrant and eventually
+					// overflowing the stack. Do not be sad, we do handle and annotate uncaught
+					// errors properly in 'extensionHostMain'
+				}
+			};
+		}
+		nativeOn(event, listener);
+	};
+
 }
 
 interface IRendererConnection {
@@ -233,12 +253,14 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 		readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
 		private _terminating: boolean;
+		private _protocolListener: IDisposable;
 
 		constructor() {
 			this._terminating = false;
-			protocol.onMessage((msg) => {
+			this._protocolListener = protocol.onMessage((msg) => {
 				if (isMessageOfType(msg, MessageType.Terminate)) {
 					this._terminating = true;
+					this._protocolListener.dispose();
 					onTerminate('received terminate message from renderer');
 				} else {
 					this._onMessage.fire(msg);
@@ -306,7 +328,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				// So also use the native node module to do it from a separate thread
 				let watchdog: typeof nativeWatchdog;
 				try {
-					watchdog = globalThis._VSCODE_NODE_MODULES['native-watchdog'];
+					watchdog = require('native-watchdog');
 					watchdog.start(initData.parentPid);
 				} catch (err) {
 					// no problem...

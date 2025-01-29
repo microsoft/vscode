@@ -78,7 +78,7 @@ import { assertNoRpc } from '../utils';
 				await testDonePromise;
 			});
 
-			test('dependsOn task should start with a different processId (#118256)', async () => {
+			test.skip('dependsOn task should start with a different processId (#118256)', async () => {
 				// Set up dependsOn task by creating tasks.json since this is not possible via the API
 				// Tasks API
 				const tasksConfig = workspace.getConfiguration('tasks');

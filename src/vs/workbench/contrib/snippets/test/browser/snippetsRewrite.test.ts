@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import assert from 'assert';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Snippet, SnippetSource } from '../../browser/snippetsFile.js';
 
 suite('SnippetRewrite', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertRewrite(input: string, expected: string | boolean): void {
 		const actual = new Snippet(false, ['foo'], 'foo', 'foo', 'foo', input, 'foo', SnippetSource.User, generateUuid());

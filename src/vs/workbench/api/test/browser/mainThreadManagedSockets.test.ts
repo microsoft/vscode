@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { disposableTimeout, timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { SocketCloseEvent } from 'vs/base/parts/ipc/common/ipc.net';
-import { mock } from 'vs/base/test/common/mock';
-import { ManagedSocket, RemoteSocketHalf } from 'vs/workbench/api/browser/mainThreadManagedSockets';
-import { ExtHostManagedSocketsShape } from 'vs/workbench/api/common/extHost.protocol';
+import assert from 'assert';
+import { disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { SocketCloseEvent } from '../../../../base/parts/ipc/common/ipc.net.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { RemoteSocketHalf } from '../../../../platform/remote/common/managedSocket.js';
+import { MainThreadManagedSocket } from '../../browser/mainThreadManagedSockets.js';
+import { ExtHostManagedSocketsShape } from '../../common/extHost.protocol.js';
 
 suite('MainThreadManagedSockets', () => {
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('ManagedSocket', () => {
 		let extHost: ExtHostMock;
@@ -68,10 +72,10 @@ suite('MainThreadManagedSockets', () => {
 		});
 
 		async function doConnect() {
-			const socket = ManagedSocket.connect(1, extHost, '/hello', 'world=true', '', half);
+			const socket = MainThreadManagedSocket.connect(1, extHost, '/hello', 'world=true', '', half);
 			await extHost.expectEvent(evt => evt.data && evt.data.startsWith('GET ws://localhost/hello?world=true&skipWebSocketFrames=true HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key:'), 'websocket open event');
 			half.onData.fire(VSBuffer.fromString('Opened successfully ;)\r\n\r\n'));
-			return await socket;
+			return ds.add(await socket);
 		}
 
 		test('connects', async () => {
@@ -79,13 +83,13 @@ suite('MainThreadManagedSockets', () => {
 		});
 
 		test('includes trailing connection data', async () => {
-			const socketProm = ManagedSocket.connect(1, extHost, '/hello', 'world=true', '', half);
+			const socketProm = MainThreadManagedSocket.connect(1, extHost, '/hello', 'world=true', '', half);
 			await extHost.expectEvent(evt => evt.data && evt.data.includes('GET ws://localhost'), 'websocket open event');
 			half.onData.fire(VSBuffer.fromString('Opened successfully ;)\r\n\r\nSome trailing data'));
-			const socket = await socketProm;
+			const socket = ds.add(await socketProm);
 
 			const data: string[] = [];
-			socket.onData(d => data.push(d.toString()));
+			ds.add(socket.onData(d => data.push(d.toString())));
 			await timeout(1); // allow microtasks to flush
 			assert.deepStrictEqual(data, ['Some trailing data']);
 		});
@@ -93,7 +97,7 @@ suite('MainThreadManagedSockets', () => {
 		test('round trips data', async () => {
 			const socket = await doConnect();
 			const data: string[] = [];
-			socket.onData(d => data.push(d.toString()));
+			ds.add(socket.onData(d => data.push(d.toString())));
 
 			socket.write(VSBuffer.fromString('ping'));
 			await extHost.expectEvent(evt => evt.data === 'ping', 'expected ping');

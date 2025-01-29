@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { isObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractPolicyService, IPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { isObject } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { AbstractPolicyService, IPolicyService, PolicyName, PolicyValue } from './policy.js';
 
 function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 	const result: string[] = [];

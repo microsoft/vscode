@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from '../../common/notebookCommon.js';
+import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from '../../common/notebookRange.js';
+import { setupInstantiationService, TestCell } from './testNotebookEditor.js';
 
 suite('NotebookCommon', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageService: ILanguageService;
 
-	suiteSetup(() => {
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		languageService = instantiationService.get(ILanguageService);
 	});
-
-	suiteTeardown(() => disposables.dispose());
 
 	test('sortMimeTypes default orders', function () {
 		assert.deepStrictEqual(new MimeTypeDisplayOrder().sort(
@@ -99,6 +100,8 @@ suite('NotebookCommon', () => {
 				Mimes.text
 			]
 		);
+
+		disposables.dispose();
 	});
 
 
@@ -163,6 +166,8 @@ suite('NotebookCommon', () => {
 				Mimes.text
 			]
 		);
+
+		disposables.dispose();
 	});
 
 	test('prioritizes mimetypes', () => {
@@ -197,6 +202,8 @@ suite('NotebookCommon', () => {
 		const m2 = new MimeTypeDisplayOrder(['a', 'b']);
 		m2.prioritize('b', ['a', 'b', 'a', 'q']);
 		assert.deepStrictEqual(m2.toArray(), ['b', 'a']);
+
+		disposables.dispose();
 	});
 
 	test('sortMimeTypes glob', function () {
@@ -224,6 +231,8 @@ suite('NotebookCommon', () => {
 			],
 			'glob *'
 		);
+
+		disposables.dispose();
 	});
 
 	test('diff cells', function () {
@@ -231,7 +240,7 @@ suite('NotebookCommon', () => {
 
 		for (let i = 0; i < 5; i++) {
 			cells.push(
-				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], languageService)
+				disposables.add(new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], languageService))
 			);
 		}
 
@@ -257,8 +266,8 @@ suite('NotebookCommon', () => {
 		]
 		);
 
-		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], languageService);
-		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], languageService);
+		const cellA = disposables.add(new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], languageService));
+		const cellB = disposables.add(new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], languageService));
 
 		const modifiedCells = [
 			cells[0],
@@ -287,11 +296,16 @@ suite('NotebookCommon', () => {
 				}
 			]
 		);
+
+		disposables.dispose();
 	});
+
 });
 
 
 suite('CellUri', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('parse, generate (file-scheme)', function () {
 
@@ -335,6 +349,8 @@ suite('CellUri', function () {
 
 
 suite('CellRange', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Cell range to index', function () {
 		assert.deepStrictEqual(cellRangesToIndexes([]), []);
@@ -383,14 +399,28 @@ suite('CellRange', function () {
 			{ start: 0, end: 4 }
 		]);
 	});
+
+	test('Reduce ranges 2, empty ranges', function () {
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 0 }, { start: 0, end: 0 }]), [{ start: 0, end: 0 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 0 }, { start: 1, end: 2 }]), [{ start: 1, end: 2 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 2, end: 2 }]), [{ start: 2, end: 2 }]);
+	});
 });
 
 suite('NotebookWorkingCopyTypeIdentifier', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('works', function () {
+	test('supports notebook type only', function () {
 		const viewType = 'testViewType';
-		const type = NotebookWorkingCopyTypeIdentifier.create('testViewType');
-		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse(type), viewType);
+		const type = NotebookWorkingCopyTypeIdentifier.create(viewType);
+		assert.deepEqual(NotebookWorkingCopyTypeIdentifier.parse(type), { notebookType: viewType, viewType });
+		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse('something'), undefined);
+	});
+
+	test('supports different viewtype', function () {
+		const notebookType = { notebookType: 'testNotebookType', viewType: 'testViewType' };
+		const type = NotebookWorkingCopyTypeIdentifier.create(notebookType.notebookType, notebookType.viewType);
+		assert.deepEqual(NotebookWorkingCopyTypeIdentifier.parse(type), notebookType);
 		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse('something'), undefined);
 	});
 });

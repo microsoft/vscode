@@ -10,9 +10,13 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
-const HELP_COMMANDS: &str = "Usage: {name} [options][paths...]
+const HELP_COMMANDS: &str = concatcp!(
+	"Usage: ",
+	constants::APPLICATION_NAME,
+	" [options][paths...]
 
-To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')";
+To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')"
+);
 
 const STANDALONE_TEMPLATE: &str = concatcp!(
 	CLI_NAME,
@@ -52,6 +56,7 @@ const VERSION: &str = concatcp!(NUMBER_IN_VERSION, " (commit ", COMMIT_IN_VERSIO
 #[clap(
    help_template = INTEGRATED_TEMPLATE,
    long_about = None,
+	 name = constants::APPLICATION_NAME,
    version = VERSION,
  )]
 pub struct IntegratedCli {
@@ -59,7 +64,7 @@ pub struct IntegratedCli {
 	pub core: CliCore,
 }
 
-/// Common CLI shared between intergated and standalone interfaces.
+/// Common CLI shared between integrated and standalone interfaces.
 #[derive(Args, Debug, Default, Clone)]
 pub struct CliCore {
 	/// One or more files, folders, or URIs to open.
@@ -84,6 +89,7 @@ pub struct CliCore {
    help_template = STANDALONE_TEMPLATE,
    long_about = None,
    version = VERSION,
+	 name = constants::APPLICATION_NAME,
  )]
 pub struct StandaloneCli {
 	#[clap(flatten)]
@@ -172,9 +178,72 @@ pub enum Commands {
 	/// Changes the version of the editor you're using.
 	Version(VersionArgs),
 
+	/// Runs a local web version of VS Code.
+	#[clap(about = concatcp!("Runs a local web version of ", constants::PRODUCT_NAME_LONG))]
+	ServeWeb(ServeWebArgs),
+
 	/// Runs the control server on process stdin/stdout
 	#[clap(hide = true)]
-	CommandShell,
+	CommandShell(CommandShellArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct ServeWebArgs {
+	/// Host to listen on, defaults to 'localhost'
+	#[clap(long)]
+	pub host: Option<String>,
+	// The path to a socket file for the server to listen to.
+	#[clap(long)]
+	pub socket_path: Option<String>,
+	/// Port to listen on. If 0 is passed a random free port is picked.
+	#[clap(long, default_value_t = 8000)]
+	pub port: u16,
+	/// A secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token: Option<String>,
+	/// A file containing a secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token_file: Option<String>,
+	/// Run without a connection token. Only use this if the connection is secured by other means.
+	#[clap(long)]
+	pub without_connection_token: bool,
+	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
+	#[clap(long)]
+	pub accept_server_license_terms: bool,
+	/// Specifies the path under which the web UI and the code server is provided.
+	#[clap(long)]
+	pub server_base_path: Option<String>,
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
+	/// Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
+	/// Set the root path for extensions.
+	#[clap(long)]
+	pub extensions_dir: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct CommandShellArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
+	/// Listen on a socket instead of stdin/stdout.
+	#[clap(long)]
+	pub on_socket: bool,
+	/// Listen on a host/port instead of stdin/stdout.
+	#[clap(long, num_args = 0..=2, default_missing_value = "0")]
+	pub on_port: Vec<u16>,
+	/// Listen on a host/port instead of stdin/stdout.
+	#[clap[long]]
+	pub on_host: Option<String>,
+	/// Require the given token string to be given in the handshake.
+	#[clap(long, env = "VSCODE_CLI_REQUIRE_TOKEN")]
+	pub require_token: Option<String>,
+	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
+	#[clap(long, hide = true)]
+	pub parent_process_id: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -201,6 +270,8 @@ pub enum ExtensionSubcommand {
 	Install(InstallExtensionArgs),
 	/// Uninstall an extension.
 	Uninstall(UninstallExtensionArgs),
+	/// Update the installed extensions.
+	Update,
 }
 
 impl ExtensionSubcommand {
@@ -212,15 +283,18 @@ impl ExtensionSubcommand {
 					target.push("--show-versions".to_string());
 				}
 				if let Some(category) = &args.category {
-					target.push(format!("--category={}", category));
+					target.push(format!("--category={category}"));
 				}
 			}
 			ExtensionSubcommand::Install(args) => {
 				for id in args.id_or_path.iter() {
-					target.push(format!("--install-extension={}", id));
+					target.push(format!("--install-extension={id}"));
 				}
 				if args.pre_release {
 					target.push("--pre-release".to_string());
+				}
+				if args.donot_include_pack_and_dependencies {
+					target.push("do-not-include-pack-dependencies".to_string());
 				}
 				if args.force {
 					target.push("--force".to_string());
@@ -228,8 +302,11 @@ impl ExtensionSubcommand {
 			}
 			ExtensionSubcommand::Uninstall(args) => {
 				for id in args.id.iter() {
-					target.push(format!("--uninstall-extension={}", id));
+					target.push(format!("--uninstall-extension={id}"));
 				}
+			}
+			ExtensionSubcommand::Update => {
+				target.push("--update-extensions".to_string());
 			}
 		}
 	}
@@ -258,6 +335,10 @@ pub struct InstallExtensionArgs {
 	/// Installs the pre-release version of the extension
 	#[clap(long)]
 	pub pre_release: bool,
+
+	/// Don't include installing pack and dependencies of the extension
+	#[clap(long)]
+	pub donot_include_pack_and_dependencies: bool,
 
 	/// Update to the latest version of the extension if it's already installed.
 	#[clap(long)]
@@ -291,7 +372,7 @@ pub enum VersionSubcommand {
 #[derive(Args, Debug, Clone)]
 pub struct UseVersionArgs {
 	/// The version of the editor you want to use. Can be "stable", "insiders",
-	/// a version number, or an absolute path to an existing install.
+	/// or an absolute path to an existing install.
 	#[clap(value_name = "stable | insiders | x.y.z | path")]
 	pub name: String,
 
@@ -365,11 +446,11 @@ impl EditorOptions {
 			target.push("--wait".to_string());
 		}
 		if let Some(locale) = &self.locale {
-			target.push(format!("--locale={}", locale));
+			target.push(format!("--locale={locale}"));
 		}
 		if !self.enable_proposed_api.is_empty() {
 			for id in self.enable_proposed_api.iter() {
-				target.push(format!("--enable-proposed-api={}", id));
+				target.push(format!("--enable-proposed-api={id}"));
 			}
 		}
 		self.code_options.add_code_args(target);
@@ -406,10 +487,10 @@ pub struct OutputFormatOptions {
 impl DesktopCodeOptions {
 	pub fn add_code_args(&self, target: &mut Vec<String>) {
 		if let Some(extensions_dir) = &self.extensions_dir {
-			target.push(format!("--extensions-dir={}", extensions_dir));
+			target.push(format!("--extensions-dir={extensions_dir}"));
 		}
 		if let Some(user_data_dir) = &self.user_data_dir {
-			target.push(format!("--user-data-dir={}", user_data_dir));
+			target.push(format!("--user-data-dir={user_data_dir}"));
 		}
 	}
 }
@@ -448,13 +529,13 @@ impl GlobalOptions {
 			target.push("--verbose".to_string());
 		}
 		if let Some(log) = self.log {
-			target.push(format!("--log={}", log));
+			target.push(format!("--log={log}"));
 		}
 		if self.disable_telemetry {
 			target.push("--disable-telemetry".to_string());
 		}
 		if let Some(telemetry_level) = &self.telemetry_level {
-			target.push(format!("--telemetry-level={}", telemetry_level));
+			target.push(format!("--telemetry-level={telemetry_level}"));
 		}
 	}
 }
@@ -504,16 +585,16 @@ impl EditorTroubleshooting {
 			target.push("--disable-extensions".to_string());
 		}
 		for id in self.disable_extension.iter() {
-			target.push(format!("--disable-extension={}", id));
+			target.push(format!("--disable-extension={id}"));
 		}
 		if let Some(sync) = &self.sync {
-			target.push(format!("--sync={}", sync));
+			target.push(format!("--sync={sync}"));
 		}
 		if let Some(port) = &self.inspect_extensions {
-			target.push(format!("--inspect-extensions={}", port));
+			target.push(format!("--inspect-extensions={port}"));
 		}
 		if let Some(port) = &self.inspect_brk_extensions {
-			target.push(format!("--inspect-brk-extensions={}", port));
+			target.push(format!("--inspect-brk-extensions={port}"));
 		}
 		if self.disable_gpu {
 			target.push("--disable-gpu".to_string());
@@ -548,6 +629,7 @@ pub enum OutputFormat {
 #[derive(Args, Clone, Debug, Default)]
 pub struct ExistingTunnelArgs {
 	/// Name you'd like to assign preexisting tunnel to use to connect the tunnel
+	/// Old option, new code should just use `--name`.
 	#[clap(long, hide = true)]
 	pub tunnel_name: Option<String>,
 
@@ -566,6 +648,9 @@ pub struct ExistingTunnelArgs {
 
 #[derive(Args, Debug, Clone, Default)]
 pub struct TunnelServeArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
 	/// Optional details to connect to an existing tunnel
 	#[clap(flatten, next_help_heading = Some("ADVANCED OPTIONS"))]
 	pub tunnel: ExistingTunnelArgs,
@@ -589,6 +674,36 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+}
+
+#[derive(Args, Debug, Clone, Default)]
+pub struct BaseServerArgs {
+	/// Requests that extensions be preloaded and installed on connecting servers.
+	#[clap(long)]
+	pub install_extension: Vec<String>,
+
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
+
+	/// Set the root path for extensions.
+	#[clap(long)]
+	pub extensions_dir: Option<String>,
+}
+
+impl BaseServerArgs {
+	pub fn apply_to(&self, csa: &mut CodeServerArgs) {
+		csa.install_extensions
+			.extend_from_slice(&self.install_extension);
+
+		if let Some(d) = &self.server_data_dir {
+			csa.server_data_dir = Some(d.clone());
+		}
+
+		if let Some(d) = &self.extensions_dir {
+			csa.extensions_dir = Some(d.clone());
+		}
+	}
 }
 
 #[derive(Args, Debug, Clone)]
@@ -626,6 +741,10 @@ pub enum TunnelSubcommand {
 	/// (Preview) Manages the tunnel when installed as a system service,
 	#[clap(subcommand)]
 	Service(TunnelServiceSubCommands),
+
+	/// (Preview) Forwards local port using the dev tunnel
+	#[clap(hide = true)]
+	ForwardInternal(TunnelForwardArgs),
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -649,12 +768,26 @@ pub struct TunnelServiceInstallArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Sets the machine name for port forwarding service
+	#[clap(long)]
+	pub name: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct TunnelRenameArgs {
 	/// The name you'd like to rename your machine to.
 	pub name: String,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TunnelForwardArgs {
+	/// One or more ports to forward.
+	pub ports: Vec<u16>,
+
+	/// Login args -- used for convenience so the forwarding call is a single action.
+	#[clap(flatten)]
+	pub login: LoginArgs,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -671,10 +804,13 @@ pub enum TunnelUserSubCommands {
 
 #[derive(Args, Debug, Clone)]
 pub struct LoginArgs {
-	/// An access token to store for authentication. Note: this will not be
-	/// refreshed if it expires!
-	#[clap(long, requires = "provider")]
+	/// An access token to store for authentication.
+	#[clap(long, requires = "provider", env = "VSCODE_CLI_ACCESS_TOKEN")]
 	pub access_token: Option<String>,
+
+	/// An access token to store for authentication.
+	#[clap(long, requires = "access_token", env = "VSCODE_CLI_REFRESH_TOKEN")]
+	pub refresh_token: Option<String>,
 
 	/// The auth provider to use. If not provided, a prompt will be shown.
 	#[clap(value_enum, long)]

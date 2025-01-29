@@ -3,18 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { exec } from 'child_process';
-import { MovingAverage } from 'vs/base/common/numbers';
-import { isLinux } from 'vs/base/common/platform';
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isAllInterfaces, isLocalhost } from 'vs/platform/tunnel/common/tunnel';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { MovingAverage } from '../../../base/common/numbers.js';
+import { isLinux } from '../../../base/common/platform.js';
+import * as resources from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import * as pfs from '../../../base/node/pfs.js';
+import { ISocket, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ManagedSocket, RemoteSocketHalf, connectManagedSocket } from '../../../platform/remote/common/managedSocket.js';
+import { ManagedRemoteConnection } from '../../../platform/remote/common/remoteAuthorityResolver.js';
+import { ISignService } from '../../../platform/sign/common/sign.js';
+import { isAllInterfaces, isLocalhost } from '../../../platform/tunnel/common/tunnel.js';
+import { NodeRemoteTunnel } from '../../../platform/tunnel/node/tunnelService.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
+import { IExtHostRpcService } from '../common/extHostRpcService.js';
+import { ExtHostTunnelService } from '../common/extHostTunnelService.js';
+import { CandidatePort, parseAddress } from '../../services/remote/common/tunnelModel.js';
+import * as vscode from 'vscode';
 
 export function getSockets(stdout: string): Record<string, { pid: number; socket: number }> {
 	const lines = stdout.trim().split('\n');
@@ -28,10 +38,10 @@ export function getSockets(stdout: string): Record<string, { pid: number; socket
 			});
 		}
 	});
-	const socketMap = mapped.reduce((m, socket) => {
+	const socketMap = mapped.reduce((m: Record<string, typeof mapped[0]>, socket) => {
 		m[socket.socket] = socket;
 		return m;
-	}, {} as Record<string, typeof mapped[0]>);
+	}, {});
 	return socketMap;
 }
 
@@ -87,14 +97,17 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 	const lines = stdout.trim().split('\n');
 	const names = lines.shift()!.trim().split(/\s+/)
 		.filter(name => name !== 'rx_queue' && name !== 'tm->when');
-	const table = lines.map(line => line.trim().split(/\s+/).reduce((obj, value, i) => {
+	const table = lines.map(line => line.trim().split(/\s+/).reduce((obj: Record<string, string>, value, i) => {
 		obj[names[i] || i] = value;
 		return obj;
-	}, {} as Record<string, string>));
+	}, {}));
 	return table;
 }
 
 function knownExcludeCmdline(command: string): boolean {
+	if (command.length > 500) {
+		return false;
+	}
 	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
 		|| (command.indexOf('out/server-main.js') !== -1)
 		|| (command.indexOf('_productName=VSCode') !== -1);
@@ -117,10 +130,10 @@ export function getRootProcesses(stdout: string) {
 }
 
 export async function findPorts(connections: { socket: number; ip: string; port: number }[], socketMap: Record<string, { pid: number; socket: number }>, processes: { pid: number; cwd: string; cmd: string }[]): Promise<CandidatePort[]> {
-	const processMap = processes.reduce((m, process) => {
+	const processMap = processes.reduce((m: Record<string, typeof processes[0]>, process) => {
 		m[process.pid] = process;
 		return m;
-	}, {} as Record<string, typeof processes[0]>);
+	}, {});
 
 	const ports: CandidatePort[] = [];
 	connections.forEach(({ socket, ip, port }) => {
@@ -171,8 +184,9 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@ILogService logService: ILogService
+		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
+		@ILogService logService: ILogService,
+		@ISignService private readonly signService: ISignService,
 	) {
 		super(extHostRpc, initData, logService);
 		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
@@ -233,8 +247,8 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
-			tcp = await pfs.Promises.readFile('/proc/net/tcp', 'utf8');
-			tcp6 = await pfs.Promises.readFile('/proc/net/tcp6', 'utf8');
+			tcp = await fs.promises.readFile('/proc/net/tcp', 'utf8');
+			tcp6 = await fs.promises.readFile('/proc/net/tcp6', 'utf8');
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
@@ -255,10 +269,10 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
-				const childStat = await pfs.Promises.stat(childUri.fsPath);
+				const childStat = await fs.promises.stat(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = await pfs.Promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = await pfs.Promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const cwd = await fs.promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
+					const cmd = await fs.promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {
@@ -296,5 +310,103 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 				return foundCandidates;
 			}
 		});
+	}
+
+	protected override makeManagedTunnelFactory(authority: vscode.ManagedResolvedAuthority): vscode.RemoteAuthorityResolver['tunnelFactory'] {
+		return async (tunnelOptions) => {
+			const t = new NodeRemoteTunnel(
+				{
+					commit: this.initData.commit,
+					quality: this.initData.quality,
+					logService: this.logService,
+					ipcLogger: null,
+					// services and address providers have stubs since we don't need
+					// the connection identification that the renderer process uses
+					remoteSocketFactoryService: {
+						_serviceBrand: undefined,
+						async connect(_connectTo: ManagedRemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
+							const result = await authority.makeConnection();
+							return ExtHostManagedSocket.connect(result, path, query, debugLabel);
+						},
+						register() {
+							throw new Error('not implemented');
+						},
+					},
+					addressProvider: {
+						getAddress() {
+							return Promise.resolve({
+								connectTo: new ManagedRemoteConnection(0),
+								connectionToken: authority.connectionToken,
+							});
+						},
+					},
+					signService: this.signService,
+				},
+				'localhost',
+				tunnelOptions.remoteAddress.host || 'localhost',
+				tunnelOptions.remoteAddress.port,
+				tunnelOptions.localAddressPort,
+			);
+
+			await t.waitForReady();
+
+			const disposeEmitter = new Emitter<void>();
+
+			return {
+				localAddress: parseAddress(t.localAddress) ?? t.localAddress,
+				remoteAddress: { port: t.tunnelRemotePort, host: t.tunnelRemoteHost },
+				onDidDispose: disposeEmitter.event,
+				dispose: () => {
+					t.dispose();
+					disposeEmitter.fire();
+					disposeEmitter.dispose();
+				},
+			};
+		};
+	}
+}
+
+class ExtHostManagedSocket extends ManagedSocket {
+	public static connect(
+		passing: vscode.ManagedMessagePassing,
+		path: string, query: string, debugLabel: string,
+	): Promise<ExtHostManagedSocket> {
+		const d = new DisposableStore();
+		const half: RemoteSocketHalf = {
+			onClose: d.add(new Emitter()),
+			onData: d.add(new Emitter()),
+			onEnd: d.add(new Emitter()),
+		};
+
+		d.add(passing.onDidReceiveMessage(d => half.onData.fire(VSBuffer.wrap(d))));
+		d.add(passing.onDidEnd(() => half.onEnd.fire()));
+		d.add(passing.onDidClose(error => half.onClose.fire({
+			type: SocketCloseEventType.NodeSocketCloseEvent,
+			error,
+			hadError: !!error
+		})));
+
+		const socket = new ExtHostManagedSocket(passing, debugLabel, half);
+		socket._register(d);
+		return connectManagedSocket(socket, path, query, debugLabel, half);
+	}
+
+	constructor(
+		private readonly passing: vscode.ManagedMessagePassing,
+		debugLabel: string,
+		half: RemoteSocketHalf,
+	) {
+		super(debugLabel, half);
+	}
+
+	public override write(buffer: VSBuffer): void {
+		this.passing.send(buffer.buffer);
+	}
+	protected override closeRemote(): void {
+		this.passing.end();
+	}
+
+	public override async drain(): Promise<void> {
+		await this.passing.drain?.();
 	}
 }

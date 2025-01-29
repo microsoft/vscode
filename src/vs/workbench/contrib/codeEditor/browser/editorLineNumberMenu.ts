@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, Separator } from 'vs/base/common/actions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { IAction, Separator } from '../../../../base/common/actions.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { registerEditorContribution, EditorContributionInstantiation } from '../../../../editor/browser/editorExtensions.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 
 export interface IGutterActionsGenerator {
 	(context: { lineNumber: number; editor: ICodeEditor; accessor: ServicesAccessor }, result: { push(action: IAction, group?: string): void }): void;
@@ -77,7 +77,6 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 			return;
 		}
 
-		const anchor = { x: e.event.posx, y: e.event.posy };
 		const lineNumber = e.target.position.lineNumber;
 
 		const contextKeyService = this.contextKeyService.createOverlay([['editorLineNumber', lineNumber]]);
@@ -122,7 +121,7 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 			}
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => e.event,
 				getActions: () => Separator.join(...allActions.map((a) => a[1])),
 				onHide: () => menu.dispose(),
 			});

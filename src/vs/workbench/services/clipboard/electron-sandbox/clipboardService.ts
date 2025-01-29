@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { URI } from 'vs/base/common/uri';
-import { isMacintosh } from 'vs/base/common/platform';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 export class NativeClipboardService implements IClipboardService {
 
@@ -19,6 +19,10 @@ export class NativeClipboardService implements IClipboardService {
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) { }
+
+	async readImage(): Promise<Uint8Array> {
+		return this.nativeHostService.readImage();
+	}
 
 	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
 		return this.nativeHostService.writeClipboardText(text, type);

@@ -3,43 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { marked } from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
-import { Range } from 'vs/editor/common/core/range';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from '../../../../editor/common/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import * as marked from '../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { createTextBufferFactory } from '../../../../editor/common/model/textModel.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
-export function requireToContent(instantiationService: IInstantiationService, resource: URI): Promise<string> {
+interface IWalkThroughContentProvider {
+	(accessor: ServicesAccessor): string;
+}
+
+class WalkThroughContentProviderRegistry {
+
+	private readonly providers = new Map<string, IWalkThroughContentProvider>();
+
+	registerProvider(moduleId: string, provider: IWalkThroughContentProvider): void {
+		this.providers.set(moduleId, provider);
+	}
+
+	getProvider(moduleId: string): IWalkThroughContentProvider | undefined {
+		return this.providers.get(moduleId);
+	}
+}
+export const walkThroughContentRegistry = new WalkThroughContentProviderRegistry();
+
+export async function moduleToContent(instantiationService: IInstantiationService, resource: URI): Promise<string> {
 	if (!resource.query) {
-		throw new Error('Welcome: invalid resource');
+		throw new Error('Walkthrough: invalid resource');
 	}
 
 	const query = JSON.parse(resource.query);
 	if (!query.moduleId) {
-		throw new Error('Welcome: invalid resource');
+		throw new Error('Walkthrough: invalid resource');
 	}
 
-	const content: Promise<string> = new Promise<string>((resolve, reject) => {
-		require([query.moduleId], content => {
-			try {
-				resolve(instantiationService.invokeFunction(content.default));
-			} catch (err) {
-				reject(err);
-			}
-		});
-	});
+	const provider = walkThroughContentRegistry.getProvider(query.moduleId);
+	if (!provider) {
+		throw new Error(`Walkthrough: no provider registered for ${query.moduleId}`);
+	}
 
-	return content;
+	return instantiationService.invokeFunction(provider);
 }
 
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.walkThroughSnippetContentProvider';
+
 	private loads = new Map<string, Promise<ITextBufferFactory>>();
 
 	constructor(
@@ -54,7 +70,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 	private async textBufferFactoryFromResource(resource: URI): Promise<ITextBufferFactory> {
 		let ongoing = this.loads.get(resource.toString());
 		if (!ongoing) {
-			ongoing = requireToContent(this.instantiationService, resource)
+			ongoing = moduleToContent(this.instantiationService, resource)
 				.then(content => createTextBufferFactory(content))
 				.finally(() => this.loads.delete(resource.toString()));
 			this.loads.set(resource.toString(), ongoing);
@@ -68,13 +84,13 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 		if (!codeEditorModel) {
 			const j = parseInt(resource.fragment);
 			let i = 0;
-			const renderer = new marked.Renderer();
-			renderer.code = (code, lang) => {
+			const renderer = new marked.marked.Renderer();
+			renderer.code = ({ text, lang }: marked.Tokens.Code) => {
 				i++;
 				const languageId = typeof lang === 'string' ? this.languageService.getLanguageIdByLanguageName(lang) || '' : '';
 				const languageSelection = this.languageService.createById(languageId);
 				// Create all models for this resource in one go... we'll need them all and we don't want to re-parse markdown each time
-				const model = this.modelService.createModel(code, languageSelection, resource.with({ fragment: `${i}.${lang}` }));
+				const model = this.modelService.createModel(text, languageSelection, resource.with({ fragment: `${i}.${lang}` }));
 				if (i === j) { codeEditorModel = model; }
 				return '';
 			};
@@ -82,7 +98,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 			const lineCount = textBuffer.getLineCount();
 			const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 			const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
-			marked(markdown, { renderer });
+			marked.marked(markdown, { renderer });
 		}
 		return assertIsDefined(codeEditorModel);
 	}

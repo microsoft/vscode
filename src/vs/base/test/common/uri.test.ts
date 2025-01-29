@@ -2,12 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
+import assert from 'assert';
+import { isWindows } from '../../common/platform.js';
+import { URI, UriComponents, isUriComponents } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 
 suite('URI', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('file#toString', () => {
 		assert.strictEqual(URI.file('c:/win/path').toString(), 'file:///c%3A/win/path');
 		assert.strictEqual(URI.file('C:/win/path').toString(), 'file:///c%3A/win/path');

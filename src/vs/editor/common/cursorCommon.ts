@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { normalizeIndentation } from 'vs/editor/common/core/indentation';
+import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from './config/editorOptions.js';
+import { LineTokens } from './tokens/lineTokens.js';
+import { Position } from './core/position.js';
+import { Range } from './core/range.js';
+import { ISelection, Selection } from './core/selection.js';
+import { ICommand } from './editorCommon.js';
+import { IEditorConfiguration } from './config/editorConfiguration.js';
+import { PositionAffinity, TextModelResolvedOptions } from './model.js';
+import { AutoClosingPairs } from './languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from './languages/languageConfigurationRegistry.js';
+import { createScopedLineTokens } from './languages/supports.js';
+import { IElectricAction } from './languages/supports/electricCharacter.js';
+import { CursorColumns } from './core/cursorColumns.js';
+import { normalizeIndentation } from './core/indentation.js';
+import { InputMode } from './inputMode.js';
 
 export interface IColumnSelectData {
 	isReal: boolean;
@@ -66,6 +67,7 @@ export class CursorConfiguration {
 	public readonly multiCursorPaste: 'spread' | 'full';
 	public readonly multiCursorLimit: number;
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
+	public readonly autoClosingComments: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	public readonly autoClosingDelete: EditorAutoClosingEditStrategy;
 	public readonly autoClosingOvertype: EditorAutoClosingEditStrategy;
@@ -73,7 +75,10 @@ export class CursorConfiguration {
 	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
-	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean };
+	public readonly blockCommentStartToken: string | null;
+	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean; comment: (ch: string) => boolean };
+	public readonly wordSegmenterLocales: string[];
+	public readonly overtypeOnPaste: boolean;
 
 	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean } | null;
@@ -87,6 +92,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.multiCursorPaste)
 			|| e.hasChanged(EditorOption.multiCursorLimit)
 			|| e.hasChanged(EditorOption.autoClosingBrackets)
+			|| e.hasChanged(EditorOption.autoClosingComments)
 			|| e.hasChanged(EditorOption.autoClosingQuotes)
 			|| e.hasChanged(EditorOption.autoClosingDelete)
 			|| e.hasChanged(EditorOption.autoClosingOvertype)
@@ -94,6 +100,8 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.useTabStops)
 			|| e.hasChanged(EditorOption.fontInfo)
 			|| e.hasChanged(EditorOption.readOnly)
+			|| e.hasChanged(EditorOption.wordSegmenterLocales)
+			|| e.hasChanged(EditorOption.overtypeOnPaste)
 		);
 	}
 
@@ -125,18 +133,22 @@ export class CursorConfiguration {
 		this.multiCursorPaste = options.get(EditorOption.multiCursorPaste);
 		this.multiCursorLimit = options.get(EditorOption.multiCursorLimit);
 		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
+		this.autoClosingComments = options.get(EditorOption.autoClosingComments);
 		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
 		this.autoClosingDelete = options.get(EditorOption.autoClosingDelete);
 		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
+		this.wordSegmenterLocales = options.get(EditorOption.wordSegmenterLocales);
+		this.overtypeOnPaste = options.get(EditorOption.overtypeOnPaste);
 
 		this.surroundingPairs = {};
 		this._electricChars = null;
 
 		this.shouldAutoCloseBefore = {
 			quote: this._getShouldAutoClose(languageId, this.autoClosingQuotes, true),
-			bracket: this._getShouldAutoClose(languageId, this.autoClosingBrackets, false)
+			comment: this._getShouldAutoClose(languageId, this.autoClosingComments, false),
+			bracket: this._getShouldAutoClose(languageId, this.autoClosingBrackets, false),
 		};
 
 		this.autoClosingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoClosingPairs();
@@ -147,6 +159,9 @@ export class CursorConfiguration {
 				this.surroundingPairs[pair.open] = pair.close;
 			}
 		}
+
+		const commentsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
+		this.blockCommentStartToken = commentsConfiguration?.blockCommentStartToken ?? null;
 	}
 
 	public get electricChars() {
@@ -160,6 +175,10 @@ export class CursorConfiguration {
 			}
 		}
 		return this._electricChars;
+	}
+
+	public get inputMode(): 'insert' | 'overtype' {
+		return InputMode.getInputMode();
 	}
 
 	/**

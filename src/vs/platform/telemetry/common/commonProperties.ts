@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isLinuxSnap, platform, Platform, PlatformToString } from 'vs/base/common/platform';
-import { env, platform as nodePlatform } from 'vs/base/common/process';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ICommonProperties } from 'vs/platform/telemetry/common/telemetry';
+import { isLinuxSnap, platform, Platform, PlatformToString } from '../../../base/common/platform.js';
+import { env, platform as nodePlatform } from '../../../base/common/process.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ICommonProperties } from './telemetry.js';
 
 function getPlatformDetail(hostname: string): string | undefined {
 	if (platform === Platform.Linux && /^penguin(\.|$)/i.test(hostname)) {
@@ -23,6 +23,8 @@ export function resolveCommonProperties(
 	commit: string | undefined,
 	version: string | undefined,
 	machineId: string | undefined,
+	sqmId: string | undefined,
+	devDeviceId: string | undefined,
 	isInternalTelemetry: boolean,
 	product?: string
 ): ICommonProperties {
@@ -30,6 +32,10 @@ export function resolveCommonProperties(
 
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;
+	// __GDPR__COMMON__ "common.sqmId" : { "endPoint": "SqmMachineId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
+	result['common.sqmId'] = sqmId;
+	// __GDPR__COMMON__ "common.devDeviceId" : { "endPoint": "SqmMachineId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
+	result['common.devDeviceId'] = devDeviceId;
 	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['sessionID'] = generateUuid() + Date.now();
 	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }

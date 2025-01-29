@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize } from '../../../nls.js';
 import type * as vscode from 'vscode';
-import * as types from './extHostTypes';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState, NoTreeViewError } from 'vs/workbench/common/views';
-import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { asPromise } from 'vs/base/common/async';
-import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem, ViewBadge as ExtHostViewBadge } from 'vs/workbench/api/common/extHostTypes';
-import { isUndefinedOrNull, isString } from 'vs/base/common/types';
-import { equals, coalesce } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarkdownString, ViewBadge, DataTransfer } from 'vs/workbench/api/common/extHostTypeConverters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ITreeViewsDnDService, TreeViewsDnDService } from 'vs/editor/common/services/treeViewsDnd';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { basename } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol.js';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState, NoTreeViewError } from '../../common/views.js';
+import { ExtHostCommands, CommandsConverter } from './extHostCommands.js';
+import { asPromise } from '../../../base/common/async.js';
+import * as extHostTypes from './extHostTypes.js';
+import { isUndefinedOrNull, isString } from '../../../base/common/types.js';
+import { equals, coalesce } from '../../../base/common/arrays.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { MarkdownString, ViewBadge, DataTransfer } from './extHostTypeConverters.js';
+import { IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { ITreeViewsDnDService, TreeViewsDnDService } from '../../../editor/common/services/treeViewsDnd.js';
+import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 type TreeItemHandle = string;
 
@@ -47,7 +47,7 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 }
 
 
-export class ExtHostTreeViews implements ExtHostTreeViewsShape {
+export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
 	private treeDragAndDropService: ITreeViewsDnDService<vscode.DataTransfer> = new TreeViewsDnDService<vscode.DataTransfer>();
@@ -57,7 +57,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		private commands: ExtHostCommands,
 		private logService: ILogService
 	) {
-
+		super();
 		function isTreeViewConvertableItem(arg: any): boolean {
 			return arg && arg.$treeViewId && (arg.$treeItemHandle || arg.$selectedTreeItems || arg.$focusedTreeItem);
 		}
@@ -94,18 +94,29 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		const proxyOptions = { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop, manuallyManageCheckboxes: !!options.manageCheckboxStateManually };
 		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, proxyOptions);
-		return {
+		const view = {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
 			get selection() { return treeView.selectedElements; },
 			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
+			get activeItem() {
+				checkProposedApiEnabled(extension, 'treeViewActiveItem');
+				return treeView.focusedElement;
+			},
+			get onDidChangeActiveItem() {
+				checkProposedApiEnabled(extension, 'treeViewActiveItem');
+				return treeView.onDidChangeActiveItem;
+			},
 			get visible() { return treeView.visible; },
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
 			get onDidChangeCheckboxState() {
 				return treeView.onDidChangeCheckboxState;
 			},
 			get message() { return treeView.message; },
-			set message(message: string) {
+			set message(message: string | vscode.MarkdownString) {
+				if (isMarkdownString(message)) {
+					checkProposedApiEnabled(extension, 'treeViewMarkdownMessage');
+				}
 				treeView.message = message;
 			},
 			get title() { return treeView.title; },
@@ -122,7 +133,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				return treeView.badge;
 			},
 			set badge(badge: vscode.ViewBadge | undefined) {
-				if ((badge !== undefined) && ExtHostViewBadge.isViewBadge(badge)) {
+				if ((badge !== undefined) && extHostTypes.ViewBadge.isViewBadge(badge)) {
 					treeView.badge = {
 						value: Math.floor(Math.abs(badge.value)),
 						tooltip: badge.tooltip
@@ -141,14 +152,30 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				treeView.dispose();
 			}
 		};
+		this._register(view);
+		return view as vscode.TreeView<T>;
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined> {
+	async $getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(number | ITreeItem)[][] | undefined> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new NoTreeViewError(treeViewId));
 		}
-		return treeView.getChildren(treeItemHandle);
+		if (!treeItemHandles) {
+			const children = await treeView.getChildren();
+			return children ? [[0, ...children]] : undefined;
+		}
+		// Keep order of treeItemHandles in case extension trees already depend on this
+		const result = [];
+		for (let i = 0; i < treeItemHandles.length; i++) {
+			const treeItemHandle = treeItemHandles[i];
+			const children = await treeView.getChildren(treeItemHandle);
+			if (children) {
+				result.push([i, ...children]);
+			}
+
+		}
+		return result;
 	}
 
 	async $handleDrop(destinationViewId: string, requestId: number, treeDataTransferDTO: DataTransferDTO, targetItemHandle: string | undefined, token: CancellationToken,
@@ -190,7 +217,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			return Promise.reject(new NoTreeViewError(sourceViewId));
 		}
 
-		const treeDataTransfer = await this.addAdditionalTransferItems(new types.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
+		const treeDataTransfer = await this.addAdditionalTransferItems(new extHostTypes.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
 		if (!treeDataTransfer || token.isCancellationRequested) {
 			return;
 		}
@@ -222,25 +249,20 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setExpanded(treeItemHandle, expanded);
 	}
 
-	$setSelection(treeViewId: string, treeItemHandles: string[]): void {
+	$setSelectionAndFocus(treeViewId: string, selectedHandles: string[], focusedHandle: string) {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			throw new NoTreeViewError(treeViewId);
 		}
-		treeView.setSelection(treeItemHandles);
-	}
-
-	$setFocus(treeViewId: string, treeItemHandles: string) {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			throw new NoTreeViewError(treeViewId);
-		}
-		treeView.setFocus(treeItemHandles);
+		treeView.setSelectionAndFocus(selectedHandles, focusedHandle);
 	}
 
 	$setVisible(treeViewId: string, isVisible: boolean): void {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
+			if (!isVisible) {
+				return;
+			}
 			throw new NoTreeViewError(treeViewId);
 		}
 		treeView.setVisible(isVisible);
@@ -255,7 +277,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	}
 
 	private createExtHostTreeView<T>(id: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): ExtHostTreeView<T> {
-		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension);
+		const treeView = this._register(new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension));
 		this.treeViews.set(id, treeView);
 		return treeView;
 	}
@@ -313,6 +335,9 @@ class ExtHostTreeView<T> extends Disposable {
 	private _onDidChangeSelection: Emitter<vscode.TreeViewSelectionChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewSelectionChangeEvent<T>>());
 	readonly onDidChangeSelection: Event<vscode.TreeViewSelectionChangeEvent<T>> = this._onDidChangeSelection.event;
 
+	private _onDidChangeActiveItem: Emitter<vscode.TreeViewActiveItemChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewActiveItemChangeEvent<T>>());
+	readonly onDidChangeActiveItem: Event<vscode.TreeViewActiveItemChangeEvent<T>> = this._onDidChangeActiveItem.event;
+
 	private _onDidChangeVisibility: Emitter<vscode.TreeViewVisibilityChangeEvent> = this._register(new Emitter<vscode.TreeViewVisibilityChangeEvent>());
 	readonly onDidChangeVisibility: Event<vscode.TreeViewVisibilityChangeEvent> = this._onDidChangeVisibility.event;
 
@@ -344,12 +369,17 @@ class ExtHostTreeView<T> extends Disposable {
 		this.dataProvider = options.treeDataProvider;
 		this.dndController = options.dragAndDropController;
 		if (this.dataProvider.onDidChangeTreeData) {
-			this._register(this.dataProvider.onDidChangeTreeData(elementOrElements => this._onDidChangeData.fire({ message: false, element: elementOrElements })));
+			this._register(this.dataProvider.onDidChangeTreeData(elementOrElements => {
+				if (Array.isArray(elementOrElements) && elementOrElements.length === 0) {
+					return;
+				}
+				this._onDidChangeData.fire({ message: false, element: elementOrElements });
+			}));
 		}
 
 		let refreshingPromise: Promise<void> | null;
 		let promiseCallback: () => void;
-		this._register(Event.debounce<TreeData<T>, { message: boolean; elements: (T | Root)[] }>(this._onDidChangeData.event, (result, current) => {
+		const onDidChangeData = Event.debounce<TreeData<T>, { message: boolean; elements: (T | Root)[] }>(this._onDidChangeData.event, (result, current) => {
 			if (!result) {
 				result = { message: false, elements: [] };
 			}
@@ -369,7 +399,8 @@ class ExtHostTreeView<T> extends Disposable {
 				result.message = true;
 			}
 			return result;
-		}, 200, true)(({ message, elements }) => {
+		}, 200, true);
+		this._register(onDidChangeData(({ message, elements }) => {
 			if (elements.length) {
 				this.refreshQueue = this.refreshQueue.then(() => {
 					const _promiseCallback = promiseCallback;
@@ -378,7 +409,7 @@ class ExtHostTreeView<T> extends Disposable {
 				});
 			}
 			if (message) {
-				this.proxy.$setMessage(this.viewId, this._message);
+				this.proxy.$setMessage(this.viewId, MarkdownString.fromStrict(this._message) ?? '');
 			}
 		}));
 	}
@@ -423,12 +454,12 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	private _message: string = '';
-	get message(): string {
+	private _message: string | vscode.MarkdownString = '';
+	get message(): string | vscode.MarkdownString {
 		return this._message;
 	}
 
-	set message(message: string) {
+	set message(message: string | vscode.MarkdownString) {
 		this._message = message;
 		this._onDidChangeData.fire({ message: true, element: false });
 	}
@@ -479,15 +510,20 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	setSelection(treeItemHandles: TreeItemHandle[]): void {
-		if (!equals(this._selectedHandles, treeItemHandles)) {
-			this._selectedHandles = treeItemHandles;
+	setSelectionAndFocus(selectedHandles: TreeItemHandle[], focusedHandle: string): void {
+		const changedSelection = !equals(this._selectedHandles, selectedHandles);
+		this._selectedHandles = selectedHandles;
+
+		const changedFocus = this._focusedHandle !== focusedHandle;
+		this._focusedHandle = focusedHandle;
+
+		if (changedSelection) {
 			this._onDidChangeSelection.fire(Object.freeze({ selection: this.selectedElements }));
 		}
-	}
 
-	setFocus(treeItemHandle: TreeItemHandle) {
-		this._focusedHandle = treeItemHandle;
+		if (changedFocus) {
+			this._onDidChangeActiveItem.fire(Object.freeze({ activeItem: this.focusedElement }));
+		}
 	}
 
 	setVisible(visible: boolean): void {
@@ -498,21 +534,21 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	async setCheckboxState(checkboxUpdates: CheckboxUpdate[]) {
-		type CheckboxUpdateWithItem = { extensionItem: NonNullable<T>; treeItem: vscode.TreeItem; newState: TreeItemCheckboxState };
+		type CheckboxUpdateWithItem = { extensionItem: NonNullable<T>; treeItem: vscode.TreeItem; newState: extHostTypes.TreeItemCheckboxState };
 		const items = (await Promise.all(checkboxUpdates.map(async checkboxUpdate => {
 			const extensionItem = this.getExtensionElement(checkboxUpdate.treeItemHandle);
 			if (extensionItem) {
 				return {
 					extensionItem: extensionItem,
 					treeItem: await this.dataProvider.getTreeItem(extensionItem),
-					newState: checkboxUpdate.newState ? TreeItemCheckboxState.Checked : TreeItemCheckboxState.Unchecked
+					newState: checkboxUpdate.newState ? extHostTypes.TreeItemCheckboxState.Checked : extHostTypes.TreeItemCheckboxState.Unchecked
 				};
 			}
 			return Promise.resolve(undefined);
 		}))).filter<CheckboxUpdateWithItem>((item): item is CheckboxUpdateWithItem => item !== undefined);
 
 		items.forEach(item => {
-			item.treeItem.checkboxState = item.newState ? TreeItemCheckboxState.Checked : TreeItemCheckboxState.Unchecked;
+			item.treeItem.checkboxState = item.newState ? extHostTypes.TreeItemCheckboxState.Checked : extHostTypes.TreeItemCheckboxState.Unchecked;
 		});
 
 		this._onDidChangeCheckboxState.fire({ items: items.map(item => [item.extensionItem, item.newState]) });
@@ -641,13 +677,16 @@ class ExtHostTreeView<T> extends Disposable {
 				return undefined;
 			}
 
-			const items = await Promise.all(coalesce(elements || []).map(async element => {
-				const item = await this.dataProvider.getTreeItem(element);
-				return item && !cts.token.isCancellationRequested ? this.createAndRegisterTreeNode(element, item, parentNode) : null;
+			const coalescedElements = coalesce(elements || []);
+			const treeItems = await Promise.all(coalesce(coalescedElements).map(element => {
+				return this.dataProvider.getTreeItem(element);
 			}));
 			if (cts.token.isCancellationRequested) {
 				return undefined;
 			}
+
+			// createAndRegisterTreeNodes adds the nodes to a cache. This must be done sync so that they get added in the correct order.
+			const items = treeItems.map((item, index) => item ? this.createAndRegisterTreeNode(coalescedElements[index], item, parentNode) : null);
 
 			return coalesce(items);
 		} finally {
@@ -751,7 +790,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private getTooltip(tooltip?: string | vscode.MarkdownString): string | IMarkdownString | undefined {
-		if (MarkdownStringType.isMarkdownString(tooltip)) {
+		if (extHostTypes.MarkdownString.isMarkdownString(tooltip)) {
 			return MarkdownString.from(tooltip);
 		}
 		return tooltip;
@@ -765,7 +804,7 @@ class ExtHostTreeView<T> extends Disposable {
 		if (extensionTreeItem.checkboxState === undefined) {
 			return undefined;
 		}
-		let checkboxState: TreeItemCheckboxState;
+		let checkboxState: extHostTypes.TreeItemCheckboxState;
 		let tooltip: string | undefined = undefined;
 		let accessibilityInformation: IAccessibilityInformation | undefined = undefined;
 		if (typeof extensionTreeItem.checkboxState === 'number') {
@@ -775,18 +814,18 @@ class ExtHostTreeView<T> extends Disposable {
 			tooltip = extensionTreeItem.checkboxState.tooltip;
 			accessibilityInformation = extensionTreeItem.checkboxState.accessibilityInformation;
 		}
-		return { isChecked: checkboxState === TreeItemCheckboxState.Checked, tooltip, accessibilityInformation };
+		return { isChecked: checkboxState === extHostTypes.TreeItemCheckboxState.Checked, tooltip, accessibilityInformation };
 	}
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {
-		if (!TreeItem.isTreeItem(extensionTreeItem, this.extension)) {
+		if (!extHostTypes.TreeItem.isTreeItem(extensionTreeItem, this.extension)) {
 			throw new Error(`Extension ${this.extension.identifier.value} has provided an invalid tree item.`);
 		}
 	}
 
 	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
 		this.validateTreeItem(extensionTreeItem);
-		const disposableStore = new DisposableStore();
+		const disposableStore = this._register(new DisposableStore());
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
 		const item: ITreeItem = {
@@ -801,7 +840,7 @@ class ExtHostTreeView<T> extends Disposable {
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
 			themeIcon: this.getThemeIcon(extensionTreeItem),
-			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
+			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? extHostTypes.TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
 			accessibilityInformation: extensionTreeItem.accessibilityInformation,
 			checkbox: this.getCheckbox(extensionTreeItem),
 		};
@@ -816,8 +855,8 @@ class ExtHostTreeView<T> extends Disposable {
 		};
 	}
 
-	private getThemeIcon(extensionTreeItem: vscode.TreeItem): ThemeIcon | undefined {
-		return extensionTreeItem.iconPath instanceof ThemeIcon ? extensionTreeItem.iconPath : undefined;
+	private getThemeIcon(extensionTreeItem: vscode.TreeItem): extHostTypes.ThemeIcon | undefined {
+		return extensionTreeItem.iconPath instanceof extHostTypes.ThemeIcon ? extensionTreeItem.iconPath : undefined;
 	}
 
 	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent: TreeNode | Root, returnFirst?: boolean): TreeItemHandle {
@@ -849,7 +888,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private getLightIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
-		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon)) {
+		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof extHostTypes.ThemeIcon)) {
 			if (typeof extensionTreeItem.iconPath === 'string'
 				|| URI.isUri(extensionTreeItem.iconPath)) {
 				return this.getIconPath(extensionTreeItem.iconPath);
@@ -860,7 +899,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
-		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && (<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark) {
+		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof extHostTypes.ThemeIcon) && (<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark) {
 			return this.getIconPath((<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark);
 		}
 		return undefined;
@@ -955,6 +994,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	override dispose() {
+		super.dispose();
 		this._refreshCancellationSource.dispose();
 
 		this.clearAll();

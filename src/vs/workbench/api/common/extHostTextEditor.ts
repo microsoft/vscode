@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'vs/base/common/assert';
-import { illegalArgument, readonly } from 'vs/base/common/errors';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
+import { ok } from '../../../base/common/assert.js';
+import { ReadonlyError, illegalArgument } from '../../../base/common/errors.js';
+import { IdGenerator } from '../../../base/common/idGenerator.js';
+import { TextEditorCursorStyle } from '../../../editor/common/config/editorOptions.js';
+import { IRange } from '../../../editor/common/core/range.js';
+import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from './extHost.protocol.js';
+import * as TypeConverters from './extHostTypeConverters.js';
+import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from './extHostTypes.js';
 import type * as vscode from 'vscode';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Lazy } from 'vs/base/common/lazy';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 
 export class TextEditorDecorationType {
 
@@ -144,6 +144,7 @@ export class ExtHostTextEditorOptions {
 
 	private _tabSize!: number;
 	private _indentSize!: number;
+	private _originalIndentSize!: number | 'tabSize';
 	private _insertSpaces!: boolean;
 	private _cursorStyle!: TextEditorCursorStyle;
 	private _lineNumbers!: TextEditorLineNumbersStyle;
@@ -165,10 +166,10 @@ export class ExtHostTextEditorOptions {
 			set tabSize(value: number | string) {
 				that._setTabSize(value);
 			},
-			get indentSize(): number | 'tabSize' {
+			get indentSize(): number | string {
 				return that._indentSize;
 			},
-			set indentSize(value: number | 'tabSize') {
+			set indentSize(value: number | string) {
 				that._setIndentSize(value);
 			},
 			get insertSpaces(): boolean | string {
@@ -195,6 +196,7 @@ export class ExtHostTextEditorOptions {
 	public _accept(source: IResolvedTextEditorConfiguration): void {
 		this._tabSize = source.tabSize;
 		this._indentSize = source.indentSize;
+		this._originalIndentSize = source.originalIndentSize;
 		this._insertSpaces = source.insertSpaces;
 		this._cursorStyle = source.cursorStyle;
 		this._lineNumbers = TypeConverters.TextEditorLineNumbersStyle.to(source.lineNumbers);
@@ -266,12 +268,13 @@ export class ExtHostTextEditorOptions {
 			return;
 		}
 		if (typeof indentSize === 'number') {
-			if (this._indentSize === indentSize) {
+			if (this._originalIndentSize === indentSize) {
 				// nothing to do
 				return;
 			}
 			// reflect the new indentSize value immediately
 			this._indentSize = indentSize;
+			this._originalIndentSize = indentSize;
 		}
 		this._warnOnError('setIndentSize', this._proxy.$trySetOptions(this._id, {
 			indentSize: indentSize
@@ -350,9 +353,10 @@ export class ExtHostTextEditorOptions {
 			if (indentSize === 'tabSize') {
 				hasUpdate = true;
 				bulkConfigurationUpdate.indentSize = indentSize;
-			} else if (typeof indentSize === 'number' && this._indentSize !== indentSize) {
+			} else if (typeof indentSize === 'number' && this._originalIndentSize !== indentSize) {
 				// reflect the new indentSize value immediately
 				this._indentSize = indentSize;
+				this._originalIndentSize = indentSize;
 				hasUpdate = true;
 				bulkConfigurationUpdate.indentSize = indentSize;
 			}
@@ -408,6 +412,7 @@ export class ExtHostTextEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _disposed: boolean = false;
 	private _hasDecorationsForKey = new Set<string>();
+	private _diffInformation: vscode.TextEditorDiffInformation[] | undefined;
 
 	readonly value: vscode.TextEditor;
 
@@ -431,7 +436,7 @@ export class ExtHostTextEditor {
 				return document.value;
 			},
 			set document(_value) {
-				throw readonly('document');
+				throw new ReadonlyError('document');
 			},
 			// --- selection
 			get selection(): Selection {
@@ -459,7 +464,10 @@ export class ExtHostTextEditor {
 				return that._visibleRanges;
 			},
 			set visibleRanges(_value: Range[]) {
-				throw readonly('visibleRanges');
+				throw new ReadonlyError('visibleRanges');
+			},
+			get diffInformation() {
+				return that._diffInformation;
 			},
 			// --- options
 			get options(): vscode.TextEditorOptions {
@@ -475,7 +483,7 @@ export class ExtHostTextEditor {
 				return that._viewColumn;
 			},
 			set viewColumn(_value) {
-				throw readonly('viewColumn');
+				throw new ReadonlyError('viewColumn');
 			},
 			// --- edit
 			edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
@@ -562,6 +570,9 @@ export class ExtHostTextEditor {
 			},
 			hide() {
 				_proxy.$tryHideEditor(id);
+			},
+			[Symbol.for('debug.description')]() {
+				return `TextEditor(${this.document.uri.toString()})`;
 			}
 		});
 	}
@@ -591,6 +602,11 @@ export class ExtHostTextEditor {
 	_acceptSelections(selections: Selection[]): void {
 		ok(!this._disposed);
 		this._selections = selections;
+	}
+
+	_acceptDiffInformation(diffInformation: vscode.TextEditorDiffInformation[] | undefined): void {
+		ok(!this._disposed);
+		this._diffInformation = diffInformation;
 	}
 
 	private async _trySetSelection(): Promise<vscode.TextEditor | null | undefined> {

@@ -3,36 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
-import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MarkersViewMode, Markers, MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
-import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
+import './markersFileDecorations.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Marker, RelatedInformation, ResourceMarkers } from './markersModel.js';
+import { MarkersView } from './markersView.js';
+import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { MarkersViewMode, Markers, MarkersContextKeys } from '../common/markers.js';
+import Messages from './messages.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IMarkersView } from './markers.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
+import { IMarkerService, MarkerStatistics } from '../../../../platform/markers/common/markers.js';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { getVisbileViewContextKey, FocusedViewContext } from '../../../common/contextkeys.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ViewAction } from '../../../browser/parts/views/viewPane.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { problemsConfigurationNodeBase } from '../../../common/configuration.js';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -89,10 +92,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // configuration
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'problems',
-	'order': 101,
-	'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
-	'type': 'object',
+	...problemsConfigurationNodeBase,
 	'properties': {
 		'problems.autoReveal': {
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
@@ -140,7 +140,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: Markers.MARKERS_VIEW_ID,
 	containerIcon: markersViewIcon,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(MarkersView),
 	openCommandActionDescriptor: {
@@ -160,6 +160,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.table.${Markers.MARKERS_VIEW_ID}.viewAsTree`,
 			title: localize('viewAsTree', "View as Tree"),
+			metadata: {
+				description: localize2('viewAsTreeDescription', "Show the problems view as a tree.")
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Table)),
@@ -181,6 +184,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.table.${Markers.MARKERS_VIEW_ID}.viewAsTable`,
 			title: localize('viewAsTable', "View as Table"),
+			metadata: {
+				description: localize2('viewAsTableDescription', "Show the problems view as a table.")
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Tree)),
@@ -201,12 +207,12 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleErrors`,
-			title: localize('toggle errors', "Toggle Errors"),
-			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowErrorsFilterContextKey,
-				title: localize('errors', "Show Errors")
+			title: localize('show errors', "Show Errors"),
+			metadata: {
+				description: localize2('toggleErrorsDescription', "Show or hide errors in the problems view.")
 			},
+			category: localize('problems', "Problems"),
+			toggled: MarkersContextKeys.ShowErrorsFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -226,12 +232,12 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleWarnings`,
-			title: localize('toggle warnings', "Toggle Warnings"),
-			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowWarningsFilterContextKey,
-				title: localize('warnings', "Show Warnings")
+			title: localize('show warnings', "Show Warnings"),
+			metadata: {
+				description: localize2('toggleWarningsDescription', "Show or hide warnings in the problems view.")
 			},
+			category: localize('problems', "Problems"),
+			toggled: MarkersContextKeys.ShowWarningsFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -251,11 +257,11 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleInfos`,
-			title: localize('toggle infos', "Toggle Infos"),
+			title: localize('show infos', "Show Infos"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowInfoFilterContextKey,
-				title: localize('Infos', "Show Infos")
+			toggled: MarkersContextKeys.ShowInfoFilterContextKey,
+			metadata: {
+				description: localize2('toggleInfosDescription', "Show or hide infos in the problems view.")
 			},
 			menu: {
 				id: viewFilterSubmenu,
@@ -276,12 +282,12 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleActiveFile`,
-			title: localize('toggle active file', "Toggle Active File"),
-			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowActiveFileFilterContextKey,
-				title: localize('Active File', "Show Active File Only")
+			title: localize('show active file', "Show Active File Only"),
+			metadata: {
+				description: localize2('toggleActiveFileDescription', "Show or hide problems (errors, warnings, info) only from the active file in the problems view.")
 			},
+			category: localize('problems', "Problems"),
+			toggled: MarkersContextKeys.ShowActiveFileFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '2_filter',
@@ -301,12 +307,12 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleExcludedFiles`,
-			title: localize('toggle Excluded Files', "Toggle Excluded Files"),
-			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowExcludedFilesFilterContextKey,
-				title: localize('Excluded Files', "Hide Excluded Files")
+			title: localize('show excluded files', "Show Excluded Files"),
+			metadata: {
+				description: localize2('toggleExcludedFilesDescription', "Show or hide excluded files in the problems view.")
 			},
+			category: localize('problems', "Problems"),
+			toggled: MarkersContextKeys.ShowExcludedFilesFilterContextKey.negate(),
 			menu: {
 				id: viewFilterSubmenu,
 				group: '2_filter',
@@ -326,7 +332,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.problems.focus',
-			title: { value: Messages.MARKERS_PANEL_SHOW_LABEL, original: 'Focus Problems (Errors, Warnings, Infos)' },
+			title: Messages.MARKERS_PANEL_SHOW_LABEL,
 			category: Categories.View,
 			f1: true,
 		});
@@ -341,7 +347,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersTreeVisibilityContextKey, MarkersContextKeys.RelatedInformationFocusContextKey.toNegated());
 		super({
 			id: Markers.MARKER_COPY_ACTION_ID,
-			title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
+			title: localize2('copyMarker', 'Copy'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when,
@@ -381,7 +387,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKER_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			title: localize2('copyMessage', 'Copy Message'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when: MarkersContextKeys.MarkerFocusContextKey,
@@ -403,7 +409,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			title: localize2('copyMessage', 'Copy Message'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when: MarkersContextKeys.RelatedInformationFocusContextKey,
@@ -461,7 +467,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKERS_VIEW_SHOW_MULTILINE_MESSAGE,
-			title: { value: localize('show multiline', "Show message in multiple lines"), original: 'Problems: Show message in multiple lines' },
+			title: localize2('show multiline', "Show message in multiple lines"),
 			category: localize('problems', "Problems"),
 			menu: {
 				id: MenuId.CommandPalette,
@@ -479,7 +485,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKERS_VIEW_SHOW_SINGLELINE_MESSAGE,
-			title: { value: localize('show singleline', "Show message in single line"), original: 'Problems: Show message in single line' },
+			title: localize2('show singleline', "Show message in single line"),
 			category: localize('problems', "Problems"),
 			menu: {
 				id: MenuId.CommandPalette,
@@ -552,14 +558,44 @@ registerAction2(class extends Action2 {
 class MarkersStatusBarContributions extends Disposable implements IWorkbenchContribution {
 
 	private markersStatusItem: IStatusbarEntryAccessor;
+	private markersStatusItemOff: IStatusbarEntryAccessor | undefined;
 
 	constructor(
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
+
+		const addStatusBarEntry = () => {
+			this.markersStatusItemOff = this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49);
+		};
+
+		// Add the status bar entry if the problems is not visible
+		let config = this.configurationService.getValue('problems.visibility');
+		if (!config) {
+			addStatusBarEntry();
+		}
+
+		this._register(this.markerService.onMarkerChanged(() => {
+			this.markersStatusItem.update(this.getMarkersItem());
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('problems.visibility')) {
+				this.markersStatusItem.update(this.getMarkersItem());
+
+				// Update based on what setting was changed to.
+				config = this.configurationService.getValue('problems.visibility');
+				if (!config && !this.markersStatusItemOff) {
+					addStatusBarEntry();
+				} else if (config && this.markersStatusItemOff) {
+					this.markersStatusItemOff.dispose();
+					this.markersStatusItemOff = undefined;
+				}
+			}
+		}));
 	}
 
 	private getMarkersItem(): IStatusbarEntry {
@@ -571,6 +607,22 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 			ariaLabel: tooltip,
 			tooltip,
 			command: 'workbench.actions.view.toggleProblems'
+		};
+	}
+
+	private getMarkersItemTurnedOff(): IStatusbarEntry {
+		// Update to true, config checked before `getMarkersItemTurnedOff` is called.
+		this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
+		const openSettingsCommand = 'workbench.action.openSettings';
+		const configureSettingsLabel = '@id:problems.visibility';
+		const tooltip = localize('status.problemsVisibilityOff', "Problems are turned off. Click to open settings.");
+		return {
+			name: localize('status.problemsVisibility', "Problems Visibility"),
+			text: '$(whole-word)',
+			ariaLabel: tooltip,
+			tooltip,
+			kind: 'warning',
+			command: { title: openSettingsCommand, arguments: [configureSettingsLabel], id: openSettingsCommand }
 		};
 	}
 
@@ -641,8 +693,12 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	private updateBadge(): void {
 		const { errors, warnings, infos } = this.markerService.getStatistics();
 		const total = errors + warnings + infos;
-		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		if (total > 0) {
+			const message = localize('totalProblems', 'Total {0} Problems', total);
+			this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		} else {
+			this.activity.value = undefined;
+		}
 	}
 }
 

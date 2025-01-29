@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { INotebookEditor, CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch } from 'vs/editor/common/model';
-import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
-import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
-import { CellKind, INotebookSearchOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { findFirstInSorted } from 'vs/base/common/arrays';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { findFirstIdxMonotonousOrArrLen } from '../../../../../../base/common/arraysFind.js';
+import { CancelablePromise, createCancelablePromise, Delayer } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { FindMatch } from '../../../../../../editor/common/model.js';
+import { PrefixSumComputer } from '../../../../../../editor/common/model/prefixSumComputer.js';
+import { FindReplaceState, FindReplaceStateChangedEvent } from '../../../../../../editor/contrib/find/browser/findState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { NotebookFindFilters } from './findFilters.js';
+import { FindMatchDecorationModel } from './findMatchDecorationModel.js';
+import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel, INotebookEditor } from '../../notebookBrowser.js';
+import { NotebookViewModel } from '../../viewModel/notebookViewModelImpl.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { CellKind, INotebookFindOptions, NotebookCellsChangeType } from '../../../common/notebookCommon.js';
 
 export class CellFindMatchModel implements CellFindMatchWithIndex {
 	readonly cell: ICellViewModel;
@@ -111,27 +111,23 @@ export class FindModel extends Disposable {
 			this._registerModelListener(this._notebookEditor.textModel);
 		}
 
-		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor);
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor, this._notebookEditor.getId());
 	}
 
 	private _updateCellStates(e: FindReplaceStateChangedEvent) {
-		if (!this._state.filters?.markupInput) {
-			return;
-		}
-
-		if (!this._state.filters?.markupPreview) {
+		if (!this._state.filters?.markupInput || !this._state.filters?.markupPreview || !this._state.filters?.findScope) {
 			return;
 		}
 
 		// we only update cell state if users are using the hybrid mode (both input and preview are enabled)
 		const updateEditingState = () => {
-			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
+			const viewModel = this._notebookEditor.getViewModel() as NotebookViewModel | undefined;
 			if (!viewModel) {
 				return;
 			}
 			// search markup sources first to decide if a markup cell should be in editing mode
 			const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
-			const options: INotebookSearchOptions = {
+			const options: INotebookFindOptions = {
 				regex: this._state.isRegex,
 				wholeWord: this._state.wholeWord,
 				caseSensitive: this._state.matchCase,
@@ -139,7 +135,8 @@ export class FindModel extends Disposable {
 				includeMarkupInput: true,
 				includeCodeInput: false,
 				includeMarkupPreview: false,
-				includeOutput: false
+				includeOutput: false,
+				findScope: this._state.filters?.findScope,
 			};
 
 			const contentMatches = viewModel.find(this._state.searchString, options);
@@ -164,7 +161,7 @@ export class FindModel extends Disposable {
 
 		if (e.isReplaceRevealed && !this._state.isReplaceRevealed) {
 			// replace is hidden, we need to switch all markdown cells to preview mode
-			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
+			const viewModel = this._notebookEditor.getViewModel() as NotebookViewModel | undefined;
 			if (!viewModel) {
 				return;
 			}
@@ -281,7 +278,7 @@ export class FindModel extends Disposable {
 			const index = this._notebookEditor.getCellIndex(findMatch.cell);
 			if (index !== undefined) {
 				// const range: ICellRange = { start: index, end: index + 1 };
-				this._notebookEditor.revealCellOffsetInCenterAsync(findMatch.cell, outputOffset ?? 0);
+				this._notebookEditor.revealCellOffsetInCenter(findMatch.cell, outputOffset ?? 0);
 			}
 		} else {
 			const match = findMatch.getMatch(matchIndex) as FindMatch;
@@ -341,7 +338,7 @@ export class FindModel extends Disposable {
 		}
 
 		const findFirstMatchAfterCellIndex = (cellIndex: number) => {
-			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= cellIndex);
+			const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches.map(match => match.index), index => index >= cellIndex);
 			this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
 		};
 
@@ -403,7 +400,7 @@ export class FindModel extends Disposable {
 				return;
 			}
 
-			const matchAfterSelection = findFirstInSorted(findMatches, match => match.index >= oldCurrMatchCellIndex) % findMatches.length;
+			const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches, match => match.index >= oldCurrMatchCellIndex) % findMatches.length;
 			if (findMatches[matchAfterSelection].index > oldCurrMatchCellIndex) {
 				// there is no search result in curr cell anymore, find the nearest one (from top to bottom)
 				this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
@@ -419,7 +416,7 @@ export class FindModel extends Disposable {
 				if (currMatchRangeInEditor !== null) {
 					// we find a range for the previous current match, let's find the nearest one after it (can overlap)
 					const cellMatch = findMatches[matchAfterSelection];
-					const matchAfterOldSelection = findFirstInSorted(cellMatch.contentMatches, match => Range.compareRangesUsingStarts((match as FindMatch).range, currMatchRangeInEditor) >= 0);
+					const matchAfterOldSelection = findFirstIdxMonotonousOrArrLen(cellMatch.contentMatches, match => Range.compareRangesUsingStarts((match as FindMatch).range, currMatchRangeInEditor) >= 0);
 					this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection) + matchAfterOldSelection);
 				} else {
 					// no range found, let's fall back to finding the nearest match
@@ -429,7 +426,7 @@ export class FindModel extends Disposable {
 			}
 		} else {
 			// output now has the highlight
-			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex) % findMatches.length;
+			const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex) % findMatches.length;
 			this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
 		}
 	}
@@ -471,11 +468,14 @@ export class FindModel extends Disposable {
 	}
 
 	private async _compute(token: CancellationToken): Promise<CellFindMatchWithIndex[] | null> {
+		if (!this._notebookEditor.hasModel()) {
+			return null;
+		}
 		let ret: CellFindMatchWithIndex[] | null = null;
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
-		const options: INotebookSearchOptions = {
+		const options: INotebookFindOptions = {
 			regex: this._state.isRegex,
 			wholeWord: this._state.wholeWord,
 			caseSensitive: this._state.matchCase,
@@ -483,15 +483,11 @@ export class FindModel extends Disposable {
 			includeMarkupInput: this._state.filters?.markupInput ?? true,
 			includeCodeInput: this._state.filters?.codeInput ?? true,
 			includeMarkupPreview: !!this._state.filters?.markupPreview,
-			includeOutput: !!this._state.filters?.codeOutput
+			includeOutput: !!this._state.filters?.codeOutput,
+			findScope: this._state.filters?.findScope,
 		};
-		if (!val) {
-			ret = null;
-		} else if (!this._notebookEditor.hasModel()) {
-			ret = null;
-		} else {
-			ret = await this._notebookEditor.find(val, options, token);
-		}
+
+		ret = await this._notebookEditor.find(val, options, token);
 
 		if (token.isCancellationRequested) {
 			return null;
@@ -501,8 +497,8 @@ export class FindModel extends Disposable {
 	}
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
-		this.set(findMatches, false);
 		this._currentMatch = currentMatchesPosition % findMatches.length;
+		this.set(findMatches, false);
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 

@@ -31,27 +31,68 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	# Register apt repository
 	eval $(apt-config shell APT_SOURCE_PARTS Dir::Etc::sourceparts/d)
 	CODE_SOURCE_PART=${APT_SOURCE_PARTS}vscode.list
+	CODE_SOURCE_PART_DEB822=${APT_SOURCE_PARTS}vscode.sources
 
 	eval $(apt-config shell APT_TRUSTED_PARTS Dir::Etc::trustedparts/d)
 	CODE_TRUSTED_PART=${APT_TRUSTED_PARTS}microsoft.gpg
 
-	# Install repository source list
-	WRITE_SOURCE=0
-	if [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
-		# Write source list if it does not exist and we're not running on Raspberry Pi OS
-		WRITE_SOURCE=1
-	elif grep -Eq "http:\/\/packages\.microsoft\.com\/repos\/vscode" $CODE_SOURCE_PART; then
-		# Migrate from old repository
-		WRITE_SOURCE=1
-	elif grep -q "# disabled on upgrade to" $CODE_SOURCE_PART; then
-		# Write source list if it was disabled by OS upgrade
-		WRITE_SOURCE=1
+	# RET seems to be true by default even after db_get is called on a first install.
+	RET='true'
+	if [ -e '/usr/share/debconf/confmodule' ]; then
+		. /usr/share/debconf/confmodule
+		db_get @@NAME@@/add-microsoft-repo || true
 	fi
 
-	if [ "$WRITE_SOURCE" -eq "1" ]; then
+	# Determine whether to write the Microsoft repository source list
+	WRITE_SOURCE='no'
+	if [ "$RET" = 'false' ]; then
+		# The user specified in debconf not to add the Microsoft repository
+		WRITE_SOURCE='no'
+	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
+		# The user has migrated themselves to the DEB822 format
+		WRITE_SOURCE='no'
+	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/vscode" $CODE_SOURCE_PART); then
+		# Migrate from old repository
+		WRITE_SOURCE='yes'
+	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/code" $CODE_SOURCE_PART); then
+		# Migrate from old repository
+		WRITE_SOURCE='yes'
+	elif apt-cache policy | grep -q "https://packages.microsoft.com/repos/code"; then
+		# The user is already on the new repository
+		WRITE_SOURCE='no'
+	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
+		# Source list does not exist and we're not running on Raspberry Pi OS
+		WRITE_SOURCE='ask'
+	elif grep -q "# disabled on upgrade to" $CODE_SOURCE_PART; then
+		# Source list was disabled by OS upgrade
+		WRITE_SOURCE='ask'
+	fi
+
+	if [ "$WRITE_SOURCE" = 'ask' ]; then
+		if ! [ -t 1 ]; then
+			# By default, write sources in a non-interactive terminal
+			# to match old behavior.
+			WRITE_SOURCE='yes'
+		elif [ -e '/usr/share/debconf/confmodule' ]; then
+			# Ask the user whether to actually write the source list
+			db_input high @@NAME@@/add-microsoft-repo || true
+			db_go || true
+
+			db_get @@NAME@@/add-microsoft-repo
+			if [ "$RET" = false ]; then
+				WRITE_SOURCE='no'
+			fi
+		else
+			# The terminal is interactive but there is no debconf.
+			# Write sources to match old behavior.
+			WRITE_SOURCE='yes'
+		fi
+	fi
+
+	if [ "$WRITE_SOURCE" != 'no' ]; then
 		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
-deb [arch=amd64,arm64,armhf] http://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
+deb [arch=amd64,arm64,armhf] https://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
 
 		# Sourced from https://packages.microsoft.com/keys/microsoft.asc
 		if [ ! -f $CODE_TRUSTED_PART ]; then

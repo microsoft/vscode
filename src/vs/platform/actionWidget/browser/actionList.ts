@@ -2,21 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as dom from 'vs/base/browser/dom';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { Codicon } from 'vs/base/common/codicons';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./actionWidget';
-import { localize } from 'vs/nls';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
+import * as dom from '../../../base/browser/dom.js';
+import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
+import { List } from '../../../base/browser/ui/list/listWidget.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { OS } from '../../../base/common/platform.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import './actionWidget.css';
+import { localize } from '../../../nls.js';
+import { IContextViewService } from '../../contextview/browser/contextView.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../theme/common/colorRegistry.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -24,6 +25,8 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
+	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
+	onFocus?(action: T | undefined): void;
 }
 
 export interface IActionListItem<T> {
@@ -32,8 +35,9 @@ export interface IActionListItem<T> {
 	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
-
 	readonly keybinding?: ResolvedKeybinding;
+	canPreview?: boolean | undefined;
+	readonly hideIcon?: boolean;
 }
 
 interface IActionMenuTemplateData {
@@ -115,6 +119,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			return;
 		}
 
+		dom.setVisibility(!element.hideIcon, data.icon);
+
 		data.text.textContent = stripNewlines(element.label);
 
 		data.keybinding.set(element.keybinding);
@@ -126,18 +132,18 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			if (this._supportsPreview) {
-				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
+			if (this._supportsPreview && element.canPreview) {
+				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
 			} else {
-				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
+				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to Apply"'] }, "{0} to Apply", actionTitle);
 			}
 		} else {
 			data.container.title = '';
 		}
 	}
 
-	disposeTemplate(_templateData: IActionMenuTemplateData): void {
-		// noop
+	disposeTemplate(templateData: IActionMenuTemplateData): void {
+		templateData.keybinding.dispose();
 	}
 }
 
@@ -147,6 +153,14 @@ class AcceptSelectedEvent extends UIEvent {
 
 class PreviewSelectedEvent extends UIEvent {
 	constructor() { super('previewSelectedAction'); }
+}
+
+function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undefined {
+	// Filter out header vs. action
+	if (item.kind === 'action') {
+		return item.label;
+	}
+	return undefined;
 }
 
 export class ActionList<T> extends Disposable {
@@ -159,6 +173,8 @@ export class ActionList<T> extends Disposable {
 	private readonly _headerLineHeight = 26;
 
 	private readonly _allMenuItems: readonly IActionListItem<T>[];
+
+	private readonly cts = this._register(new CancellationTokenSource());
 
 	constructor(
 		user: string,
@@ -182,6 +198,8 @@ export class ActionList<T> extends Disposable {
 			new HeaderRenderer(),
 		], {
 			keyboardSupport: false,
+			typeNavigationEnabled: true,
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
@@ -195,14 +213,15 @@ export class ActionList<T> extends Disposable {
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
 				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
-				getWidgetRole: () => 'listbox'
+				getWidgetRole: () => 'listbox',
 			},
 		}));
+
 		this._list.style(defaultListStyles);
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
-		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
+		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
 		this._allMenuItems = items;
@@ -219,6 +238,7 @@ export class ActionList<T> extends Disposable {
 
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
+		this.cts.cancel();
 		this._contextViewService.hideContextView();
 	}
 
@@ -228,30 +248,35 @@ export class ActionList<T> extends Disposable {
 		const itemsHeight = this._allMenuItems.length * this._actionLineHeight;
 		const heightWithHeaders = itemsHeight + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
 		this._list.layout(heightWithHeaders);
+		let maxWidth = minWidth;
 
-		// For finding width dynamically (not using resize observer)
-		const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
-			const element = document.getElementById(this._list.getElementID(index));
-			if (element) {
-				element.style.width = 'auto';
-				const width = element.getBoundingClientRect().width;
-				element.style.width = '';
-				return width;
-			}
-			return 0;
-		});
+		if (this._allMenuItems.length >= 50) {
+			maxWidth = 380;
+		} else {
+			// For finding width dynamically (not using resize observer)
+			const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
+				const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+				if (element) {
+					element.style.width = 'auto';
+					const width = element.getBoundingClientRect().width;
+					element.style.width = '';
+					return width;
+				}
+				return 0;
+			});
 
-		// resize observer - can be used in the future since list widget supports dynamic height but not width
-		const width = Math.max(...itemWidths, minWidth);
+			// resize observer - can be used in the future since list widget supports dynamic height but not width
+			maxWidth = Math.max(...itemWidths, minWidth);
+		}
 
 		const maxVhPrecentage = 0.7;
-		const height = Math.min(heightWithHeaders, document.body.clientHeight * maxVhPrecentage);
-		this._list.layout(height, width);
+		const height = Math.min(heightWithHeaders, this.domNode.ownerDocument.body.clientHeight * maxVhPrecentage);
+		this._list.layout(height, maxWidth);
 
 		this.domNode.style.height = `${height}px`;
 
 		this._list.domFocus();
-		return width;
+		return maxWidth;
 	}
 
 	focusPrevious() {
@@ -291,7 +316,28 @@ export class ActionList<T> extends Disposable {
 		}
 	}
 
-	private onListHover(e: IListMouseEvent<IActionListItem<T>>): void {
+	private onFocus() {
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return;
+		}
+		const focusIndex = focused[0];
+		const element = this._list.element(focusIndex);
+		this._delegate.onFocus?.(element.item);
+	}
+
+	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
+		const element = e.element;
+		if (element && element.item && this.focusCondition(element)) {
+			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
+				const result = await this._delegate.onHover(element.item, this.cts.token);
+				element.canPreview = result ? result.canPreview : undefined;
+			}
+			if (e.index) {
+				this._list.splice(e.index, 1, [element]);
+			}
+		}
+
 		this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 

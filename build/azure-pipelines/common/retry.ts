@@ -10,19 +10,18 @@ export async function retry<T>(fn: (attempt: number) => Promise<T>): Promise<T> 
 		try {
 			return await fn(run);
 		} catch (err) {
-			if (!/ECONNRESET|CredentialUnavailableError|Audience validation failed/i.test(err.message)) {
+			if (!/fetch failed|terminated|aborted|timeout|TimeoutError|Timeout Error|RestError|Client network socket disconnected|socket hang up|ECONNRESET|CredentialUnavailableError|endpoints_resolution_error|Audience validation failed|end of central directory record signature not found/i.test(err.message)) {
 				throw err;
 			}
 
 			lastError = err;
-			const millis = (Math.random() * 200) + (50 * Math.pow(1.5, run));
-			console.log(`Request failed, retrying in ${millis}ms...`);
 
 			// maximum delay is 10th retry: ~3 seconds
+			const millis = Math.floor((Math.random() * 200) + (50 * Math.pow(1.5, run)));
 			await new Promise(c => setTimeout(c, millis));
 		}
 	}
 
-	console.log(`Too many retries, aborting.`);
+	console.error(`Too many retries, aborting.`);
 	throw lastError;
 }

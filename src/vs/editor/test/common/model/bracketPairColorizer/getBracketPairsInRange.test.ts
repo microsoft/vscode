@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore, disposeOnReturn } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TokenInfo, TokenizedDocument } from 'vs/editor/test/common/model/bracketPairColorizer/tokenizer.test';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
+import assert from 'assert';
+import { DisposableStore, disposeOnReturn } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
+import { TokenizationRegistry } from '../../../../common/languages.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { BracketPairInfo } from '../../../../common/textModelBracketPairs.js';
+import { TokenInfo, TokenizedDocument } from './tokenizer.test.js';
+import { createModelServices, instantiateTextModel } from '../../testTextModel.js';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createTextModelWithColorizedBracketPairs(store: DisposableStore, text: string): TextModel {
 		const languageId = 'testLanguage';

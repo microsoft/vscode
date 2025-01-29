@@ -252,11 +252,12 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private isValidNPMName(name: string): boolean {
-		// following rules from https://github.com/npm/validate-npm-package-name
-		if (!name || name.length > 214 || name.match(/^[_.]/)) {
+		// following rules from https://github.com/npm/validate-npm-package-name,
+		// leading slash added as additional security measure
+		if (!name || name.length > 214 || name.match(/^[-_.\s]/)) {
 			return false;
 		}
-		const match = name.match(/^(?:@([^/]+?)[/])?([^/]+?)$/);
+		const match = name.match(/^(?:@([^/~\s)('!*]+?)[/])?([^/~)('!*\s]+?)$/);
 		if (match) {
 			const scope = match[1];
 			if (scope && encodeURIComponent(scope) !== scope) {
@@ -284,9 +285,21 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	private npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		return new Promise((resolve, _reject) => {
-			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
+			const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
 			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
-			cp.execFile(npmCommandPath, args, { cwd }, (error, stdout) => {
+
+			// corepack npm wrapper would automatically update package.json. disable that behavior.
+			// COREPACK_ENABLE_AUTO_PIN disables the package.json overwrite, and
+			// COREPACK_ENABLE_PROJECT_SPEC makes the npm view command succeed
+			//   even if packageManager specified a package manager other than npm.
+			const env = { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0', COREPACK_ENABLE_PROJECT_SPEC: '0' };
+			let options: cp.ExecFileOptions = { cwd, env };
+			let commandPath: string = npmCommandPath;
+			if (process.platform === 'win32') {
+				options = { cwd, env, shell: true };
+				commandPath = `"${npmCommandPath}"`;
+			}
+			cp.execFile(commandPath, args, options, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);

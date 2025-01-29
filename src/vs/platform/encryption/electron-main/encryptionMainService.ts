@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { safeStorage as safeStorageElectron, app } from 'electron';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { KnownStorageProvider, IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { KnownStorageProvider, IEncryptionMainService, PasswordStoreCLIOption } from '../common/encryptionService.js';
+import { ILogService } from '../../log/common/log.js';
 
 // These APIs are currently only supported in our custom build of electron so
 // we need to guard against them not being available.
@@ -21,17 +21,18 @@ export class EncryptionMainService implements IEncryptionMainService {
 	_serviceBrand: undefined;
 
 	constructor(
-		private readonly machineId: string,
 		@ILogService private readonly logService: ILogService
 	) {
 		// if this commandLine switch is set, the user has opted in to using basic text encryption
-		if (app.commandLine.getSwitchValue('password-store') === 'basic_text') {
+		if (app.commandLine.getSwitchValue('password-store') === PasswordStoreCLIOption.basic) {
+			this.logService.trace('[EncryptionMainService] setting usePlainTextEncryption to true...');
 			safeStorage.setUsePlainTextEncryption?.(true);
+			this.logService.trace('[EncryptionMainService] set usePlainTextEncryption to true');
 		}
 	}
 
 	async encrypt(value: string): Promise<string> {
-		this.logService.trace('[EncryptionMainService] Encrypting value.');
+		this.logService.trace('[EncryptionMainService] Encrypting value...');
 		try {
 			const result = JSON.stringify(safeStorage.encryptString(value));
 			this.logService.trace('[EncryptionMainService] Encrypted value.');
@@ -47,17 +48,11 @@ export class EncryptionMainService implements IEncryptionMainService {
 		try {
 			parsedValue = JSON.parse(value);
 			if (!parsedValue.data) {
-				this.logService.trace('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.');
-				return this.oldDecrypt(value);
+				throw new Error(`[EncryptionMainService] Invalid encrypted value: ${value}`);
 			}
-		} catch (e) {
-			this.logService.trace('[EncryptionMainService] Unable to parse encrypted value. Attempting old decryption.', e);
-			return this.oldDecrypt(value);
-		}
-		const bufferToDecrypt = Buffer.from(parsedValue.data);
+			const bufferToDecrypt = Buffer.from(parsedValue.data);
 
-		this.logService.trace('[EncryptionMainService] Decrypting value.');
-		try {
+			this.logService.trace('[EncryptionMainService] Decrypting value...');
 			const result = safeStorage.decryptString(bufferToDecrypt);
 			this.logService.trace('[EncryptionMainService] Decrypted value.');
 			return result;
@@ -68,7 +63,10 @@ export class EncryptionMainService implements IEncryptionMainService {
 	}
 
 	isEncryptionAvailable(): Promise<boolean> {
-		return Promise.resolve(safeStorage.isEncryptionAvailable());
+		this.logService.trace('[EncryptionMainService] Checking if encryption is available...');
+		const result = safeStorage.isEncryptionAvailable();
+		this.logService.trace('[EncryptionMainService] Encryption is available: ', result);
+		return Promise.resolve(result);
 	}
 
 	getKeyStorageProvider(): Promise<KnownStorageProvider> {
@@ -80,7 +78,9 @@ export class EncryptionMainService implements IEncryptionMainService {
 		}
 		if (safeStorage.getSelectedStorageBackend) {
 			try {
+				this.logService.trace('[EncryptionMainService] Getting selected storage backend...');
 				const result = safeStorage.getSelectedStorageBackend() as KnownStorageProvider;
+				this.logService.trace('[EncryptionMainService] Selected storage backend: ', result);
 				return Promise.resolve(result);
 			} catch (e) {
 				this.logService.error(e);
@@ -102,23 +102,8 @@ export class EncryptionMainService implements IEncryptionMainService {
 			throw new Error('Setting plain text encryption is not supported.');
 		}
 
+		this.logService.trace('[EncryptionMainService] Setting usePlainTextEncryption to true...');
 		safeStorage.setUsePlainTextEncryption(true);
-	}
-
-	// TODO: Remove this after a few releases
-	private async oldDecrypt(value: string): Promise<string> {
-		let encryption: { decrypt(salt: string, value: string): Promise<string> };
-		try {
-			encryption = await new Promise((resolve, reject) => require(['vscode-encrypt'], resolve, reject));
-		} catch (e) {
-			return value;
-		}
-
-		try {
-			return encryption.decrypt(this.machineId, value);
-		} catch (e) {
-			this.logService.error(e);
-			return value;
-		}
+		this.logService.trace('[EncryptionMainService] Set usePlainTextEncryption to true');
 	}
 }

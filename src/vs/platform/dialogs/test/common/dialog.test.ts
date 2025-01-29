@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepEqual } from 'assert';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IMassagedMessageBoxOptions, massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IMassagedMessageBoxOptions, massageMessageBoxOptions } from '../../common/dialogs.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
 
 suite('Dialog', () => {
 
@@ -139,4 +140,6 @@ suite('Dialog', () => {
 			assertOptions(fourButtonNegativeCancel, ['4', '3', '2', '1'], 3, -1, [3, 2, 1, 0]);
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

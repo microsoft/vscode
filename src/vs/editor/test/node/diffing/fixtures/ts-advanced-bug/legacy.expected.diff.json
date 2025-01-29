@@ -21,16 +21,16 @@
 					"modifiedRange": "[4,20 -> 4,31]"
 				},
 				{
-					"originalRange": "[2,39 -> 2,40]",
-					"modifiedRange": "[4,50 -> 4,50]"
+					"originalRange": "[2,39 -> 2,40 EOL]",
+					"modifiedRange": "[4,50 -> 4,50 EOL]"
 				},
 				{
 					"originalRange": "[3,5 -> 3,9]",
 					"modifiedRange": "[5,5 -> 5,5]"
 				},
 				{
-					"originalRange": "[3,57 -> 4,36]",
-					"modifiedRange": "[5,53 -> 5,53]"
+					"originalRange": "[3,57 -> 4,36 EOL]",
+					"modifiedRange": "[5,53 -> 5,53 EOL]"
 				}
 			]
 		},
@@ -39,8 +39,8 @@
 			"modifiedRange": "[9,10)",
 			"innerChanges": [
 				{
-					"originalRange": "[8,35 -> 8,35]",
-					"modifiedRange": "[9,35 -> 9,36]"
+					"originalRange": "[8,35 -> 8,35 EOL]",
+					"modifiedRange": "[9,35 -> 9,36 EOL]"
 				}
 			]
 		}

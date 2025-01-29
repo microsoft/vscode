@@ -3,95 +3,116 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { editorForeground, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Selection } from 'vs/editor/common/core/selection';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { inputPlaceholderForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IChatWidget } from '../chat.js';
+import { ChatWidget } from '../chatWidget.js';
+import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestParser } from '../../common/chatRequestParser.js';
 
 const decorationDescription = 'chat';
-const slashCommandPlaceholderDecorationType = 'chat-session-detail';
+const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
-const slashCommandContentWidgetId = 'chat-session-content-widget';
+const variableTextDecorationType = 'chat-variable-text';
+
+function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefined): string {
+	return subcommand ? `${agent.id}__${subcommand}` : agent.id;
+}
 
 class InputEditorDecorations extends Disposable {
 
-	private _slashCommandDomNode = document.createElement('div');
-	private _slashCommandContentWidget: IContentWidget | undefined;
-	private _previouslyUsedSlashCommands = new Set<string>();
+	public readonly id = 'inputEditorDecorations';
+
+	private readonly previouslyUsedAgents = new Set<string>();
+
+	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly widget: IChatWidget,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IChatService private readonly chatService: IChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
-		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandPlaceholderDecorationType, {});
+		this.codeEditorService.registerDecorationType(decorationDescription, placeholderDecorationType, {});
 
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateRegisteredDecorationTypes()));
 		this.updateRegisteredDecorationTypes();
 
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
+		this._register(this.widget.onDidChangeParsedInput(() => this.updateInputEditorDecorations()));
 		this._register(this.widget.onDidChangeViewModel(() => {
-			this._previouslyUsedSlashCommands.clear();
+			this.registerViewModelListeners();
+			this.previouslyUsedAgents.clear();
 			this.updateInputEditorDecorations();
 		}));
-		this._register(this.chatService.onDidSubmitSlashCommand((e) => {
-			if (e.sessionId === this.widget.viewModel?.sessionId && !this._previouslyUsedSlashCommands.has(e.slashCommand)) {
-				this._previouslyUsedSlashCommands.add(e.slashCommand);
-			}
+		this._register(this.widget.onDidSubmitAgent((e) => {
+			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
+
+		this.registerViewModelListeners();
+	}
+
+	private registerViewModelListeners(): void {
+		this.viewModelDisposables.value = this.widget.viewModel?.onDidChange(e => {
+			if (e?.kind === 'changePlaceholder' || e?.kind === 'initialize') {
+				this.updateInputEditorDecorations();
+			}
+		});
 	}
 
 	private updateRegisteredDecorationTypes() {
+		this.codeEditorService.removeDecorationType(variableTextDecorationType);
+		this.codeEditorService.removeDecorationType(dynamicVariableDecorationType);
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
-		this.updateInputEditorContentWidgets({ hide: true });
+
+		const theme = this.themeService.getColorTheme();
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
-			opacity: '0',
-			after: {
-				contentText: ' ',
-			}
+			color: theme.getColor(chatSlashCommandForeground)?.toString(),
+			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			borderRadius: '3px'
+		});
+		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
+			color: theme.getColor(chatSlashCommandForeground)?.toString(),
+			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			borderRadius: '3px'
+		});
+		this.codeEditorService.registerDecorationType(decorationDescription, dynamicVariableDecorationType, {
+			color: theme.getColor(chatSlashCommandForeground)?.toString(),
+			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			borderRadius: '3px'
 		});
 		this.updateInputEditorDecorations();
 	}
 
 	private getPlaceholderColor(): string | undefined {
 		const theme = this.themeService.getColorTheme();
-		const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
+		const transparentForeground = theme.getColor(inputPlaceholderForeground);
 		return transparentForeground?.toString();
 	}
 
 	private async updateInputEditorDecorations() {
 		const inputValue = this.widget.inputEditor.getValue();
-		const slashCommands = await this.widget.getSlashCommands(); // TODO this async call can lead to a flicker of the placeholder text when switching editor tabs
+
+		const viewModel = this.widget.viewModel;
+		if (!viewModel) {
+			return;
+		}
 
 		if (!inputValue) {
-			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
-			const defaultPlaceholder = slashCommands?.length ?
-				localize('interactive.input.placeholderWithCommands', "Ask a question or type '/' for topics") :
-				localize('interactive.input.placeholderNoCommands', "Ask a question");
-			const placeholder = extensionPlaceholder ?? defaultPlaceholder;
+			const defaultAgent = this.chatAgentService.getDefaultAgent(this.widget.location);
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -102,192 +123,212 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: placeholder,
+							contentText: viewModel.inputPlaceholder || (defaultAgent?.description ?? ''),
 							color: this.getPlaceholderColor()
 						}
 					}
 				}
 			];
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, decoration);
-			this.updateInputEditorContentWidgets({ hide: true });
+			this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, decoration);
 			return;
 		}
 
-		let slashCommandPlaceholderDecoration: IDecorationOptions[] | undefined;
-		const command = inputValue && slashCommands?.find(c => inputValue.startsWith(`/${c.command} `));
-		if (command && inputValue === `/${command.command} `) {
-			const isFollowupSlashCommand = this._previouslyUsedSlashCommands.has(command.command);
-			const shouldRenderFollowupPlaceholder = command.followupPlaceholder && isFollowupSlashCommand;
-			if (shouldRenderFollowupPlaceholder || command.detail) {
-				slashCommandPlaceholderDecoration = [{
-					range: {
-						startLineNumber: 1,
-						endLineNumber: 1,
-						startColumn: command && typeof command !== 'string' ? (command?.command.length + 2) : 1,
-						endColumn: 1000
-					},
+		const parsedRequest = this.widget.parsedInput.parts;
+
+		let placeholderDecoration: IDecorationOptions[] | undefined;
+		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
+		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
+
+		const exactlyOneSpaceAfterPart = (part: IParsedChatRequestPart): boolean => {
+			const partIdx = parsedRequest.indexOf(part);
+			if (parsedRequest.length > partIdx + 2) {
+				return false;
+			}
+
+			const nextPart = parsedRequest[partIdx + 1];
+			return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
+		};
+
+		const getRangeForPlaceholder = (part: IParsedChatRequestPart) => ({
+			startLineNumber: part.editorRange.startLineNumber,
+			endLineNumber: part.editorRange.endLineNumber,
+			startColumn: part.editorRange.endColumn + 1,
+			endColumn: 1000
+		});
+
+		const onlyAgentAndWhitespace = agentPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart);
+		if (onlyAgentAndWhitespace) {
+			// Agent reference with no other text - show the placeholder
+			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, undefined));
+			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentPart.agent.metadata.followupPlaceholder;
+			if (agentPart.agent.description && exactlyOneSpaceAfterPart(agentPart)) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(agentPart),
 					renderOptions: {
 						after: {
-							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
+							contentText: shouldRenderFollowupPlaceholder ? agentPart.agent.metadata.followupPlaceholder : agentPart.agent.description,
 							color: this.getPlaceholderColor(),
-							padding: '0 0 0 5px'
 						}
 					}
 				}];
-				this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, slashCommandPlaceholderDecoration);
 			}
 		}
-		if (!slashCommandPlaceholderDecoration) {
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, []);
-		}
 
-		if (command && inputValue.startsWith(`/${command.command} `)) {
-			this.updateInputEditorContentWidgets({ command: command.command });
-		} else {
-			this.updateInputEditorContentWidgets({ hide: true });
-		}
-
-		if (command && command.detail) {
-			const textDecoration: IDecorationOptions[] = [
-				{
-					range: {
-						startLineNumber: 1,
-						endLineNumber: 1,
-						startColumn: 1,
-						endColumn: command.command.length + 2
+		const onlyAgentAndAgentCommandAndWhitespace = agentPart && agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart);
+		if (onlyAgentAndAgentCommandAndWhitespace) {
+			// Agent reference and subcommand with no other text - show the placeholder
+			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, agentSubcommandPart.command.name));
+			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
+			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(agentSubcommandPart),
+					renderOptions: {
+						after: {
+							contentText: shouldRenderFollowupPlaceholder ? agentSubcommandPart.command.followupPlaceholder : agentSubcommandPart.command.description,
+							color: this.getPlaceholderColor(),
+						}
 					}
-				}
-			];
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecoration);
-		} else {
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
+				}];
+			}
 		}
-	}
 
-	private async updateInputEditorContentWidgets(arg: { command: string } | { hide: true }) {
-		const domNode = this._slashCommandDomNode;
-
-		if (this._slashCommandContentWidget && 'hide' in arg) {
-			domNode.toggleAttribute('hidden', true);
-			this.widget.inputEditor.removeContentWidget(this._slashCommandContentWidget);
-			return;
-		} else if ('command' in arg) {
-			const theme = this.themeService.getColorTheme();
-			domNode.style.padding = '0 0.4em';
-			domNode.style.borderRadius = '3px';
-			domNode.style.backgroundColor = theme.getColor(textCodeBlockBackground)?.toString() ?? '';
-			domNode.style.color = theme.getColor(textLinkForeground)?.toString() ?? '';
-			domNode.innerText = `${arg.command} `;
-			domNode.toggleAttribute('hidden', false);
-
-			this._slashCommandContentWidget = {
-				getId() { return slashCommandContentWidgetId; },
-				getDomNode() { return domNode; },
-				getPosition() {
-					return {
-						position: {
-							lineNumber: 1,
-							column: 1
-						},
-						preference: [ContentWidgetPositionPreference.EXACT]
-					};
-				},
-			};
-
-			this.widget.inputEditor.addContentWidget(this._slashCommandContentWidget);
+		const onlyAgentCommandAndWhitespace = agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentSubcommandPart);
+		if (onlyAgentCommandAndWhitespace) {
+			// Agent subcommand with no other text - show the placeholder
+			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(agentSubcommandPart),
+					renderOptions: {
+						after: {
+							contentText: agentSubcommandPart.command.description,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
 		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
+
+		const textDecorations: IDecorationOptions[] | undefined = [];
+		if (agentPart) {
+			textDecorations.push({ range: agentPart.editorRange });
+		}
+		if (agentSubcommandPart) {
+			textDecorations.push({ range: agentSubcommandPart.editorRange, hoverMessage: new MarkdownString(agentSubcommandPart.command.description) });
+		}
+
+		if (slashCommandPart) {
+			textDecorations.push({ range: slashCommandPart.editorRange });
+		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
+
+		const varDecorations: IDecorationOptions[] = [];
+		const variableParts = parsedRequest.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
+		for (const variable of variableParts) {
+			varDecorations.push({ range: variable.editorRange });
+		}
+
+		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
+		for (const tool of toolParts) {
+			varDecorations.push({ range: tool.editorRange });
+		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
 	}
 }
 
-class InputEditorSlashCommandFollowups extends Disposable {
+class InputEditorSlashCommandMode extends Disposable {
+	public readonly id = 'InputEditorSlashCommandMode';
+
 	constructor(
-		private readonly widget: IChatWidget,
-		@IChatService private readonly chatService: IChatService
+		private readonly widget: IChatWidget
 	) {
 		super();
-		this._register(this.chatService.onDidSubmitSlashCommand(({ slashCommand, sessionId }) => this.repopulateSlashCommand(slashCommand, sessionId)));
-		this._register(this.widget.inputEditor.onKeyUp((e) => this.handleKeyUp(e)));
+		this._register(this.widget.onDidChangeAgent(e => {
+			if (e.slashCommand && e.slashCommand.isSticky || !e.slashCommand && e.agent.metadata.isSticky) {
+				this.repopulateAgentCommand(e.agent, e.slashCommand);
+			}
+		}));
+		this._register(this.widget.onDidSubmitAgent(e => {
+			this.repopulateAgentCommand(e.agent, e.slashCommand);
+		}));
 	}
 
-	private async repopulateSlashCommand(slashCommand: string, sessionId: string) {
-		if (this.widget.viewModel?.sessionId !== sessionId) {
+	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand | undefined) {
+		// Make sure we don't repopulate if the user already has something in the input
+		if (this.widget.inputEditor.getValue().trim()) {
 			return;
 		}
 
-		const slashCommands = await this.widget.getSlashCommands();
-
-		if (this.widget.inputEditor.getValue().trim().length !== 0) {
-			return;
+		let value: string | undefined;
+		if (slashCommand && slashCommand.isSticky) {
+			value = `${chatAgentLeader}${agent.name} ${chatSubcommandLeader}${slashCommand.name} `;
+		} else if (agent.metadata.isSticky) {
+			value = `${chatAgentLeader}${agent.name} `;
 		}
 
-		if (slashCommands?.find(c => c.command === slashCommand)?.shouldRepopulate) {
-			const value = `/${slashCommand} `;
+		if (value) {
 			this.widget.inputEditor.setValue(value);
 			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
-
-		}
-	}
-
-	private handleKeyUp(e: IKeyboardEvent) {
-		if (e.keyCode !== KeyCode.Backspace) {
-			return;
-		}
-
-		const value = this.widget.inputEditor.getValue().split(' ')[0];
-		const currentSelection = this.widget.inputEditor.getSelection();
-		if (!value.startsWith('/') || !currentSelection?.isEmpty() || currentSelection?.startLineNumber !== 1 || currentSelection?.startColumn !== value.length + 1) {
-			return;
-		}
-
-		if (this.widget.getSlashCommandsSync()?.find((command) => `/${command.command}` === value)) {
-			this.widget.inputEditor.executeEdits('chat-input-editor-slash-commands', [{ range: new Range(1, 1, 1, currentSelection.startColumn), text: null }], [new Selection(1, 1, 1, 1)]);
 		}
 	}
 }
 
-ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandFollowups);
+ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandMode);
 
-class SlashCommandCompletions extends Disposable {
+class ChatTokenDeleter extends Disposable {
+
+	public readonly id = 'chatTokenDeleter';
+
 	constructor(
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		private readonly widget: IChatWidget,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		const parser = this.instantiationService.createInstance(ChatRequestParser);
+		const inputValue = this.widget.inputEditor.getValue();
+		let previousInputValue: string | undefined;
+		let previousSelectedAgent: IChatAgentData | undefined;
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
-			_debugDisplayName: 'chatSlashCommand',
-			triggerCharacters: ['/'],
-			provideCompletionItems: async (model: ITextModel, _position: Position, _context: CompletionContext, _token: CancellationToken) => {
-				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
-					return null;
-				}
-
-				if (model.getValueInRange(new Range(1, 1, 1, 2)) !== '/' && model.getValueLength() > 0) {
-					return null;
-				}
-
-				const slashCommands = await widget.getSlashCommands();
-				if (!slashCommands) {
-					return null;
-				}
-
-				return <CompletionList>{
-					suggestions: slashCommands.map(c => {
-						const withSlash = `/${c.command}`;
-						return <CompletionItem>{
-							label: withSlash,
-							insertText: `${withSlash} `,
-							detail: c.detail,
-							range: new Range(1, 1, 1, 1),
-							sortText: c.sortText ?? c.command,
-							kind: CompletionItemKind.Text // The icons are disabled here anyway
-						};
-					})
-				};
+		// A simple heuristic to delete the previous token when the user presses backspace.
+		// The sophisticated way to do this would be to have a parse tree that can be updated incrementally.
+		this._register(this.widget.inputEditor.onDidChangeModelContent(e => {
+			if (!previousInputValue) {
+				previousInputValue = inputValue;
+				previousSelectedAgent = this.widget.lastSelectedAgent;
 			}
+
+			// Don't try to handle multicursor edits right now
+			const change = e.changes[0];
+
+			// If this was a simple delete, try to find out whether it was inside a token
+			if (!change.text && this.widget.viewModel) {
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent });
+
+				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
+				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart || p instanceof ChatRequestToolPart);
+				deletableTokens.forEach(token => {
+					const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
+					// Part of this token was deleted, or the space after it was deleted, and the deletion range doesn't go off the front of the token, for simpler math
+					if (deletedRangeOfToken && Range.compareRangesUsingStarts(token.editorRange, change.range) < 0) {
+						// Assume single line tokens
+						const length = deletedRangeOfToken.endColumn - deletedRangeOfToken.startColumn;
+						const rangeToDelete = new Range(token.editorRange.startLineNumber, token.editorRange.startColumn, token.editorRange.endLineNumber, token.editorRange.endColumn - length);
+						this.widget.inputEditor.executeEdits(this.id, [{
+							range: rangeToDelete,
+							text: '',
+						}]);
+						this.widget.refreshParsedInput();
+					}
+				});
+			}
+
+			previousInputValue = this.widget.inputEditor.getValue();
+			previousSelectedAgent = this.widget.lastSelectedAgent;
 		}));
 	}
 }
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);
+ChatWidget.CONTRIBS.push(ChatTokenDeleter);

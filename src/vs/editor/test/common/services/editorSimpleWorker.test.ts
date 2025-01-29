@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { TextEdit } from 'vs/editor/common/languages';
-import { EditorSimpleWorker, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
-import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { TextEdit } from '../../../common/languages.js';
+import { BaseEditorSimpleWorker } from '../../../common/services/editorSimpleWorker.js';
+import { ICommonModel } from '../../../common/services/textModelSync/textModelSync.impl.js';
 
 suite('EditorSimpleWorker', () => {
 
-	class WorkerWithModels extends EditorSimpleWorker {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class WorkerWithModels extends BaseEditorSimpleWorker {
 
 		getModel(uri: string) {
 			return this._getModel(uri);
@@ -20,13 +23,13 @@ suite('EditorSimpleWorker', () => {
 
 		addModel(lines: string[], eol: string = '\n') {
 			const uri = 'test:file#' + Date.now();
-			this.acceptNewModel({
+			this.$acceptNewModel({
 				url: uri,
 				versionId: 1,
 				lines: lines,
 				EOL: eol
 			});
-			return this._getModel(uri);
+			return this._getModel(uri)!;
 		}
 	}
 
@@ -34,7 +37,7 @@ suite('EditorSimpleWorker', () => {
 	let model: ICommonModel;
 
 	setup(() => {
-		worker = new WorkerWithModels(<IEditorWorkerHost>null!, null);
+		worker = new WorkerWithModels();
 		model = worker.addModel([
 			'This is line one', //16
 			'and this is line number two', //27
@@ -90,12 +93,47 @@ suite('EditorSimpleWorker', () => {
 
 	test('MoreMinimal', () => {
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }], false).then(edits => {
+		return worker.$computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }], false).then(edits => {
 			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
 			assert.strictEqual(first.text, 'O');
 			assert.deepStrictEqual(first.range, { startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 15 });
 		});
+	});
+
+	test('MoreMinimal, merge adjacent edits', async function () {
+
+		const model = worker.addModel([
+			'one',
+			'two',
+			'three',
+			'four',
+			'five'
+		], '\n');
+
+
+		const newEdits = await worker.$computeMoreMinimalEdits(model.uri.toString(), [
+			{
+				range: new Range(1, 1, 2, 1),
+				text: 'one\ntwo\nthree\n',
+			}, {
+				range: new Range(2, 1, 3, 1),
+				text: '',
+			}, {
+				range: new Range(3, 1, 4, 1),
+				text: '',
+			}, {
+				range: new Range(4, 2, 4, 3),
+				text: '4',
+			}, {
+				range: new Range(5, 3, 5, 5),
+				text: '5',
+			}
+		], false);
+
+		assert.strictEqual(newEdits.length, 2);
+		assert.strictEqual(newEdits[0].text, '4');
+		assert.strictEqual(newEdits[1].text, '5');
 	});
 
 	test('MoreMinimal, issue #15385 newline changes only', function () {
@@ -106,7 +144,7 @@ suite('EditorSimpleWorker', () => {
 			'}'
 		], '\n');
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
+		return worker.$computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
 			assert.strictEqual(edits.length, 0);
 		});
 	});
@@ -119,7 +157,7 @@ suite('EditorSimpleWorker', () => {
 			'}'
 		], '\n');
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
+		return worker.$computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
 			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
 			assert.strictEqual(first.text, 'b');
@@ -135,7 +173,7 @@ suite('EditorSimpleWorker', () => {
 			'}'				// 3
 		]);
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }], false).then(edits => {
+		return worker.$computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }], false).then(edits => {
 			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
 			assert.strictEqual(first.text, '\n');
@@ -146,7 +184,7 @@ suite('EditorSimpleWorker', () => {
 	async function testEdits(lines: string[], edits: TextEdit[]): Promise<unknown> {
 		const model = worker.addModel(lines);
 
-		const smallerEdits = await worker.computeHumanReadableDiff(
+		const smallerEdits = await worker.$computeHumanReadableDiff(
 			model.uri.toString(),
 			edits,
 			{ ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: false }
@@ -219,6 +257,15 @@ suite('EditorSimpleWorker', () => {
 		);
 	});
 
+	test('[Bug] Getting Message "Overlapping ranges are not allowed" and nothing happens with Inline-Chat ', async function () {
+		await testEdits(("const API = require('../src/api');\n\ndescribe('API', () => {\n  let api;\n  let database;\n\n  beforeAll(() => {\n    database = {\n      getAllBooks: jest.fn(),\n      getBooksByAuthor: jest.fn(),\n      getBooksByTitle: jest.fn(),\n    };\n    api = new API(database);\n  });\n\n  describe('GET /books', () => {\n    it('should return all books', async () => {\n      const mockBooks = [{ title: 'Book 1' }, { title: 'Book 2' }];\n      database.getAllBooks.mockResolvedValue(mockBooks);\n\n      const req = {};\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === '/books') {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getAllBooks).toHaveBeenCalled();\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n\n  describe('GET /books/author/:author', () => {\n    it('should return books by author', async () => {\n      const mockAuthor = 'John Doe';\n      const mockBooks = [{ title: 'Book 1', author: mockAuthor }, { title: 'Book 2', author: mockAuthor }];\n      database.getBooksByAuthor.mockResolvedValue(mockBooks);\n\n      const req = {\n        params: {\n          author: mockAuthor,\n        },\n      };\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === `/books/author/${mockAuthor}`) {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getBooksByAuthor).toHaveBeenCalledWith(mockAuthor);\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n\n  describe('GET /books/title/:title', () => {\n    it('should return books by title', async () => {\n      const mockTitle = 'Book 1';\n      const mockBooks = [{ title: mockTitle, author: 'John Doe' }];\n      database.getBooksByTitle.mockResolvedValue(mockBooks);\n\n      const req = {\n        params: {\n          title: mockTitle,\n        },\n      };\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === `/books/title/${mockTitle}`) {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getBooksByTitle).toHaveBeenCalledWith(mockTitle);\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n});\n").split('\n'),
+			[{
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 96, endColumn: 1 },
+				text: `const request = require('supertest');\nconst API = require('../src/api');\n\ndescribe('API', () => {\n  let api;\n  let database;\n\n  beforeAll(() => {\n    database = {\n      getAllBooks: jest.fn(),\n      getBooksByAuthor: jest.fn(),\n      getBooksByTitle: jest.fn(),\n    };\n    api = new API(database);\n  });\n\n  describe('GET /books', () => {\n    it('should return all books', async () => {\n      const mockBooks = [{ title: 'Book 1' }, { title: 'Book 2' }];\n      database.getAllBooks.mockResolvedValue(mockBooks);\n\n      const response = await request(api.app).get('/books');\n\n      expect(database.getAllBooks).toHaveBeenCalled();\n      expect(response.status).toBe(200);\n      expect(response.body).toEqual(mockBooks);\n    });\n  });\n\n  describe('GET /books/author/:author', () => {\n    it('should return books by author', async () => {\n      const mockAuthor = 'John Doe';\n      const mockBooks = [{ title: 'Book 1', author: mockAuthor }, { title: 'Book 2', author: mockAuthor }];\n      database.getBooksByAuthor.mockResolvedValue(mockBooks);\n\n      const response = await request(api.app).get(\`/books/author/\${mockAuthor}\`);\n\n      expect(database.getBooksByAuthor).toHaveBeenCalledWith(mockAuthor);\n      expect(response.status).toBe(200);\n      expect(response.body).toEqual(mockBooks);\n    });\n  });\n\n  describe('GET /books/title/:title', () => {\n    it('should return books by title', async () => {\n      const mockTitle = 'Book 1';\n      const mockBooks = [{ title: mockTitle, author: 'John Doe' }];\n      database.getBooksByTitle.mockResolvedValue(mockBooks);\n\n      const response = await request(api.app).get(\`/books/title/\${mockTitle}\`);\n\n      expect(database.getBooksByTitle).toHaveBeenCalledWith(mockTitle);\n      expect(response.status).toBe(200);\n      expect(response.body).toEqual(mockBooks);\n    });\n  });\n});\n`,
+			}]
+		);
+	});
+
 	test('ICommonModel#getValueInRange, issue #17424', function () {
 
 		const model = worker.addModel([
@@ -239,7 +286,7 @@ suite('EditorSimpleWorker', () => {
 			'f f'	// 2
 		]);
 
-		return worker.textualSuggest([model.uri.toString()], 'f', '[a-z]+', 'img').then((result) => {
+		return worker.$textualSuggest([model.uri.toString()], 'f', '[a-z]+', 'img').then((result) => {
 			if (!result) {
 				assert.ok(false);
 			}
@@ -290,7 +337,7 @@ function applyEdits(text: string, edits: { range: IRange; text: string }[]): str
 class PositionOffsetTransformer {
 	private readonly lineStartOffsetByLineIdx: number[];
 
-	constructor(text: string) {
+	constructor(private readonly text: string) {
 		this.lineStartOffsetByLineIdx = [];
 		this.lineStartOffsetByLineIdx.push(0);
 		for (let i = 0; i < text.length; i++) {
@@ -302,7 +349,7 @@ class PositionOffsetTransformer {
 	}
 
 	getOffset(position: Position): number {
-		const nextLineOffset = this.lineStartOffsetByLineIdx[position.lineNumber];
-		return Math.min(this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1, nextLineOffset - 1);
+		const maxLineOffset = position.lineNumber >= this.lineStartOffsetByLineIdx.length ? this.text.length : (this.lineStartOffsetByLineIdx[position.lineNumber] - 1);
+		return Math.min(this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1, maxLineOffset);
 	}
 }

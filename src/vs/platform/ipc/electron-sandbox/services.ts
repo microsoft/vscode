@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { IRemoteService } from 'vs/platform/ipc/common/services';
+import { IChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
+import { registerSingleton } from '../../instantiation/common/extensions.js';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from '../../instantiation/common/instantiation.js';
+import { IMainProcessService } from '../common/mainProcessService.js';
+import { IRemoteService } from '../common/services.js';
 
 type ChannelClientCtor<T> = { new(channel: IChannel, ...args: any[]): T };
 type Remote = { getChannel(channelName: string): IChannel };
@@ -63,6 +63,20 @@ export function registerMainProcessRemoteService<T>(id: ServiceIdentifier<T>, ch
 export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
 
 export interface ISharedProcessService extends IRemoteService {
+
+	/**
+	 * Allows to create a `MessagePort` connection between the
+	 * shared process and the renderer process.
+	 *
+	 * Use this only when you need raw IPC to the shared process
+	 * via `postMessage` and `on('message')` of special data structures
+	 * like typed arrays.
+	 *
+	 * Callers have to call `port.start()` after having installed
+	 * listeners to enable the data flow.
+	 */
+	createRawConnection(): Promise<MessagePort>;
+
 	notifyRestored(): void;
 }
 

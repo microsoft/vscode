@@ -2,53 +2,55 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
-import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/browser/suggestModel';
-import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/browser/suggestWidget';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getSnippetSuggestSupport, setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
+import { EditOperation } from '../../../../common/core/editOperation.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { Handler } from '../../../../common/editorCommon.js';
+import { ITextModel } from '../../../../common/model.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, IState, TokenizationRegistry } from '../../../../common/languages.js';
+import { MetadataConsts } from '../../../../common/encodedTokenAttributes.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { NullState } from '../../../../common/languages/nullTokenize.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
+import { SuggestController } from '../../browser/suggestController.js';
+import { ISuggestMemoryService } from '../../browser/suggestMemory.js';
+import { LineContext, SuggestModel } from '../../browser/suggestModel.js';
+import { ISelectedSuggestion } from '../../browser/suggestWidget.js';
+import { createTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../../../../test/common/testTextModel.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getSnippetSuggestSupport, setSnippetSuggestSupport } from '../../browser/suggest.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 
 function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFeaturesService): ITestCodeEditor {
 
+	const storeService = new InMemoryStorageService();
 	const editor = createTestCodeEditor(model, {
 		serviceCollection: new ServiceCollection(
 			[ILanguageFeaturesService, languageFeaturesService],
 			[ITelemetryService, NullTelemetryService],
-			[IStorageService, new InMemoryStorageService()],
+			[IStorageService, storeService],
 			[IKeybindingService, new MockKeybindingService()],
 			[ISuggestMemoryService, new class implements ISuggestMemoryService {
 				declare readonly _serviceBrand: undefined;
@@ -66,8 +68,11 @@ function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFe
 			}],
 		),
 	});
-	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+	const ctrl = editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 	editor.hasWidgetFocus = () => true;
+
+	editor.registerDisposable(ctrl);
+	editor.registerDisposable(storeService);
 	return editor;
 }
 
@@ -140,6 +145,8 @@ suite('SuggestModel - Context', function () {
 	teardown(function () {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Context - shouldAutoTrigger', function () {
 		const model = createTextModel('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
@@ -219,6 +226,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function withOracle(callback: (model: SuggestModel, editor: ITestCodeEditor) => any): Promise<any> {
 

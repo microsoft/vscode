@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { format } from 'vs/base/common/strings';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLocalLinkDetector';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
-import type { Terminal } from 'xterm';
-import { timeout } from 'vs/base/common/async';
+import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { format } from '../../../../../../base/common/strings.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TerminalBuiltinLinkType } from '../../browser/links.js';
+import { TerminalLocalLinkDetector } from '../../browser/terminalLocalLinkDetector.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { assertLinkHelper } from './linkTestUtils.js';
+import type { Terminal } from '@xterm/xterm';
+import { timeout } from '../../../../../../base/common/async.js';
 import { strictEqual } from 'assert';
-import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
-import { URI } from 'vs/base/common/uri';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { importAMDNodeModule } from 'vs/amdX';
+import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { createFileStat } from '../../../../../test/common/workbenchTestServices.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -31,6 +32,10 @@ const unixLinks: (string | { link: string; resource: URI })[] = [
 	'/foo/[bar].baz',
 	'/foo/[bar]/baz',
 	'/foo/bar+more',
+	// URI file://
+	{ link: 'file:///foo', resource: URI.file('/foo') },
+	{ link: 'file:///foo/bar', resource: URI.file('/foo/bar') },
+	{ link: 'file:///foo/bar%20baz', resource: URI.file('/foo/bar baz') },
 	// User home
 	{ link: '~/foo', resource: URI.file('/home/foo') },
 	// Relative
@@ -50,6 +55,10 @@ const windowsLinks: (string | { link: string; resource: URI })[] = [
 	'c:\\foo\\bar',
 	'c:\\foo\\bar+more',
 	'c:\\foo/bar\\baz',
+	// URI file://
+	{ link: 'file:///c:/foo', resource: URI.file('c:\\foo') },
+	{ link: 'file:///c:/foo/bar', resource: URI.file('c:\\foo\\bar') },
+	{ link: 'file:///c:/foo/bar%20baz', resource: URI.file('c:\\foo\\bar baz') },
 	// User home
 	{ link: '~\\foo', resource: URI.file('C:\\Home\\foo') },
 	{ link: '~/foo', resource: URI.file('C:\\Home\\foo') },
@@ -95,12 +104,15 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0}": line {1}, col {2}', line: '5', column: '3' },
 	{ urlFormat: '{0}({1})', line: '5' },
 	{ urlFormat: '{0} ({1})', line: '5' },
+	{ urlFormat: '{0}, {1}', line: '5' },
 	{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
 	{ urlFormat: '{0} ({1},{2})', line: '5', column: '3' },
 	{ urlFormat: '{0}: ({1},{2})', line: '5', column: '3' },
 	{ urlFormat: '{0}({1}, {2})', line: '5', column: '3' },
 	{ urlFormat: '{0} ({1}, {2})', line: '5', column: '3' },
 	{ urlFormat: '{0}: ({1}, {2})', line: '5', column: '3' },
+	{ urlFormat: '{0}({1}:{2})', line: '5', column: '3' },
+	{ urlFormat: '{0} ({1}:{2})', line: '5', column: '3' },
 	{ urlFormat: '{0}:{1}', line: '5' },
 	{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' },
 	{ urlFormat: '{0} {1}:{2}', line: '5', column: '3' },
@@ -112,8 +124,12 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0}[{1}, {2}]', line: '5', column: '3' },
 	{ urlFormat: '{0} [{1}, {2}]', line: '5', column: '3' },
 	{ urlFormat: '{0}: [{1}, {2}]', line: '5', column: '3' },
+	{ urlFormat: '{0}[{1}:{2}]', line: '5', column: '3' },
+	{ urlFormat: '{0} [{1}:{2}]', line: '5', column: '3' },
 	{ urlFormat: '{0}",{1}', line: '5' },
-	{ urlFormat: '{0}\',{1}', line: '5' }
+	{ urlFormat: '{0}\',{1}', line: '5' },
+	{ urlFormat: '{0}#{1}', line: '5' },
+	{ urlFormat: '{0}#{1}:{2}', line: '5', column: '5' }
 ];
 
 const windowsFallbackLinks: (string | { link: string; resource: URI })[] = [
@@ -127,6 +143,10 @@ const supportedFallbackLinkFormats: LinkFormatInfo[] = [
 	// Python style error: File "<path>", line <line>
 	{ urlFormat: 'File "{0}"', linkCellStartOffset: 5 },
 	{ urlFormat: 'File "{0}", line {1}', line: '5', linkCellStartOffset: 5 },
+	// Unknown tool #200166: FILE  <path>:<line>:<col>
+	{ urlFormat: ' FILE  {0}', linkCellStartOffset: 7 },
+	{ urlFormat: ' FILE  {0}:{1}', line: '5', linkCellStartOffset: 7 },
+	{ urlFormat: ' FILE  {0}:{1}:{2}', line: '5', column: '3', linkCellStartOffset: 7 },
 	// Some C++ compile error formats
 	{ urlFormat: '{0}({1}) :', line: '5', linkCellEndOffset: -2 },
 	{ urlFormat: '{0}({1},{2}) :', line: '5', column: '3', linkCellEndOffset: -2 },
@@ -145,6 +165,8 @@ const supportedFallbackLinkFormats: LinkFormatInfo[] = [
 ];
 
 suite('Workbench - TerminalLocalLinkDetector', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let detector: TerminalLocalLinkDetector;
@@ -157,11 +179,13 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		text: string,
 		expected: ({ uri: URI; range: [number, number][] })[]
 	) {
+		let to;
 		const race = await Promise.race([
 			assertLinkHelper(text, expected, detector, type).then(() => 'success'),
-			timeout(2).then(() => 'timeout')
+			(to = timeout(2)).then(() => 'timeout')
 		]);
 		strictEqual(race, 'success', `Awaiting link assertion for "${text}" timed out`);
+		to.cancel();
 	}
 
 	async function assertLinksWithWrapped(link: string, resource?: URI) {
@@ -173,7 +197,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 	}
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
@@ -188,17 +212,13 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		resolver = instantiationService.createInstance(TerminalLinkResolver);
 		validResources = [];
 
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
 	});
 
 	suite('platform independent', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, store.add(new TerminalCapabilityStore()), {
 				initialCwd: '/parent/cwd',
 				os: OperatingSystem.Linux,
 				remoteAuthority: undefined,
@@ -235,7 +255,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('macOS/Linux', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, store.add(new TerminalCapabilityStore()), {
 				initialCwd: '/parent/cwd',
 				os: OperatingSystem.Linux,
 				remoteAuthority: undefined,
@@ -277,7 +297,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			const wslUnixToWindowsPathMap: Map<string, string> = new Map();
 
 			setup(() => {
-				detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
+				detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, store.add(new TerminalCapabilityStore()), {
 					initialCwd: 'C:\\Parent\\Cwd',
 					os: OperatingSystem.Windows,
 					remoteAuthority: undefined,

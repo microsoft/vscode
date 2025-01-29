@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { KeyChord, KeyMod as ConstKeyMod } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Token } from 'vs/editor/common/languages';
-import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Emitter } from '../../../base/common/event.js';
+import { KeyChord, KeyMod as ConstKeyMod } from '../../../base/common/keyCodes.js';
+import { URI } from '../../../base/common/uri.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { Selection } from '../core/selection.js';
+import { Token } from '../languages.js';
+import * as standaloneEnums from '../standalone/standaloneEnums.js';
 
 export class KeyMod {
 	public static readonly CtrlCmd: number = ConstKeyMod.CtrlCmd;

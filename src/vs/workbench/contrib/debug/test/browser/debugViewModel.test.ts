@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
-import { StackFrame, Expression, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
-import { NullLogService } from 'vs/platform/log/common/log';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Expression, StackFrame, Thread } from '../../common/debugModel.js';
+import { Source } from '../../common/debugSource.js';
+import { ViewModel } from '../../common/debugViewModel.js';
+import { mockUriIdentityService } from './mockDebugModel.js';
+import { MockSession } from '../common/mockDebug.js';
 
 suite('Debug - View Model', () => {
 	let model: ViewModel;
@@ -18,6 +19,8 @@ suite('Debug - View Model', () => {
 	setup(() => {
 		model = new ViewModel(new MockContextKeyService());
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('focused stack frame', () => {
 		assert.strictEqual(model.focusedStackFrame, undefined);

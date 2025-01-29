@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
-import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./findInput';
-import * as nls from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import * as dom from '../../dom.js';
+import { IKeyboardEvent } from '../../keyboardEvent.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { IToggleStyles, Toggle } from '../toggle/toggle.js';
+import { IContextViewProvider } from '../contextview/contextview.js';
+import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from './findInputToggles.js';
+import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
+import { Widget } from '../widget.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import './findInput.css';
+import * as nls from '../../../../nls.js';
+import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
+import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IHistory } from '../../../common/history.js';
 
 
 export interface IFindInputOptions {
@@ -31,11 +33,11 @@ export interface IFindInputOptions {
 	readonly appendCaseSensitiveLabel?: string;
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
-	readonly history?: string[];
 	readonly additionalToggles?: Toggle[];
 	readonly showHistoryHint?: () => boolean;
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly history?: IHistory<string>;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -50,7 +52,7 @@ export class FindInput extends Widget {
 	private readonly showCommonFindToggles: boolean;
 	private fixFocusOnOptionClickEnabled = true;
 	private imeSessionInProgress = false;
-	private additionalTogglesDisposables: DisposableStore = new DisposableStore();
+	private readonly additionalTogglesDisposables: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 
 	protected readonly controls: HTMLDivElement;
 	protected readonly regex?: RegexToggle;
@@ -91,7 +93,6 @@ export class FindInput extends Widget {
 		const appendCaseSensitiveLabel = options.appendCaseSensitiveLabel || '';
 		const appendWholeWordsLabel = options.appendWholeWordsLabel || '';
 		const appendRegexLabel = options.appendRegexLabel || '';
-		const history = options.history || [];
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
 		const flexibleMaxHeight = options.flexibleMaxHeight;
@@ -105,18 +106,21 @@ export class FindInput extends Widget {
 			validationOptions: {
 				validation: this.validation
 			},
-			history,
 			showHistoryHint: options.showHistoryHint,
 			flexibleHeight,
 			flexibleWidth,
 			flexibleMaxHeight,
 			inputBoxStyles: options.inputBoxStyles,
+			history: options.history
 		}));
+
+		const hoverDelegate = this._register(createInstantHoverDelegate());
 
 		if (this.showCommonFindToggles) {
 			this.regex = this._register(new RegexToggle({
 				appendTitle: appendRegexLabel,
 				isChecked: false,
+				hoverDelegate,
 				...options.toggleStyles
 			}));
 			this._register(this.regex.onChange(viaKeyboard => {
@@ -133,6 +137,7 @@ export class FindInput extends Widget {
 			this.wholeWords = this._register(new WholeWordsToggle({
 				appendTitle: appendWholeWordsLabel,
 				isChecked: false,
+				hoverDelegate,
 				...options.toggleStyles
 			}));
 			this._register(this.wholeWords.onChange(viaKeyboard => {
@@ -146,6 +151,7 @@ export class FindInput extends Widget {
 			this.caseSensitive = this._register(new CaseSensitiveToggle({
 				appendTitle: appendCaseSensitiveLabel,
 				isChecked: false,
+				hoverDelegate,
 				...options.toggleStyles
 			}));
 			this._register(this.caseSensitive.onChange(viaKeyboard => {
@@ -163,7 +169,7 @@ export class FindInput extends Widget {
 			const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 			this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-					const index = indexes.indexOf(<HTMLElement>document.activeElement);
+					const index = indexes.indexOf(<HTMLElement>this.domNode.ownerDocument.activeElement);
 					if (index >= 0) {
 						let newIndex: number = -1;
 						if (event.equals(KeyCode.RightArrow)) {
@@ -278,14 +284,13 @@ export class FindInput extends Widget {
 			currentToggle.domNode.remove();
 		}
 		this.additionalToggles = [];
-		this.additionalTogglesDisposables.dispose();
-		this.additionalTogglesDisposables = new DisposableStore();
+		this.additionalTogglesDisposables.value = new DisposableStore();
 
 		for (const toggle of toggles ?? []) {
-			this.additionalTogglesDisposables.add(toggle);
+			this.additionalTogglesDisposables.value.add(toggle);
 			this.controls.appendChild(toggle.domNode);
 
-			this.additionalTogglesDisposables.add(toggle.onChange(viaKeyboard => {
+			this.additionalTogglesDisposables.value.add(toggle.onChange(viaKeyboard => {
 				this._onDidOptionChange.fire(viaKeyboard);
 				if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 					this.inputBox.focus();

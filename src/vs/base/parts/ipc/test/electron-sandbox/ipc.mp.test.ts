@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/browser/ipc.mp';
+import assert from 'assert';
+import { Client as MessagePortClient } from '../../browser/ipc.mp.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 suite('IPC, MessagePorts', () => {
 
@@ -27,4 +28,6 @@ suite('IPC, MessagePorts', () => {
 
 		client1.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

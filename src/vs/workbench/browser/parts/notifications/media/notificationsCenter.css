@@ -6,15 +6,15 @@
 .monaco-workbench > .notifications-center {
 	position: absolute;
 	z-index: 1000;
-	right: 8px;
-	bottom: 31px;
+	right: 11px; /* attempt to position at same location as a toast */
+	bottom: 33px; /* 22px status bar height + 11px (attempt to position at same location as a toast) */
 	display: none;
 	overflow: hidden;
 	border-radius: 4px;
 }
 
 .monaco-workbench.nostatusbar > .notifications-center {
-	bottom: 8px;
+	bottom: 11px; /* attempt to position at same location as a toast */
 }
 
 .monaco-workbench > .notifications-center.visible {
@@ -44,14 +44,12 @@
 	justify-content: flex-end;
 }
 
-.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row[data-last-element="false"] > .notification-list-item {
+.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:not(:last-child) > .notification-list-item {
 	border-bottom: 1px solid var(--vscode-notifications-border);
 }
 
-.monaco-workbench > .notifications-center .notifications-list-container,
-.monaco-workbench > .notifications-center .notifications-list-container .monaco-scrollable-element,
-.monaco-workbench > .notifications-center .notifications-list-container .notification-list-item {
-	border-radius: 0;
+.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
+	border-radius: 0px 0px 4px 4px; /* adopt the border radius at the end of the notifications center */
 }
 
 /* Icons */

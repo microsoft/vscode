@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export interface IStoredValueSerialization<T> {
 	deserialize(data: string): T;
@@ -26,7 +27,7 @@ interface IStoredValueOptions<T> {
 /**
  * todo@connor4312: is this worthy to be in common?
  */
-export class StoredValue<T> {
+export class StoredValue<T> extends Disposable {
 	private readonly serialization: IStoredValueSerialization<T>;
 	private readonly key: string;
 	private readonly scope: StorageScope;
@@ -36,16 +37,19 @@ export class StoredValue<T> {
 	/**
 	 * Emitted whenever the value is updated or deleted.
 	 */
-	public readonly onDidChange = Event.filter(this.storage.onDidChangeValue, e => e.key === this.key);
+	public readonly onDidChange: Event<IStorageValueChangeEvent>;
 
 	constructor(
 		options: IStoredValueOptions<T>,
 		@IStorageService private readonly storage: IStorageService,
 	) {
+		super();
+
 		this.key = options.key;
 		this.scope = options.scope;
 		this.target = options.target;
 		this.serialization = options.serialization ?? defaultSerialization;
+		this.onDidChange = this.storage.onDidChangeValue(this.scope, this.key, this._store);
 	}
 
 	/**

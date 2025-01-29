@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessagePortMain, isUtilityProcess, MessageEvent } from 'vs/base/parts/sandbox/node/electronTypes';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { Emitter, Event } from 'vs/base/common/event';
-import { assertType } from 'vs/base/common/types';
-import { firstOrDefault } from 'vs/base/common/arrays';
+import { MessagePortMain, isUtilityProcess, MessageEvent } from '../../sandbox/node/electronTypes.js';
+import { VSBuffer } from '../../../common/buffer.js';
+import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer } from '../common/ipc.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { assertType } from '../../../common/types.js';
 
 /**
  * The MessagePort `Protocol` leverages MessagePortMain style IPC communication
@@ -16,7 +15,12 @@ import { firstOrDefault } from 'vs/base/common/arrays';
  */
 class Protocol implements IMessagePassingProtocol {
 
-	readonly onMessage = Event.fromNodeEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => VSBuffer.wrap(e.data));
+	readonly onMessage = Event.fromNodeEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => {
+		if (e.data) {
+			return VSBuffer.wrap(e.data);
+		}
+		return VSBuffer.alloc(0);
+	});
 
 	constructor(private port: MessagePortMain) {
 
@@ -33,19 +37,36 @@ class Protocol implements IMessagePassingProtocol {
 	}
 }
 
+export interface IClientConnectionFilter {
+
+	/**
+	 * Allows to filter incoming messages to the
+	 * server to handle them differently.
+	 *
+	 * @param e the message event to handle
+	 * @returns `true` if the event was handled
+	 * and should not be processed by the server.
+	 */
+	handledClientConnection(e: MessageEvent): boolean;
+}
+
 /**
  * An implementation of a `IPCServer` on top of MessagePort style IPC communication.
  * The clients register themselves via Electron Utility Process IPC transfer.
  */
 export class Server extends IPCServer {
 
-	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
+	private static getOnDidClientConnect(filter?: IClientConnectionFilter): Event<ClientConnectionEvent> {
 		assertType(isUtilityProcess(process), 'Electron Utility Process');
 
 		const onCreateMessageChannel = new Emitter<MessagePortMain>();
 
-		process.parentPort.on('message', (e: Electron.MessageEvent) => {
-			const port = firstOrDefault(e.ports);
+		process.parentPort.on('message', (e: MessageEvent) => {
+			if (filter?.handledClientConnection(e)) {
+				return;
+			}
+
+			const port = e.ports.at(0);
 			if (port) {
 				onCreateMessageChannel.fire(port);
 			}
@@ -66,8 +87,8 @@ export class Server extends IPCServer {
 		});
 	}
 
-	constructor() {
-		super(Server.getOnDidClientConnect());
+	constructor(filter?: IClientConnectionFilter) {
+		super(Server.getOnDidClientConnect(filter));
 	}
 }
 

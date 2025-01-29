@@ -13,8 +13,8 @@
 			"modifiedRange": "[2,4)",
 			"innerChanges": [
 				{
-					"originalRange": "[2,8 -> 4,17]",
-					"modifiedRange": "[2,8 -> 2,16]"
+					"originalRange": "[2,1 -> 4,2]",
+					"modifiedRange": "[2,1 -> 2,1]"
 				},
 				{
 					"originalRange": "[4,46 -> 4,53]",

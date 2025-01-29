@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testTypes';
+import { Event } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { MutableObservableValue } from './observableValue.js';
+import { StoredValue } from './storedValue.js';
+import { InternalTestItem } from './testTypes.js';
 
 export class TestExclusions extends Disposable {
 	private readonly excluded = this._register(

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AbstractProgressScope, ScopedProgressIndicator } from '../../browser/progressIndicator.js';
 
 class TestProgressBar {
 	fTotal: number = 0;
@@ -63,14 +65,20 @@ class TestProgressBar {
 
 suite('Progress Indicator', () => {
 
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
 	test('ScopedProgressIndicator', async () => {
 		const testProgressBar = new TestProgressBar();
-		const progressScope = new class extends AbstractProgressScope {
+		const progressScope = disposables.add(new class extends AbstractProgressScope {
 			constructor() { super('test.scopeId', true); }
 			testOnScopeOpened(scopeId: string) { super.onScopeOpened(scopeId); }
 			testOnScopeClosed(scopeId: string): void { super.onScopeClosed(scopeId); }
-		}();
-		const testObject = new ScopedProgressIndicator((<any>testProgressBar), progressScope);
+		}());
+		const testObject = disposables.add(new ScopedProgressIndicator((<any>testProgressBar), progressScope));
 
 		// Active: Show (Infinite)
 		let fn = testObject.show(true);
@@ -117,4 +125,6 @@ suite('Progress Indicator', () => {
 		progressScope.testOnScopeOpened('test.scopeId');
 		assert.strictEqual(true, testProgressBar.fDone);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import type { IGrammar } from 'vscode-textmate';
 
 export const ITextMateTokenizationService = createDecorator<ITextMateTokenizationService>('textMateTokenizationFeature');
@@ -11,7 +11,7 @@ export const ITextMateTokenizationService = createDecorator<ITextMateTokenizatio
 export interface ITextMateTokenizationService {
 	readonly _serviceBrand: undefined;
 
-	createGrammar(languageId: string): Promise<IGrammar | null>;
+	createTokenizer(languageId: string): Promise<IGrammar | null>;
 
 	startDebugMode(printFn: (str: string) => void, onStop: () => void): void;
 }

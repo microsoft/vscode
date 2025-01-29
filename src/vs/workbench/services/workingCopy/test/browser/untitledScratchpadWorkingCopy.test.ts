@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBufferReadableStream, VSBuffer, streamToBuffer, bufferToStream, readableToBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/resources';
-import { consumeReadable, consumeStream, isReadable, isReadableStream } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { TestUntitledFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import assert from 'assert';
+import { VSBufferReadableStream, VSBuffer, streamToBuffer, bufferToStream, readableToBuffer, VSBufferReadable } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { consumeReadable, consumeStream, isReadable, isReadableStream } from '../../../../../base/common/stream.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from '../../common/untitledFileWorkingCopy.js';
+import { TestUntitledFileWorkingCopyModel } from './untitledFileWorkingCopy.test.js';
+import { TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 export class TestUntitledFileWorkingCopyModelFactory implements IUntitledFileWorkingCopyModelFactory<TestUntitledFileWorkingCopyModel> {
 
@@ -27,14 +28,14 @@ suite('UntitledScratchpadWorkingCopy', () => {
 
 	const factory = new TestUntitledFileWorkingCopyModelFactory();
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	const resource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: UntitledFileWorkingCopy<TestUntitledFileWorkingCopyModel>;
 
 	function createWorkingCopy(uri: URI = resource, hasAssociatedFilePath = false, initialValue = '') {
-		return new UntitledFileWorkingCopy<TestUntitledFileWorkingCopyModel>(
+		return disposables.add(new UntitledFileWorkingCopy<TestUntitledFileWorkingCopyModel>(
 			'testUntitledWorkingCopyType',
 			uri,
 			basename(uri),
@@ -46,20 +47,18 @@ suite('UntitledScratchpadWorkingCopy', () => {
 			accessor.workingCopyService,
 			accessor.workingCopyBackupService,
 			accessor.logService
-		);
+		));
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = createWorkingCopy();
+		workingCopy = disposables.add(createWorkingCopy());
 	});
 
 	teardown(() => {
-		workingCopy.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('registers with working copy service', async () => {
@@ -74,14 +73,14 @@ suite('UntitledScratchpadWorkingCopy', () => {
 		assert.strictEqual(workingCopy.isDirty(), false);
 
 		let changeDirtyCounter = 0;
-		workingCopy.onDidChangeDirty(() => {
+		disposables.add(workingCopy.onDidChangeDirty(() => {
 			changeDirtyCounter++;
-		});
+		}));
 
 		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
+		disposables.add(workingCopy.onDidChangeContent(() => {
 			contentChangeCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 		assert.strictEqual(workingCopy.isResolved(), true);
@@ -130,14 +129,14 @@ suite('UntitledScratchpadWorkingCopy', () => {
 
 	test('revert', async () => {
 		let revertCounter = 0;
-		workingCopy.onDidRevert(() => {
+		disposables.add(workingCopy.onDidRevert(() => {
 			revertCounter++;
-		});
+		}));
 
 		let disposeCounter = 0;
-		workingCopy.onWillDispose(() => {
+		disposables.add(workingCopy.onWillDispose(() => {
 			disposeCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 
@@ -153,9 +152,9 @@ suite('UntitledScratchpadWorkingCopy', () => {
 
 	test('dispose', async () => {
 		let disposeCounter = 0;
-		workingCopy.onWillDispose(() => {
+		disposables.add(workingCopy.onWillDispose(() => {
 			disposeCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 		workingCopy.dispose();
@@ -198,9 +197,9 @@ suite('UntitledScratchpadWorkingCopy', () => {
 		workingCopy = createWorkingCopy(resource, false, 'Hello Initial');
 
 		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
+		disposables.add(workingCopy.onDidChangeContent(() => {
 			contentChangeCounter++;
-		});
+		}));
 
 		assert.strictEqual(workingCopy.isModified(), true);
 
@@ -260,9 +259,9 @@ suite('UntitledScratchpadWorkingCopy', () => {
 		workingCopy = createWorkingCopy();
 
 		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
+		disposables.add(workingCopy.onDidChangeContent(() => {
 			contentChangeCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 
@@ -270,4 +269,6 @@ suite('UntitledScratchpadWorkingCopy', () => {
 		assert.strictEqual(workingCopy.model?.contents, 'Hello Backup');
 		assert.strictEqual(contentChangeCounter, 1);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

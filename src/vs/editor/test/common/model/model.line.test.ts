@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { Range } from 'vs/editor/common/core/range';
-import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { TestLineToken, TestLineTokenFactory } from 'vs/editor/test/common/core/testLineToken';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ITokenizationSupport, TokenizationRegistry, IState, IBackgroundTokenizationStore, EncodedTokenizationResult, TokenizationResult, IBackgroundTokenizer } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Range } from '../../../common/core/range.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, IState, ITokenizationSupport, TokenizationRegistry, TokenizationResult } from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { computeIndentLevel } from '../../../common/model/utils.js';
+import { ContiguousMultilineTokensBuilder } from '../../../common/tokens/contiguousMultilineTokensBuilder.js';
+import { LineTokens } from '../../../common/tokens/lineTokens.js';
+import { TestLineToken, TestLineTokenFactory } from '../core/testLineToken.js';
+import { createTextModel } from '../testTextModel.js';
 
 interface ILineEdit {
 	startColumn: number;
@@ -46,6 +47,9 @@ function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 }
 
 suite('ModelLine - getIndentLevel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
 		const actual = computeIndentLevel(text, tabSize);
 		assert.strictEqual(actual, expected, text);
@@ -147,6 +151,8 @@ class LineState implements IState {
 }
 
 suite('ModelLinesTokens', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface IBufferLineState {
 		text: string;

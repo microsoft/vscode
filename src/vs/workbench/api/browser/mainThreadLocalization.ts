@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadLocalizationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { MainContext, MainThreadLocalizationShape } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IFileService } from '../../../platform/files/common/files.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ILanguagePackService } from '../../../platform/languagePacks/common/languagePacks.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLocalization)
 export class MainThreadLocalization extends Disposable implements MainThreadLocalizationShape {

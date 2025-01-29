@@ -95,7 +95,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		}
 
 		this._register(_contributionProvider.onContributionsChanged(() => {
-			setTimeout(() => this.refresh(), 0);
+			setTimeout(() => this.refresh(true), 0);
 		}));
 
 		this._register(vscode.workspace.onDidChangeTextDocument(event => {

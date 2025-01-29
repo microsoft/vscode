@@ -3,35 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickPickItem, window, QuickPick, QuickPickItemKind, l10n } from 'vscode';
+import { QuickPickItem, window, QuickPick, QuickPickItemKind, l10n, Disposable } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceAction } from './api/git-base';
 import { Model } from './model';
 import { throttle, debounce } from './decorators';
 
 async function getQuickPickResult<T extends QuickPickItem>(quickpick: QuickPick<T>): Promise<T | undefined> {
+	const listeners: Disposable[] = [];
 	const result = await new Promise<T | undefined>(c => {
-		quickpick.onDidAccept(() => c(quickpick.selectedItems[0]));
-		quickpick.onDidHide(() => c(undefined));
+		listeners.push(
+			quickpick.onDidAccept(() => c(quickpick.selectedItems[0])),
+			quickpick.onDidHide(() => c(undefined)),
+		);
 		quickpick.show();
 	});
 
 	quickpick.hide();
+	listeners.forEach(l => l.dispose());
 	return result;
 }
 
-class RemoteSourceProviderQuickPick {
+class RemoteSourceProviderQuickPick implements Disposable {
+
+	private disposables: Disposable[] = [];
+	private isDisposed: boolean = false;
 
 	private quickpick: QuickPick<QuickPickItem & { remoteSource?: RemoteSource }> | undefined;
 
 	constructor(private provider: RemoteSourceProvider) { }
 
+	dispose() {
+		this.disposables.forEach(d => d.dispose());
+		this.disposables = [];
+		this.quickpick = undefined;
+		this.isDisposed = true;
+	}
+
 	private ensureQuickPick() {
 		if (!this.quickpick) {
 			this.quickpick = window.createQuickPick();
+			this.disposables.push(this.quickpick);
 			this.quickpick.ignoreFocusOut = true;
+			this.disposables.push(this.quickpick.onDidHide(() => this.dispose()));
 			if (this.provider.supportsQuery) {
 				this.quickpick.placeholder = this.provider.placeholder ?? l10n.t('Repository name (type to search)');
-				this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
+				this.disposables.push(this.quickpick.onDidChangeValue(this.onDidChangeValue, this));
 			} else {
 				this.quickpick.placeholder = this.provider.placeholder ?? l10n.t('Repository name');
 			}
@@ -46,11 +62,18 @@ class RemoteSourceProviderQuickPick {
 	@throttle
 	private async query(): Promise<void> {
 		try {
+			if (this.isDisposed) {
+				return;
+			}
 			this.ensureQuickPick();
 			this.quickpick!.busy = true;
 			this.quickpick!.show();
 
 			const remoteSources = await this.provider.getRemoteSources(this.quickpick?.value) || [];
+			// The user may have cancelled the picker in the meantime
+			if (this.isDisposed) {
+				return;
+			}
 
 			if (remoteSources.length === 0) {
 				this.quickpick!.items = [{
@@ -70,12 +93,17 @@ class RemoteSourceProviderQuickPick {
 			this.quickpick!.items = [{ label: l10n.t('{0} Error: {1}', '$(error)', err.message), alwaysShow: true }];
 			console.error(err);
 		} finally {
-			this.quickpick!.busy = false;
+			if (!this.isDisposed) {
+				this.quickpick!.busy = false;
+			}
 		}
 	}
 
 	async pick(): Promise<RemoteSource | undefined> {
 		await this.query();
+		if (this.isDisposed) {
+			return;
+		}
 		const result = await getQuickPickResult(this.quickpick!);
 		return result?.remoteSource;
 	}
@@ -173,6 +201,7 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 async function pickProviderSource(provider: RemoteSourceProvider, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {
 	const quickpick = new RemoteSourceProviderQuickPick(provider);
 	const remote = await quickpick.pick();
+	quickpick.dispose();
 
 	let url: string | undefined;
 

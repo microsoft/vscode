@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ISecretStorageProvider, ISecretStorageService, BaseSecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { SequencerByKey } from '../../../../base/common/async.js';
+import { IEncryptionService } from '../../../../platform/encryption/common/encryptionService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ISecretStorageProvider, ISecretStorageService, BaseSecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 
 export class BrowserSecretStorageService extends BaseSecretStorageService {
 
 	private readonly _secretStorageProvider: ISecretStorageProvider | undefined;
+	private readonly _embedderSequencer: SequencerByKey<string> | undefined;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -20,16 +22,19 @@ export class BrowserSecretStorageService extends BaseSecretStorageService {
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILogService logService: ILogService
 	) {
-		super(storageService, encryptionService, logService);
+		// We don't have encryption in the browser so instead we use the
+		// in-memory base class implementation instead.
+		super(true, storageService, encryptionService, logService);
 
 		if (environmentService.options?.secretStorageProvider) {
 			this._secretStorageProvider = environmentService.options.secretStorageProvider;
+			this._embedderSequencer = new SequencerByKey<string>();
 		}
 	}
 
 	override get(key: string): Promise<string | undefined> {
 		if (this._secretStorageProvider) {
-			return this._secretStorageProvider.get(key);
+			return this._embedderSequencer!.queue(key, () => this._secretStorageProvider!.get(key));
 		}
 
 		return super.get(key);
@@ -37,7 +42,10 @@ export class BrowserSecretStorageService extends BaseSecretStorageService {
 
 	override set(key: string, value: string): Promise<void> {
 		if (this._secretStorageProvider) {
-			return this._secretStorageProvider.set(key, value);
+			return this._embedderSequencer!.queue(key, async () => {
+				await this._secretStorageProvider!.set(key, value);
+				this.onDidChangeSecretEmitter.fire(key);
+			});
 		}
 
 		return super.set(key, value);
@@ -45,7 +53,10 @@ export class BrowserSecretStorageService extends BaseSecretStorageService {
 
 	override delete(key: string): Promise<void> {
 		if (this._secretStorageProvider) {
-			return this._secretStorageProvider.delete(key);
+			return this._embedderSequencer!.queue(key, async () => {
+				await this._secretStorageProvider!.delete(key);
+				this.onDidChangeSecretEmitter.fire(key);
+			});
 		}
 
 		return super.delete(key);

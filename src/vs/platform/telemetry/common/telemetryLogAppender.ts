@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService, ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryAppender, isLoggingOnly, supportsTelemetry, telemetryLogId, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { localize } from '../../../nls.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { ILogService, ILogger, ILoggerService, LogLevel } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { ITelemetryAppender, TelemetryLogGroup, isLoggingOnly, supportsTelemetry, telemetryLogId, validateTelemetryData } from './telemetryUtils.js';
 
 export class TelemetryLogAppender extends Disposable implements ITelemetryAppender {
 
@@ -31,15 +31,18 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 			const justLoggingAndNotSending = isLoggingOnly(productService, environmentService);
 			const logSuffix = justLoggingAndNotSending ? ' (Not Sent)' : '';
 			const isVisible = () => supportsTelemetry(productService, environmentService) && logService.getLevel() === LogLevel.Trace;
-			this.logger = this._register(loggerService.createLogger(telemetryLogId, { name: localize('telemetryLog', "Telemetry{0}", logSuffix), hidden: !isVisible() }));
+			this.logger = this._register(loggerService.createLogger(telemetryLogId,
+				{
+					name: localize('telemetryLog', "Telemetry{0}", logSuffix),
+					hidden: !isVisible(),
+					group: TelemetryLogGroup
+				}));
 			this._register(logService.onDidChangeLogLevel(() => loggerService.setVisibility(telemetryLogId, isVisible())));
-			this.logger.info('Below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
-			this.logger.info('===========================================================');
 		}
 	}
 
-	flush(): Promise<any> {
-		return Promise.resolve(undefined);
+	flush(): Promise<void> {
+		return Promise.resolve();
 	}
 
 	log(eventName: string, data: any): void {

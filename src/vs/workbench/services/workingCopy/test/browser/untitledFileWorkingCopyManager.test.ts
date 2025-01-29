@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
-import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
-import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import assert from 'assert';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FileWorkingCopyManager, IFileWorkingCopyManager } from '../../common/fileWorkingCopyManager.js';
+import { NO_TYPE_ID, WorkingCopyCapabilities } from '../../common/workingCopy.js';
+import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from './storedFileWorkingCopy.test.js';
+import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from './untitledFileWorkingCopy.test.js';
+import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('UntitledFileWorkingCopyManager', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let manager: IFileWorkingCopyManager<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
-		accessor.fileService.registerProvider(Schemas.vscodeRemote, new TestInMemoryFileSystemProvider());
+		disposables.add(accessor.fileService.registerProvider(Schemas.file, disposables.add(new TestInMemoryFileSystemProvider())));
+		disposables.add(accessor.fileService.registerProvider(Schemas.vscodeRemote, disposables.add(new TestInMemoryFileSystemProvider())));
 
-		manager = new FileWorkingCopyManager(
+		manager = disposables.add(new FileWorkingCopyManager(
 			'testUntitledFileWorkingCopyType',
 			new TestStoredFileWorkingCopyModelFactory(),
 			new TestUntitledFileWorkingCopyModelFactory(),
@@ -39,30 +39,33 @@ suite('UntitledFileWorkingCopyManager', () => {
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-			accessor.environmentService, accessor.dialogService, accessor.decorationsService
-		);
+			accessor.environmentService, accessor.dialogService, accessor.decorationsService, accessor.progressService
+		));
 	});
 
 	teardown(() => {
-		manager.dispose();
-		disposables.dispose();
+		for (const workingCopy of [...manager.untitled.workingCopies, ...manager.stored.workingCopies]) {
+			workingCopy.dispose();
+		}
+
+		disposables.clear();
 	});
 
 	test('basics', async () => {
 		let createCounter = 0;
-		manager.untitled.onDidCreate(e => {
+		disposables.add(manager.untitled.onDidCreate(e => {
 			createCounter++;
-		});
+		}));
 
 		let disposeCounter = 0;
-		manager.untitled.onWillDispose(e => {
+		disposables.add(manager.untitled.onWillDispose(e => {
 			disposeCounter++;
-		});
+		}));
 
 		let dirtyCounter = 0;
-		manager.untitled.onDidChangeDirty(e => {
+		disposables.add(manager.untitled.onDidChangeDirty(e => {
 			dirtyCounter++;
-		});
+		}));
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
 		assert.strictEqual(manager.untitled.workingCopies.length, 0);
@@ -124,9 +127,9 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 	test('dirty - scratchpads are never dirty', async () => {
 		let dirtyCounter = 0;
-		manager.untitled.onDidChangeDirty(e => {
+		disposables.add(manager.untitled.onDidChangeDirty(e => {
 			dirtyCounter++;
-		});
+		}));
 
 		const workingCopy1 = await manager.resolve({
 			untitledResource: URI.from({ scheme: Schemas.untitled, path: `/myscratchpad` }),
@@ -151,9 +154,9 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 	test('resolve - with initial value', async () => {
 		let dirtyCounter = 0;
-		manager.untitled.onDidChangeDirty(e => {
+		disposables.add(manager.untitled.onDidChangeDirty(e => {
 			dirtyCounter++;
-		});
+		}));
 
 		const workingCopy1 = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')) } });
 
@@ -176,9 +179,9 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 	test('resolve - with initial value but markDirty: false', async () => {
 		let dirtyCounter = 0;
-		manager.untitled.onDidChangeDirty(e => {
+		disposables.add(manager.untitled.onDidChangeDirty(e => {
 			dirtyCounter++;
-		});
+		}));
 
 		const workingCopy = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')), markModified: false } });
 
@@ -194,15 +197,15 @@ suite('UntitledFileWorkingCopyManager', () => {
 		const untitled1 = await manager.untitled.resolve();
 		untitled1.dispose();
 
-		const untitled1Again = await manager.untitled.resolve();
+		const untitled1Again = disposables.add(await manager.untitled.resolve());
 		assert.strictEqual(untitled1.resource.toString(), untitled1Again.resource.toString());
 	});
 
 	test('resolve - existing', async () => {
 		let createCounter = 0;
-		manager.untitled.onDidCreate(e => {
+		disposables.add(manager.untitled.onDidCreate(e => {
 			createCounter++;
-		});
+		}));
 
 		const workingCopy1 = await manager.untitled.resolve();
 		assert.strictEqual(createCounter, 1);
@@ -243,6 +246,11 @@ suite('UntitledFileWorkingCopyManager', () => {
 	});
 
 	test('save - without associated resource', async () => {
+		let savedEvent: { source: URI; target: URI } | undefined = undefined;
+		disposables.add(manager.untitled.onDidSave(e => {
+			savedEvent = e;
+		}));
+
 		const workingCopy = await manager.untitled.resolve();
 		workingCopy.model?.updateContents('Simple Save');
 
@@ -252,11 +260,18 @@ suite('UntitledFileWorkingCopyManager', () => {
 		assert.ok(result);
 
 		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assert.strictEqual(savedEvent!.source.toString(), workingCopy.resource.toString());
+		assert.strictEqual(savedEvent!.target.toString(), URI.file('simple/file.txt').toString());
 
 		workingCopy.dispose();
 	});
 
 	test('save - with associated resource', async () => {
+		let savedEvent: { source: URI; target: URI } | undefined = undefined;
+		disposables.add(manager.untitled.onDidSave(e => {
+			savedEvent = e;
+		}));
+
 		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
 		workingCopy.model?.updateContents('Simple Save with associated resource');
 
@@ -266,6 +281,8 @@ suite('UntitledFileWorkingCopyManager', () => {
 		assert.ok(result);
 
 		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assert.strictEqual(savedEvent!.source.toString(), workingCopy.resource.toString());
+		assert.strictEqual(savedEvent!.target.toString(), URI.file('/some/associated.txt').toString());
 
 		workingCopy.dispose();
 	});
@@ -307,7 +324,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 	test('manager with different types produce different URIs', async () => {
 		try {
-			manager = new FileWorkingCopyManager(
+			manager = disposables.add(new FileWorkingCopyManager(
 				'someOtherUntitledTypeId',
 				new TestStoredFileWorkingCopyModelFactory(),
 				new TestUntitledFileWorkingCopyModelFactory(),
@@ -315,11 +332,11 @@ suite('UntitledFileWorkingCopyManager', () => {
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService, accessor.decorationsService
-			);
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService, accessor.progressService
+			));
 
-			const untitled1OriginalType = await manager.untitled.resolve();
-			const untitled1OtherType = await manager.untitled.resolve();
+			const untitled1OriginalType = disposables.add(await manager.untitled.resolve());
+			const untitled1OtherType = disposables.add(await manager.untitled.resolve());
 
 			assert.notStrictEqual(untitled1OriginalType.resource.toString(), untitled1OtherType.resource.toString());
 		} finally {
@@ -329,7 +346,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 	test('manager without typeId produces backwards compatible URIs', async () => {
 		try {
-			manager = new FileWorkingCopyManager(
+			manager = disposables.add(new FileWorkingCopyManager(
 				NO_TYPE_ID,
 				new TestStoredFileWorkingCopyModelFactory(),
 				new TestUntitledFileWorkingCopyModelFactory(),
@@ -337,10 +354,10 @@ suite('UntitledFileWorkingCopyManager', () => {
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService, accessor.decorationsService
-			);
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService, accessor.progressService
+			));
 
-			const result = await manager.untitled.resolve();
+			const result = disposables.add(await manager.untitled.resolve());
 			assert.strictEqual(result.resource.scheme, Schemas.untitled);
 			assert.ok(result.resource.path.length > 0);
 			assert.strictEqual(result.resource.query, '');
@@ -350,4 +367,6 @@ suite('UntitledFileWorkingCopyManager', () => {
 			manager.destroy();
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -3,31 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, hide, show } from 'vs/base/browser/dom';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createMatches } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from 'vs/editor/common/languages';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import * as nls from 'vs/nls';
-import { FileKind } from 'vs/platform/files/common/files';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CompletionItem } from './suggest';
-import { canExpandCompletionItem } from './suggestWidgetDetails';
-
-export function getAriaId(index: number): string {
-	return `suggest-aria-id:${index}`;
-}
+import { $, append, hide, show } from '../../../../base/browser/dom.js';
+import { IconLabel, IIconLabelValueOptions } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { createMatches } from '../../../../base/common/filters.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from '../../../common/languages.js';
+import { getIconClasses } from '../../../common/services/getIconClasses.js';
+import { IModelService } from '../../../common/services/model.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import * as nls from '../../../../nls.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { CompletionItem } from './suggest.js';
+import { canExpandCompletionItem } from './suggestWidgetDetails.js';
 
 const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
 
@@ -45,9 +41,14 @@ const _completionItemColor = new class ColorExtractor {
 			out[0] = item.completion.detail;
 			return true;
 		}
-		if (typeof item.completion.documentation === 'string') {
-			const match = ColorExtractor._regexRelaxed.exec(item.completion.documentation);
-			if (match && (match.index === 0 || match.index + match[0].length === item.completion.documentation.length)) {
+
+		if (item.completion.documentation) {
+			const value = typeof item.completion.documentation === 'string'
+				? item.completion.documentation
+				: item.completion.documentation.value;
+
+			const match = ColorExtractor._regexRelaxed.exec(value);
+			if (match && (match.index === 0 || match.index + match[0].length === value.length)) {
 				out[0] = match[0];
 				return true;
 			}
@@ -80,6 +81,8 @@ export interface ISuggestionTemplateData {
 	readonly detailsLabel: HTMLElement;
 	readonly readMore: HTMLElement;
 	readonly disposables: DisposableStore;
+
+	readonly configureFont: () => void;
 }
 
 export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
@@ -151,20 +154,15 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			readMore.style.width = lineHeightPx;
 		};
 
-		configureFont();
-
-		disposables.add(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
-				configureFont();
-			}
-		}));
-
-		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, readMore, disposables };
+		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, readMore, disposables, configureFont };
 	}
 
 	renderElement(element: CompletionItem, index: number, data: ISuggestionTemplateData): void {
+
+
+		data.configureFont();
+
 		const { completion } = element;
-		data.root.id = getAriaId(index);
 		data.colorspan.style.backgroundColor = '';
 
 		const labelOptions: IIconLabelValueOptions = {

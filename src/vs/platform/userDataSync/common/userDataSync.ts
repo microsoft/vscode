@@ -3,37 +3,68 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtUri } from 'vs/base/common/resources';
-import { isObject, isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IHeaders } from 'vs/base/parts/request/common/request';
-import { localize } from 'vs/nls';
-import { allSettings, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { EXTENSION_IDENTIFIER_PATTERN, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { distinct } from '../../../base/common/arrays.js';
+import { VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Event } from '../../../base/common/event.js';
+import { FormattingOptions } from '../../../base/common/jsonFormatter.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { IExtUri } from '../../../base/common/resources.js';
+import { isObject, isString } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { IHeaders } from '../../../base/parts/request/common/request.js';
+import { localize } from '../../../nls.js';
+import { allSettings, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, getAllConfigurationProperties, parseScope } from '../../configuration/common/configurationRegistry.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { EXTENSION_IDENTIFIER_PATTERN, IExtensionIdentifier } from '../../extensionManagement/common/extensionManagement.js';
+import { IExtensionManifest } from '../../extensions/common/extensions.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
+import { ILogService } from '../../log/common/log.js';
+import { Registry } from '../../registry/common/platform.js';
+import { IUserDataProfile, UseDefaultProfileFlags } from '../../userDataProfile/common/userDataProfile.js';
+import { IUserDataSyncMachine } from './userDataSyncMachines.js';
 
 export function getDisallowedIgnoredSettings(): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 	return Object.keys(allSettings).filter(setting => !!allSettings[setting].disallowSyncIgnore);
 }
 
-export function getDefaultIgnoredSettings(): string[] {
+export function getDefaultIgnoredSettings(excludeExtensions: boolean = false): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-	const ignoreSyncSettings = Object.keys(allSettings).filter(setting => !!allSettings[setting].ignoreSync);
-	const machineSettings = Object.keys(allSettings).filter(setting => allSettings[setting].scope === ConfigurationScope.MACHINE || allSettings[setting].scope === ConfigurationScope.MACHINE_OVERRIDABLE);
+	const ignoredSettings = getIgnoredSettings(allSettings, excludeExtensions);
 	const disallowedSettings = getDisallowedIgnoredSettings();
-	return distinct([...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
+	return distinct([...ignoredSettings, ...disallowedSettings]);
+}
+
+export function getIgnoredSettingsForExtension(manifest: IExtensionManifest): string[] {
+	if (!manifest.contributes?.configuration) {
+		return [];
+	}
+	const configurations = Array.isArray(manifest.contributes.configuration) ? manifest.contributes.configuration : [manifest.contributes.configuration];
+	if (!configurations.length) {
+		return [];
+	}
+	const properties = getAllConfigurationProperties(configurations);
+	return getIgnoredSettings(properties, false);
+}
+
+function getIgnoredSettings(properties: IStringDictionary<IRegisteredConfigurationPropertySchema>, excludeExtensions: boolean): string[] {
+	const ignoredSettings = new Set<string>();
+	for (const key in properties) {
+		if (excludeExtensions && !!properties[key].source) {
+			continue;
+		}
+		const scope = isString(properties[key].scope) ? parseScope(properties[key].scope) : properties[key].scope;
+		if (properties[key].ignoreSync
+			|| scope === ConfigurationScope.MACHINE
+			|| scope === ConfigurationScope.MACHINE_OVERRIDABLE
+		) {
+			ignoredSettings.add(key);
+		}
+	}
+	return [...ignoredSettings.values()];
 }
 
 export const USER_DATA_SYNC_CONFIGURATION_SCOPE = 'settingsSync';
@@ -167,6 +198,19 @@ export interface IUserDataManifest {
 	readonly collections?: IUserDataCollectionManifest;
 }
 
+export interface IUserDataActivityData {
+	resources?: {
+		[resourceId: string]: { created: number; content: string }[];
+	};
+	collections?: {
+		[collectionId: string]: {
+			resources?: {
+				[resourceId: string]: { created: number; content: string }[];
+			} | undefined;
+		};
+	};
+}
+
 export interface IResourceRefHandle {
 	ref: string;
 	created: number;
@@ -205,15 +249,17 @@ export interface IUserDataSyncStoreService {
 	createCollection(headers?: IHeaders): Promise<string>;
 	deleteCollection(collection?: string, headers?: IHeaders): Promise<void>;
 
+	getActivityData(): Promise<VSBufferReadableStream>;
+
 	clear(): Promise<void>;
 }
 
-export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
-export interface IUserDataSyncBackupStoreService {
+export const IUserDataSyncLocalStoreService = createDecorator<IUserDataSyncLocalStoreService>('IUserDataSyncLocalStoreService');
+export interface IUserDataSyncLocalStoreService {
 	readonly _serviceBrand: undefined;
-	backup(profile: IUserDataProfile, resource: SyncResource, content: string): Promise<void>;
-	getAllRefs(profile: IUserDataProfile, resource: SyncResource): Promise<IResourceRefHandle[]>;
-	resolveContent(profile: IUserDataProfile, resource: SyncResource, ref: string): Promise<string | null>;
+	writeResource(resource: ServerResource, content: string, cTime: Date, collection?: string, root?: URI): Promise<void>;
+	getAllResourceRefs(resource: ServerResource, collection?: string, root?: URI): Promise<IResourceRefHandle[]>;
+	resolveResourceContent(resource: ServerResource, ref: string, collection?: string, root?: URI): Promise<string | null>;
 }
 
 //#endregion
@@ -324,7 +370,7 @@ export interface ISyncUserDataProfile {
 	readonly id: string;
 	readonly collection: string;
 	readonly name: string;
-	readonly shortName?: string;
+	readonly icon?: string;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
 
@@ -337,6 +383,7 @@ export interface ILocalSyncExtension {
 	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 
@@ -347,6 +394,7 @@ export interface IRemoteSyncExtension {
 	preRelease?: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 
@@ -450,14 +498,10 @@ export interface IUserDataSynchroniser {
 
 	readonly onDidChangeLocal: Event<void>;
 
-	sync(manifest: IUserDataResourceManifest | null, headers: IHeaders): Promise<void>;
-	stop(): Promise<void>;
-
-	preview(manifest: IUserDataResourceManifest | null, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
+	sync(manifest: IUserDataResourceManifest | null, preview: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
 	accept(resource: URI, content?: string | null): Promise<IUserDataSyncResourcePreview | null>;
-	merge(resource: URI): Promise<IUserDataSyncResourcePreview | null>;
-	discard(resource: URI): Promise<IUserDataSyncResourcePreview | null>;
 	apply(force: boolean, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
+	stop(): Promise<void>;
 
 	hasPreviouslySynced(): Promise<boolean>;
 	hasLocalData(): Promise<boolean>;
@@ -537,22 +581,22 @@ export interface IUserDataSyncService {
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 
-	getRemoteProfiles(): Promise<ISyncUserDataProfile[]>;
-	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]>;
-	getLocalSyncResourceHandles(syncResource: SyncResource, profile?: IUserDataProfile): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
-	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
 	replace(syncResourceHandle: ISyncResourceHandle): Promise<void>;
+
+	saveRemoteActivityData(location: URI): Promise<void>;
+	extractActivityData(activityDataResource: URI, location: URI): Promise<void>;
 }
 
 export const IUserDataSyncResourceProviderService = createDecorator<IUserDataSyncResourceProviderService>('IUserDataSyncResourceProviderService');
 export interface IUserDataSyncResourceProviderService {
 	_serviceBrand: any;
 	getRemoteSyncedProfiles(): Promise<ISyncUserDataProfile[]>;
-	getLocalSyncResourceHandles(syncResource: SyncResource, profile: IUserDataProfile): Promise<ISyncResourceHandle[]>;
-	getRemoteSyncResourceHandles(syncResource: SyncResource, profile: ISyncUserDataProfile | undefined): Promise<ISyncResourceHandle[]>;
+	getLocalSyncedProfiles(location?: URI): Promise<ISyncUserDataProfile[]>;
+	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]>;
+	getLocalSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile, location?: URI): Promise<ISyncResourceHandle[]>;
 	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
 	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	getLocalSyncedMachines(location?: URI): Promise<IUserDataSyncMachine[]>;
 	resolveContent(resource: URI): Promise<string | null>;
 	resolveUserDataSyncResource(syncResourceHandle: ISyncResourceHandle): IUserDataSyncResource | undefined;
 }
@@ -571,7 +615,7 @@ export interface IUserDataSyncUtilService {
 	readonly _serviceBrand: undefined;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
-	resolveDefaultIgnoredSettings(): Promise<string[]>;
+	resolveDefaultCoreIgnoredSettings(): Promise<string[]>;
 }
 
 export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');

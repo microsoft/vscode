@@ -63,7 +63,7 @@ impl<T: Clone> BarrierOpener<T> {
 /// and is thereafter permanently closed. It can contain a value.
 pub fn new_barrier<T>() -> (Barrier<T>, BarrierOpener<T>)
 where
-	T: Copy,
+	T: Clone,
 {
 	let (closed_tx, closed_rx) = watch::channel(None);
 	(Barrier(closed_rx), BarrierOpener(Arc::new(closed_tx)))

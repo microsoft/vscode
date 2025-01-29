@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as json from 'vs/base/common/json';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { KeyCodeChord } from 'vs/base/common/keybindings';
-import { OS } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TestEnvironmentService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { joinPath } from 'vs/base/common/resources';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import assert from 'assert';
+import * as json from '../../../../../base/common/json.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
+import { OS } from '../../../../../base/common/platform.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IUserFriendlyKeybinding } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { KeybindingsEditingService } from '../../common/keybindingEditing.js';
+import { ITextFileService } from '../../../textfile/common/textfiles.js';
+import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../../userDataProfile/common/userDataProfileService.js';
+import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -44,7 +44,7 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 suite('KeybindingsEditing', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let fileService: IFileService;
 	let environmentService: IEnvironmentService;
@@ -59,7 +59,6 @@ suite('KeybindingsEditing', () => {
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
-		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService()))));
 
 		const userFolder = joinPath(ROOT, 'User');
 		await fileService.createFolder(userFolder);
@@ -67,8 +66,10 @@ suite('KeybindingsEditing', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
-		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
-		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
 
 		instantiationService = workbenchInstantiationService({
 			fileService: () => fileService,
@@ -78,8 +79,6 @@ suite('KeybindingsEditing', () => {
 
 		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditingService));
 	});
-
-	teardown(() => disposables.clear());
 
 	test('errors cases - parse errors', async () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.keybindingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));

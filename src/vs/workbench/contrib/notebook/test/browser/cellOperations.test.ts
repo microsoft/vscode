@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { changeCellToKind, computeCellLinesContents, copyCellRange, insertCell, joinNotebookCells, moveCellRange, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { Range } from 'vs/editor/common/core/range';
-import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
+import assert from 'assert';
+import { FoldingModel, updateFoldingStateAtIndex } from '../../browser/viewModel/foldingModel.js';
+import { changeCellToKind, computeCellLinesContents, copyCellRange, insertCell, joinNotebookCells, moveCellRange, runDeleteAction } from '../../browser/controller/cellOperations.js';
+import { CellEditType, CellKind, SelectionStateType } from '../../common/notebookCommon.js';
+import { withTestNotebook } from './testNotebookEditor.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ITextBuffer, ValidAnnotatedEditOperation } from '../../../../../editor/common/model.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('CellOperations', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Move cells - single cell', async function () {
 		await withTestNotebook(
 			[
@@ -45,7 +48,7 @@ suite('CellOperations', () => {
 			],
 			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
+				await moveCellRange({ notebookEditor: editor }, 'down');
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header b');
 				assert.strictEqual(viewModel.cellAt(1)?.getText(), '# header a');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
@@ -61,8 +64,8 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			async (editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				updateFoldingStateAtIndex(foldingModel, 1, true);
@@ -71,7 +74,7 @@ suite('CellOperations', () => {
 				editor.setHiddenAreas(viewModel.getHiddenRanges());
 
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
+				await moveCellRange({ notebookEditor: editor }, 'down');
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header b');
 				assert.strictEqual(viewModel.cellAt(1)?.getText(), '# header a');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
@@ -144,8 +147,8 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			async (editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				updateFoldingStateAtIndex(foldingModel, 1, true);
@@ -536,7 +539,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 
 				const insertedCellAbove = insertCell(languageService, editor, 4, CellKind.Code, 'above', 'var a = 0;');

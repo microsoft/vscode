@@ -28,7 +28,7 @@
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
     "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
-    "install-client-next": "yarn add vscode-languageclient@next"
+    "install-client-next": "npm install vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"
@@ -54,7 +54,7 @@
             "%html.completion.attributeDefaultValue.empty%"
           ],
           "default": "doublequotes",
-          "description": "%html.completion.attributeDefaultValue%"
+          "markdownDescription": "%html.completion.attributeDefaultValue%"
         },
         "html.customData": {
           "type": "array",
@@ -258,12 +258,12 @@
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.7.5",
-    "vscode-languageclient": "^8.2.0-next.1",
-    "vscode-uri": "^3.0.7"
+    "@vscode/extension-telemetry": "^0.9.8",
+    "vscode-languageclient": "^10.0.0-next.13",
+    "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "20.x"
   },
   "repository": {
     "type": "git",

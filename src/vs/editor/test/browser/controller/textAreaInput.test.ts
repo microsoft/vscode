@@ -3,16 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
-import { TextAreaState } from 'vs/editor/browser/controller/textAreaState';
-import { Position } from 'vs/editor/common/core/position';
-import { IRecorded, IRecordedEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
+import assert from 'assert';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Position } from '../../../common/core/position.js';
+import { IRecorded, IRecordedEvent, IRecordedTextareaState } from './imeRecordedTypes.js';
+import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
+import { ClipboardDataToCopy } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
 
 suite('TextAreaInput', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface OutgoingType {
 		type: 'type';
@@ -87,6 +93,8 @@ suite('TextAreaInput', () => {
 
 			private _state: IRecordedTextareaState;
 			private _currDispatchingEvent: IRecordedEvent | null;
+
+			public ownerDocument = document;
 
 			constructor() {
 				super();
@@ -198,7 +206,7 @@ suite('TextAreaInput', () => {
 
 			public hasFocus(): boolean { return true; }
 		});
-		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser));
+		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser, new TestAccessibilityService(), new NullLogService()));
 
 		wrapper._initialize(recorded.initial);
 		input._initializeFromTest();
@@ -228,6 +236,8 @@ suite('TextAreaInput', () => {
 			wrapper._dispatchRecordedEvent(event);
 			await yieldNow();
 		}
+
+		disposables.dispose();
 
 		return outgoingEvents;
 	}

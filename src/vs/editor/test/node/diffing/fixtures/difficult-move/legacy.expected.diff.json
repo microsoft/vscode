@@ -28,8 +28,8 @@
 			"modifiedRange": "[226,234)",
 			"innerChanges": [
 				{
-					"originalRange": "[222,17 -> 222,19]",
-					"modifiedRange": "[226,17 -> 226,17]"
+					"originalRange": "[222,17 -> 222,19 EOL]",
+					"modifiedRange": "[226,17 -> 226,17 EOL]"
 				},
 				{
 					"originalRange": "[223,4 -> 223,28]",
@@ -40,8 +40,8 @@
 					"modifiedRange": "[227,41 -> 227,48]"
 				},
 				{
-					"originalRange": "[223,54 -> 223,65]",
-					"modifiedRange": "[227,53 -> 227,62]"
+					"originalRange": "[223,54 -> 223,65 EOL]",
+					"modifiedRange": "[227,53 -> 227,62 EOL]"
 				},
 				{
 					"originalRange": "[224,4 -> 224,21]",
@@ -60,8 +60,8 @@
 					"modifiedRange": "[228,123 -> 228,152]"
 				},
 				{
-					"originalRange": "[226,22 -> 226,25]",
-					"modifiedRange": "[228,166 -> 228,169]"
+					"originalRange": "[226,22 -> 226,25 EOL]",
+					"modifiedRange": "[228,166 -> 228,169 EOL]"
 				},
 				{
 					"originalRange": "[227,5 -> 227,30]",
@@ -72,16 +72,16 @@
 					"modifiedRange": "[229,28 -> 229,32]"
 				},
 				{
-					"originalRange": "[227,45 -> 227,93]",
-					"modifiedRange": "[229,35 -> 229,67]"
+					"originalRange": "[227,45 -> 227,93 EOL]",
+					"modifiedRange": "[229,35 -> 229,67 EOL]"
 				},
 				{
-					"originalRange": "[228,5 -> 228,51]",
-					"modifiedRange": "[230,5 -> 230,30]"
+					"originalRange": "[228,5 -> 228,51 EOL]",
+					"modifiedRange": "[230,5 -> 230,30 EOL]"
 				},
 				{
-					"originalRange": "[229,6 -> 230,6]",
-					"modifiedRange": "[231,6 -> 231,40]"
+					"originalRange": "[229,6 -> 230,6 EOL]",
+					"modifiedRange": "[231,6 -> 231,40 EOL]"
 				},
 				{
 					"originalRange": "[231,4 -> 232,42]",
@@ -92,8 +92,8 @@
 					"modifiedRange": "[232,25 -> 233,32]"
 				},
 				{
-					"originalRange": "[232,72 -> 233,4]",
-					"modifiedRange": "[233,35 -> 233,60]"
+					"originalRange": "[232,72 -> 233,4 EOL]",
+					"modifiedRange": "[233,35 -> 233,60 EOL]"
 				}
 			]
 		}

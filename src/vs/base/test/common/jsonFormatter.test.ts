@@ -2,10 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as Formatter from 'vs/base/common/jsonFormatter';
+import assert from 'assert';
+import * as Formatter from '../../common/jsonFormatter.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('JSON - formatter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function format(content: string, expected: string, insertSpaces = true) {
 		let range: Formatter.Range | undefined = undefined;

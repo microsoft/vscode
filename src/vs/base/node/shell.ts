@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { userInfo } from 'os';
-import * as platform from 'vs/base/common/platform';
-import { getFirstAvailablePowerShellInstallation } from 'vs/base/node/powershell';
-import * as processes from 'vs/base/node/processes';
+import * as platform from '../common/platform.js';
+import { getFirstAvailablePowerShellInstallation } from './powershell.js';
+import * as processes from './processes.js';
 
 /**
  * Gets the detected default shell for the _system_, not to be confused with VS Code's _default_
@@ -33,7 +33,7 @@ function getSystemShellUnixLike(os: platform.OperatingSystem, env: platform.IPro
 	}
 
 	if (!_TERMINAL_DEFAULT_SHELL_UNIX_LIKE) {
-		let unixLikeTerminal: string | undefined;
+		let unixLikeTerminal: string | undefined | null;
 		if (platform.isWindows) {
 			unixLikeTerminal = '/bin/bash'; // for WSL
 		} else {

@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
-import { Range } from 'vs/editor/common/core/range';
-import { overviewRulerSelectionHighlightForeground, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookDeltaDecoration, INotebookEditor, NotebookOverviewRulerLane, } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IModelDeltaDecoration } from '../../../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../../../editor/common/model/textModel.js';
+import { FindDecorations } from '../../../../../../editor/contrib/find/browser/findDecorations.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { overviewRulerSelectionHighlightForeground, overviewRulerFindMatchForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookDeltaDecoration, INotebookEditor, NotebookOverviewRulerLane, } from '../../notebookBrowser.js';
 
 export class FindMatchDecorationModel extends Disposable {
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
@@ -17,7 +17,8 @@ export class FindMatchDecorationModel extends Disposable {
 	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
 
 	constructor(
-		private readonly _notebookEditor: INotebookEditor
+		private readonly _notebookEditor: INotebookEditor,
+		private readonly ownerID: string,
 	) {
 		super();
 	}
@@ -26,7 +27,7 @@ export class FindMatchDecorationModel extends Disposable {
 		return this._currentMatchDecorations;
 	}
 
-	public clearDecorations() {
+	private clearDecorations() {
 		this.clearCurrentFindMatchDecoration();
 		this.setAllFindMatchesDecorations([]);
 	}
@@ -56,7 +57,6 @@ export class FindMatchDecorationModel extends Disposable {
 		});
 
 		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
-			ownerId: cell.handle,
 			handle: cell.handle,
 			options: {
 				overviewRuler: {
@@ -66,7 +66,7 @@ export class FindMatchDecorationModel extends Disposable {
 					position: NotebookOverviewRulerLane.Center
 				}
 			}
-		} as INotebookDeltaDecoration]);
+		}]);
 
 		return null;
 	}
@@ -75,11 +75,10 @@ export class FindMatchDecorationModel extends Disposable {
 
 		this.clearCurrentFindMatchDecoration();
 
-		const offset = await this._notebookEditor.highlightFind(index);
+		const offset = await this._notebookEditor.findHighlightCurrent(index, this.ownerID);
 		this._currentMatchDecorations = { kind: 'output', index: index };
 
 		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
-			ownerId: cell.handle,
 			handle: cell.handle,
 			options: {
 				overviewRuler: {
@@ -89,7 +88,7 @@ export class FindMatchDecorationModel extends Disposable {
 					position: NotebookOverviewRulerLane.Center
 				}
 			}
-		} as INotebookDeltaDecoration]);
+		} satisfies INotebookDeltaDecoration]);
 
 		return offset;
 	}
@@ -101,7 +100,7 @@ export class FindMatchDecorationModel extends Disposable {
 				this._currentMatchDecorations = null;
 			});
 		} else if (this._currentMatchDecorations?.kind === 'output') {
-			this._notebookEditor.unHighlightFind(this._currentMatchDecorations.index);
+			this._notebookEditor.findUnHighlightCurrent(this._currentMatchDecorations.index, this.ownerID);
 		}
 
 		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, []);
@@ -145,7 +144,7 @@ export class FindMatchDecorationModel extends Disposable {
 	}
 
 	stopWebviewFind() {
-		this._notebookEditor.findStop();
+		this._notebookEditor.findStop(this.ownerID);
 	}
 
 	override dispose() {

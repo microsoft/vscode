@@ -176,6 +176,10 @@ export async function getLink(gitAPI: GitAPI, useSelection: boolean, shouldEnsur
 	return `${uriWithoutFileSegments}${fileSegments}`;
 }
 
+export function getAvatarLink(userId: string, size: number): string {
+	return `https://avatars.githubusercontent.com/u/${userId}?s=${size}`;
+}
+
 export function getBranchLink(url: string, branch: string, hostPrefix: string = 'https://github.com') {
 	const repo = getRepositoryFromUrl(url);
 	if (!repo) {
@@ -186,11 +190,22 @@ export function getBranchLink(url: string, branch: string, hostPrefix: string = 
 	return `${hostPrefix}/${repo.owner}/${repo.repo}/tree/${branch}`;
 }
 
+export function getCommitLink(url: string, hash: string, hostPrefix: string = 'https://github.com') {
+	const repo = getRepositoryFromUrl(url);
+	if (!repo) {
+		throw new Error('Invalid repository URL provided');
+	}
+
+	return `${hostPrefix}/${repo.owner}/${repo.repo}/commit/${hash}`;
+}
+
 export function getVscodeDevHost(): string {
 	return `https://${vscode.env.appName.toLowerCase().includes('insiders') ? 'insiders.' : ''}vscode.dev/github`;
 }
 
 export async function ensurePublished(repository: Repository, file: vscode.Uri) {
+	await repository.status();
+
 	if ((repository.state.HEAD?.type === RefType.Head || repository.state.HEAD?.type === RefType.Tag)
 		// If HEAD is not published, make sure it is
 		&& !repository?.state.HEAD?.upstream

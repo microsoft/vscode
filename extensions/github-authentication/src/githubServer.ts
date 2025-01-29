@@ -11,17 +11,16 @@ import { isSupportedClient, isSupportedTarget } from './common/env';
 import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
 import { ExtensionHost, GitHubTarget, getFlows } from './flows';
-import { NETWORK_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
-
-// This is the error message that we throw if the login was cancelled for any reason. Extensions
-// calling `getSession` can handle this error to know that the user cancelled the login.
-const CANCELLATION_ERROR = 'Cancelled';
+import { CANCELLATION_ERROR, NETWORK_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { Config } from './config';
+import { base64Encode } from './node/buffer';
 
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
 export interface IGitHubServer {
-	login(scopes: string): Promise<string>;
+	login(scopes: string, existingLogin?: string): Promise<string>;
+	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 	friendlyName: string;
@@ -78,12 +77,17 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	// TODO@joaomoreno TODO@TylerLeonhardt
+	private _isNoCorsEnvironment: boolean | undefined;
 	private async isNoCorsEnvironment(): Promise<boolean> {
+		if (this._isNoCorsEnvironment !== undefined) {
+			return this._isNoCorsEnvironment;
+		}
 		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/dummy`));
-		return (uri.scheme === 'https' && /^((insiders\.)?vscode|github)\./.test(uri.authority)) || (uri.scheme === 'http' && /^localhost/.test(uri.authority));
+		this._isNoCorsEnvironment = (uri.scheme === 'https' && /^((insiders\.)?vscode|github)\./.test(uri.authority)) || (uri.scheme === 'http' && /^localhost/.test(uri.authority));
+		return this._isNoCorsEnvironment;
 	}
 
-	public async login(scopes: string): Promise<string> {
+	public async login(scopes: string, existingLogin?: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
@@ -135,6 +139,7 @@ export class GitHubServer implements IGitHubServer {
 					uriHandler: this._uriHandler,
 					enterpriseUri: this._ghesUri,
 					redirectUri: vscode.Uri.parse(await this.getRedirectEndpoint()),
+					existingLogin
 				});
 			} catch (e) {
 				userCancelled = this.processLoginError(e);
@@ -142,6 +147,58 @@ export class GitHubServer implements IGitHubServer {
 		}
 
 		throw new Error(userCancelled ? CANCELLATION_ERROR : 'No auth flow succeeded.');
+	}
+
+	public async logout(session: vscode.AuthenticationSession): Promise<void> {
+		this._logger.trace(`Deleting session (${session.id}) from server...`);
+
+		if (!Config.gitHubClientSecret) {
+			this._logger.warn('No client secret configured for GitHub authentication. The token has been deleted with best effort on this system, but we are unable to delete the token on server without the client secret.');
+			return;
+		}
+
+		// Only attempt to delete OAuth tokens. They are always prefixed with `gho_`.
+		// https://docs.github.com/en/rest/apps/oauth-applications#about-oauth-apps-and-oauth-authorizations-of-github-apps
+		if (!session.accessToken.startsWith('gho_')) {
+			this._logger.warn('The token being deleted is not an OAuth token. It has been deleted locally, but we cannot delete it on server.');
+			return;
+		}
+
+		if (!isSupportedTarget(this._type, this._ghesUri)) {
+			this._logger.trace('GitHub.com and GitHub hosted GitHub Enterprise are the only options that support deleting tokens on the server. Skipping.');
+			return;
+		}
+
+		const authHeader = 'Basic ' + base64Encode(`${Config.gitHubClientId}:${Config.gitHubClientSecret}`);
+		const uri = this.getServerUri(`/applications/${Config.gitHubClientId}/token`);
+
+		try {
+			// Defined here: https://docs.github.com/en/rest/apps/oauth-applications?apiVersion=2022-11-28#delete-an-app-token
+			const result = await fetching(uri.toString(true), {
+				method: 'DELETE',
+				headers: {
+					Accept: 'application/vnd.github+json',
+					Authorization: authHeader,
+					'X-GitHub-Api-Version': '2022-11-28',
+					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
+				},
+				body: JSON.stringify({ access_token: session.accessToken }),
+			});
+
+			if (result.status === 204) {
+				this._logger.trace(`Successfully deleted token from session (${session.id}) from server.`);
+				return;
+			}
+
+			try {
+				const body = await result.text();
+				throw new Error(body);
+			} catch (e) {
+				throw new Error(`${result.status} ${result.statusText}`);
+			}
+		} catch (e) {
+			this._logger.warn('Failed to delete token from server.' + (e.message ?? e));
+		}
 	}
 
 	private getServerUri(path: string = '') {
@@ -171,9 +228,9 @@ export class GitHubServer implements IGitHubServer {
 
 		if (result.ok) {
 			try {
-				const json = await result.json();
+				const json = await result.json() as { id: number; login: string };
 				this._logger.info('Got account info!');
-				return { id: json.id, accountName: json.login };
+				return { id: `${json.id}`, accountName: json.login };
 			} catch (e) {
 				this._logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
 				throw e;

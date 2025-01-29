@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError } from 'vscode';
+import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError, LogOutputChannel } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
@@ -43,7 +43,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	private mtime = new Date().getTime();
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
+	constructor(private readonly model: Model, private readonly logger: LogOutputChannel) {
 		this.disposables.push(
 			model.onDidChangeRepository(this.onDidChangeRepository, this),
 			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
@@ -63,9 +63,14 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			return;
 		}
 
-		const gitUri = toGitUri(uri, '', { replaceFileExtension: true });
+		const diffOriginalResourceUri = toGitUri(uri, '~',);
+		const quickDiffOriginalResourceUri = toGitUri(uri, '', { replaceFileExtension: true });
+
 		this.mtime = new Date().getTime();
-		this._onDidChangeFile.fire([{ type: FileChangeType.Changed, uri: gitUri }]);
+		this._onDidChangeFile.fire([
+			{ type: FileChangeType.Changed, uri: diffOriginalResourceUri },
+			{ type: FileChangeType.Changed, uri: quickDiffOriginalResourceUri }
+		]);
 	}
 
 	@debounce(1100)
@@ -131,17 +136,18 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		const { submoduleOf, path, ref } = fromGitUri(uri);
 		const repository = submoduleOf ? this.model.getRepository(submoduleOf) : this.model.getRepository(uri);
 		if (!repository) {
+			this.logger.warn(`[GitFileSystemProvider][stat] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
 		}
 
-		let size = 0;
 		try {
 			const details = await repository.getObjectDetails(sanitizeRef(ref, path, repository), path);
-			size = details.size;
+			return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
 		} catch {
-			// noop
+			// File does not exist in git. This could be because the file is untracked or ignored
+			this.logger.warn(`[GitFileSystemProvider][stat] File not found - ${uri.toString()}`);
+			throw FileSystemError.FileNotFound();
 		}
-		return { type: FileType.File, size: size, mtime: this.mtime, ctime: 0 };
 	}
 
 	readDirectory(): Thenable<[string, FileType][]> {
@@ -176,6 +182,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
+			this.logger.warn(`[GitFileSystemProvider][readFile] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
 		}
 
@@ -186,8 +193,10 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 		try {
 			return await repository.buffer(sanitizeRef(ref, path, repository), path);
-		} catch (err) {
-			return new Uint8Array(0);
+		} catch {
+			// File does not exist in git. This could be because the file is untracked or ignored
+			this.logger.warn(`[GitFileSystemProvider][readFile] File not found - ${uri.toString()}`);
+			throw FileSystemError.FileNotFound();
 		}
 	}
 

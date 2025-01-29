@@ -14,7 +14,7 @@ const noopToResource: IFilePathToResourceConverter = {
 };
 
 suite('typescript.previewer', () => {
-	test('Should ignore hyphens after a param tag', async () => {
+	test('Should ignore hyphens after a param tag', () => {
 		assert.strictEqual(
 			tagsToMarkdown([
 				{
@@ -25,58 +25,52 @@ suite('typescript.previewer', () => {
 			'*@param* `a` — b');
 	});
 
-	test('Should parse url jsdoc @link', async () => {
+	test('Should parse url jsdoc @link', () => {
 		assert.strictEqual(
 			documentationToMarkdown(
-				'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
+				// 'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
+				[{ "text": "x ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/foo", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " y ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "https://api.jquery.com/bind/#bind-eventType-eventData-handler", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " z", "kind": "text" }],
 				[],
 				noopToResource, undefined
 			).value,
-			'x [http://www.example.com/foo](http://www.example.com/foo) y [https://api.jquery.com/bind/#bind-eventType-eventData-handler](https://api.jquery.com/bind/#bind-eventType-eventData-handler) z');
+			'x <http://www.example.com/foo> y <https://api.jquery.com/bind/#bind-eventType-eventData-handler> z');
 	});
 
-	test('Should parse url jsdoc @link with text', async () => {
+	test('Should parse url jsdoc @link with text', () => {
 		assert.strictEqual(
 			documentationToMarkdown(
-				'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
+				// 'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
+				[{ "text": "x ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/foo abc xyz", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " y ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/bar b a z", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " z", "kind": "text" }],
 				[],
 				noopToResource, undefined
 			).value,
 			'x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
 	});
 
-	test('Should treat @linkcode jsdocs links as monospace', async () => {
+	test('Should treat @linkcode jsdocs links as monospace', () => {
 		assert.strictEqual(
 			documentationToMarkdown(
-				'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
+				// 'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
+				[{ "text": "x ", "kind": "text" }, { "text": "{@linkcode ", "kind": "link" }, { "text": "http://www.example.com/foo", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " y ", "kind": "text" }, { "text": "{@linkplain ", "kind": "link" }, { "text": "http://www.example.com/bar", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " z", "kind": "text" }],
 				[],
 				noopToResource, undefined
 			).value,
-			'x [`http://www.example.com/foo`](http://www.example.com/foo) y [http://www.example.com/bar](http://www.example.com/bar) z');
+			'x [`http://www.example.com/foo`](http://www.example.com/foo) y <http://www.example.com/bar> z');
 	});
 
-	test('Should parse url jsdoc @link in param tag', async () => {
+	test('Should parse url jsdoc @link in param tag', () => {
 		assert.strictEqual(
 			tagsToMarkdown([
 				{
 					name: 'param',
-					text: 'a x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z'
+					// a x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z
+					text: [{ "text": "a", "kind": "parameterName" }, { "text": " ", "kind": "space" }, { "text": "x ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/foo abc xyz", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " y ", "kind": "text" }, { "text": "{@link ", "kind": "link" }, { "text": "http://www.example.com/bar b a z", "kind": "linkText" }, { "text": "}", "kind": "link" }, { "text": " z", "kind": "text" }],
 				}
 			], noopToResource),
 			'*@param* `a` — x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
 	});
 
-	test('Should ignore unclosed jsdocs @link', async () => {
-		assert.strictEqual(
-			documentationToMarkdown(
-				'x {@link http://www.example.com/foo y {@link http://www.example.com/bar bar} z',
-				[],
-				noopToResource, undefined
-			).value,
-			'x {@link http://www.example.com/foo y [bar](http://www.example.com/bar) z');
-	});
-
-	test('Should support non-ascii characters in parameter name (#90108)', async () => {
+	test('Should support non-ascii characters in parameter name (#90108)', () => {
 		assert.strictEqual(
 			tagsToMarkdown([
 				{
@@ -95,7 +89,7 @@ suite('typescript.previewer', () => {
 					text: 'code();'
 				}
 			], noopToResource),
-			'*@example*  \n```\ncode();\n```'
+			'*@example*  \n```tsx\ncode();\n```'
 		);
 	});
 
@@ -119,7 +113,7 @@ suite('typescript.previewer', () => {
 					text: '<caption>Not code</caption>\ncode();'
 				}
 			], noopToResource),
-			'*@example*  \nNot code\n```\ncode();\n```'
+			'*@example*  \nNot code\n```tsx\ncode();\n```'
 		);
 	});
 
@@ -135,7 +129,35 @@ suite('typescript.previewer', () => {
 		);
 	});
 
-	test('Should render @linkcode symbol name as code', async () => {
+	test('Should not render @link inside of @example #187768', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					"name": "example",
+					"text": [
+						{
+							"text": "1 + 1 ",
+							"kind": "text"
+						},
+						{
+							"text": "{@link ",
+							"kind": "link"
+						},
+						{
+							"text": "foo",
+							"kind": "linkName"
+						},
+						{
+							"text": "}",
+							"kind": "link"
+						}
+					]
+				}
+			], noopToResource),
+			'*@example*  \n```tsx\n1 + 1 {@link foo}\n```');
+	});
+
+	test('Should render @linkcode symbol name as code', () => {
 		assert.strictEqual(
 			asPlainTextWithLinks([
 				{ "text": "a ", "kind": "text" },
@@ -155,7 +177,7 @@ suite('typescript.previewer', () => {
 			'a [`dog`](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D) b');
 	});
 
-	test('Should render @linkcode text as code', async () => {
+	test('Should render @linkcode text as code', () => {
 		assert.strictEqual(
 			asPlainTextWithLinks([
 				{ "text": "a ", "kind": "text" },

@@ -3,37 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, disposableTimeout, ThrottledDelayer, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toLocalISOString } from 'vs/base/common/date';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUserDataSyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-
-type AutoSyncClassification = {
-	owner: 'sandy081';
-	comment: 'Information about the sources triggering auto sync';
-	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source that triggered auto sync' };
-	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Auth provider id used for sync' };
-};
-
-type AutoSyncErrorClassification = {
-	owner: 'sandy081';
-	comment: 'Information about the error that causes auto sync to fail';
-	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
-	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings sync service for which this error has occurred' };
-};
+import { CancelablePromise, createCancelablePromise, disposableTimeout, ThrottledDelayer, timeout } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toLocalISOString } from '../../../base/common/date.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { isEqual } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IUserDataSyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from './userDataSync.js';
+import { IUserDataSyncAccountService } from './userDataSyncAccount.js';
+import { IUserDataSyncMachinesService } from './userDataSyncMachines.js';
 
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
 const sessionIdKey = 'sync.sessionId';
@@ -199,7 +185,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 			// Reset
 			if (everywhere) {
-				this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Reporting when settings sync is turned off in all devices' }>('sync/turnOffEveryWhere');
 				await this.userDataSyncService.reset();
 			} else {
 				await this.userDataSyncService.resetLocal();
@@ -234,11 +219,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 		// Error while syncing
 		const userDataSyncError = UserDataSyncError.toUserDataSyncError(error);
-
-		// Log to telemetry
-		if (userDataSyncError instanceof UserDataAutoSyncError) {
-			this.telemetryService.publicLog2<{ code: string; service: string }, AutoSyncErrorClassification>(`autosync/error`, { code: userDataSyncError.code, service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString() });
-		}
 
 		// Session got expired
 		if (userDataSyncError.code === UserDataSyncErrorCode.SessionExpired) {
@@ -361,8 +341,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		this.sources.push(...sources);
 		return this.syncTriggerDelayer.trigger(async () => {
 			this.logService.trace('activity sources', ...this.sources);
-			const providerId = this.userDataSyncAccountService.account?.authenticationProviderId || '';
-			this.telemetryService.publicLog2<{ sources: string[]; providerId: string }, AutoSyncClassification>('sync/triggered', { sources: this.sources, providerId });
 			this.sources = [];
 			if (this.autoSync.value) {
 				await this.autoSync.value.sync('Activity', disableCache);
@@ -424,7 +402,10 @@ class AutoSync extends Disposable {
 	}
 
 	private waitUntilNextIntervalAndSync(): void {
-		this.intervalHandler.value = disposableTimeout(() => this.sync(AutoSync.INTERVAL_SYNCING, false), this.interval);
+		this.intervalHandler.value = disposableTimeout(() => {
+			this.sync(AutoSync.INTERVAL_SYNCING, false);
+			this.intervalHandler.value = undefined;
+		}, this.interval);
 	}
 
 	sync(reason: string, disableCache: boolean): Promise<void> {

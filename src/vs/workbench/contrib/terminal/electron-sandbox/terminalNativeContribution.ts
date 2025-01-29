@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { INativeOpenFileRequest } from 'vs/platform/window/common/window';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalRemote';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { INativeOpenFileRequest } from '../../../../platform/window/common/window.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { registerRemoteContributions } from './terminalRemote.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ITerminalService } from '../browser/terminal.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { disposableWindowInterval, getActiveWindow } from '../../../../base/browser/dom.js';
 
 export class TerminalNativeContribution extends Disposable implements IWorkbenchContribution {
 	declare _serviceBrand: undefined;
@@ -61,14 +62,14 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		// Complete when wait marker file is deleted
 		return new Promise<void>(resolve => {
 			let running = false;
-			const interval = setInterval(async () => {
+			const interval = disposableWindowInterval(getActiveWindow(), async () => {
 				if (!running) {
 					running = true;
 					const exists = await this._fileService.exists(path);
 					running = false;
 
 					if (!exists) {
-						clearInterval(interval);
+						interval.dispose();
 						resolve(undefined);
 					}
 				}

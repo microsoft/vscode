@@ -3,22 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ILogService } from 'vs/platform/log/common/log';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData, NotebookExtensionDescription, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter } from '../../../base/common/event.js';
+import { DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { assertType } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
+import { INotebookCellStatusBarService } from '../../contrib/notebook/common/notebookCellStatusBarService.js';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, INotebookExclusiveDocumentFilter, NotebookData, NotebookExtensionDescription, TransientOptions } from '../../contrib/notebook/common/notebookCommon.js';
+import { INotebookService, SimpleNotebookProviderInfo } from '../../contrib/notebook/common/notebookService.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol.js';
+import { IRelativePattern } from '../../../base/common/glob.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { INotebookFileMatchNoModel } from '../../contrib/search/common/searchNotebookHelpers.js';
+import { NotebookPriorityInfo } from '../../contrib/search/common/search.js';
+import { coalesce } from '../../../base/common/arrays.js';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -81,6 +86,43 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					resource: uri
 				};
 			},
+			searchInNotebooks: async (textQuery, token, allPriorityInfo): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
+				const contributedType = this._notebookService.getContributedNotebookType(viewType);
+				if (!contributedType) {
+					return { results: [], limitHit: false };
+				}
+				const fileNames = contributedType.selectors;
+
+				const includes = fileNames.map((selector) => {
+					const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as IRelativePattern | string;
+					return globPattern.toString();
+				});
+
+				if (!includes.length) {
+					return {
+						results: [], limitHit: false
+					};
+				}
+
+				const thisPriorityInfo = coalesce<NotebookPriorityInfo>([{ isFromSettings: false, filenamePatterns: includes }, ...allPriorityInfo.get(viewType) ?? []]);
+				const otherEditorsPriorityInfo = Array.from(allPriorityInfo.keys())
+					.flatMap(key => {
+						if (key !== viewType) {
+							return allPriorityInfo.get(key) ?? [];
+						}
+						return [];
+					});
+
+				const searchComplete = await this._proxy.$searchInNotebooks(handle, textQuery, thisPriorityInfo, otherEditorsPriorityInfo, token);
+				const revivedResults: INotebookFileMatchNoModel<URI>[] = searchComplete.results.map(result => {
+					const resource = URI.revive(result.resource);
+					return {
+						resource,
+						cellResults: result.cellResults.map(e => revive(e))
+					};
+				});
+				return { results: revivedResults, limitHit: searchComplete.limitHit };
+			}
 		}));
 
 		if (data) {
