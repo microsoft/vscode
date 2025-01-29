@@ -1588,6 +1588,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				}
 
 				commandService.executeCommand('workbench.action.alignPanelCenter');
+				commandService.executeCommand('workbench.action.alignQuickInputTop');
 			}
 		}));
 
