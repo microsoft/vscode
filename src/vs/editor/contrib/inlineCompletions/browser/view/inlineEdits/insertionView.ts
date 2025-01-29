@@ -11,6 +11,7 @@ import { observableCodeEditor } from '../../../../../browser/observableCodeEdito
 import { Point } from '../../../../../browser/point.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
@@ -112,6 +113,32 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		return Math.max(...lineWidths);
 	});
 
+	private readonly _trimVertically = derived(this, reader => {
+		const text = this._state.read(reader)?.text;
+		if (!text || text.trim() === '') {
+			return { top: 0, bottom: 0 };
+		}
+
+		// Adjust for leading/trailing newlines
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		let topTrim = 0;
+		let bottomTrim = 0;
+
+		let i = 0;
+		for (; i < text.length && text[i] === '\n'; i++) {
+			topTrim += lineHeight;
+		}
+
+		for (let j = text.length - 1; j > i && text[j] === '\n'; j--) {
+			bottomTrim += lineHeight;
+		}
+
+		return { top: topTrim, bottom: bottomTrim };
+	});
+
+	public readonly startLineOffset = this._trimVertically.map(v => v.top);
+	public readonly originalLines = this._state.map(s => s ? new LineRange(s.lineNumber, s.lineNumber + 2) : undefined);
+
 	private readonly _overlayLayout = derivedWithStore(this, (reader, store) => {
 		this._ghostText.read(reader);
 		const state = this._state.read(reader);
@@ -122,34 +149,21 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		// Update the overlay when the position changes
 		this._editorObs.observePosition(observableValue(this, new Position(state.lineNumber, state.column)), store).read(reader);
 
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const scrollTop = this._editorObs.scrollTop.read(reader);
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 
 		const left = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
-
-		let height = this._ghostTextView.height.read(reader);
-		let top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop;
-
-		if (state.text.trim() !== '') {
-			// Adjust for leading/trailing newlines
-			let i = 0;
-			for (; i < state.text.length && state.text[i] === '\n'; i++) {
-				height -= lineHeight;
-				top += lineHeight;
-			}
-			for (let j = state.text.length - 1; j > i && state.text[j] === '\n'; j--) {
-				height -= lineHeight;
-			}
-		}
-
 		const codeLeft = editorLayout.contentLeft;
-		const bottom = top + height;
-
 		if (left <= codeLeft) {
 			return null;
 		}
+
+		const { top: topTrim, bottom: bottomTrim } = this._trimVertically.read(reader);
+
+		const scrollTop = this._editorObs.scrollTop.read(reader);
+		const height = this._ghostTextView.height.read(reader) - topTrim - bottomTrim;
+		const top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop + topTrim;
+		const bottom = top + height;
 
 		const code1 = new Point(left, top);
 		const codeStart1 = new Point(codeLeft, top);
