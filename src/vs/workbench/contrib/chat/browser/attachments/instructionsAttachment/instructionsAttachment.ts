@@ -138,7 +138,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 			hidePath: true,
 			range: undefined,
 			title,
-			icon: ThemeIcon.fromId(Codicon.lightbulbSparkle.id),
+			icon: ThemeIcon.fromId(Codicon.bookmark.id),
 			extraClasses: [],
 		});
 		this.domNode.ariaLabel = ariaLabel;

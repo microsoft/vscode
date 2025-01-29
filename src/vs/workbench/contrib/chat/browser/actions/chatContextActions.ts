@@ -812,7 +812,7 @@ export class AttachContextAction extends Action2 {
 				kind: 'prompt-instructions',
 				id: 'prompt-instructions',
 				label: localize('promptWithEllipsis', 'Prompt...'),
-				iconClass: ThemeIcon.asClassName(Codicon.lightbulbSparkle),
+				iconClass: ThemeIcon.asClassName(Codicon.bookmark),
 			});
 		}
 
