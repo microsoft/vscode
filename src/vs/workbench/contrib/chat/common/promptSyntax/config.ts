@@ -21,23 +21,23 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * (see {@link PROMPT_FILES_DEFAULT_LOCATION}):
  * ```json
  * {
- *   "chat.experimental.prompt-snippets": true,
+ *   "chat.experimental.promptSnippets": true,
  * }
  * ```
  *
  * Enable the feature, specifying a single prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.prompt-snippets": '.copilot/prompts',
+ *   "chat.experimental.promptSnippets": '.github/prompts',
  * }
  * ```
  *
  * Enable the feature, specifying multiple prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.prompt-snippets": [
- *     '.copilot/prompts',
+ *   "chat.experimental.promptSnippets": [
  *     '.github/prompts',
+ *     '.copilot/prompts',
  *     '/Users/legomushroom/repos/prompts',
  *   ],
  * }
@@ -77,12 +77,12 @@ export namespace PromptFilesConfig {
 	 * Configuration key for the `prompt snippets` feature (also
 	 * known as `prompt snippets`, `prompt instructions`, etc.).
 	 */
-	const PROMPT_FILES_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
+	export const PROMPT_FILES_CONFIG_KEY: string = 'chat.experimental.promptSnippets'; // TODO: @legomushroom - get the correct name
 
 	/**
 	 * Default prompt instructions source folder paths.
 	 */
-	const PROMPT_FILES_DEFAULT_LOCATION = ['.copilot/prompts', '.github/prompts'];
+	const PROMPT_FILES_DEFAULT_LOCATION = ['.github/prompts'];
 
 	/**
 	 * Get value of the `prompt snippets` configuration setting.

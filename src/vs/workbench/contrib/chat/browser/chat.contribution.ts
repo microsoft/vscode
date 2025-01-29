@@ -83,6 +83,7 @@ import { BuiltinToolsContribution } from './tools/tools.js';
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatEditorOverlayController } from './chatEditorOverlay.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
+import { PromptFilesConfig } from '../common/promptSyntax/config.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -150,6 +151,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: true
+		},
+		[PromptFilesConfig.PROMPT_FILES_CONFIG_KEY]: {
+			type: ['string', 'array', 'boolean', 'null'],
+			description: nls.localize(PromptFilesConfig.PROMPT_FILES_CONFIG_KEY, "TODO: @legomushroom"),
+			default: null,
+			tags: ['experimental'],
 		},
 	}
 });
