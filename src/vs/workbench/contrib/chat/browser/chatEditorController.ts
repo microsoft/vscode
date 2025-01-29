@@ -165,7 +165,14 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			if (entry.state.read(r) !== WorkingSetEntryState.Modified) {
 				this._overlayCtrl.hide();
 			} else {
-				this._overlayCtrl.showEntry(session, entry, entries[(idx + 1) % entries.length]);
+				this._overlayCtrl.showEntry(
+					session,
+					entry, entries[(idx + 1) % entries.length],
+					{
+						entryIndex: this._currentEntryIndex,
+						changeIndex: this._currentChangeIndex
+					}
+				);
 			}
 
 			// scrolling logic
