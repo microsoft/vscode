@@ -94,6 +94,7 @@ import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAt
 import { InstructionAttachmentsWidget } from './attachments/instructionsAttachment/instructionAttachments.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel, EditsAttachmentModel } from './chatAttachmentModel.js';
+import { toChatVariable } from './chatAttachmentModel/chatInstructionAttachmentsModel.js';
 import { hookUpResourceAttachmentDragAndContextMenu, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
@@ -193,17 +194,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				continue;
 			}
 
-			for (const childUri of variable.allValidReferencesUris) {
-				contextArr.push({
-					id: variable.id,
-					name: basename(childUri.path),
-					value: childUri,
-					isSelection: false,
-					enabled: true,
-					isFile: true,
-					isDynamic: true,
-				});
-			}
+			// the usual URIs list of prompt instructions is `bottom-up`, therefore
+			// we do the same here - first add all child references to the list
+			contextArr.push(
+				...variable.allValidReferences.map((link) => {
+					return toChatVariable(link, false);
+				}),
+			);
+			// then add the root reference itself
+			contextArr.push(
+				toChatVariable(variable, true),
+			);
 		}
 
 		contextArr
