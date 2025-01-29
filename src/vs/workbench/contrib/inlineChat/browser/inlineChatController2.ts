@@ -248,6 +248,7 @@ export class StartSessionAction2 extends EditorAction2 {
 				id: MenuId.ChatCommandCenter,
 				group: 'd_inlineChat',
 				order: 10,
+				when: CTX_INLINE_CHAT_HAS_AGENT2
 			}
 		});
 	}
