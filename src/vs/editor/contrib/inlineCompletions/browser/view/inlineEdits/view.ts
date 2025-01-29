@@ -405,23 +405,27 @@ function growEditsToEntireWord(replacements: SingleTextEdit[], originalText: Abs
 	replacements.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 
 	for (const edit of replacements) {
-
-		// grow to the left
 		let startIndex = edit.range.startColumn - 1;
+		let endIndex = edit.range.endColumn - 2;
 		let prefix = '';
+		let suffix = '';
 		const startLineContent = originalText.getLineAt(edit.range.startLineNumber);
-		while (startIndex - 1 >= 0 && /^[a-zA-Z]$/.test(startLineContent[startIndex - 1])) {
-			prefix = startLineContent[startIndex - 1] + prefix;
-			startIndex--;
+		const endLineContent = originalText.getLineAt(edit.range.endLineNumber);
+
+		if (isWordChar(startLineContent[startIndex])) {
+			// grow to the left
+			while (isWordChar(startLineContent[startIndex - 1])) {
+				prefix = startLineContent[startIndex - 1] + prefix;
+				startIndex--;
+			}
 		}
 
-		// grow to the right
-		let endIndex = edit.range.endColumn - 2;
-		let suffix = '';
-		const endLineContent = originalText.getLineAt(edit.range.endLineNumber);
-		while (endIndex + 1 < endLineContent.length && /^[a-zA-Z]$/.test(endLineContent[endIndex + 1])) {
-			suffix += endLineContent[endIndex + 1];
-			endIndex++;
+		if (isWordChar(endLineContent[endIndex])) {
+			// grow to the right
+			while (isWordChar(endLineContent[endIndex + 1])) {
+				suffix += endLineContent[endIndex + 1];
+				endIndex++;
+			}
 		}
 
 		// create new edit and merge together if they are touching
@@ -431,6 +435,11 @@ function growEditsToEntireWord(replacements: SingleTextEdit[], originalText: Abs
 		}
 
 		result.push(newEdit);
+	}
+
+	function isWordChar(char: string | undefined) {
+		if (!char) { return false; }
+		return /^[a-zA-Z]$/.test(char);
 	}
 
 	return result;
