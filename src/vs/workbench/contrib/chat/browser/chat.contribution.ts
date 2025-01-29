@@ -154,10 +154,11 @@ configurationRegistry.registerConfiguration({
 		},
 		[PromptFilesConfig.CONFIG_KEY]: {
 			type: ['string', 'array', 'boolean', 'null'],
-			title: nls.localize(`${PromptFilesConfig.CONFIG_KEY}.title`, "Prompt Files"),
+			title: nls.localize('chat.promptFiles.setting.title', "Prompt Files"),
 			markdownDescription: nls.localize(
-				PromptFilesConfig.CONFIG_KEY,
-				"Enable support for attaching reusable prompt files (`*.prompt.md`) for Chat, Edits, and Inline Chat sessions. [Learn More]({0}).",
+				'chat.promptFiles.setting.markdownDescription',
+				"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
+				'.prompt.md',
 				PromptFilesConfig.DOCUMENTATION_URL,
 			),
 			default: null,
