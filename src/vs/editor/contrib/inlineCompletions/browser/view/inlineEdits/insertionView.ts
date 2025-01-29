@@ -131,9 +131,17 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 		let height = this._ghostTextView.height.read(reader);
 		let top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop;
-		if (state.text.startsWith('\n')) {
-			height -= lineHeight;
-			top += lineHeight;
+
+		if (state.text.trim() !== '') {
+			// Adjust for leading/trailing newlines
+			let i = 0;
+			for (; i < state.text.length && state.text[i] === '\n'; i++) {
+				height -= lineHeight;
+				top += lineHeight;
+			}
+			for (let j = state.text.length - 1; j > i && state.text[j] === '\n'; j--) {
+				height -= lineHeight;
+			}
 		}
 
 		const codeLeft = editorLayout.contentLeft;
