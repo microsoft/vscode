@@ -51,6 +51,7 @@ import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
@@ -924,11 +925,6 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 });
 
 /**
- * Documentation link for the prompt snippets feature.
- */
-const PROMPT_SNIPPETS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
-
-/**
  * Options for the {@link selectPromptAttachment} function.
  */
 interface ISelectPromptOptions {
@@ -969,9 +965,9 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 		const docsQuickPick: IQuickPickItem & { value: URI } = {
 			type: 'item',
 			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how create reusable prompts'),
-			description: PROMPT_SNIPPETS_DOCUMENTATION_URL,
-			tooltip: PROMPT_SNIPPETS_DOCUMENTATION_URL,
-			value: URI.parse(PROMPT_SNIPPETS_DOCUMENTATION_URL),
+			description: PromptFilesConfig.DOCUMENTATION_URL,
+			tooltip: PromptFilesConfig.DOCUMENTATION_URL,
+			value: URI.parse(PromptFilesConfig.DOCUMENTATION_URL),
 		};
 
 		const result = await quickInputService.pick(

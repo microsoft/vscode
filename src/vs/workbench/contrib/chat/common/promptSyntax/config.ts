@@ -6,8 +6,8 @@
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
- * Configuration helper for the `prompt snippets` feature.
- * @see {@link PROMPT_FILES_CONFIG_KEY} and {@link PROMPT_FILES_DEFAULT_LOCATION}
+ * Configuration helper for the `prompt files` feature.
+ * @see {@link CONFIG_KEY} and {@link DEFAULT_LOCATION}
  *
  * ### Functions
  *
@@ -18,26 +18,26 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * ### Configuration Examples
  *
  * Enable the feature, using defaults for prompt files source folder locations
- * (see {@link PROMPT_FILES_DEFAULT_LOCATION}):
+ * (see {@link DEFAULT_LOCATION}):
  * ```json
  * {
- *   "chat.experimental.prompt-snippets": true,
+ *   "chat.experimental.promptSnippets": true,
  * }
  * ```
  *
  * Enable the feature, specifying a single prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.prompt-snippets": '.copilot/prompts',
+ *   "chat.experimental.promptSnippets": '.github/prompts',
  * }
  * ```
  *
  * Enable the feature, specifying multiple prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.prompt-snippets": [
- *     '.copilot/prompts',
+ *   "chat.experimental.promptSnippets": [
  *     '.github/prompts',
+ *     '.copilot/prompts',
  *     '/Users/legomushroom/repos/prompts',
  *   ],
  * }
@@ -50,7 +50,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * - `undefined`/`null`: feature is disabled
  * - `boolean`:
  *   - `true`: feature is enabled, prompt files source folder locations
- *             fallback to {@link PROMPT_FILES_DEFAULT_LOCATION}
+ *             fallback to {@link DEFAULT_LOCATION}
  *   - `false`: feature is disabled
  * - `string`:
  *   - values that can be mapped to `boolean`(`"true"`, `"FALSE", "TrUe"`, etc.)
@@ -60,7 +60,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  *   - `string` items in the array are treated as prompt files source folder paths
  *   - all `non-string` items in the array are `ignored`
  *   - if the resulting array is empty, the feature is considered `enabled`, prompt files source
- *     folder locations fallback to defaults (see {@linkcode PROMPT_FILES_DEFAULT_LOCATION})
+ *     folder locations fallback to defaults (see {@linkcode DEFAULT_LOCATION})
  *
  * ### File Paths Resolution
  *
@@ -74,23 +74,28 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  */
 export namespace PromptFilesConfig {
 	/**
-	 * Configuration key for the `prompt snippets` feature (also
-	 * known as `prompt snippets`, `prompt instructions`, etc.).
+	 * Configuration key for the `prompt files` feature (also
+	 * known as `prompt files`, `prompt instructions`, etc.).
 	 */
-	const PROMPT_FILES_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
+	export const CONFIG_KEY: string = 'chat.promptFiles';
+
+	/**
+	 * Documentation link for the prompt snippets feature.
+	 */
+	export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
 
 	/**
 	 * Default prompt instructions source folder paths.
 	 */
-	const PROMPT_FILES_DEFAULT_LOCATION = ['.copilot/prompts', '.github/prompts'];
+	const DEFAULT_LOCATION = ['.github/prompts'];
 
 	/**
-	 * Get value of the `prompt snippets` configuration setting.
+	 * Get value of the `prompt files` configuration setting.
 	 */
 	export const getValue = (
 		configService: IConfigurationService,
 	): string | readonly string[] | boolean | undefined => {
-		const value = configService.getValue(PROMPT_FILES_CONFIG_KEY);
+		const value = configService.getValue(CONFIG_KEY);
 
 		if (value === undefined || value === null) {
 			return undefined;
@@ -139,7 +144,7 @@ export namespace PromptFilesConfig {
 
 	/**
 	 * Gets the source folder locations for prompt files.
-	 * Defaults to {@link PROMPT_FILES_DEFAULT_LOCATION}.
+	 * Defaults to {@link DEFAULT_LOCATION}.
 	 */
 	export const sourceLocations = (
 		configService: IConfigurationService,
@@ -147,7 +152,7 @@ export namespace PromptFilesConfig {
 		const value = getValue(configService);
 
 		if (value === undefined) {
-			return PROMPT_FILES_DEFAULT_LOCATION;
+			return DEFAULT_LOCATION;
 		}
 
 		if (typeof value === 'string') {
@@ -159,9 +164,9 @@ export namespace PromptFilesConfig {
 				return value;
 			}
 
-			return PROMPT_FILES_DEFAULT_LOCATION;
+			return DEFAULT_LOCATION;
 		}
 
-		return PROMPT_FILES_DEFAULT_LOCATION;
+		return DEFAULT_LOCATION;
 	};
 }
