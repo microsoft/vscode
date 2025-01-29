@@ -185,12 +185,29 @@ export class InlineEditsView extends Disposable {
 			|| this._lineReplacementView.read(reader).some(v => v.isHovered.read(reader));
 	});
 
+	private readonly _gutterIndicatorOffset = derived<number>(this, reader => {
+		// TODO: have a better way to tell the gutter indicator view where the edit is inside a viewzone
+		if (this._uiState.read(reader)?.state?.kind === 'insertionMultiLine') {
+			return this._insertion.startLineOffset.read(reader);
+		}
+		return 0;
+	});
+
+	private readonly _originalDisplayRange = derived(this, reader => {
+		const state = this._uiState.read(reader);
+		if (state?.state?.kind === 'insertionMultiLine') {
+			return this._insertion.originalLines.read(reader);
+		}
+		return state?.originalDisplayRange;
+	});
+
 	protected readonly _indicator = this._register(autorunWithStore((reader, store) => {
 		if (this._useGutterIndicator.read(reader)) {
 			store.add(this._instantiationService.createInstance(
 				InlineEditsGutterIndicator,
 				this._editorObs,
-				this._uiState.map(s => s && s.originalDisplayRange),
+				this._originalDisplayRange,
+				this._gutterIndicatorOffset,
 				this._model,
 				this._inlineEditsIsHovered,
 				this._focusIsInMenu,
@@ -200,9 +217,9 @@ export class InlineEditsView extends Disposable {
 				this._editorObs,
 				derived<IInlineEditsIndicatorState | undefined>(reader => {
 					const state = this._uiState.read(reader);
-					if (!state || !state.state) { return undefined; }
-					const range = state.originalDisplayRange;
-					const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
+					const range = this._originalDisplayRange.read(reader);
+					if (!state || !state.state || !range) { return undefined; }
+					const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader) + this._gutterIndicatorOffset.read(reader);
 					return { editTop: top, showAlways: state.state.kind !== 'sideBySide' };
 				}),
 				this._model,

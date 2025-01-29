@@ -138,7 +138,15 @@ export class Rect {
 		return new Rect(this.left - delta, this.top, this.right - delta, this.bottom);
 	}
 
+	moveRight(delta: number): Rect {
+		return new Rect(this.left + delta, this.top, this.right + delta, this.bottom);
+	}
+
 	moveUp(delta: number): Rect {
 		return new Rect(this.left, this.top - delta, this.right, this.bottom - delta);
+	}
+
+	moveDown(delta: number): Rect {
+		return new Rect(this.left, this.top + delta, this.right, this.bottom + delta);
 	}
 }
