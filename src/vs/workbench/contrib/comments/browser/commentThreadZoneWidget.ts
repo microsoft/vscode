@@ -341,7 +341,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				message: nls.localize('confirmCollapse', "Collapsing a comment thread will discard unsubmitted comments. Do you want to collapse this comment thread?"),
 				primaryButton: nls.localize('collapse', "Collapse"),
 				type: Severity.Warning,
+				checkbox: { label: nls.localize('neverAskAgain', "Never ask me again"), checked: false }
 			});
+			if (result.checkboxChecked) {
+				await this.configurationService.updateValue('comments.thread.confirmOnCollapse', 'never');
+			}
 			return result.confirmed;
 		}
 		return true;
