@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { BrowserClipboardService as BaseBrowserClipboardService } from '../../../../platform/clipboard/browser/clipboardService.js';
-import { INeverShowAgainOptions, INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { INeverShowAgainOptions, NeverShowAgainScope, INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
