@@ -25,6 +25,7 @@ import { INotebookKernelMatchResult, INotebookKernelService, VariablesResult } f
 import { INotebookActionContext, NotebookAction } from '../../controller/coreActions.js';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { Event } from '../../../../../../base/common/event.js';
 
 // value from debug, may need to keep an eye on and shorter to account for cells having a narrower viewport width
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator. If exceeded ... is added
@@ -66,6 +67,14 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 			if (e.type === NotebookExecutionType.cell) {
 				await this.updateInlineVariables(e);
+			}
+		}));
+
+		this._register(Event.runAndSubscribe(this.configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(NotebookSetting.notebookInlineValues)) {
+				if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineValues)) {
+					this.clearNotebookInlineDecorations();
+				}
 			}
 		}));
 	}
