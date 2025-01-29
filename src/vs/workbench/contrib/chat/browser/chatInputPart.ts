@@ -1769,9 +1769,11 @@ class ToggleAgentActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	private _openContextMenu() {
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => this.element!,
-			getActions: () => this.agentStateActions
-		});
+		if (this.action.enabled) {
+			this._contextMenuService.showContextMenu({
+				getAnchor: () => this.element!,
+				getActions: () => this.agentStateActions
+			});
+		}
 	}
 }
