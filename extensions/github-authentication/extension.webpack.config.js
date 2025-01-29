@@ -14,7 +14,4 @@ module.exports = withDefaults({
 	entry: {
 		extension: './src/extension.ts',
 	},
-	externals: {
-		'electron': 'commonjs electron',
-	}
 });
