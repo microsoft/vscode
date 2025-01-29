@@ -1796,20 +1796,28 @@ export class Repository implements Disposable {
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string, unshallow?: boolean): Promise<void> {
 		await this.run(Operation.Pull, async () => {
-			const config = workspace.getConfiguration('git', Uri.file(this.root));
-			const fetchOnPull = config.get<boolean>('fetchOnPull');
-			const tags = config.get<boolean>('pullTags');
-			const autoStash = config.get<boolean>('autoStash');
+			const gitSupportsAutoStashFlag = this.repository.git.compareGitVersionTo('2.27') >= 0
+			const operation = async () => {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const fetchOnPull = config.get<boolean>('fetchOnPull');
+				const tags = config.get<boolean>('pullTags');
+				const autoStashOption = config.get<boolean>('autoStash');
+				const autoStashFlag = gitSupportsAutoStashFlag ? autoStashOption : false;
 
-			// When fetchOnPull is enabled, fetch all branches when pulling
-			if (fetchOnPull) {
-				await this.fetchAll();
+				// When fetchOnPull is enabled, fetch all branches when pulling
+				if (fetchOnPull) {
+					await this.fetchAll();
+				}
+
+				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
+					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags, autoStash: autoStashFlag });
+				}
 			}
-
-			if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-				await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags, autoStash });
+			if (gitSupportsAutoStashFlag) {
+				operation()
+			} else {
+				this.maybeAutoStash(operation)
 			}
-
 		});
 	}
 
