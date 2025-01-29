@@ -148,9 +148,11 @@ export class ChatViewWelcomePart extends Disposable {
 			// Preview indicator
 			if (options?.location === ChatAgentLocation.EditingSession && typeof content.message !== 'function' && chatAgentService.toolsAgentModeEnabled) {
 				// Override welcome message for the agent. Sort of a hack, should it come from the participant? This case is different because the welcome content typically doesn't change per ChatWidget
-				content.message = new MarkdownString('Ask Copilot to edit your files in agent mode. Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.\n\nCopilot is powered by AI, so mistakes are possible. Review output carefully before use.');
-				const featureIndicator = dom.append(this.element, $('.chat-welcome-view-indicator'));
-				featureIndicator.textContent = localize('experimental', "EXPERIMENTAL");
+				const agentMessage = localize({ key: 'agentMessage', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.\n\nCopilot is powered by AI, so mistakes are possible. Review output carefully before use.", 'https://aka.ms/vscode-copilot-agent');
+				content.message = new MarkdownString(agentMessage);
+				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
+				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
+				dom.append(container, $('.chat-welcome-view-indicator', undefined, localize('experimental', "EXPERIMENTAL")));
 			}
 
 			// Message
