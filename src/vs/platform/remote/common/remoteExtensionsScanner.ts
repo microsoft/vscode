@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { InstallOptions } from '../../extensionManagement/common/extensionManagement.js';
 import { IExtensionDescription } from '../../extensions/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -17,6 +18,6 @@ export interface IRemoteExtensionsScannerService {
 	/**
 	 * Returns a promise that resolves to an array of extension identifiers or URIs that failed to install
 	 */
-	whenExtensionsReady(): Promise<Array<string | URI>>;
+	whenExtensionsReady(): Promise<{ extensions: Array<string | URI>; installOptions: InstallOptions }>;
 	scanExtensions(): Promise<IExtensionDescription[]>;
 }

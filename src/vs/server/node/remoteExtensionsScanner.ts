@@ -28,8 +28,8 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _whenBuiltinExtensionsReady = Promise.resolve<Array<string | URI>>([]);
-	private readonly _whenExtensionsReady = Promise.resolve<Array<string | URI>>([]);
+	private readonly _whenBuiltinExtensionsReady = Promise.resolve<{ extensions: Array<string | URI>; installOptions: InstallOptions }>({ extensions: [], installOptions: {} });
+	private readonly _whenExtensionsReady = Promise.resolve<{ extensions: Array<string | URI>; installOptions: InstallOptions }>({ extensions: [], installOptions: {} });
 
 	constructor(
 		private readonly _extensionManagementCLI: ExtensionManagementCLI,
@@ -49,36 +49,33 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 				.then(() => {
 					performance.mark('code/server/didInstallBuiltinExtensions');
 					_logService.trace('Finished installing builtin extensions');
-					return [];
+					return { extensions: [], installOptions: {} };
 				}, error => {
 					_logService.error(error);
-					if (error instanceof ExtensionInstallationError) {
-						_logService.error(`Failed installing builtin extensions`);
-						return error.failed;
-					}
-					return [];
+					return { extensions: [], installOptions: {} };
 				});
 		}
 
 		const extensionsToInstall = environmentService.args['install-extension'];
 		if (extensionsToInstall) {
 			_logService.trace('Installing extensions passed via args...');
+			const installOptions: InstallOptions = {
+				isMachineScoped: !!environmentService.args['do-not-sync'],
+				installPreReleaseVersion: !!environmentService.args['pre-release'],
+				isApplicationScoped: true // extensions installed during server startup are available to all profiles
+			};
 			this._whenExtensionsReady = this._whenBuiltinExtensionsReady
-				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], {
-					isMachineScoped: !!environmentService.args['do-not-sync'],
-					installPreReleaseVersion: !!environmentService.args['pre-release'],
-					isApplicationScoped: true // extensions installed during server startup are available to all profiles
-				}, !!environmentService.args['force']))
+				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], installOptions, !!environmentService.args['force']))
 				.then(() => {
 					_logService.trace('Finished installing extensions');
-					return [];
+					return { extensions: [], installOptions: {} };
 				}, error => {
 					_logService.error(error);
 					if (error instanceof ExtensionInstallationError) {
 						_logService.error(`Failed installing extensions`);
-						return error.failed;
+						return { extensions: error.failed, installOptions: {} };
 					}
-					return [];
+					return { extensions: [], installOptions: {} };
 				});
 		}
 	}
@@ -87,7 +84,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 	}
 
-	whenExtensionsReady(): Promise<Array<string | URI>> {
+	whenExtensionsReady(): Promise<{ extensions: Array<string | URI>; installOptions: InstallOptions }> {
 		return this._whenExtensionsReady;
 	}
 
@@ -320,7 +317,7 @@ export class RemoteExtensionsScannerChannel implements IServerChannel {
 	async call(context: any, command: string, args?: any): Promise<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (command) {
-			case 'whenExtensionsReady': return this.service.whenExtensionsReady();
+			case 'whenExtensionsReady': return this.service.whenExtensionsReady(); // TODO: Need to do some serialization stuff here?
 			case 'scanExtensions': {
 				const language = args[0];
 				const profileLocation = args[1] ? URI.revive(uriTransformer.transformIncoming(args[1])) : undefined;
