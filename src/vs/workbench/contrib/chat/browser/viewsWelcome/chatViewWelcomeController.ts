@@ -150,7 +150,7 @@ export class ChatViewWelcomePart extends Disposable {
 				// Override welcome message for the agent. Sort of a hack, should it come from the participant? This case is different because the welcome content typically doesn't change per ChatWidget
 				content.message = new MarkdownString('Ask Copilot to edit your files in agent mode. Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.\n\nCopilot is powered by AI, so mistakes are possible. Review output carefully before use.');
 				const featureIndicator = dom.append(this.element, $('.chat-welcome-view-indicator'));
-				featureIndicator.textContent = localize('preview', "PREVIEW");
+				featureIndicator.textContent = localize('experimental', "EXPERIMENTAL");
 			}
 
 			// Message
