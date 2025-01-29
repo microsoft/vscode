@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator, refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtension, ExtensionType, IExtensionManifest, IExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent, DidUpdateExtensionMetadata } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -93,6 +93,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension>;
 
+	requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void>;
 	isPublisherTrusted(extension: IGalleryExtension): boolean;
 	trustPublishers(...publishers: string[]): void;
 }

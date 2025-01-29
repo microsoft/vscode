@@ -2250,6 +2250,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	getInstallableServers(extension: IGalleryExtension): Promise<IExtensionManagementServer[]> { throw new Error('Method not implemented.'); }
 	isPublisherTrusted(extension: IGalleryExtension): boolean { return false; }
 	trustPublishers(...publishers: string[]): void { }
+	async requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void> { }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {
