@@ -342,11 +342,6 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 		const topOfOriginalLines = this._editor.editor.getTopForLineNumber(startLineNumber) - scrollTop;
 		const bottomOfOriginalLines = this._editor.editor.getBottomForLineNumber(endLineNumber) - scrollTop;
 
-		if (bottomOfOriginalLines <= 0) {
-			this._viewZoneInfo.set(undefined, undefined);
-			return undefined;
-		}
-
 		// Box Widget positioning
 		const originalLinesOverlay = Rect.fromLeftTopWidthHeight(
 			editorLeftOffset + prefixLeftOffset,
@@ -374,6 +369,8 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 			if (!activeViewZone || activeViewZone.lineNumber !== viewZoneLineNumber || activeViewZone.height !== viewZoneHeight) {
 				this._viewZoneInfo.set({ height: viewZoneHeight, lineNumber: viewZoneLineNumber }, undefined);
 			}
+		} else if (this._viewZoneInfo.get()) {
+			this._viewZoneInfo.set(undefined, undefined);
 		}
 
 		return {
