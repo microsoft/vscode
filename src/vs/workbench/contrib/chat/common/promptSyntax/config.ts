@@ -6,7 +6,7 @@
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
- * Configuration helper for the `prompt snippets` feature.
+ * Configuration helper for the `prompt files` feature.
  * @see {@link PROMPT_FILES_CONFIG_KEY} and {@link PROMPT_FILES_DEFAULT_LOCATION}
  *
  * ### Functions
@@ -74,10 +74,10 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  */
 export namespace PromptFilesConfig {
 	/**
-	 * Configuration key for the `prompt snippets` feature (also
-	 * known as `prompt snippets`, `prompt instructions`, etc.).
+	 * Configuration key for the `prompt files` feature (also
+	 * known as `prompt files`, `prompt instructions`, etc.).
 	 */
-	export const PROMPT_FILES_CONFIG_KEY: string = 'chat.experimental.promptSnippets'; // TODO: @legomushroom - get the correct name
+	export const PROMPT_FILES_CONFIG_KEY: string = 'chat.promptFiles';
 
 	/**
 	 * Default prompt instructions source folder paths.
@@ -85,7 +85,7 @@ export namespace PromptFilesConfig {
 	const PROMPT_FILES_DEFAULT_LOCATION = ['.github/prompts'];
 
 	/**
-	 * Get value of the `prompt snippets` configuration setting.
+	 * Get value of the `prompt files` configuration setting.
 	 */
 	export const getValue = (
 		configService: IConfigurationService,

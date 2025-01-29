@@ -154,7 +154,12 @@ configurationRegistry.registerConfiguration({
 		},
 		[PromptFilesConfig.PROMPT_FILES_CONFIG_KEY]: {
 			type: ['string', 'array', 'boolean', 'null'],
-			description: nls.localize(PromptFilesConfig.PROMPT_FILES_CONFIG_KEY, "TODO: @legomushroom"),
+			title: nls.localize(`${PromptFilesConfig.PROMPT_FILES_CONFIG_KEY}.title`, "Prompt Files"),
+			markdownDescription: nls.localize(
+				PromptFilesConfig.PROMPT_FILES_CONFIG_KEY,
+				"Enable support for attaching reusable prompt files (`*.prompt.md`) for Chat, Edits, and Inline Chat sessions. [Learn More]({0}).",
+				'https://aka.ms/vscode-ghcp-prompt-snippets',
+			),
 			default: null,
 			tags: ['experimental'],
 		},
