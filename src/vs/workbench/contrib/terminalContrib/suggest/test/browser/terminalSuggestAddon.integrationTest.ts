@@ -123,7 +123,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		terminalConfigurationService.setConfig(terminalConfig as any);
 		const completionService = instantiationService.createInstance(TerminalCompletionService);
 		instantiationService.stub(ITerminalCompletionService, store.add(completionService));
-		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
+		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, undefined, new NullLogService()));
 		pwshCompletionProvider = store.add(instantiationService.createInstance(PwshCompletionProviderAddon, new Set(parseCompletionsFromShell(testRawPwshCompletions, -1, -1)), shellIntegrationAddon.capabilities));
 		store.add(completionService.registerTerminalCompletionProvider('builtin-pwsh', PwshCompletionProviderAddon.ID, pwshCompletionProvider));
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;

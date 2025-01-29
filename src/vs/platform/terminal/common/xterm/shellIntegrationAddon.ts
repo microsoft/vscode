@@ -309,6 +309,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	constructor(
 		private _nonce: string,
 		private readonly _disableTelemetry: boolean | undefined,
+		private _initialCwd: string | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		private readonly _logService: ILogService
 	) {
@@ -676,6 +677,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!commandDetection) {
 			commandDetection = this._register(new CommandDetectionCapability(terminal, this._logService));
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
+			if (!this.capabilities.has(TerminalCapability.CwdDetection) && this._initialCwd) {
+				this._updateCwd(this._initialCwd);
+			}
 		}
 		return commandDetection;
 	}
