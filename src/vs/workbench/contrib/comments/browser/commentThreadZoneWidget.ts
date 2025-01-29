@@ -140,7 +140,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
-		super(editor, { keepEditorSelection: true, isAccessible: true });
+		super(editor, { keepEditorSelection: true, isAccessible: true, showArrow: !!_commentThread.range });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
 		this._scopedInstantiationService = this._globalToDispose.add(instantiationService.createChild(new ServiceCollection(
