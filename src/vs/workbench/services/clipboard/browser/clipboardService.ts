@@ -66,7 +66,8 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 						run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2151362')
 					}],
 					{
-						sticky: true
+						sticky: true,
+						neverShowAgain: true
 					}
 				);
 
