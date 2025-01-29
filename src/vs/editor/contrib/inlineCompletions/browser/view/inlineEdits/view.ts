@@ -11,7 +11,8 @@ import { observableCodeEditor } from '../../../../../browser/observableCodeEdito
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
-import { SingleTextEdit, StringText } from '../../../../../common/core/textEdit.js';
+import { Range } from '../../../../../common/core/range.js';
+import { AbstractText, SingleTextEdit, StringText } from '../../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../../common/core/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
@@ -246,7 +247,7 @@ export class InlineEditsView extends Disposable {
 			return 'insertionInline';
 		}
 
-		const innerValues = inner.map(m => ({ original: newText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
+		const innerValues = inner.map(m => ({ original: edit.originalText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
 		if (innerValues.every(({ original, modified }) => modified.trim() === '' && original.length > 0 && (original.length > modified.length || original.trim() !== ''))) {
 			return 'deletion';
 		}
@@ -320,7 +321,7 @@ export class InlineEditsView extends Disposable {
 		if (view === 'wordReplacements') {
 			return {
 				kind: 'wordReplacements' as const,
-				replacements
+				replacements: growEditsToEntireWord(replacements, edit.originalText),
 			};
 		}
 
@@ -396,4 +397,41 @@ function isSingleLineDeletion(diff: DetailedLineRangeMapping[]): boolean {
 		}
 		return true;
 	}
+}
+
+function growEditsToEntireWord(replacements: SingleTextEdit[], originalText: AbstractText): SingleTextEdit[] {
+	const result: SingleTextEdit[] = [];
+
+	replacements.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+
+	for (const edit of replacements) {
+
+		// grow to the left
+		let startIndex = edit.range.startColumn - 1;
+		let prefix = '';
+		const startLineContent = originalText.getLineAt(edit.range.startLineNumber);
+		while (startIndex - 1 >= 0 && /^[a-zA-Z]$/.test(startLineContent[startIndex - 1])) {
+			prefix = startLineContent[startIndex - 1] + prefix;
+			startIndex--;
+		}
+
+		// grow to the right
+		let endIndex = edit.range.endColumn - 2;
+		let suffix = '';
+		const endLineContent = originalText.getLineAt(edit.range.endLineNumber);
+		while (endIndex + 1 < endLineContent.length && /^[a-zA-Z]$/.test(endLineContent[endIndex + 1])) {
+			suffix += endLineContent[endIndex + 1];
+			endIndex++;
+		}
+
+		// create new edit and merge together if they are touching
+		let newEdit = new SingleTextEdit(new Range(edit.range.startLineNumber, startIndex + 1, edit.range.endLineNumber, endIndex + 2), prefix + edit.text + suffix);
+		if (result.length > 0 && Range.areIntersectingOrTouching(result[result.length - 1].range, newEdit.range)) {
+			newEdit = SingleTextEdit.joinEdits([result.pop()!, newEdit], originalText);
+		}
+
+		result.push(newEdit);
+	}
+
+	return result;
 }
