@@ -5,6 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -25,7 +26,6 @@ import { INotebookKernelMatchResult, INotebookKernelService, VariablesResult } f
 import { INotebookActionContext, NotebookAction } from '../../controller/coreActions.js';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
-import { Event } from '../../../../../../base/common/event.js';
 
 // value from debug, may need to keep an eye on and shorter to account for cells having a narrower viewport width
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator. If exceeded ... is added
