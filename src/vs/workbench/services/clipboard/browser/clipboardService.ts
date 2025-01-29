@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { BrowserClipboardService as BaseBrowserClipboardService } from '../../../../platform/clipboard/browser/clipboardService.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { INeverShowAgainOptions, INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -37,6 +37,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 	}
 
 	override async readText(type?: string): Promise<string> {
+		const neverShowAgain: INeverShowAgainOptions = { id: 'workspaces.clipboardPermissionMissing', scope: NeverShowAgainScope.WORKSPACE, isSecondary: true };
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
 		}
@@ -67,7 +68,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 					}],
 					{
 						sticky: true,
-						neverShowAgain: true
+						neverShowAgain: neverShowAgain
 					}
 				);
 
