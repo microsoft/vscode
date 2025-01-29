@@ -20,7 +20,8 @@ import {
 	UninstallExtensionInfo,
 	TargetPlatformToString,
 	IAllowedExtensionsService,
-	AllowedExtensionsConfigKey
+	AllowedExtensionsConfigKey,
+	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -1904,6 +1905,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						installPreReleaseVersion: extension.local?.isPreReleaseVersion,
 						profileLocation: this.userDataProfileService.currentProfile.extensionsResource,
 						isApplicationScoped: extension.local?.isApplicationScoped,
+						context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true }
 					}
 				});
 			}
