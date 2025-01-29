@@ -333,7 +333,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						type: 'number',
 						description: localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use in agent mode."),
 						default: context.state.entitlement === ChatEntitlement.Limited ? 5 : 15,
-						tags: ['experimental']
+						tags: ['experimental', 'onExp']
 					},
 				}
 			};
