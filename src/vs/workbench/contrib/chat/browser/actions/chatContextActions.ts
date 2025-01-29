@@ -582,7 +582,12 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				await selectPromptAttachment(widget, quickInputService, labelService, openerService);
+				await selectPromptAttachment({
+					widget,
+					quickInputService,
+					labelService,
+					openerService,
+				});
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -924,15 +929,21 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 const PROMPT_SNIPPETS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
 
 /**
+ * Options for the {@link selectPromptAttachment} function.
+ */
+interface ISelectPromptOptions {
+	widget: IChatWidget;
+	quickInputService: IQuickInputService;
+	labelService: ILabelService;
+	openerService: IOpenerService;
+}
+
+/**
  * Open the prompt files selection dialog and adds
  * selected prompts to the chat attachments model.
  */
-const selectPromptAttachment = async (
-	widget: IChatWidget,
-	quickInputService: IQuickInputService,
-	labelService: ILabelService,
-	openerService: IOpenerService
-): Promise<void> => {
+const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<void> => {
+	const { widget, quickInputService, labelService, openerService } = options;
 	const { promptInstructions } = widget.attachmentModel;
 
 	// find all prompt instruction files in the user project
