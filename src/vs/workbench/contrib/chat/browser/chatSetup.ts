@@ -182,7 +182,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				await context.update({ hidden: false });
 
 				showCopilotView(viewsService, layoutService);
-				ensureSideBarChatViewSize(viewDescriptorService, layoutService);
+				ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 			}
