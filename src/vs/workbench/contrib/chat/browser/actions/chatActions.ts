@@ -335,7 +335,7 @@ class ChatAddAction extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
 		id: 'update.showCurrentReleaseNotes',
-		title: localize2('chat.releaseNotes.label', "Explore New Features"),
+		title: localize2('chat.releaseNotes.label', "Show Release Notes"),
 	},
 	when: ContextKeyExpr.equals('view', ChatViewId)
 });
