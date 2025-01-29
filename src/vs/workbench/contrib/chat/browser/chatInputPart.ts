@@ -628,7 +628,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async acceptInput(isUserQuery?: boolean): Promise<void> {
 		if (isUserQuery) {
 			const userQuery = this._inputEditor.getValue();
-			const entry: IChatHistoryEntry = { text: userQuery, state: this.getInputState() };
+			const inputState = this.getInputState();
+			inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
+			const entry: IChatHistoryEntry = { text: userQuery, state: inputState };
 			this.history.replaceLast(entry);
 			this.history.add({ text: '' });
 		}
