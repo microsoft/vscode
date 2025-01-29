@@ -151,26 +151,28 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	private _setViewPortTokens(textModel: ITextModel, versionId: number) {
 		const maxLine = textModel.getLineCount();
+		let rangeChanges: RangeChange[];
 		const editor = this._codeEditorService.listCodeEditors().find(editor => editor.getModel() === textModel);
-		if (!editor) {
-			return;
-		}
+		if (editor) {
+			const viewPort = editor.getVisibleRangesPlusViewportAboveBelow();
+			const ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[] = new Array(viewPort.length);
+			rangeChanges = new Array(viewPort.length);
 
-		const viewPort = editor.getVisibleRangesPlusViewportAboveBelow();
-		const ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[] = new Array(viewPort.length);
-		const rangeChanges: RangeChange[] = new Array(viewPort.length);
-
-		for (let i = 0; i < viewPort.length; i++) {
-			const range = viewPort[i];
-			ranges[i] = { fromLineNumber: range.startLineNumber, toLineNumber: range.endLineNumber < maxLine ? range.endLineNumber : maxLine };
-			const newRangeStartOffset = textModel.getOffsetAt(range.getStartPosition());
-			const newRangeEndOffset = textModel.getOffsetAt(range.getEndPosition());
-			rangeChanges[i] = {
-				newRange: range,
-				newRangeStartOffset,
-				newRangeEndOffset,
-				oldRangeLength: newRangeEndOffset - newRangeStartOffset
-			};
+			for (let i = 0; i < viewPort.length; i++) {
+				const range = viewPort[i];
+				ranges[i] = { fromLineNumber: range.startLineNumber, toLineNumber: range.endLineNumber < maxLine ? range.endLineNumber : maxLine };
+				const newRangeStartOffset = textModel.getOffsetAt(range.getStartPosition());
+				const newRangeEndOffset = textModel.getOffsetAt(range.getEndPosition());
+				rangeChanges[i] = {
+					newRange: range,
+					newRangeStartOffset,
+					newRangeEndOffset,
+					oldRangeLength: newRangeEndOffset - newRangeStartOffset
+				};
+			}
+		} else {
+			const valueLength = textModel.getValueLength();
+			rangeChanges = [{ newRange: new Range(1, 1, maxLine, textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength, oldRangeLength: valueLength }];
 		}
 		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
 	}
