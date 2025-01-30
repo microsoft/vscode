@@ -212,19 +212,19 @@ export class SimpleCompletionModel {
 					return score;
 				}
 			}
-			if (a.labelLowExcludeTrailingFileSep && b.labelLowExcludeTrailingFileSep) {
+			if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
 				// Directories
 				// Count depth of path (number of / or \ occurrences)
-				score = count(a.labelLowExcludeTrailingFileSep, '/') - count(b.labelLowExcludeTrailingFileSep, '/');
+				score = count(a.labelLowNormalizedPath, '/') - count(b.labelLowNormalizedPath, '/');
 				if (score !== 0) {
 					return score;
 				}
 
 				// Ensure shorter prefixes appear first
-				if (b.labelLowExcludeTrailingFileSep.startsWith(a.labelLowExcludeTrailingFileSep)) {
+				if (b.labelLowNormalizedPath.startsWith(a.labelLowNormalizedPath)) {
 					return -1; // `a` is a prefix of `b`, so `a` should come first
 				}
-				if (a.labelLowExcludeTrailingFileSep.startsWith(b.labelLowExcludeTrailingFileSep)) {
+				if (a.labelLowNormalizedPath.startsWith(b.labelLowNormalizedPath)) {
 					return 1; // `b` is a prefix of `a`, so `b` should come first
 				}
 			}
