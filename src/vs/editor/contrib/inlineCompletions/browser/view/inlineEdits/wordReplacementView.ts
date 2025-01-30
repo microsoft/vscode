@@ -303,9 +303,10 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 
 			const decorations = [];
 			for (const modified of modifiedBubbles.filter(b => b.startLineNumber === lineNumber)) {
-				decorations.push(new InlineDecoration(new Range(1, modified.startColumn, 1, modified.endColumn), 'inlineCompletions-modified-bubble', InlineDecorationType.Regular));
+				const validatedEndColumn = Math.min(modified.endColumn, modLine.length + 1);
+				decorations.push(new InlineDecoration(new Range(1, modified.startColumn, 1, validatedEndColumn), 'inlineCompletions-modified-bubble', InlineDecorationType.Regular));
 				decorations.push(new InlineDecoration(new Range(1, modified.startColumn, 1, modified.startColumn + 1), 'start', InlineDecorationType.Regular));
-				decorations.push(new InlineDecoration(new Range(1, modified.endColumn - 1, 1, modified.endColumn), 'end', InlineDecorationType.Regular));
+				decorations.push(new InlineDecoration(new Range(1, validatedEndColumn - 1, 1, validatedEndColumn), 'end', InlineDecorationType.Regular));
 			}
 
 			const result = renderLines(new LineSource([tokens]), RenderOptions.fromEditor(this._editor.editor).withSetWidth(false), decorations, line, true);
