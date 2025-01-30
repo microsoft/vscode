@@ -8,6 +8,7 @@ import { quickSelect } from '../../../../base/common/arrays.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { count } from '../../../../base/common/strings.js';
 
 export interface ISimpleCompletionStats {
 	pLabelLen: number;
@@ -207,12 +208,28 @@ export class SimpleCompletionModel {
 				}
 				// Then by file extension length ascending
 				score = a.fileExtLow.length - b.fileExtLow.length;
+				if (score !== 0) {
+					return score;
+				}
 			}
-			if (score === 0 || fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0) {
-				// both files or directories, sort alphabetically
-				score = a.completion.label.localeCompare(b.completion.label);
+			if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
+				// Directories
+				// Count depth of path (number of / or \ occurrences)
+				score = count(a.labelLowNormalizedPath, '/') - count(b.labelLowNormalizedPath, '/');
+				if (score !== 0) {
+					return score;
+				}
+
+				// Ensure shorter prefixes appear first
+				if (b.labelLowNormalizedPath.startsWith(a.labelLowNormalizedPath)) {
+					return -1; // `a` is a prefix of `b`, so `a` should come first
+				}
+				if (a.labelLowNormalizedPath.startsWith(b.labelLowNormalizedPath)) {
+					return 1; // `b` is a prefix of `a`, so `b` should come first
+				}
 			}
-			return score;
+			// Sort alphabetically
+			return a.labelLow.localeCompare(b.labelLow);
 		});
 		this._refilterKind = Refilter.Nothing;
 
