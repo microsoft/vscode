@@ -74,9 +74,9 @@ export class SimpleCompletionItem {
 		// ensure lower-variants (perf)
 		this.labelLow = this.completion.label.toLowerCase();
 		this.labelLowExcludeFileExt = this.labelLow;
-		// Normalize for windows
 		if (completion.isFile) {
 			if (isWindows) {
+				// Normalize for windows
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
 			}
 			const extIndex = this.labelLow.lastIndexOf('.');
