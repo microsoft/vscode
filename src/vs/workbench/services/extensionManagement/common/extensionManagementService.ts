@@ -906,7 +906,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (verifiedPublishers.length || unverfiiedPublishers.length === 1) {
 			for (const publisher of verifiedPublishers) {
 				customMessage.appendText('\n');
-				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `[${URI.parse(publisher.publisherDomain!.link).authority}](${publisher.publisherDomain!.link})`);
+				const publisherDomainLink = URI.parse(publisher.publisherDomain!.link);
+				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `${publisherDomainLink.authority}${publisherDomainLink.path === '/' ? '' : publisherDomainLink.path}`);
 				customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
 			}
 			if (unverfiiedPublishers.length) {
@@ -941,7 +942,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			},
 			custom: {
 				markdownDetails: [{ markdown: customMessage, classes: ['extensions-management-publisher-trust-dialog'] }],
-				closeOnLinkClick: true,
 			}
 		});
 
