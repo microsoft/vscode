@@ -101,8 +101,6 @@ type IComputeEditsResult = { readonly editsProposed: boolean; readonly codeMappe
 
 export class ApplyCodeBlockOperation {
 
-	private inlineChatPreview: InlineChatPreview | undefined;
-
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -118,13 +116,6 @@ export class ApplyCodeBlockOperation {
 	}
 
 	public async run(context: ICodeBlockActionContext): Promise<void> {
-		if (this.inlineChatPreview && this.inlineChatPreview.isOpen()) {
-			await this.dialogService.info(
-				localize('overlap', "Another code change is being previewed. Please apply or discard the pending changes first."),
-			);
-			return;
-		}
-
 		let activeEditorControl = getEditableActiveCodeEditor(this.editorService);
 
 		if (context.codemapperUri && !isEqual(activeEditorControl?.getModel().uri, context.codemapperUri)) {
@@ -150,7 +141,7 @@ export class ApplyCodeBlockOperation {
 		let result: IComputeEditsResult | undefined = undefined;
 
 		if (activeEditorControl) {
-			await this.handleTextEditor(activeEditorControl, context);
+			result = await this.handleTextEditor(activeEditorControl, context);
 		} else {
 			const activeNotebookEditor = getActiveNotebookEditor(this.editorService);
 			if (activeNotebookEditor) {
@@ -194,9 +185,9 @@ export class ApplyCodeBlockOperation {
 			this.notify(localize('applyCodeBlock.noCodeMapper', "No code mapper available."));
 			return undefined;
 		}
+		let editsProposed = false;
 
 		const editorToApply = await this.codeEditorService.openCodeEditor({ resource }, codeEditor);
-		let result = false;
 		if (editorToApply && editorToApply.hasModel()) {
 
 			const cancellationTokenSource = new CancellationTokenSource();
@@ -210,7 +201,7 @@ export class ApplyCodeBlockOperation {
 					},
 					() => cancellationTokenSource.cancel()
 				);
-				result = await this.applyWithInlinePreview(iterable, editorToApply, cancellationTokenSource);
+				editsProposed = await this.applyWithInlinePreview(iterable, editorToApply, cancellationTokenSource);
 			} catch (e) {
 				if (!isCancellationError(e)) {
 					this.notify(localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message));
@@ -220,7 +211,7 @@ export class ApplyCodeBlockOperation {
 			}
 		}
 		return {
-			editsProposed: result,
+			editsProposed,
 			codeMapper
 		};
 	}
@@ -267,19 +258,7 @@ export class ApplyCodeBlockOperation {
 	private async applyWithInlinePreview(edits: AsyncIterable<TextEdit[]>, codeEditor: IActiveCodeEditor, tokenSource: CancellationTokenSource): Promise<boolean> {
 		const inlineChatController = InlineChatController.get(codeEditor);
 		if (inlineChatController) {
-			let isOpen = true;
-			const promise = inlineChatController.reviewEdits(edits, tokenSource.token);
-			promise.finally(() => {
-				isOpen = false;
-				tokenSource.dispose();
-			});
-			this.inlineChatPreview = {
-				promise,
-				isOpen: () => isOpen,
-				cancel: () => tokenSource.cancel(),
-			};
-			return true;
-
+			return inlineChatController.reviewEdits(edits, tokenSource.token);
 		}
 		return false;
 	}
@@ -300,12 +279,6 @@ export class ApplyCodeBlockOperation {
 	}
 
 }
-
-type InlineChatPreview = {
-	isOpen(): boolean;
-	cancel(): void;
-	readonly promise: Promise<boolean>;
-};
 
 function notifyUserAction(chatService: IChatService, context: ICodeBlockActionContext, action: ChatUserAction) {
 	if (isResponseVM(context.element)) {
