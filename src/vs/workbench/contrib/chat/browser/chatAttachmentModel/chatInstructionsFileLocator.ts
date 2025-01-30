@@ -4,12 +4,69 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
-import { dirname, extUri } from '../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { basename, dirname, extUri } from '../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
+
+/**
+ * Returns the top-level root directory of a provided `URI`.
+ *
+ * ### Examples
+ *
+ * ```typescript
+ * const uri = URI.file('/foo/bar/baz');
+ * const root = rootDirname(uri);
+ *
+ * assert(
+ *   extUri.isEqual(root, URI.file('/foo')),
+ *	 'The root directory of the provided URI must be `/foo`.',
+ * );
+ * ```
+ */
+function rootDirname(uri: URI): URI {
+	const parentUri = dirname(uri);
+
+	if (basename(parentUri) === '') {
+		return uri;
+	}
+
+	return rootDirname(parentUri);
+}
+
+/**
+ * Resolves a provided `path` relative to the `uri`. The utility is similar to
+ * the {@link extUri.resolvePath} function, but handles relative `paths` that
+ * overlap with the `uri`. For instance, `/foo/bar` + `bar/baz` => yields
+ * `/foo/bar/baz` instead of `/foo/bar/bar/baz`.
+ *
+ * @returns The resolved `URI`:
+ *   - if the provided `path` is an absolute path, it is returned as is
+ *   - if the provided `path` is a relative path, it resolves as relative to the `uri`
+ *   - if the provided `path` is a relative path and the `uri` ends with the folder that
+ *     the `path` starts with, the overlapping part is removed and the `path` is resolved
+ *     starting from one level above the original `uri`; e.g., `/foo/bar` + `bar/baz` =>
+ *     yields `/foo/bar/baz`.
+ */
+function resolvePath(uri: URI, path: string): URI {
+	const pathUri = URI.parse(path);
+
+	// if `uri` ends with the folder that the `path` starts with,
+	// resolve the path starting from one level above the original `uri`
+	const uriBasename = basename(uri);
+	const pathUriRoot = rootDirname(pathUri);
+	if (uriBasename === basename(pathUriRoot)) {
+		return resolvePath(
+			extUri.resolvePath(uri, '..'),
+			path,
+		);
+	}
+
+	return extUri.resolvePath(uri, path);
+}
 
 /**
  * Class to locate prompt instructions files.
@@ -51,7 +108,7 @@ export class ChatInstructionsFileLocator {
 	 */
 	private getSourceLocations(): readonly URI[] {
 		const sourceLocations = PromptFilesConfig.sourceLocations(this.configService);
-		const result = [];
+		const paths = new ResourceSet();
 
 		// otherwise for each folder provided in the configuration, create
 		// a URI per each folder in the current workspace
@@ -60,7 +117,11 @@ export class ChatInstructionsFileLocator {
 			// without trying to resolve it against the workspace folders
 			const sourceFolderUri = URI.file(sourceFolderName);
 			if (sourceFolderUri.path === sourceFolderName) {
-				result.push(sourceFolderUri);
+				if (paths.has(sourceFolderUri)) {
+					continue;
+				}
+
+				paths.add(sourceFolderUri);
 				continue;
 			}
 
@@ -69,7 +130,9 @@ export class ChatInstructionsFileLocator {
 				// create the source path as a path relative to the workspace
 				// folder, or as an absolute path if the absolute value is provided
 				const relativeFolderUri = extUri.resolvePath(folder.uri, sourceFolderName);
-				result.push(relativeFolderUri);
+				if (!paths.has(relativeFolderUri)) {
+					paths.add(relativeFolderUri);
+				}
 
 				// if not inside a workspace, we are done
 				if (folders.length <= 1) {
@@ -81,13 +144,22 @@ export class ChatInstructionsFileLocator {
 				// folder as a top-level folder in the workspace
 				const workspaceRootUri = dirname(folders[0].uri);
 				const workspaceFolderUri = extUri.resolvePath(workspaceRootUri, sourceFolderName);
+				// if we already have this folder in the list, skip it
+				if (paths.has(workspaceFolderUri)) {
+					continue;
+				}
+
+				// otherwise, if the source location is inside a top-level workspace folder,
+				// add it to the list of paths too; this helps to handle the case when a
+				// relative path must be resolved from `root` of the workspace
+				// TODO: @legomushroom - do we need the custom `resolvePath` utility with this?
 				if (workspaceFolderUri.fsPath.startsWith(folder.uri.fsPath)) {
-					result.push(workspaceFolderUri);
+					paths.add(workspaceFolderUri);
 				}
 			}
 		}
 
-		return result;
+		return [...paths];
 	}
 
 	/**
@@ -139,6 +211,5 @@ export class ChatInstructionsFileLocator {
 		}
 
 		return files;
-
 	}
 }
