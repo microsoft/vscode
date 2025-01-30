@@ -2249,7 +2249,9 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	getInstallableServers(extension: IGalleryExtension): Promise<IExtensionManagementServer[]> { throw new Error('Method not implemented.'); }
 	isPublisherTrusted(extension: IGalleryExtension): boolean { return false; }
-	trustPublishers(...publishers: string[]): void { }
+	getTrustedPublishers() { return []; }
+	trustPublishers(): void { }
+	untrustPublishers(): void { }
 	async requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void> { }
 }
 
