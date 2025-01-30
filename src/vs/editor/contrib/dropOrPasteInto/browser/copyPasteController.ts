@@ -168,6 +168,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: ClipboardEvent) {
+		console.log('handleCopy of CopyPasteController');
 		if (!this._editor.hasTextFocus()) {
 			return;
 		}
@@ -244,6 +245,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
+		console.log('handlePaste of CopyPasteController');
 		if (!e.clipboardData || !this._editor.hasTextFocus()) {
 			return;
 		}
@@ -549,12 +551,16 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private fetchCopyMetadata(e: ClipboardEvent): CopyMetadata | undefined {
+		console.log('fetchCopyMetadata of CopyPasteController');
+		console.log('e : ', e);
 		if (!e.clipboardData) {
 			return;
 		}
 
 		// Prefer using the clipboard data we saved off
+		// Getting data from clipboard and then from the clipboard event utils as a fallback
 		const rawMetadata = e.clipboardData.getData(vscodeClipboardMime);
+		console.log('rawMetadata : ', rawMetadata);
 		if (rawMetadata) {
 			try {
 				return JSON.parse(rawMetadata);

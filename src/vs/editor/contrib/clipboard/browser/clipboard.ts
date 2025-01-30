@@ -187,12 +187,14 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 }
 
 function registerExecCommandImpl(target: MultiCommand | undefined, browserCommand: 'cut' | 'copy'): void {
+	console.log('registerExecCommandImpl');
 	if (!target) {
 		return;
 	}
 
 	// 1. handle case when focus is in editor.
 	target.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
+		console.log('addImplementation');
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
