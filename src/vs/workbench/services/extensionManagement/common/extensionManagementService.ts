@@ -907,7 +907,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			for (const publisher of verifiedPublishers) {
 				customMessage.appendText('\n');
 				const publisherDomainLink = URI.parse(publisher.publisherDomain!.link);
-				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `${publisherDomainLink.authority}${publisherDomainLink.path === '/' ? '' : publisherDomainLink.path}`);
+				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of `{1}`.", getPublisherLink(publisher), `${publisherDomainLink.authority}${publisherDomainLink.path === '/' ? '' : publisherDomainLink.path}`);
 				customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
 			}
 			if (unverfiiedPublishers.length) {
@@ -925,9 +925,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		customMessage.appendText('\n');
 		if (allPublishers.length > 1) {
-			customMessage.appendMarkdown(localize('message4', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publishers.", this.productService.nameLong));
+			customMessage.appendMarkdown(localize('message4', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Proceed only if you trust the publishers.", this.productService.nameLong));
 		} else {
-			customMessage.appendMarkdown(localize('message2', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publisher.", this.productService.nameLong));
+			customMessage.appendMarkdown(localize('message2', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Proceed only if you trust the publisher.", this.productService.nameLong));
 		}
 
 		await this.dialogService.prompt({
