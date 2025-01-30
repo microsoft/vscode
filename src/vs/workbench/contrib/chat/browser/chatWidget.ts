@@ -30,6 +30,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -234,6 +235,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -895,7 +897,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.requestInProgress.set(this.viewModel.requestInProgress);
 			this.isRequestPaused.set(this.viewModel.requestPausibility === ChatPauseState.Paused);
-			this.canRequestBePaused.set(this.viewModel.requestPausibility !== ChatPauseState.NotPausable);
+			// todo@connor4312: disabled for stable 1.97 release.
+			if (this.productService.quality !== 'stable') {
+				this.canRequestBePaused.set(this.viewModel.requestPausibility !== ChatPauseState.NotPausable);
+			}
 
 			this.onDidChangeItems();
 			if (events.some(e => e?.kind === 'addRequest') && this.visible) {
@@ -1208,10 +1213,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
 
-		// Push the welcome message down so it doesn't change position when followups appear
-		const followupsOffset = this.viewOptions.renderFollowups ? Math.max(100 - this.inputPart.followupsHeight, 0) : 0;
-		this.welcomeMessageContainer.style.height = `${listHeight - followupsOffset}px`;
-		this.welcomeMessageContainer.style.paddingBottom = `${followupsOffset}px`;
+		// Push the welcome message down so it doesn't change position when followups or working set appear
+		let extraOffset: number = 0;
+		if (this.viewOptions.renderFollowups) {
+			extraOffset = Math.max(100 - this.inputPart.followupsHeight, 0);
+		} else if (this.viewOptions.enableWorkingSet) {
+			extraOffset = Math.max(100 - this.inputPart.editSessionWidgetHeight, 0);
+		}
+		this.welcomeMessageContainer.style.height = `${listHeight - extraOffset}px`;
+		this.welcomeMessageContainer.style.paddingBottom = `${extraOffset}px`;
 		this.renderer.layout(width);
 
 		const lastItem = this.viewModel?.getItems().at(-1);

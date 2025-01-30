@@ -20,7 +20,7 @@ import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
-import { PROMP_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
+import { PROMPT_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
@@ -469,12 +469,14 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	/**
 	 * Get message for the provided error condition object.
 	 *
-	 * @param error Error object.
+	 * @param error Error object that extends {@link ParseError}.
 	 * @returns Error message.
 	 */
-	protected getErrorMessage(error: ParseError): string {
-		// if failed to resolve prompt contents stream, return
-		// the approprivate message and the prompt path
+	protected getErrorMessage<TError extends ParseError>(error: TError): string {
+		if (error instanceof FileOpenFailed) {
+			return `${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
+		}
+
 		if (error instanceof FailedToResolveContentsStream) {
 			return `${errorMessages.streamOpenFailed} '${error.uri.path}'.`;
 		}
@@ -507,7 +509,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * Check if the provided URI points to a prompt snippet.
 	 */
 	public static isPromptSnippet(uri: URI): boolean {
-		return uri.path.endsWith(PROMP_SNIPPET_FILE_EXTENSION);
+		return uri.path.endsWith(PROMPT_SNIPPET_FILE_EXTENSION);
 	}
 
 	/**

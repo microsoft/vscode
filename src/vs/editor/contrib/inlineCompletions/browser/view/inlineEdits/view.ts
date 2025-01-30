@@ -11,7 +11,8 @@ import { observableCodeEditor } from '../../../../../browser/observableCodeEdito
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
-import { SingleTextEdit, StringText } from '../../../../../common/core/textEdit.js';
+import { Range } from '../../../../../common/core/range.js';
+import { AbstractText, SingleTextEdit, StringText } from '../../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../../common/core/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
@@ -25,7 +26,7 @@ import { InlineEditsSideBySideDiff } from './sideBySideDiff.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils.js';
 import './view.css';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
-import { LineReplacementView, WordInsertView, WordReplacementView } from './wordReplacementView.js';
+import { LineReplacementView, WordReplacementView } from './wordReplacementView.js';
 
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -163,11 +164,7 @@ export class InlineEditsView extends Disposable {
 	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
 
 	protected readonly _wordReplacementViews = mapObservableArrayCached(this, this._uiState.map(s => s?.state?.kind === 'wordReplacements' ? s.state.replacements : []), (e, store) => {
-		if (e.range.isEmpty()) {
-			return store.add(this._instantiationService.createInstance(WordInsertView, this._editorObs, e));
-		} else {
-			return store.add(this._instantiationService.createInstance(WordReplacementView, this._editorObs, e, [e]));
-		}
+		return store.add(this._instantiationService.createInstance(WordReplacementView, this._editorObs, e, [e]));
 	}).recomputeInitiallyAndOnChange(this._store);
 
 	protected readonly _lineReplacementView = mapObservableArrayCached(this, this._uiState.map(s => s?.state?.kind === 'lineReplacement' ? [s.state] : []), (e, store) => { // TODO: no need for map here, how can this be done with observables
@@ -184,12 +181,29 @@ export class InlineEditsView extends Disposable {
 			|| this._lineReplacementView.read(reader).some(v => v.isHovered.read(reader));
 	});
 
+	private readonly _gutterIndicatorOffset = derived<number>(this, reader => {
+		// TODO: have a better way to tell the gutter indicator view where the edit is inside a viewzone
+		if (this._uiState.read(reader)?.state?.kind === 'insertionMultiLine') {
+			return this._insertion.startLineOffset.read(reader);
+		}
+		return 0;
+	});
+
+	private readonly _originalDisplayRange = derived(this, reader => {
+		const state = this._uiState.read(reader);
+		if (state?.state?.kind === 'insertionMultiLine') {
+			return this._insertion.originalLines.read(reader);
+		}
+		return state?.originalDisplayRange;
+	});
+
 	protected readonly _indicator = this._register(autorunWithStore((reader, store) => {
 		if (this._useGutterIndicator.read(reader)) {
 			store.add(this._instantiationService.createInstance(
 				InlineEditsGutterIndicator,
 				this._editorObs,
-				this._uiState.map(s => s && s.originalDisplayRange),
+				this._originalDisplayRange,
+				this._gutterIndicatorOffset,
 				this._model,
 				this._inlineEditsIsHovered,
 				this._focusIsInMenu,
@@ -199,9 +213,9 @@ export class InlineEditsView extends Disposable {
 				this._editorObs,
 				derived<IInlineEditsIndicatorState | undefined>(reader => {
 					const state = this._uiState.read(reader);
-					if (!state || !state.state) { return undefined; }
-					const range = state.originalDisplayRange;
-					const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
+					const range = this._originalDisplayRange.read(reader);
+					if (!state || !state.state || !range) { return undefined; }
+					const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader) + this._gutterIndicatorOffset.read(reader);
 					return { editTop: top, showAlways: state.state.kind !== 'sideBySide' };
 				}),
 				this._model,
@@ -246,7 +260,7 @@ export class InlineEditsView extends Disposable {
 			return 'insertionInline';
 		}
 
-		const innerValues = inner.map(m => ({ original: newText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
+		const innerValues = inner.map(m => ({ original: edit.originalText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
 		if (innerValues.every(({ original, modified }) => modified.trim() === '' && original.length > 0 && (original.length > modified.length || original.trim() !== ''))) {
 			return 'deletion';
 		}
@@ -257,10 +271,18 @@ export class InlineEditsView extends Disposable {
 
 		const numOriginalLines = edit.originalLineRange.length;
 		const numModifiedLines = edit.modifiedLineRange.length;
-		const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
+		const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < WordReplacementView.MAX_LENGTH && TextLength.ofRange(m.modifiedRange).columnCount < WordReplacementView.MAX_LENGTH);
 		if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
-			return 'wordReplacements';
-		} else if (numOriginalLines > 0 && numModifiedLines > 0 && !InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
+			// Make sure there is no insertion, even if we grow them
+			if (
+				!inner.some(m => m.originalRange.isEmpty()) ||
+				!growEditsUntilWhitespace(inner.map(m => new SingleTextEdit(m.originalRange, '')), edit.originalText).some(e => e.range.isEmpty() && TextLength.ofRange(e.range).columnCount < WordReplacementView.MAX_LENGTH)
+			) {
+				return 'wordReplacements';
+			}
+		}
+
+		if (numOriginalLines > 0 && numModifiedLines > 0 && !InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
 			return 'lineReplacement';
 		}
 
@@ -318,9 +340,15 @@ export class InlineEditsView extends Disposable {
 		}
 
 		if (view === 'wordReplacements') {
+			let grownEdits = growEditsToEntireWord(replacements, edit.originalText);
+
+			if (grownEdits.some(e => e.range.isEmpty())) {
+				grownEdits = growEditsUntilWhitespace(replacements, edit.originalText);
+			}
+
 			return {
 				kind: 'wordReplacements' as const,
-				replacements
+				replacements: grownEdits,
 			};
 		}
 
@@ -396,4 +424,60 @@ function isSingleLineDeletion(diff: DetailedLineRangeMapping[]): boolean {
 		}
 		return true;
 	}
+}
+
+function growEditsToEntireWord(replacements: SingleTextEdit[], originalText: AbstractText): SingleTextEdit[] {
+	return _growEdits(replacements, originalText, (char) => /^[a-zA-Z]$/.test(char));
+}
+
+function growEditsUntilWhitespace(replacements: SingleTextEdit[], originalText: AbstractText): SingleTextEdit[] {
+	return _growEdits(replacements, originalText, (char) => !(/^\s$/.test(char)));
+}
+
+function _growEdits(replacements: SingleTextEdit[], originalText: AbstractText, fn: (c: string) => boolean): SingleTextEdit[] {
+	const result: SingleTextEdit[] = [];
+
+	replacements.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+
+	for (const edit of replacements) {
+		let startIndex = edit.range.startColumn - 1;
+		let endIndex = edit.range.endColumn - 2;
+		let prefix = '';
+		let suffix = '';
+		const startLineContent = originalText.getLineAt(edit.range.startLineNumber);
+		const endLineContent = originalText.getLineAt(edit.range.endLineNumber);
+
+		if (isIncluded(startLineContent[startIndex])) {
+			// grow to the left
+			while (isIncluded(startLineContent[startIndex - 1])) {
+				prefix = startLineContent[startIndex - 1] + prefix;
+				startIndex--;
+			}
+		}
+
+		if (isIncluded(endLineContent[endIndex]) || endIndex < startIndex) {
+			// grow to the right
+			while (isIncluded(endLineContent[endIndex + 1])) {
+				suffix += endLineContent[endIndex + 1];
+				endIndex++;
+			}
+		}
+
+		// create new edit and merge together if they are touching
+		let newEdit = new SingleTextEdit(new Range(edit.range.startLineNumber, startIndex + 1, edit.range.endLineNumber, endIndex + 2), prefix + edit.text + suffix);
+		if (result.length > 0 && Range.areIntersectingOrTouching(result[result.length - 1].range, newEdit.range)) {
+			newEdit = SingleTextEdit.joinEdits([result.pop()!, newEdit], originalText);
+		}
+
+		result.push(newEdit);
+	}
+
+	function isIncluded(c: string | undefined) {
+		if (c === undefined) {
+			return false;
+		}
+		return fn(c);
+	}
+
+	return result;
 }

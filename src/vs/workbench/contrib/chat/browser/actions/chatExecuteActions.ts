@@ -90,6 +90,11 @@ export class ChatSubmitAction extends SubmitAction {
 }
 
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
+
+export interface IToggleAgentModeArgs {
+	agentMode: boolean;
+}
+
 export class ToggleAgentModeAction extends Action2 {
 	static readonly ID = ToggleAgentModeActionId;
 
@@ -159,7 +164,9 @@ export class ToggleAgentModeAction extends Action2 {
 			}
 		}
 
-		agentService.toggleToolsAgentMode();
+		const arg = args[0] as IToggleAgentModeArgs | undefined;
+		agentService.toggleToolsAgentMode(typeof arg?.agentMode === 'boolean' ? arg.agentMode : undefined);
+
 		await commandService.executeCommand(ChatDoneActionId);
 	}
 }

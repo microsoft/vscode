@@ -40,6 +40,9 @@ export const transparentHoverBackground = registerColor(
 );
 
 export class WordReplacementView extends Disposable implements IInlineEditsView {
+
+	public static MAX_LENGTH = 100;
+
 	private readonly _start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
 	private readonly _end = this._editor.observePosition(constObservable(this._edit.range.getEndPosition()), this._store);
 
@@ -300,9 +303,10 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 
 			const decorations = [];
 			for (const modified of modifiedBubbles.filter(b => b.startLineNumber === lineNumber)) {
-				decorations.push(new InlineDecoration(new Range(1, modified.startColumn, 1, modified.endColumn), 'inlineCompletions-modified-bubble', InlineDecorationType.Regular));
+				const validatedEndColumn = Math.min(modified.endColumn, modLine.length + 1);
+				decorations.push(new InlineDecoration(new Range(1, modified.startColumn, 1, validatedEndColumn), 'inlineCompletions-modified-bubble', InlineDecorationType.Regular));
 				decorations.push(new InlineDecoration(new Range(1, modified.startColumn, 1, modified.startColumn + 1), 'start', InlineDecorationType.Regular));
-				decorations.push(new InlineDecoration(new Range(1, modified.endColumn - 1, 1, modified.endColumn), 'end', InlineDecorationType.Regular));
+				decorations.push(new InlineDecoration(new Range(1, validatedEndColumn - 1, 1, validatedEndColumn), 'end', InlineDecorationType.Regular));
 			}
 
 			const result = renderLines(new LineSource([tokens]), RenderOptions.fromEditor(this._editor.editor).withSetWidth(false), decorations, line, true);
@@ -325,27 +329,18 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 		const scrollLeft = this._editor.scrollLeft.read(reader);
 		const scrollTop = this._editor.scrollTop.read(reader);
 		const editorLeftOffset = contentLeft - scrollLeft;
-		const w = this._editor.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 		const PADDING = 4;
 
-		const editorModel = this._editor.editor.getModel()!;
-		const { prefixTrim, prefixLeftOffset } = this._maxPrefixTrim;
+		const textModel = this._editor.editor.getModel()!;
+		const { prefixLeftOffset } = this._maxPrefixTrim;
 
-		// TODO: correctly count tabs
-		const originalLineContents: string[] = [];
-		this._originalRange.forEach(line => originalLineContents.push(editorModel.getLineContent(line)));
-		const maxOriginalLineLength = Math.max(...originalLineContents.map(l => l.length)) - prefixTrim;
-		const maxLineWidth = Math.max(maxOriginalLineLength * w, requiredWidth);
+		const originalLineWidths = this._originalRange.mapToLineArray(line => this._editor.editor.getOffsetForColumn(line, textModel.getLineMaxColumn(line)) - prefixLeftOffset);
+		const maxLineWidth = Math.max(...originalLineWidths, requiredWidth);
 
 		const startLineNumber = this._originalRange.startLineNumber;
 		const endLineNumber = this._originalRange.endLineNumberExclusive - 1;
 		const topOfOriginalLines = this._editor.editor.getTopForLineNumber(startLineNumber) - scrollTop;
 		const bottomOfOriginalLines = this._editor.editor.getBottomForLineNumber(endLineNumber) - scrollTop;
-
-		if (bottomOfOriginalLines <= 0) {
-			this._viewZoneInfo.set(undefined, undefined);
-			return undefined;
-		}
 
 		// Box Widget positioning
 		const originalLinesOverlay = Rect.fromLeftTopWidthHeight(
@@ -374,6 +369,8 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 			if (!activeViewZone || activeViewZone.lineNumber !== viewZoneLineNumber || activeViewZone.height !== viewZoneHeight) {
 				this._viewZoneInfo.set({ height: viewZoneHeight, lineNumber: viewZoneLineNumber }, undefined);
 			}
+		} else if (this._viewZoneInfo.get()) {
+			this._viewZoneInfo.set(undefined, undefined);
 		}
 
 		return {

@@ -73,6 +73,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _originalRange: IObservable<LineRange | undefined>,
+		private readonly _verticalOffset: IObservable<number>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
@@ -126,11 +127,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		const space = 1;
 
-		const targetRect = Rect.fromRanges(OffsetRange.fromTo(space, layout.lineNumbersLeft + layout.lineNumbersWidth + 4), targetVertRange);
+		const targetRect = Rect.fromRanges(OffsetRange.fromTo(space + layout.glyphMarginLeft, layout.lineNumbersLeft + layout.lineNumbersWidth + 4), targetVertRange);
 
 
 		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
-		const pillRect = targetRect.withHeight(lineHeight).withWidth(22);
+		const pillOffset = this._verticalOffset.read(reader);
+		const pillRect = targetRect.withHeight(lineHeight).withWidth(22).moveDown(pillOffset);
 		const pillRectMoved = pillRect.moveToBeContainedIn(viewPortWithStickyScroll);
 
 		const rect = targetRect;
@@ -142,7 +144,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return {
 			rect,
 			iconRect,
-			arrowDirection: (iconRect.top === targetRect.top ? 'right' as const
+			arrowDirection: (targetRect.containsRect(iconRect) ? 'right' as const
 				: iconRect.top > targetRect.top ? 'top' as const : 'bottom' as const),
 			docked: rect.containsRect(iconRect) && viewPortWithStickyScroll.containsRect(iconRect),
 		};

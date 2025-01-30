@@ -75,8 +75,10 @@ export function showCopilotView(viewsService: IViewsService, layoutService: IWor
 	}
 }
 
-export function ensureSideBarChatViewSize(viewDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService): void {
-	const location = viewDescriptorService.getViewLocationById(ChatViewId);
+export function ensureSideBarChatViewSize(viewDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService, viewsService: IViewsService): void {
+	const viewId = preferCopilotEditsView(viewsService) ? EditsViewId : ChatViewId;
+
+	const location = viewDescriptorService.getViewLocationById(viewId);
 	if (location === ViewContainerLocation.Panel) {
 		return; // panel is typically very wide
 	}

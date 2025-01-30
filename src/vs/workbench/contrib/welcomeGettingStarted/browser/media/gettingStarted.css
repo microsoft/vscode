@@ -580,7 +580,10 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
-	height: inherit;
+	grid-area: title-start / media-start / steps-end / media-end;
+	align-self: unset;
+	display: flex;
+	justify-content: center;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown > .getting-started-media {

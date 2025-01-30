@@ -37,8 +37,11 @@ abstract class NavigateAction extends Action2 {
 				primary: next
 					? KeyMod.Alt | KeyCode.F5
 					: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
-				weight: KeybindingWeight.EditorContrib,
-				when: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), EditorContextKeys.focus),
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification),
+					EditorContextKeys.focus
+				),
 			},
 			f1: true,
 			menu: {

@@ -4070,16 +4070,12 @@ export class CommandCenter {
 		}
 
 		const commit = await repository.getCommit(item.ref);
-		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : `${commit.hash}^`;
-		const changes = await repository.diffBetween(commitParentId, commit.hash);
+		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
+		const changes = await repository.diffTrees(commitParentId, commit.hash);
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, commitParentId, commit.hash));
 
 		const title = `${item.shortRef} - ${truncate(commit.message)}`;
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${commitParentId}..${commit.hash}` });
-
-		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
-		for (const change of changes) {
-			resources.push(toMultiFileDiffEditorUris(change, commitParentId, commit.hash));
-		}
 
 		return {
 			command: '_workbench.openMultiDiffEditor',
@@ -4341,11 +4337,11 @@ export class CommandCenter {
 		const rootUri = Uri.file(repository.root);
 		const commit = await repository.getCommit(historyItemId);
 		const title = `${getCommitShortHash(rootUri, historyItemId)} - ${truncate(commit.message)}`;
-		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
+		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
 
-		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
+		const changes = await repository.diffTrees(historyItemParentId, historyItemId);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 
 		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });

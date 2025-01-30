@@ -335,6 +335,27 @@
 	}
 }
 
+.interactive-item-container .value.inline-progress {
+
+	.rendered-markdown {
+		display: inline-flex;
+	}
+
+	/* not ideal but I cannot query the last div with this class... */
+	.rendered-markdown:last-of-type>P>SPAN:empty {
+		display: inline-block;
+		width: 11px;
+	}
+
+	.rendered-markdown:last-of-type>P>SPAN:empty::after {
+		content: '';
+		white-space: nowrap;
+		overflow: hidden;
+		width: 3em;
+		animation: ellipsis steps(4, end) 1s infinite;
+	}
+}
+
 .interactive-item-container .value .rendered-markdown {
 	line-height: 1.5em;
 }
@@ -562,12 +583,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .monaco-list-row.focused .chat-collapsible-list-action-bar,
 .interactive-session .chat-editing-session .monaco-list-row.selected .chat-collapsible-list-action-bar {
 	display: inherit;
-}
-
-.interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar .action-label.checked {
-	color: var(--vscode-inputOption-activeForeground);
-	background-color: var(--vscode-inputOption-activeBackground);
-	box-shadow: inset 0 0 0 1px var(--vscode-inputOption-activeBorder);
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
@@ -1401,7 +1416,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: 1px solid var(--vscode-focusBorder);
 }
 
-.interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
+.interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: 12px;
 }
 
@@ -1522,6 +1537,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	right: 12px;
 	border-radius: 100%;
 	width: initial;
+	width: 27px;
+	height: 27px;
 	width: 27px;
 	height: 27px;
 

@@ -22,7 +22,7 @@ class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 	protected override getSyncTriggerDelayTime(): number { return 50; }
 
 	sync(): Promise<void> {
-		return this.triggerSync(['sync'], false, false);
+		return this.triggerSync(['sync']);
 	}
 }
 
@@ -44,7 +44,7 @@ suite('UserDataAutoSyncService', () => {
 			const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
 
 			// Trigger auto sync with settings change
-			await testObject.triggerSync([SyncResource.Settings], false, false);
+			await testObject.triggerSync([SyncResource.Settings]);
 
 			// Filter out machine requests
 			const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
@@ -69,7 +69,7 @@ suite('UserDataAutoSyncService', () => {
 
 			// Trigger auto sync with settings change multiple times
 			for (let counter = 0; counter < 2; counter++) {
-				await testObject.triggerSync([SyncResource.Settings], false, false);
+				await testObject.triggerSync([SyncResource.Settings]);
 			}
 
 			// Filter out machine requests
@@ -96,7 +96,7 @@ suite('UserDataAutoSyncService', () => {
 			const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
 
 			// Trigger auto sync with window focus once
-			await testObject.triggerSync(['windowFocus'], true, false);
+			await testObject.triggerSync(['windowFocus']);
 
 			// Filter out machine requests
 			const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
@@ -121,7 +121,7 @@ suite('UserDataAutoSyncService', () => {
 
 			// Trigger auto sync with window focus multiple times
 			for (let counter = 0; counter < 2; counter++) {
-				await testObject.triggerSync(['windowFocus'], true, false);
+				await testObject.triggerSync(['windowFocus'], { skipIfSyncedRecently: true });
 			}
 
 			// Filter out machine requests
@@ -440,7 +440,7 @@ suite('UserDataAutoSyncService', () => {
 			await testClient.setUp();
 			const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
 
-			await testObject.triggerSync(['some reason'], true, true);
+			await testObject.triggerSync(['some reason'], { disableCache: true });
 			assert.strictEqual(target.requestsWithAllHeaders[0].headers!['Cache-Control'], 'no-cache');
 		});
 	});
@@ -454,7 +454,7 @@ suite('UserDataAutoSyncService', () => {
 			await testClient.setUp();
 			const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
 
-			await testObject.triggerSync(['some reason'], true, false);
+			await testObject.triggerSync(['some reason']);
 			assert.strictEqual(target.requestsWithAllHeaders[0].headers!['Cache-Control'], undefined);
 		});
 	});
