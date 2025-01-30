@@ -4213,6 +4213,8 @@ export interface IInlineSuggestOptions {
 	edits?: {
 		codeShifting?: boolean;
 
+		renderSideBySide?: 'never' | 'auto';
+
 		/**
 		* @internal
 		*/
@@ -4262,6 +4264,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				enabled: true,
 				useMixedLinesDiff: 'forStableInsertions',
 				useInterleavedLinesDiff: 'never',
+				renderSideBySide: 'auto',
 				useGutterIndicator: true,
 				codeShifting: true,
 				useMultiLineGhostText: true
@@ -4313,6 +4316,16 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.edits.codeShifting,
 					description: nls.localize('inlineSuggest.edits.codeShifting', "Controls whether showing a suggestion will shift the code to make space for the suggestion inline."),
 				},
+				'editor.inlineSuggest.edits.renderSideBySide': {
+					type: 'string',
+					default: defaults.edits.renderSideBySide,
+					description: nls.localize('inlineSuggest.edits.renderSideBySide', "Controls whether larger suggestions can be shown side by side."),
+					enum: ['auto', 'never'],
+					enumDescriptions: [
+						nls.localize('editor.inlineSuggest.edits.renderSideBySide.auto', "Larger suggestions will show side by side if there is enough space, otherwise they will be shown bellow."),
+						nls.localize('editor.inlineSuggest.edits.renderSideBySide.never', "Larger suggestions are never shown side by side and will always be shown bellow."),
+					],
+				},
 				/* 'editor.inlineSuggest.edits.useMultiLineGhostText': {
 					type: 'boolean',
 					default: defaults.edits.useMultiLineGhostText,
@@ -4350,6 +4363,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
 				useMixedLinesDiff: stringSet(input.edits?.useMixedLinesDiff, this.defaultValue.edits.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
 				codeShifting: boolean(input.edits?.codeShifting, this.defaultValue.edits.codeShifting),
+				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 				useInterleavedLinesDiff: stringSet(input.edits?.useInterleavedLinesDiff, this.defaultValue.edits.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
 				useGutterIndicator: boolean(input.edits?.useGutterIndicator, this.defaultValue.edits.useGutterIndicator),
 				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),

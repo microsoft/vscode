@@ -34,6 +34,7 @@ export class InlineEditsView extends Disposable {
 	private readonly _useMixedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useMixedLinesDiff);
 	private readonly _useInterleavedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useInterleavedLinesDiff);
 	private readonly _useCodeShifting = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.codeShifting);
+	private readonly _renderSideBySide = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
 	private readonly _useMultiLineGhostText = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
 
 	private _previousView: {
@@ -278,7 +279,13 @@ export class InlineEditsView extends Disposable {
 		const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < 100 && TextLength.ofRange(m.modifiedRange).columnCount < 100);
 		if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
 			return 'wordReplacements';
-		} else if (numOriginalLines > 0 && numModifiedLines > 0 && !InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
+		}
+
+		if (numOriginalLines > 0 && numModifiedLines > 0) {
+			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
+				return 'sideBySide';
+			}
+
 			return 'lineReplacement';
 		}
 
