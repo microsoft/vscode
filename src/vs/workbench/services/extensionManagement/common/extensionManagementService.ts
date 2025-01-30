@@ -903,7 +903,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			customMessage.appendMarkdown(localize('multiInstallMessage', "This is the first time you're installing extensions from publishers {0} and {1}.", allPublishers.slice(0, allPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(allPublishers[allPublishers.length - 1])));
 		}
 
-		if (verifiedPublishers.length) {
+		if (verifiedPublishers.length || unverfiiedPublishers.length === 1) {
 			for (const publisher of verifiedPublishers) {
 				customMessage.appendText('\n');
 				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `[${URI.parse(publisher.publisherDomain!.link).authority}](${publisher.publisherDomain!.link})`);
@@ -912,14 +912,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			if (unverfiiedPublishers.length) {
 				customMessage.appendText('\n');
 				if (unverfiiedPublishers.length === 1) {
-					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisherWithName', "{0} is **not** [verified]({1}).", getPublisherLink(unverfiiedPublishers[0]), unverifiedLink)}`);
+					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisherWithName', "{0} is [**not** verified]({1}).", getPublisherLink(unverfiiedPublishers[0]), unverifiedLink)}`);
 				} else {
-					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublishers', "{0} and {1} are **not** [verified]({2}).", unverfiiedPublishers.slice(0, unverfiiedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(unverfiiedPublishers[unverfiiedPublishers.length - 1]), unverifiedLink)}`);
+					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublishers', "{0} and {1} are [**not** verified]({2}).", unverfiiedPublishers.slice(0, unverfiiedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(unverfiiedPublishers[unverfiiedPublishers.length - 1]), unverifiedLink)}`);
 				}
 			}
 		} else {
 			customMessage.appendText('\n');
-			customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('allUnverifed', "All publishers are **not** [verified]({0}).", unverifiedLink)}`);
+			customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('allUnverifed', "All publishers are [**not** verified]({0}).", unverifiedLink)}`);
 		}
 
 		customMessage.appendText('\n');
