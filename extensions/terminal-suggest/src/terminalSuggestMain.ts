@@ -368,12 +368,14 @@ export async function getCompletionItemsFromSpecs(
 				filesRequested ||= argsCompletionResult.filesRequested;
 				foldersRequested ||= argsCompletionResult.foldersRequested;
 			}
-
-			const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
-			if (optionsCompletionResult) {
-				items.push(...optionsCompletionResult.items);
-				filesRequested ||= optionsCompletionResult.filesRequested;
-				foldersRequested ||= optionsCompletionResult.foldersRequested;
+			if (!argsCompletionResult?.items.length) {
+				// Arg completions are more specific, only get options if those are not provided.
+				const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
+				if (optionsCompletionResult) {
+					items.push(...optionsCompletionResult.items);
+					filesRequested ||= optionsCompletionResult.filesRequested;
+					foldersRequested ||= optionsCompletionResult.foldersRequested;
+				}
 			}
 		}
 	}
