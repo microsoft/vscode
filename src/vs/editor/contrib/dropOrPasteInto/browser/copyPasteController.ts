@@ -169,7 +169,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	private handleCopy(e: ClipboardEvent) {
 		console.log('handleCopy of CopyPasteController');
+		console.log('e : ', e);
 		if (!this._editor.hasTextFocus()) {
+			console.log('return 1');
 			return;
 		}
 
@@ -179,12 +181,14 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._clipboardService.clearInternalState?.();
 
 		if (!e.clipboardData || !this.isPasteAsEnabled()) {
+			console.log('return 2');
 			return;
 		}
 
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
 		if (!model || !selections?.length) {
+			console.log('return 3');
 			return;
 		}
 
@@ -194,6 +198,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const wasFromEmptySelection = selections.length === 1 && selections[0].isEmpty();
 		if (wasFromEmptySelection) {
 			if (!enableEmptySelectionClipboard) {
+				console.log('return 4');
 				return;
 			}
 
@@ -202,6 +207,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		const toCopy = this._editor._getViewModel()?.getPlainTextToCopy(selections, enableEmptySelectionClipboard, platform.isWindows);
 		const multicursorText = Array.isArray(toCopy) ? toCopy : null;
+
+		console.log('multicursorText : ', multicursorText);
+		console.log('wasFromEmptySelection : ', wasFromEmptySelection);
 
 		const defaultPastePayload = {
 			multicursorText,
@@ -214,11 +222,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			.filter(x => !!x.prepareDocumentPaste);
 		if (!providers.length) {
 			this.setCopyMetadata(e.clipboardData, { defaultPastePayload });
+			console.log('return 5');
 			return;
 		}
 
 		const dataTransfer = toVSDataTransfer(e.clipboardData);
 		const providerCopyMimeTypes = providers.flatMap(x => x.copyMimeTypes ?? []);
+		console.log('providerCopyMimeTypes : ', providerCopyMimeTypes);
 
 		// Save off a handle pointing to data that VS Code maintains.
 		const handle = generateUuid();
@@ -547,6 +557,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private setCopyMetadata(dataTransfer: DataTransfer, metadata: CopyMetadata) {
+		console.log('setCopyMetadata');
+		console.log('dataTransfer: ', dataTransfer);
+		console.log('metadata: ', metadata);
 		dataTransfer.setData(vscodeClipboardMime, JSON.stringify(metadata));
 	}
 
