@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -65,49 +66,53 @@ export class InlineChatController2 implements IEditorContribution {
 		const ctxHasSession = CTX_HAS_SESSION.bindTo(contextKeyService);
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 
-		const location: IChatWidgetLocationOptions = {
-			location: ChatAgentLocation.Editor,
-			resolveData: () => {
-				assertType(this._editor.hasModel());
+		const zone = new Lazy<InlineChatZoneWidget>(() => {
 
-				return {
-					type: ChatAgentLocation.Editor,
-					selection: this._editor.getSelection(),
-					document: this._editor.getModel().uri,
-					wholeRange: this._editor.getSelection(),
-				};
-			}
-		};
 
-		// inline chat in notebooks
-		// check if this editor is part of a notebook editor
-		// and iff so, use the notebook location but keep the resolveData
-		// talk about editor data
-		for (const notebookEditor of this._notebookEditorService.listNotebookEditors()) {
-			for (const [, codeEditor] of notebookEditor.codeEditors) {
-				if (codeEditor === this._editor) {
-					location.location = ChatAgentLocation.Notebook;
-					break;
+			const location: IChatWidgetLocationOptions = {
+				location: ChatAgentLocation.Editor,
+				resolveData: () => {
+					assertType(this._editor.hasModel());
+
+					return {
+						type: ChatAgentLocation.Editor,
+						selection: this._editor.getSelection(),
+						document: this._editor.getModel().uri,
+						wholeRange: this._editor.getSelection(),
+					};
+				}
+			};
+
+			// inline chat in notebooks
+			// check if this editor is part of a notebook editor
+			// and iff so, use the notebook location but keep the resolveData
+			// talk about editor data
+			for (const notebookEditor of this._notebookEditorService.listNotebookEditors()) {
+				for (const [, codeEditor] of notebookEditor.codeEditors) {
+					if (codeEditor === this._editor) {
+						location.location = ChatAgentLocation.Notebook;
+						break;
+					}
 				}
 			}
-		}
 
-		const zone = this._instaService.createInstance(InlineChatZoneWidget,
-			location,
-			{
-				enableWorkingSet: 'implicit',
-				// filter: item => isRequestVM(item),
-				rendererOptions: {
-					renderCodeBlockPills: true,
-					renderTextEditsAsSummary: uri => isEqual(uri, _editor.getModel()?.uri)
-				}
-			},
-			this._editor
-		);
+			const result = this._instaService.createInstance(InlineChatZoneWidget,
+				location,
+				{
+					enableWorkingSet: 'implicit',
+					rendererOptions: {
+						renderCodeBlockPills: true,
+						renderTextEditsAsSummary: uri => isEqual(uri, _editor.getModel()?.uri)
+					}
+				},
+				this._editor
+			);
 
-		zone.domNode.classList.add('inline-chat-2');
+			result.domNode.classList.add('inline-chat-2');
 
-		const overlay = ChatEditorOverlayController.get(_editor)!;
+			return result;
+		});
+
 
 		const editorObs = observableCodeEditor(_editor);
 
@@ -171,23 +176,24 @@ export class InlineChatController2 implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 
 			if (!session) {
-				zone.hide();
+				zone.rawValue?.hide();
 				_editor.focus();
 				ctxInlineChatVisible.reset();
 			} else {
 				ctxInlineChatVisible.set(true);
-				zone.widget.setChatModel(session.chatModel);
-				if (!zone.position) {
-					zone.show(session.initialPosition);
+				zone.value.widget.setChatModel(session.chatModel);
+				if (!zone.value.position) {
+					zone.value.show(session.initialPosition);
 				}
-				zone.reveal(zone.position!);
-				zone.widget.focus();
+				zone.value.reveal(zone.value.position!);
+				zone.value.widget.focus();
 				session.editingSession.getEntry(session.uri)?.autoAcceptController.get()?.cancel();
 			}
 		}));
 
 		this._store.add(autorun(r => {
 
+			const overlay = ChatEditorOverlayController.get(_editor)!;
 			const session = sessionObs.read(r);
 			const model = editorObs.model.read(r);
 			if (!session || !model) {
