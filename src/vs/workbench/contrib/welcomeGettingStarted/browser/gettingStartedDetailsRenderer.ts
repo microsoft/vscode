@@ -225,19 +225,13 @@ export class GettingStartedDetailsRenderer {
 			</head>
 			<body>
 				<vertically-centered>
-					<video controls ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
+					<video controls autoplay loop ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
 						<source src="${path.toString(true)}" type="video/mp4">
 					</video>
 				</vertically-centered>
 			</body>
 
 			<script nonce="${nonce}">
-				const vscode = acquireVsCodeApi();
-
-				document.querySelector('video').addEventListener('play', () => {
-					vscode.postMessage('playVideo' );
-				});
-
 				let ongoingLayout = undefined;
 				const doLayout = () => {
 					document.querySelectorAll('vertically-centered').forEach(element => {
@@ -256,8 +250,8 @@ export class GettingStartedDetailsRenderer {
 				layout();
 
 				document.querySelectorAll('video').forEach(element => {
-					element.onload = layout;
-				})
+					element.addEventListener('loadeddata', layout);
+				});
 		</script>
 		</html>`;
 	}
