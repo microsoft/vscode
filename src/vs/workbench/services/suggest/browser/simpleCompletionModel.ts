@@ -208,16 +208,33 @@ export class SimpleCompletionModel {
 				// Then by file extension length ascending
 				score = a.fileExtLow.length - b.fileExtLow.length;
 			}
-			if (score === 0 || fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0) {
-			        // Both files or directories
-				// Sort by label length ascending
-				score = a.completion.label.length - b.completion.label.length;
+			if (score === 0 || (fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0)) {
+				// Both are files or directories
+
+				// Remove trailing slashes for comparison so that /dir/vscode/ is considered a prefix of /dir/vscode-copilot/
+				const labelA = a.completion.label.replace(/\/$/, '');
+				const labelB = b.completion.label.replace(/\/$/, '');
+
+				// Count depth of path (number of '/' occurrences)
+				const depthA = (labelA.match(/\//g) || []).length;
+				const depthB = (labelB.match(/\//g) || []).length;
+				score = depthA - depthB;
 				if (score !== 0) {
 					return score;
 				}
-				// Then by label alphabetically ascending
-				score = score = a.completion.label.localeCompare(b.completion.label);
+
+				// Ensure shorter prefixes appear first
+				if (labelB.startsWith(labelA)) {
+					return -1; // `a` is a prefix of `b`, so `a` should come first
+				}
+				if (labelA.startsWith(labelB)) {
+					return 1; // `b` is a prefix of `a`, so `b` should come first
+				}
+
+				// Sort alphabetically
+				return labelA.localeCompare(labelB);
 			}
+
 			return score;
 		});
 		this._refilterKind = Refilter.Nothing;
