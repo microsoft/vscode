@@ -25,8 +25,7 @@ export class SettingsEditor {
 		await this.openUserSettingsFile();
 
 		await this.code.dispatchKeybinding('right');
-		const selectionOffset = this._editContextSelectionOffset();
-		await this.editor.waitForEditorSelection('settings.json', s => s.selectionStart === selectionOffset && s.selectionEnd === selectionOffset);
+		await this.editor.waitForEditorSelection('settings.json', this.acceptEditorSelection);
 		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
 		await this.editors.saveOpenedFile();
 	}
@@ -41,8 +40,7 @@ export class SettingsEditor {
 		await this.openUserSettingsFile();
 
 		await this.code.dispatchKeybinding('right');
-		const selectionOffset = this._editContextSelectionOffset();
-		await this.editor.waitForEditorSelection('settings.json', (s) => s.selectionStart === selectionOffset && s.selectionEnd === selectionOffset);
+		await this.editor.waitForEditorSelection('settings.json', this.acceptEditorSelection);
 		await this.editor.waitForTypeInEditor('settings.json', settings.map(v => `"${v[0]}": ${v[1]},`).join(''));
 		await this.editors.saveOpenedFile();
 	}
@@ -86,7 +84,15 @@ export class SettingsEditor {
 		return this.code.quality === Quality.Stable ? SEARCH_BOX_TEXTAREA : SEARCH_BOX_NATIVE_EDIT_CONTEXT;
 	}
 
-	private _editContextSelectionOffset(): number {
-		return this.code.quality === Quality.Stable ? 0 : 1;
+	private acceptEditorSelection(s: {
+		selectionStart: number;
+		selectionEnd: number;
+	}): boolean {
+		if (this.code.quality === Quality.Stable) {
+			return (s.selectionStart === 1 && s.selectionEnd === 1)
+				|| (s.selectionStart === 0 && s.selectionEnd === 0);
+		} else {
+			return s.selectionStart === 1 && s.selectionEnd === 1;
+		}
 	}
 }
