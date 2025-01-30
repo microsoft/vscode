@@ -1311,8 +1311,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			suggestedFilesInWorkingSetCount = entries.filter(e => e.kind === 'reference' && e.state === WorkingSetEntryState.Suggested).length;
 		}
-		overviewTitle.ariaLabel = overviewTitle.textContent;
-		overviewTitle.tabIndex = 0;
 
 		if (excludedEntries.length > 0) {
 			overviewFileCount.textContent = ' ' + localize('chatEditingSession.excludedFiles', '({0}/{1} files)', this.chatEditingService.editingSessionFileLimit + excludedEntries.length, this.chatEditingService.editingSessionFileLimit);
@@ -1320,6 +1318,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const fileCount = entries.length - suggestedFilesInWorkingSetCount;
 			overviewFileCount.textContent = ' ' + (fileCount === 1 ? localize('chatEditingSession.oneFile', '(1 file)') : localize('chatEditingSession.manyFiles', '({0} files)', fileCount));
 		}
+
+		overviewTitle.ariaLabel = overviewWorkingSet.textContent + overviewFileCount.textContent;
+		overviewTitle.tabIndex = 0;
 
 		const fileLimitReached = remainingFileEntriesBudget <= 0;
 		overviewFileCount.classList.toggle('file-limit-reached', fileLimitReached);
