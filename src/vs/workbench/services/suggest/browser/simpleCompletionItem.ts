@@ -60,6 +60,7 @@ export class SimpleCompletionItem {
 	// perf
 	readonly labelLow: string;
 	readonly labelLowExcludeFileExt: string;
+	readonly labelLowExcludeTrailingFileSep: string;
 	readonly fileExtLow: string = '';
 
 	// sorting, filtering
@@ -73,6 +74,7 @@ export class SimpleCompletionItem {
 		// ensure lower-variants (perf)
 		this.labelLow = this.completion.label.toLowerCase();
 		this.labelLowExcludeFileExt = this.labelLow;
+		this.labelLowExcludeTrailingFileSep = this.labelLowExcludeFileExt.replace(/\/$/, '');
 		if (completion.isFile) {
 			if (isWindows) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');

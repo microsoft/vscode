@@ -8,6 +8,7 @@ import { quickSelect } from '../../../../base/common/arrays.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { count } from '../../../../base/common/strings.js';
 
 export interface ISimpleCompletionStats {
 	pLabelLen: number;
@@ -207,32 +208,27 @@ export class SimpleCompletionModel {
 				}
 				// Then by file extension length ascending
 				score = a.fileExtLow.length - b.fileExtLow.length;
+				if (score !== 0) {
+					return score;
+				}
 			}
-			if (score === 0 || (fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0)) {
-				// Both are files or directories
-
-				// Remove trailing slashes for comparison so that /dir/vscode/ is considered a prefix of /dir/vscode-copilot/
-				const labelA = a.completion.label.replace(/\/$/, '');
-				const labelB = b.completion.label.replace(/\/$/, '');
-
-				// Count depth of path (number of '/' occurrences)
-				const depthA = (labelA.match(/\//g) || []).length;
-				const depthB = (labelB.match(/\//g) || []).length;
-				score = depthA - depthB;
+			if ((fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0)) {
+				// Count depth of path (number of / or \ occurrences)
+				score = count(a.labelLowExcludeTrailingFileSep, '/') + count(a.labelLowExcludeTrailingFileSep, '\\') - count(b.labelLowExcludeTrailingFileSep, '/') - count(b.labelLowExcludeTrailingFileSep, '\\');
 				if (score !== 0) {
 					return score;
 				}
 
 				// Ensure shorter prefixes appear first
-				if (labelB.startsWith(labelA)) {
+				if (b.labelLowExcludeTrailingFileSep.startsWith(a.labelLowExcludeTrailingFileSep)) {
 					return -1; // `a` is a prefix of `b`, so `a` should come first
 				}
-				if (labelA.startsWith(labelB)) {
+				if (a.labelLowExcludeTrailingFileSep.startsWith(b.labelLowExcludeTrailingFileSep)) {
 					return 1; // `b` is a prefix of `a`, so `b` should come first
 				}
 
 				// Sort alphabetically
-				return labelA.localeCompare(labelB);
+				return a.labelLow.localeCompare(b.labelLow);
 			}
 
 			return score;
