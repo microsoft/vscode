@@ -85,7 +85,10 @@ export class SimpleCompletionItem {
 				this.fileExtLow = this.labelLow.substring(extIndex + 1);
 			}
 		} else if (completion.isDirectory) {
-			this.labelLowExcludeTrailingFileSep = this.labelLow.replace(/\/$|\\$/, '');
+			if (isWindows) {
+				this.labelLow = this.labelLow.replaceAll('\\', '/');
+			}
+			this.labelLowExcludeTrailingFileSep = this.labelLow.replace(/\/$/, '');
 		}
 	}
 }
