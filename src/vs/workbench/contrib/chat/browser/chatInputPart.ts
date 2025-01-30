@@ -256,6 +256,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._followupsHeight;
 	}
 
+	private _editSessionWidgetHeight: number = 0;
+	get editSessionWidgetHeight() {
+		return this._editSessionWidgetHeight;
+	}
+
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
 
@@ -1514,6 +1519,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
 		this._followupsHeight = data.followupsHeight;
+		this._editSessionWidgetHeight = data.chatEditingStateHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
