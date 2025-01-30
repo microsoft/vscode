@@ -8,6 +8,7 @@ import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.j
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, ISettableObservable, ITransaction, derivedOpts, disposableObservableValue, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { splitLines } from '../../../../../base/common/strings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -18,15 +19,15 @@ import { OffsetEdit, SingleOffsetEdit } from '../../../../common/core/offsetEdit
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit, StringText } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
+import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { IModelContentChange, IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
-import { smartDiff } from './computeGhostText.js';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
@@ -376,21 +377,44 @@ export class InlineCompletionWithUpdatedRange {
 		}
 	}
 
-	private _toIndividualEdits(range: Range, _replaceText: string): OffsetEdit {
-		const originalText = this._textModel.getValueInRange(range);
-		const replaceText = _replaceText.replace(/\r\n|\r|\n/g, this._textModel.getEOL());
-		const diffs = smartDiff(originalText, replaceText, false);
-		const startOffset = this._textModel.getOffsetAt(range.getStartPosition());
-		if (!diffs || diffs.length === 0) {
+	private _toIndividualEdits(editRange: Range, _replaceText: string): OffsetEdit {
+		const editOriginalText = this._textModel.getValueInRange(editRange);
+		const editReplaceText = _replaceText.replace(/\r\n|\r|\n/g, this._textModel.getEOL());
+
+		const diffAlgorithm = linesDiffComputers.getDefault();
+		const lineDiffs = diffAlgorithm.computeDiff(
+			splitLines(editOriginalText),
+			splitLines(editReplaceText),
+			{
+				ignoreTrimWhitespace: false,
+				computeMoves: false,
+				extendToSubwords: true,
+				maxComputationTimeMs: 500,
+			}
+		);
+
+		const innerChanges = lineDiffs.changes.flatMap(c => c.innerChanges ?? []);
+		if (innerChanges.length === 0) {
+			const startOffset = this._textModel.getOffsetAt(editRange.getStartPosition());
 			return new OffsetEdit(
-				[new SingleOffsetEdit(OffsetRange.ofStartAndLength(startOffset, originalText.length), replaceText)]
+				[new SingleOffsetEdit(OffsetRange.ofStartAndLength(startOffset, editOriginalText.length), editReplaceText)]
 			);
 		}
+
+		function addRangeToPos(pos: Position, range: Range): Range {
+			const start = TextLength.fromPosition(range.getStartPosition());
+			return TextLength.ofRange(range).createRange(start.addToPosition(pos));
+		}
+
+		const modifiedText = new StringText(editReplaceText);
+
 		return new OffsetEdit(
-			diffs.map(diff => {
-				const originalRange = OffsetRange.ofStartAndLength(startOffset + diff.originalStart, diff.originalLength);
-				const modifiedText = replaceText.substring(diff.modifiedStart, diff.modifiedStart + diff.modifiedLength);
-				return new SingleOffsetEdit(originalRange, modifiedText);
+			innerChanges.map(c => {
+				const range = addRangeToPos(editRange.getStartPosition(), c.originalRange);
+				const startOffset = this._textModel.getOffsetAt(range.getStartPosition());
+				const endOffset = this._textModel.getOffsetAt(range.getEndPosition());
+				const originalRange = OffsetRange.ofStartAndLength(startOffset, endOffset - startOffset);
+				return new SingleOffsetEdit(originalRange, modifiedText.getValueOfRange(c.modifiedRange));
 			})
 		);
 	}

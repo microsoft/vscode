@@ -368,10 +368,6 @@ export class InlineCompletionsModel extends Disposable {
 		const item = this._inlineCompletionItems.read(reader);
 		const inlineEditResult = item?.inlineEdit;
 		if (inlineEditResult) {
-			if (inlineEditResult.inlineEdit.read(reader) === null) {
-				return undefined;
-			}
-
 			let edit = inlineEditResult.toSingleTextEdit(reader);
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
@@ -767,14 +763,15 @@ export class InlineCompletionsModel extends Disposable {
 		transaction(tx => {
 			this._jumpedTo.set(true, tx);
 			this.dontRefetchSignal.trigger(tx);
-			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
+			const edit = s.inlineCompletion.toSingleTextEdit(undefined);
+			this._editor.setPosition(edit.range.getStartPosition(), 'inlineCompletions.jump');
 
 			// TODO: consider using view information to reveal it
-			const isSingleLineChange = s.inlineEdit.range.startLineNumber === s.inlineEdit.range.endLineNumber && !s.inlineEdit.text.includes('\n');
+			const isSingleLineChange = edit.range.startLineNumber === edit.range.endLineNumber && !edit.text.includes('\n');
 			if (isSingleLineChange) {
-				this._editor.revealPosition(s.inlineEdit.range.getStartPosition());
+				this._editor.revealPosition(edit.range.getStartPosition());
 			} else {
-				const revealRange = new Range(s.inlineEdit.range.startLineNumber - 1, 1, s.inlineEdit.range.endLineNumber + 1, 1);
+				const revealRange = new Range(edit.range.startLineNumber - 1, 1, edit.range.endLineNumber + 1, 1);
 				this._editor.revealRange(revealRange, ScrollType.Immediate);
 			}
 
