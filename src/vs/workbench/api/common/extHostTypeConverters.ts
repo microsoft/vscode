@@ -2840,7 +2840,7 @@ export namespace ChatAgentResult {
 	export function to(result: IChatAgentResult): vscode.ChatResult {
 		return {
 			errorDetails: result.errorDetails,
-			metadata: reviveMetadata(result.metadata),
+			metadata: ChatAgentResultMetadata.to(result.metadata),
 			nextQuestion: result.nextQuestion,
 		};
 	}
@@ -2851,11 +2851,13 @@ export namespace ChatAgentResult {
 			nextQuestion: result.nextQuestion,
 		};
 	}
+}
 
-	function reviveMetadata(metadata: IChatAgentResult['metadata']) {
+export namespace ChatAgentResultMetadata {
+	export function to(metadata: IChatAgentResult['metadata']): vscode.ChatResult['metadata'] {
 		return cloneAndChange(metadata, value => {
 			if (value.$mid === MarshalledId.LanguageModelToolResult) {
-				return new types.LanguageModelToolResult(cloneAndChange(value.content, reviveMetadata));
+				return new types.LanguageModelToolResult(cloneAndChange(value.content, to));
 			} else if (value.$mid === MarshalledId.LanguageModelTextPart) {
 				return new types.LanguageModelTextPart(value.value);
 			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {

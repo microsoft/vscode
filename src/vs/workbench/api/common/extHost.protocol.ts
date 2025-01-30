@@ -377,23 +377,6 @@ export interface IShareableItemDto {
 	selection?: IRange;
 }
 
-export interface IDocumentContextItemDto {
-	readonly uri: UriComponents;
-	readonly version: number;
-	readonly ranges: IRange[];
-}
-
-export interface IConversationItemDto {
-	readonly type: 'request' | 'response';
-	readonly message: string;
-	readonly references?: IDocumentContextItemDto[];
-}
-
-export interface IMappedEditsContextDto {
-	documents: IDocumentContextItemDto[][];
-	conversation?: IConversationItemDto[];
-}
-
 export interface ICodeBlockDto {
 	code: string;
 	resource: UriComponents;
@@ -401,7 +384,6 @@ export interface ICodeBlockDto {
 
 export interface IMappedEditsRequestDto {
 	readonly codeBlocks: ICodeBlockDto[];
-	readonly conversation?: IConversationItemDto[];
 }
 
 export interface IMappedEditsResultDto {

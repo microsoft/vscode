@@ -34,7 +34,7 @@ export interface IToolInvocation {
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
-	chatRequestId?: string;
+	chatRequestMetadata?: { readonly [key: string]: any };
 }
 
 export interface IToolInvocationContext {

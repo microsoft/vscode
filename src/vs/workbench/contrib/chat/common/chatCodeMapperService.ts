@@ -21,7 +21,7 @@ export interface ICodeMapperCodeBlock {
 
 export interface ICodeMapperRequest {
 	readonly codeBlocks: ICodeMapperCodeBlock[];
-	readonly chatRequestId?: string;
+	readonly chatRequestMetadata?: { readonly [key: string]: any };
 	readonly location?: string;
 }
 

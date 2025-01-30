@@ -120,7 +120,9 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelToolInvocationOptions<T> {
+		/* deprecated, use chatRequestMetadata instead  */
 		chatRequestId?: string;
+		readonly chatRequestMetadata?: { readonly [key: string]: any };
 	}
 
 	export interface PreparedToolInvocation {

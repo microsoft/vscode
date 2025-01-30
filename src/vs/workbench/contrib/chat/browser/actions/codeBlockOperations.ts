@@ -188,7 +188,7 @@ export class ApplyCodeBlockOperation {
 
 		const resource = codeBlockContext.codemapperUri ?? activeModel.uri;
 		const codeBlock = { code: codeBlockContext.code, resource, markdownBeforeBlock: undefined };
-
+		const chatRequestMetadata = isResponseVM(codeBlockContext.element) ? codeBlockContext.element.result?.metadata : undefined;
 		const codeMapper = this.codeMapperService.providers[0]?.displayName;
 		if (!codeMapper) {
 			this.notify(localize('applyCodeBlock.noCodeMapper', "No code mapper available."));
@@ -205,7 +205,7 @@ export class ApplyCodeBlockOperation {
 					{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
 					async progress => {
 						progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", codeMapper) });
-						const editsIterable = this.getEdits(codeBlock, cancellationTokenSource.token);
+						const editsIterable = this.getEdits(codeBlock, chatRequestMetadata, cancellationTokenSource.token);
 						return await this.waitForFirstElement(editsIterable);
 					},
 					() => cancellationTokenSource.cancel()
@@ -225,10 +225,11 @@ export class ApplyCodeBlockOperation {
 		};
 	}
 
-	private getEdits(codeBlock: ICodeMapperCodeBlock, token: CancellationToken): AsyncIterable<TextEdit[]> {
+	private getEdits(codeBlock: ICodeMapperCodeBlock, chatRequestMetadata: { readonly [key: string]: any } | undefined, token: CancellationToken): AsyncIterable<TextEdit[]> {
 		return new AsyncIterableObject<TextEdit[]>(async executor => {
 			const request: ICodeMapperRequest = {
-				codeBlocks: [codeBlock]
+				codeBlocks: [codeBlock],
+				chatRequestMetadata
 			};
 			const response: ICodeMapperResponse = {
 				textEdit: (target: URI, edit: TextEdit[]) => {
