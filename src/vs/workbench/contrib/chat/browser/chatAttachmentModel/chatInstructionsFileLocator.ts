@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { dirname, extUri } from '../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
