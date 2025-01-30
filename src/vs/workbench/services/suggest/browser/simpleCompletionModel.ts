@@ -209,7 +209,7 @@ export class SimpleCompletionModel {
 				score = a.fileExtLow.length - b.fileExtLow.length;
 			}
 			if (score === 0 || fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0) {
-			      // both files or directories, sort alphabetically
+			        // both files or directories, sort alphabetically
 				// Sort by label length ascending
 				score = a.completion.label.length - b.completion.label.length;
 				if (score !== 0) {
