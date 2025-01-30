@@ -586,6 +586,14 @@
 	justify-content: center;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
+	grid-area: media;
+	height: inherit;
+	width: inherit;
+	display: flex;
+	justify-content: center;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown > .getting-started-media {
 	height: inherit;
 }
