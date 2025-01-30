@@ -154,7 +154,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		[PromptFilesConfig.CONFIG_KEY]: {
-			type: ['string', 'array', 'boolean', 'null'],
+			type: ['string', 'array', 'object', 'boolean', 'null'],
 			title: nls.localize('chat.promptFiles.setting.title', "Prompt Files"),
 			markdownDescription: nls.localize(
 				'chat.promptFiles.setting.markdownDescription',
