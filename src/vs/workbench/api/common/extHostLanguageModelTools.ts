@@ -15,6 +15,8 @@ import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToo
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
+import { IToolInputProcessor } from '../../contrib/chat/common/tools/tools.js';
+import { EditToolData, EditToolInputProcessor } from '../../contrib/chat/common/tools/editFileTool.js';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -25,6 +27,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	/** A map of all known tools, from other EHs or registered in vscode core */
 	private readonly _allTools = new Map<string, IToolDataDto>();
 
+	private readonly _toolInputProcessors = new Map<string, IToolInputProcessor>();
+
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageModelTools);
 
@@ -33,6 +37,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				this._allTools.set(tool.id, revive(tool));
 			}
 		});
+
+		this._toolInputProcessors.set(EditToolData.id, new EditToolInputProcessor());
 	}
 
 	async $countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
@@ -60,10 +66,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			}
 
 			// Making the round trip here because not all tools were necessarily registered in this EH
+			const processedInput = this._toolInputProcessors.get(toolId)?.processInput(options.input) ?? options.input;
 			const result = await this._proxy.$invokeTool({
 				toolId,
 				callId,
-				parameters: options.input,
+				parameters: processedInput,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
 				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,

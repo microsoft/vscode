@@ -14,7 +14,7 @@ import {
 	IAllowedExtensionsService,
 	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT,
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, IWorkbenchInstallOptions, UninstallExtensionOnServerEvent } from './extensionManagement.js';
+import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IPublisherInfo, IResourceExtension, IWorkbenchExtensionManagementService, IWorkbenchInstallOptions, UninstallExtensionOnServerEvent } from './extensionManagement.js';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -49,6 +49,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { joinPath } from '../../../../base/common/resources.js';
 import { verifiedPublisherIcon } from './extensionsIcons.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 
 const TrustedPublishersStorageKey = 'extensions.trustedPublishers';
 
@@ -174,14 +175,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		this._register(this.onProfileAwareDidInstallExtensions(results => {
-			const untrustedPublishers = new Set<string>();
+			const untrustedPublishers = new Map<string, IPublisherInfo>();
 			for (const result of results) {
 				if (result.local && result.source && !URI.isUri(result.source) && !this.isPublisherTrusted(result.source)) {
-					untrustedPublishers.add(result.source.publisher);
+					untrustedPublishers.set(result.source.publisher, { publisher: result.source.publisher, publisherDisplayName: result.source.publisherDisplayName });
 				}
 			}
 			if (untrustedPublishers.size) {
-				this.trustPublishers(...untrustedPublishers);
+				this.trustPublishers(...untrustedPublishers.values());
 			}
 		}));
 	}
@@ -855,7 +856,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			label: allPublishers.length > 1 ? localize({ key: 'trust publishers and install', comment: ['&& denotes a mnemonic'] }, "Trust Publishers & &&Install") : localize({ key: 'trust and install', comment: ['&& denotes a mnemonic'] }, "Trust Publisher & &&Install"),
 			run: () => {
 				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'trust', extensionId: untrustedExtensions.map(e => e.identifier.id).join(',') });
-				this.trustPublishers(...allPublishers.map(p => p.publisher));
+				this.trustPublishers(...allPublishers.map(p => ({ publisher: p.publisher, publisherDisplayName: p.publisherDisplayName })));
 			}
 		};
 
@@ -902,30 +903,31 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			customMessage.appendMarkdown(localize('multiInstallMessage', "This is the first time you're installing extensions from publishers {0} and {1}.", allPublishers.slice(0, allPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(allPublishers[allPublishers.length - 1])));
 		}
 
-		if (verifiedPublishers.length) {
+		if (verifiedPublishers.length || unverfiiedPublishers.length === 1) {
 			for (const publisher of verifiedPublishers) {
 				customMessage.appendText('\n');
-				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `[${URI.parse(publisher.publisherDomain!.link).authority}](${publisher.publisherDomain!.link})`);
+				const publisherDomainLink = URI.parse(publisher.publisherDomain!.link);
+				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of `{1}`.", getPublisherLink(publisher), `${publisherDomainLink.authority}${publisherDomainLink.path === '/' ? '' : publisherDomainLink.path}`);
 				customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
 			}
 			if (unverfiiedPublishers.length) {
 				customMessage.appendText('\n');
 				if (unverfiiedPublishers.length === 1) {
-					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisherWithName', "{0} is **not** [verified]({1}).", getPublisherLink(unverfiiedPublishers[0]), unverifiedLink)}`);
+					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisherWithName', "{0} is [**not** verified]({1}).", getPublisherLink(unverfiiedPublishers[0]), unverifiedLink)}`);
 				} else {
-					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublishers', "{0} and {1} are **not** [verified]({2}).", unverfiiedPublishers.slice(0, unverfiiedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(unverfiiedPublishers[unverfiiedPublishers.length - 1]), unverifiedLink)}`);
+					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublishers', "{0} and {1} are [**not** verified]({2}).", unverfiiedPublishers.slice(0, unverfiiedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(unverfiiedPublishers[unverfiiedPublishers.length - 1]), unverifiedLink)}`);
 				}
 			}
 		} else {
 			customMessage.appendText('\n');
-			customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('allUnverifed', "All publishers are **not** [verified]({0}).", unverifiedLink)}`);
+			customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('allUnverifed', "All publishers are [**not** verified]({0}).", unverifiedLink)}`);
 		}
 
 		customMessage.appendText('\n');
 		if (allPublishers.length > 1) {
-			customMessage.appendMarkdown(localize('message4', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publishers.", this.productService.nameLong));
+			customMessage.appendMarkdown(localize('message4', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Proceed only if you trust the publishers.", this.productService.nameLong));
 		} else {
-			customMessage.appendMarkdown(localize('message2', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Please proceed only if you trust the publisher.", this.productService.nameLong));
+			customMessage.appendMarkdown(localize('message2', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Proceed only if you trust the publisher.", this.productService.nameLong));
 		}
 
 		await this.dialogService.prompt({
@@ -940,7 +942,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			},
 			custom: {
 				markdownDetails: [{ markdown: customMessage, classes: ['extensions-management-publisher-trust-dialog'] }],
-				closeOnLinkClick: true,
 			}
 		});
 
@@ -1151,18 +1152,41 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	private isPublisherUserTrusted(publisher: string): boolean {
-		const trustedPublishers = this.storageService.getObject<string[]>(TrustedPublishersStorageKey, StorageScope.APPLICATION, []).map(p => p.toLowerCase());
-		this.logService.debug('Trusted publishers', trustedPublishers);
-		return trustedPublishers.includes(publisher);
+		const trustedPublishers = this.getTrustedPublishersFromStorage();
+		return !!trustedPublishers[publisher];
 	}
 
-	trustPublishers(...publishers: string[]): void {
-		const trustedPublishers = this.storageService.getObject<string[]>(TrustedPublishersStorageKey, StorageScope.APPLICATION, []).map(p => p.toLowerCase());
-		publishers = publishers.map(p => p.toLowerCase()).filter(p => !trustedPublishers.includes(p));
-		if (publishers.length) {
-			trustedPublishers.push(...publishers);
-			this.storageService.store(TrustedPublishersStorageKey, trustedPublishers, StorageScope.APPLICATION, StorageTarget.USER);
+	getTrustedPublishers(): IPublisherInfo[] {
+		const trustedPublishers = this.getTrustedPublishersFromStorage();
+		return Object.keys(trustedPublishers).map(publisher => trustedPublishers[publisher]);
+	}
+
+	trustPublishers(...publishers: IPublisherInfo[]): void {
+		const trustedPublishers = this.getTrustedPublishersFromStorage();
+		for (const publisher of publishers) {
+			trustedPublishers[publisher.publisher.toLowerCase()] = publisher;
 		}
+		this.storageService.store(TrustedPublishersStorageKey, JSON.stringify(trustedPublishers), StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	untrustPublishers(...publishers: string[]): void {
+		const trustedPublishers = this.getTrustedPublishersFromStorage();
+		for (const publisher of publishers) {
+			delete trustedPublishers[publisher.toLowerCase()];
+		}
+		this.storageService.store(TrustedPublishersStorageKey, JSON.stringify(trustedPublishers), StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	private getTrustedPublishersFromStorage(): IStringDictionary<IPublisherInfo> {
+		const trustedPublishers = this.storageService.getObject<IStringDictionary<IPublisherInfo>>(TrustedPublishersStorageKey, StorageScope.APPLICATION, {});
+		if (Array.isArray(trustedPublishers)) {
+			this.storageService.remove(TrustedPublishersStorageKey, StorageScope.APPLICATION);
+			return {};
+		}
+		return Object.keys(trustedPublishers).reduce<IStringDictionary<IPublisherInfo>>((result, publisher) => {
+			result[publisher.toLowerCase()] = trustedPublishers[publisher];
+			return result;
+		}, {});
 	}
 }
 

@@ -79,11 +79,11 @@ import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js'
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from './chatQuotasService.js';
-import { BuiltinToolsContribution } from './tools/tools.js';
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatEditorOverlayController } from './chatEditorOverlay.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
 import { PromptFilesConfig } from '../common/promptSyntax/config.js';
+import { BuiltinToolsContribution } from '../common/tools/tools.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -154,7 +154,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		[PromptFilesConfig.CONFIG_KEY]: {
-			type: ['string', 'array', 'boolean', 'null'],
+			type: ['string', 'array', 'object', 'boolean', 'null'],
 			title: nls.localize('chat.promptFiles.setting.title', "Prompt Files"),
 			markdownDescription: nls.localize(
 				'chat.promptFiles.setting.markdownDescription',

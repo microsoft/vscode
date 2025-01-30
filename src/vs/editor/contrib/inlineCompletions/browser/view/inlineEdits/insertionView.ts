@@ -176,7 +176,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			code2,
 			codeStart2,
 			horizontalScrollOffset,
-			padding: 2,
+			padding: 3,
 			borderRadius: 4,
 		};
 	}).recomputeInitiallyAndOnChange(this._store);
@@ -193,8 +193,8 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		const rectangleOverlay = createRectangle(
 			{
 				topLeft: layoutInfo.codeStart1,
-				width: layoutInfo.code1.x - layoutInfo.codeStart1.x,
-				height: layoutInfo.code2.y - layoutInfo.code1.y,
+				width: layoutInfo.code1.x - layoutInfo.codeStart1.x + 1,
+				height: layoutInfo.code2.y - layoutInfo.code1.y + 1,
 			},
 			layoutInfo.padding,
 			layoutInfo.borderRadius,

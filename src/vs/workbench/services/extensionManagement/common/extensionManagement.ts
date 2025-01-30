@@ -63,6 +63,11 @@ export interface IWorkbenchInstallOptions extends InstallOptions {
 	servers?: IExtensionManagementServer[];
 }
 
+export interface IPublisherInfo {
+	readonly publisher: string;
+	readonly publisherDisplayName: string;
+}
+
 export const IWorkbenchExtensionManagementService = refineServiceDecorator<IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService>(IProfileAwareExtensionManagementService);
 export interface IWorkbenchExtensionManagementService extends IProfileAwareExtensionManagementService {
 	readonly _serviceBrand: undefined;
@@ -95,7 +100,9 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 
 	requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void>;
 	isPublisherTrusted(extension: IGalleryExtension): boolean;
-	trustPublishers(...publishers: string[]): void;
+	getTrustedPublishers(): IPublisherInfo[];
+	trustPublishers(...publishers: IPublisherInfo[]): void;
+	untrustPublishers(...publishers: string[]): void;
 }
 
 export const enum EnablementState {

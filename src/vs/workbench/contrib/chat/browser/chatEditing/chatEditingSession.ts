@@ -11,7 +11,7 @@ import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { Disposable, DisposableMap, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { asyncTransaction, autorun, derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { autorunDelta, autorunIterableDelta } from '../../../../../base/common/observableInternal/autorun.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -735,9 +735,22 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _resolve(): Promise<void> {
-		transaction((tx) => {
+		await asyncTransaction(async (tx) => {
+
+			const entriesWithoutChange = new ResourceMap<ChatEditingModifiedFileEntry>();
+
 			for (const entry of this._entriesObs.get()) {
-				entry.acceptStreamingEditsEnd(tx);
+				await entry.acceptStreamingEditsEnd(tx);
+				if (entry.diffInfo.get().identical) {
+					entriesWithoutChange.set(entry.modifiedURI, entry);
+				}
+			}
+
+			if (entriesWithoutChange.size > 0) {
+				const newEntries = this._entriesObs.get().filter(e => !entriesWithoutChange.has(e.modifiedURI));
+				this._entriesObs.set(newEntries, tx);
+
+				dispose(entriesWithoutChange.values());
 			}
 			this._state.set(ChatEditingSessionState.Idle, tx);
 		});
