@@ -208,6 +208,7 @@
 	.inlineCompletions-modified-bubble,
 	.inlineCompletions-original-bubble {
 		pointer-events: none;
+		display: inline-block;
 	}
 
 	.inlineCompletions-modified-bubble.start {
@@ -229,6 +230,7 @@
 		}
 		background: var(--vscode-inlineEdit-modifiedChangedTextBackground) !important;
 		font-style: normal !important;
+		display: inline-block !important;
 	}
 }
 
