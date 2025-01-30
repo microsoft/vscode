@@ -137,7 +137,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
 
 		this.registerChatWelcome(controller, context);
-		this.registerActions(controller, context, requests);
+		this.registerActions(context, requests);
 		this.registerUrlLinkHandler();
 		this.registerSetting(context);
 	}
@@ -151,7 +151,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		});
 	}
 
-	private registerActions(controller: Lazy<ChatSetupController>, context: ChatSetupContext, requests: ChatSetupRequests): void {
+	private registerActions(context: ChatSetupContext, requests: ChatSetupRequests): void {
 
 		const chatSetupTriggerContext = ContextKeyExpr.or(
 			ChatContextKeys.Setup.installed.negate(),
