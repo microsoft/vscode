@@ -28,6 +28,7 @@ import { IChatService } from '../common/chatService.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { rcut } from '../../../../base/common/strings.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -330,33 +331,30 @@ export class ChatEditorOverlayController implements IEditorContribution {
 		return editor.getContribution<ChatEditorOverlayController>(ChatEditorOverlayController.ID) ?? undefined;
 	}
 
-	private readonly _overlayWidget: ChatEditorOverlayWidget;
+	private readonly _overlayWidget = new Lazy(() => this._instaService.createInstance(ChatEditorOverlayWidget, this._editor));
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-	) {
-		this._overlayWidget = this._instaService.createInstance(ChatEditorOverlayWidget, this._editor);
-
-	}
+	) { }
 
 	dispose(): void {
 		this.hide();
-		this._overlayWidget.dispose();
+		this._overlayWidget.rawValue?.dispose();
 	}
 
 	showRequest(session: IChatEditingSession) {
-		this._overlayWidget.showRequest(session);
+		this._overlayWidget.value.showRequest(session);
 	}
 
 	showEntry(session: IChatEditingSession,
 		activeEntry: IModifiedFileEntry, next: IModifiedFileEntry,
 		indicies: { entryIndex: IObservable<number | undefined>; changeIndex: IObservable<number | undefined> }
 	) {
-		this._overlayWidget.showEntry(session, activeEntry, next, indicies);
+		this._overlayWidget.value.showEntry(session, activeEntry, next, indicies);
 	}
 
 	hide() {
-		this._overlayWidget.hide();
+		this._overlayWidget.rawValue?.hide();
 	}
 }
