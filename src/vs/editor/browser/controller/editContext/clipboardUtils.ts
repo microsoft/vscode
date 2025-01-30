@@ -49,10 +49,14 @@ export class InMemoryClipboardMetadataManager {
 	}
 
 	public set(lastCopiedValue: string, data: ClipboardStoredMetadata): void {
+		console.log('set in InMemoryClipboardMetadataManager');
+		console.log('lastCopiedValue: ', lastCopiedValue);
+		console.log('data: ', data);
 		this._lastState = { lastCopiedValue, data };
 	}
 
 	public get(pastedText: string): ClipboardStoredMetadata | null {
+		console.log('get in InMemoryClipboardMetadataManager, pastedText: ', pastedText);
 		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
 			// match!
 			return this._lastState.data;

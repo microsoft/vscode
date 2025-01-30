@@ -1158,6 +1158,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, clipboardEvent?: ClipboardEvent): void {
+		console.log('_paste');
 		if (!this._modelData) {
 			return;
 		}
@@ -1808,6 +1809,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this.isSimpleWidget) {
 			commandDelegate = {
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
+					console.log('paste of _createView 1');
 					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
 				},
 				type: (text: string) => {
@@ -1829,6 +1831,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		} else {
 			commandDelegate = {
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
+					console.log('paste of _createView 2');
 					const payload: editorBrowser.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
 					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
 				},

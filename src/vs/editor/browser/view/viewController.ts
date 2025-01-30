@@ -65,6 +65,7 @@ export class ViewController {
 	}
 
 	public paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
+		console.log('paste of ViewController');
 		this.commandDelegate.paste(text, pasteOnNewLine, multicursorText, mode);
 	}
 
@@ -85,6 +86,7 @@ export class ViewController {
 	}
 
 	public cut(): void {
+		console.log('cut of ViewController');
 		this.commandDelegate.cut();
 	}
 

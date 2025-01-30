@@ -101,8 +101,12 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
 
-		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
+		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => {
+			console.log('copy of NativeEditContext');
+			this._ensureClipboardGetsEditorSelection(e);
+		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			console.log('cut of NativeEditContext');
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.setIgnoreSelectionChangeTime('onCut');
@@ -148,6 +152,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionEnd();
 		}));
 		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
+			console.log('paste of NativeEditContext');
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.setIgnoreSelectionChangeTime('onPaste');
@@ -170,6 +175,10 @@ export class NativeEditContext extends AbstractEditContext {
 				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
 				mode = metadata.mode;
 			}
+			console.log('text : ', text);
+			console.log('pasteOnNewLine : ', pasteOnNewLine);
+			console.log('multicursorText : ', multicursorText);
+			console.log('mode : ', mode);
 			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 		this._register(NativeEditContextRegistry.register(ownerID, this));
@@ -485,6 +494,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
+		console.log('_ensureClipboardGetsEditorSelection e : ', e);
 		const options = this._context.configuration.options;
 		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
