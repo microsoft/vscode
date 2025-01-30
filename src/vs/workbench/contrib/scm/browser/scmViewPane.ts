@@ -105,6 +105,9 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
 
@@ -900,6 +903,9 @@ class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 export class SCMAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
 	constructor(
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILabelService private readonly labelService: ILabelService
 	) { }
 
@@ -913,7 +919,16 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		} else if (isSCMRepository(element)) {
 			return `${element.provider.name} ${element.provider.label}`;
 		} else if (isSCMInput(element)) {
-			return localize('input', "Source Control Input");
+			const verbosity = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.SourceControl) === true;
+
+			if (!verbosity || !this.accessibilityService.isScreenReaderOptimized()) {
+				return localize('scmInput', "Source Control Input");
+			}
+
+			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			return kbLabel
+				? localize('scmInput.accessibilityHelp', "Source Control Input, Use {0} to open Source Control Accessibility Help.", kbLabel)
+				: localize('scmInput.accessibilityHelpNoKb', "Source Control Input, Run the Open Accessibility Help command for more information.");
 		} else if (isSCMActionButton(element)) {
 			return element.button?.command.title ?? '';
 		} else if (isSCMResourceGroup(element)) {
