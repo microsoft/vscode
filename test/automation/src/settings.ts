@@ -25,7 +25,7 @@ export class SettingsEditor {
 		await this.openUserSettingsFile();
 
 		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForEditorSelection('settings.json', this.acceptEditorSelection);
+		await this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s));
 		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
 		await this.editors.saveOpenedFile();
 	}
@@ -40,7 +40,7 @@ export class SettingsEditor {
 		await this.openUserSettingsFile();
 
 		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForEditorSelection('settings.json', this.acceptEditorSelection);
+		await this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s));
 		await this.editor.waitForTypeInEditor('settings.json', settings.map(v => `"${v[0]}": ${v[1]},`).join(''));
 		await this.editors.saveOpenedFile();
 	}
@@ -84,14 +84,10 @@ export class SettingsEditor {
 		return this.code.quality === Quality.Stable ? SEARCH_BOX_TEXTAREA : SEARCH_BOX_NATIVE_EDIT_CONTEXT;
 	}
 
-	private acceptEditorSelection(s: {
-		selectionStart: number;
-		selectionEnd: number;
-	}): boolean {
-		if (this.code.quality === Quality.Stable) {
+	private _acceptEditorSelection(quality: Quality, s: { selectionStart: number; selectionEnd: number }): boolean {
+		if (quality === Quality.Stable) {
 			return true;
-		} else {
-			return s.selectionStart === 1 && s.selectionEnd === 1;
 		}
+		return s.selectionStart === 1 && s.selectionEnd === 1;
 	}
 }
