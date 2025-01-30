@@ -89,8 +89,7 @@ export class SettingsEditor {
 		selectionEnd: number;
 	}): boolean {
 		if (this.code.quality === Quality.Stable) {
-			return (s.selectionStart === 1 && s.selectionEnd === 1)
-				|| (s.selectionStart === 0 && s.selectionEnd === 0);
+			return true;
 		} else {
 			return s.selectionStart === 1 && s.selectionEnd === 1;
 		}
