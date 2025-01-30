@@ -244,9 +244,9 @@ export class ApplyCodeBlockOperation {
 
 	private async waitForFirstElement<T>(iterable: AsyncIterable<T>): Promise<AsyncIterable<T>> {
 		const iterator = iterable[Symbol.asyncIterator]();
-		const firstResult = await iterator.next();
+		let result = await iterator.next();
 
-		if (firstResult.done) {
+		if (result.done) {
 			return {
 				async *[Symbol.asyncIterator]() {
 					return;
@@ -256,8 +256,10 @@ export class ApplyCodeBlockOperation {
 
 		return {
 			async *[Symbol.asyncIterator]() {
-				yield firstResult.value;
-				yield* iterable;
+				while (!result.done) {
+					yield result.value;
+					result = await iterator.next();
+				}
 			}
 		};
 	}
