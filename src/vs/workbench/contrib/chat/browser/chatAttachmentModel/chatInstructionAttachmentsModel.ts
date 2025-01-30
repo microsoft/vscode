@@ -29,7 +29,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptSnippet'>,
 	isRoot: boolean,
-): IChatRequestVariableEntry => {
+): IChatRequestVariableEntry & { value: URI } => {
 	const { uri, isPromptSnippet } = reference;
 
 	// default `id` is the stringified `URI`
@@ -95,7 +95,7 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	 * Get the list of all prompt instruction attachment variables, including all
 	 * nested child references of each attachment explicitly attached by user.
 	 */
-	public get chatAttachments(): readonly IChatRequestVariableEntry[] {
+	public get chatAttachments(): readonly (IChatRequestVariableEntry & { value: URI })[] {
 		const result = [];
 		const attachments = [...this.attachments.values()];
 

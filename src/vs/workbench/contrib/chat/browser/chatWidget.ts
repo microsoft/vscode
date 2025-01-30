@@ -1075,10 +1075,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 
 				// add prompt instruction references to the attached context, if enabled
-				const promptInstructionUris = new ResourceSet(promptInstructions.chatAttachments.map((v) => v.value) as URI[]);
+				const promptInstructionVariables = this.inputPart.getPromptInstructionVariables(this.viewModel.sessionId);
+				const promptInstructionUris = new ResourceSet(promptInstructionVariables.map((v): URI => v.value));
 				if (instructionsEnabled) {
-					editingSessionAttachedContext
-						.push(...promptInstructions.chatAttachments);
+					editingSessionAttachedContext.push(...promptInstructionVariables);
 				}
 
 				for (const file of uniqueWorkingSetEntries) {

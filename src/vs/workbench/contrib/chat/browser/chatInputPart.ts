@@ -187,6 +187,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			});
 		}
 
+		// add prompt instruction files to the list
+		contextArr.push(...this.getPromptInstructionVariables(sessionId));
+
+		return contextArr;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public getPromptInstructionVariables(sessionId: string): readonly (IChatRequestVariableEntry & { value: URI })[] {
+		const result = [];
+
 		// factor in nested file references into the implicit context
 		const variables = this.variableService.getDynamicVariables(sessionId);
 		for (const variable of variables) {
@@ -196,21 +208,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// the usual URIs list of prompt instructions is `bottom-up`, therefore
 			// we do the same here - first add all child references to the list
-			contextArr.push(
+			result.push(
 				...variable.allValidReferences.map((link) => {
 					return toChatVariable(link, false);
 				}),
 			);
 			// then add the root reference itself
-			contextArr.push(
+			result.push(
 				toChatVariable(variable, true),
 			);
 		}
 
-		contextArr
+		result
 			.push(...this.instructionAttachmentsPart.chatAttachments);
 
-		return contextArr;
+		return result;
 	}
 
 	/**
