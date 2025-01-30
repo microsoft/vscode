@@ -37,6 +37,7 @@ import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../common/editor.js';
 import { ChatEditorOverlayController } from './chatEditorOverlay.js';
 import { IChatService } from '../common/chatService.js';
+import { StableEditorScrollState } from '../../../../editor/browser/stableEditorScroll.js';
 
 export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chat.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
@@ -114,9 +115,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
 				const entries = session.entries.read(r);
-				const idx = model?.uri
-					? entries.findIndex(e => isEqual(e.modifiedURI, model.uri))
-					: -1;
+				const idx = entries.findIndex(e => isEqual(e.modifiedURI, model.uri));
 
 				const chatModel = chatService.getSession(session.chatSessionId);
 
@@ -129,7 +128,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		});
 
 
-		let didReval = false;
+		let scrollState: StableEditorScrollState | undefined = undefined;
 
 		this._register(autorunWithStore((r, store) => {
 
@@ -138,7 +137,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			if (!currentEditorEntry) {
 				this._ctxIsGlobalEditsSession.reset();
 				this._clear();
-				didReval = false;
+				scrollState = undefined;
 				return;
 			}
 
@@ -149,10 +148,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			const { session, chatModel, entries, idx, entry } = currentEditorEntry;
 
-			store.add(chatModel.onDidChange(e => {
-				if (e.kind === 'addRequest') {
-					didReval = false;
-				}
+			const lastRequestSignal = observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1));
+			store.add(autorun(r => {
+				lastRequestSignal.read(r);
+				scrollState ??= StableEditorScrollState.capture(this._editor);
 			}));
 
 			this._ctxIsGlobalEditsSession.set(session.isGlobalEditingSession);
@@ -193,7 +192,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				fontInfoObs.read(r);
 				lineHeightObs.read(r);
 
-				const diff = entry?.diffInfo.read(r);
+				const diff = entry.diffInfo.read(r);
 
 				// Add line decorations (just markers, no UI) for diff navigation
 				this._updateDiffLineDecorations(diff);
@@ -207,9 +206,13 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					this._clearDiffRendering();
 				}
 
-				if (!didReval && !diff.identical) {
-					didReval = true;
-					this._reveal(true, false, ScrollType.Immediate);
+				if (lastRequestSignal.read(r)?.response?.isComplete) {
+					if (!diff.identical) {
+						this._reveal(true, false, ScrollType.Immediate);
+					} else {
+						scrollState?.restore(_editor);
+						scrollState = undefined;
+					}
 				}
 			}
 		}));
