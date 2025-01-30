@@ -110,7 +110,11 @@ export class NativeEditContext extends AbstractEditContext {
 			viewController.cut();
 		}));
 
-		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => viewController.emitKeyUp(new StandardKeyboardEvent(e))));
+		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => {
+			setTimeout(() => {
+				viewController.emitKeyUp(new StandardKeyboardEvent(e));
+			}, 5000);
+		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'keydown', async (e) => {
 
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
@@ -119,7 +123,9 @@ export class NativeEditContext extends AbstractEditContext {
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
 				standardKeyboardEvent.stopPropagation();
 			}
-			viewController.emitKeyDown(standardKeyboardEvent);
+			setTimeout(() => {
+				viewController.emitKeyDown(standardKeyboardEvent);
+			}, 5000);
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
@@ -131,7 +137,10 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
-			this._emitTypeEvent(viewController, e);
+			console.log('textupdate e: ', e);
+			setTimeout(() => {
+				this._emitTypeEvent(viewController, e);
+			}, 5000);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
@@ -300,6 +309,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
+		console.log('_emitTypeEvent e: ', e);
 		if (!this._editContext) {
 			return;
 		}
@@ -308,14 +318,20 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 		const model = this._context.viewModel.model;
 		const startPositionOfEditContext = this._editContextStartPosition();
+		console.log('startPositionOfEditContext : ', startPositionOfEditContext);
 		const offsetOfStartOfText = model.getOffsetAt(startPositionOfEditContext);
+		console.log('this._primarySelection : ', this._primarySelection);
 		const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
 		const offsetOfSelectionStart = model.getOffsetAt(this._primarySelection.getStartPosition());
+		console.log('offsetOfSelectionEnd : ', offsetOfSelectionEnd);
+		console.log('offsetOfSelectionStart : ', offsetOfSelectionStart);
 		const selectionEndOffset = offsetOfSelectionEnd - offsetOfStartOfText;
 		const selectionStartOffset = offsetOfSelectionStart - offsetOfStartOfText;
 
 		let replaceNextCharCnt = 0;
 		let replacePrevCharCnt = 0;
+		console.log('e.updateRangeStart : ', e.updateRangeStart);
+		console.log('e.updateRangeEnd : ', e.updateRangeEnd);
 		if (e.updateRangeEnd > selectionEndOffset) {
 			replaceNextCharCnt = e.updateRangeEnd - selectionEndOffset;
 		}
@@ -334,6 +350,10 @@ export class NativeEditContext extends AbstractEditContext {
 		if (e.selectionStart === e.selectionEnd && selectionStartOffset === selectionEndOffset) {
 			positionDelta = e.selectionStart - (e.updateRangeStart + e.text.length);
 		}
+		console.log('text : ', text);
+		console.log('replacePrevCharCnt : ', replacePrevCharCnt);
+		console.log('replaceNextCharCnt : ', replaceNextCharCnt);
+		console.log('positionDelta : ', positionDelta);
 		const typeInput: ITypeData = {
 			text,
 			replacePrevCharCnt,
