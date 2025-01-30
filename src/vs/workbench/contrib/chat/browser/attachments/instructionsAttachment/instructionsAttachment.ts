@@ -17,6 +17,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
@@ -112,8 +113,10 @@ export class InstructionsAttachmentWidget extends Disposable {
 		const promptLabel = localize('prompt', "Prompt");
 
 		let title = `${promptLabel} ${uriLabel}`;
+		const iconLabel = new IconLabel(this.domNode, { supportIcons: true });
+		iconLabel.setLabel(promptLabel);
 
-		// if there are some errors/warning during the process of resolving
+		// if there are some errors/warnings during the process of resolving
 		// attachment references (including all the nested child references),
 		// add the issue details in the hover title for the attachment, one
 		// error/warning at a time because there is a limited space available
@@ -124,6 +127,9 @@ export class InstructionsAttachmentWidget extends Disposable {
 			this.domNode.classList.add(
 				(isWarning) ? 'warning' : 'error',
 			);
+
+			const icon = (isWarning) ? 'warning' : 'error';
+			iconLabel.setLabel(`${promptLabel} \$(${icon})`);
 
 			const errorCaption = (isWarning)
 				? localize('warning', "Warning")
@@ -136,7 +142,6 @@ export class InstructionsAttachmentWidget extends Disposable {
 		label.setFile(URI.file(fileWithoutExtension), {
 			fileKind: FileKind.FILE,
 			hidePath: true,
-			range: undefined,
 			title,
 			icon: ThemeIcon.fromId(Codicon.bookmark.id),
 			extraClasses: [],
@@ -144,7 +149,8 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
 
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, promptLabel));
+		const labelElement = dom.$('span.chat-implicit-hint', undefined, iconLabel.element);
+		const hintElement = dom.append(this.domNode, labelElement);
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		// create the `remove` button
