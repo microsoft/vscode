@@ -76,7 +76,6 @@ export class SimpleCompletionItem {
 		this.labelLowExcludeFileExt = this.labelLow;
 		if (completion.isFile) {
 			if (isWindows) {
-				// Normalize for windows
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
 			}
 			const extIndex = this.labelLow.lastIndexOf('.');
