@@ -74,7 +74,8 @@ export class SimpleCompletionItem {
 		// ensure lower-variants (perf)
 		this.labelLow = this.completion.label.toLowerCase();
 		this.labelLowExcludeFileExt = this.labelLow;
-		this.labelLowExcludeTrailingFileSep = this.labelLowExcludeFileExt.replace(/\/$/, '');
+		// Normalize for windows
+		this.labelLowExcludeTrailingFileSep = isWindows ? this.labelLow.replaceAll('\\', '/') : this.labelLow;
 		if (completion.isFile) {
 			if (isWindows) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
@@ -84,6 +85,8 @@ export class SimpleCompletionItem {
 				this.labelLowExcludeFileExt = this.labelLow.substring(0, extIndex);
 				this.fileExtLow = this.labelLow.substring(extIndex + 1);
 			}
+		} else if (completion.isDirectory) {
+			this.labelLowExcludeTrailingFileSep = this.labelLowExcludeTrailingFileSep.replace(/\/$/, '');
 		}
 	}
 }
