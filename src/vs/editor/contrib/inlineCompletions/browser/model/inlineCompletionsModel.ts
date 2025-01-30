@@ -769,6 +769,7 @@ export class InlineCompletionsModel extends Disposable {
 			this.dontRefetchSignal.trigger(tx);
 			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
 
+			// TODO: consider using view information to reveal it
 			const isSingleLineChange = s.inlineEdit.range.startLineNumber === s.inlineEdit.range.endLineNumber && !s.inlineEdit.text.includes('\n');
 			if (isSingleLineChange) {
 				this._editor.revealPosition(s.inlineEdit.range.getStartPosition());
