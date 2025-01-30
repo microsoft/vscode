@@ -10,7 +10,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import * as strings from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { getCodeEditor, IActiveCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -129,11 +129,14 @@ export class ApplyCodeBlockOperation {
 		if (codemapperUri && !isEqual(activeEditorControl?.getModel().uri, codemapperUri)) {
 			// reveal the target file
 			try {
-				await this.editorService.openEditor({ resource: codemapperUri });
-
-				activeEditorControl = getEditableActiveCodeEditor(this.editorService);
-				if (activeEditorControl) {
-					this.tryToRevealCodeBlock(activeEditorControl, context.code);
+				const editorPane = await this.editorService.openEditor({ resource: codemapperUri });
+				const codeEditor = getCodeEditor(editorPane?.getControl());
+				if (codeEditor && codeEditor.hasModel()) {
+					this.tryToRevealCodeBlock(codeEditor, context.code);
+					activeEditorControl = codeEditor;
+				} else {
+					this.notify(localize('applyCodeBlock.errorOpeningFile', "Failed to open {0} in a code editor.", codemapperUri.toString()));
+					return;
 				}
 			} catch (e) {
 				this.logService.info('[ApplyCodeBlockOperation] error opening code mapper file', codemapperUri, e);
@@ -354,19 +357,20 @@ function getEditableActiveCodeEditor(editorService: IEditorService): IActiveCode
 		return activeCodeEditorInNotebook;
 	}
 
-	let activeEditorControl = editorService.activeTextEditorControl;
-	if (isDiffEditor(activeEditorControl)) {
-		activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
+	let codeEditor = getCodeEditor(editorService.activeTextEditorControl);
+	if (!codeEditor) {
+		for (const editor of editorService.visibleTextEditorControls) {
+			codeEditor = getCodeEditor(editor);
+			if (codeEditor) {
+				break;
+			}
+		}
 	}
 
-	if (!isCodeEditor(activeEditorControl)) {
+	if (!codeEditor || !codeEditor.hasModel()) {
 		return undefined;
 	}
-
-	if (!activeEditorControl.hasModel()) {
-		return undefined;
-	}
-	return activeEditorControl;
+	return codeEditor;
 }
 
 function isReadOnly(model: ITextModel, textFileService: ITextFileService): boolean {
