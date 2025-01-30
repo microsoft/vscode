@@ -212,20 +212,22 @@ export class SimpleCompletionModel {
 					return score;
 				}
 			}
-			// Count depth of path (number of / or \ occurrences)
-			score = count(a.labelLowExcludeTrailingFileSep, '/') + count(a.labelLowExcludeTrailingFileSep, '\\') - count(b.labelLowExcludeTrailingFileSep, '/') - count(b.labelLowExcludeTrailingFileSep, '\\');
-			if (score !== 0) {
-				return score;
-			}
+			if (a.labelLowExcludeTrailingFileSep && b.labelLowExcludeTrailingFileSep) {
+				// Directories
+				// Count depth of path (number of / or \ occurrences)
+				score = count(a.labelLowExcludeTrailingFileSep, '/') - count(b.labelLowExcludeTrailingFileSep, '/');
+				if (score !== 0) {
+					return score;
+				}
 
-			// Ensure shorter prefixes appear first
-			if (b.labelLowExcludeTrailingFileSep.startsWith(a.labelLowExcludeTrailingFileSep)) {
-				return -1; // `a` is a prefix of `b`, so `a` should come first
+				// Ensure shorter prefixes appear first
+				if (b.labelLowExcludeTrailingFileSep.startsWith(a.labelLowExcludeTrailingFileSep)) {
+					return -1; // `a` is a prefix of `b`, so `a` should come first
+				}
+				if (a.labelLowExcludeTrailingFileSep.startsWith(b.labelLowExcludeTrailingFileSep)) {
+					return 1; // `b` is a prefix of `a`, so `b` should come first
+				}
 			}
-			if (a.labelLowExcludeTrailingFileSep.startsWith(b.labelLowExcludeTrailingFileSep)) {
-				return 1; // `b` is a prefix of `a`, so `b` should come first
-			}
-
 			// Sort alphabetically
 			return a.labelLow.localeCompare(b.labelLow);
 		});

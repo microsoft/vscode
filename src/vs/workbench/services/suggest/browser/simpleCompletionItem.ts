@@ -60,7 +60,7 @@ export class SimpleCompletionItem {
 	// perf
 	readonly labelLow: string;
 	readonly labelLowExcludeFileExt: string;
-	readonly labelLowExcludeTrailingFileSep: string;
+	readonly labelLowExcludeTrailingFileSep?: string;
 	readonly fileExtLow: string = '';
 
 	// sorting, filtering
@@ -75,7 +75,6 @@ export class SimpleCompletionItem {
 		this.labelLow = this.completion.label.toLowerCase();
 		this.labelLowExcludeFileExt = this.labelLow;
 		// Normalize for windows
-		this.labelLowExcludeTrailingFileSep = isWindows ? this.labelLow.replaceAll('\\', '/') : this.labelLow;
 		if (completion.isFile) {
 			if (isWindows) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
@@ -86,7 +85,7 @@ export class SimpleCompletionItem {
 				this.fileExtLow = this.labelLow.substring(extIndex + 1);
 			}
 		} else if (completion.isDirectory) {
-			this.labelLowExcludeTrailingFileSep = this.labelLowExcludeTrailingFileSep.replace(/\/$/, '');
+			this.labelLowExcludeTrailingFileSep = this.labelLow.replace(/\/$|\\$/, '');
 		}
 	}
 }
