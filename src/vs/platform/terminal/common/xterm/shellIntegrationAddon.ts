@@ -662,6 +662,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const commandDetection = this._createOrGetCommandDetection(this._terminal);
 		commandDetection.deserialize(serialized);
 		if (commandDetection.cwd) {
+			// Cwd gets set when the command is deserialized, so we need to update it here
 			this._updateCwd(commandDetection.cwd);
 		}
 	}
