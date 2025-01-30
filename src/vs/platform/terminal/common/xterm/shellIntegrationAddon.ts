@@ -660,6 +660,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			throw new Error('Cannot restore commands before addon is activated');
 		}
 		this._createOrGetCommandDetection(this._terminal).deserialize(serialized);
+		if (serialized.commands && !!serialized.commands.at(-1)?.cwd) {
+			this._updateCwd(serialized.commands.at(-1)!.cwd!);
+		}
 	}
 
 	protected _createOrGetCwdDetection(): ICwdDetectionCapability {

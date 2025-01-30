@@ -422,6 +422,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (serialized.isWindowsPty) {
 			this.setIsWindowsPty(serialized.isWindowsPty);
 		}
+		this._cwd = serialized.commands.at(-1)?.cwd;
 		const buffer = this._terminal.buffer.normal;
 		for (const e of serialized.commands) {
 			// Partial command
