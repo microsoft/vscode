@@ -333,7 +333,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			return this.syncTriggerDelayer.cancel();
 		}
 
-		if (options?.skipIfSyncedRecently && this.lastSyncTriggerTime && new Date().getTime() - this.lastSyncTriggerTime < 15_000) {
+		if (options?.skipIfSyncedRecently && this.lastSyncTriggerTime && new Date().getTime() - this.lastSyncTriggerTime < 10_000) {
 			this.logService.debug('[AutoSync] Skipping because sync was triggered recently.', sources);
 			return;
 		}
@@ -352,11 +352,11 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	}
 
 	protected getSyncTriggerDelayTime(): number {
-		if (this.lastSyncTriggerTime && new Date().getTime() - this.lastSyncTriggerTime > 15_000) {
-			this.logService.debug('[AutoSync] Sync immediately because last sync was triggered more than 15 seconds ago.');
+		if (this.lastSyncTriggerTime && new Date().getTime() - this.lastSyncTriggerTime > 10_000) {
+			this.logService.debug('[AutoSync] Sync immediately because last sync was triggered more than 10 seconds ago.');
 			return 0;
 		}
-		return 10_000; /* Debounce for 10 seconds if there are no failures */
+		return 3_000; /* Debounce for 3 seconds if there are no failures */
 	}
 
 }
