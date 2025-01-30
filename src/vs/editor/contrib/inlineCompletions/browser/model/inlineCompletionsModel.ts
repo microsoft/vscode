@@ -768,7 +768,16 @@ export class InlineCompletionsModel extends Disposable {
 			this._jumpedTo.set(true, tx);
 			this.dontRefetchSignal.trigger(tx);
 			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
-			this._editor.revealPosition(s.inlineEdit.range.getStartPosition());
+
+			// TODO: consider using view information to reveal it
+			const isSingleLineChange = s.inlineEdit.range.startLineNumber === s.inlineEdit.range.endLineNumber && !s.inlineEdit.text.includes('\n');
+			if (isSingleLineChange) {
+				this._editor.revealPosition(s.inlineEdit.range.getStartPosition());
+			} else {
+				const revealRange = new Range(s.inlineEdit.range.startLineNumber - 1, 1, s.inlineEdit.range.endLineNumber + 1, 1);
+				this._editor.revealRange(revealRange, ScrollType.Immediate);
+			}
+
 			this._editor.focus();
 		});
 	}
