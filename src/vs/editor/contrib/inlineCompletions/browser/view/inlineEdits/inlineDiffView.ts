@@ -214,21 +214,30 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 					}
 					if (useInlineDiff) {
 						const insertedText = modified.getValueOfRange(i.modifiedRange);
-						originalDecorations.push({
-							range: Range.fromPositions(i.originalRange.getEndPosition()),
-							options: {
-								description: 'inserted-text',
-								before: {
-									content: insertedText,
-									inlineClassName: classNames(
-										'inlineCompletions-char-insert',
-										i.modifiedRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline'
-									),
-								},
-								zIndex: 2,
-								showIfCollapsed: true,
-							}
-						});
+						// when the injected text becomes long, the editor will split it into multiple spans
+						// to be able to get the border around the start and end of the text, we need to split it into multiple segments
+						const textSegments = insertedText.length > 3 ?
+							[{ text: insertedText.slice(0, 1), extraClasses: ['start'] }, { text: insertedText.slice(1, -1), extraClasses: [] }, { text: insertedText.slice(-1), extraClasses: ['end'] }] :
+							[{ text: insertedText, extraClasses: ['start', 'end'] }];
+
+						for (const { text, extraClasses } of textSegments) {
+							originalDecorations.push({
+								range: Range.fromPositions(i.originalRange.getEndPosition()),
+								options: {
+									description: 'inserted-text',
+									before: {
+										content: text,
+										inlineClassName: classNames(
+											'inlineCompletions-char-insert',
+											i.modifiedRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
+											...extraClasses // include extraClasses for additional styling if provided
+										),
+									},
+									zIndex: 2,
+									showIfCollapsed: true,
+								}
+							});
+						}
 					}
 				}
 			}
