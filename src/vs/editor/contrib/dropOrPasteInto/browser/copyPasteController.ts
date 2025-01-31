@@ -167,9 +167,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		await this._currentPasteOperation;
 	}
 
-	private handleCopy(e: ClipboardEvent) {
+	private handleCopy(clipboardEvent: ClipboardEvent) {
 		console.log('handleCopy of CopyPasteController');
-		console.log('e : ', e);
+		console.log('e : ', clipboardEvent);
 		if (!this._editor.hasTextFocus()) {
 			console.log('return 1');
 			return;
@@ -180,7 +180,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		// This means the resources clipboard is not properly updated when copying from the editor.
 		this._clipboardService.clearInternalState?.();
 
-		if (!e.clipboardData || !this.isPasteAsEnabled()) {
+		if (!clipboardEvent.clipboardData || !this.isPasteAsEnabled()) {
 			console.log('return 2');
 			return;
 		}
@@ -221,18 +221,18 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			.ordered(model)
 			.filter(x => !!x.prepareDocumentPaste);
 		if (!providers.length) {
-			this.setCopyMetadata(e.clipboardData, { defaultPastePayload });
+			this.setCopyMetadata(clipboardEvent.clipboardData, { defaultPastePayload });
 			console.log('return 5');
 			return;
 		}
 
-		const dataTransfer = toVSDataTransfer(e.clipboardData);
+		const dataTransfer = toVSDataTransfer(clipboardEvent.clipboardData);
 		const providerCopyMimeTypes = providers.flatMap(x => x.copyMimeTypes ?? []);
 		console.log('providerCopyMimeTypes : ', providerCopyMimeTypes);
 
 		// Save off a handle pointing to data that VS Code maintains.
 		const handle = generateUuid();
-		this.setCopyMetadata(e.clipboardData, {
+		this.setCopyMetadata(clipboardEvent.clipboardData, {
 			id: handle,
 			providerCopyMimeTypes,
 			defaultPastePayload
@@ -282,6 +282,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const dataTransfer = toExternalVSDataTransfer(clipboardEvent.clipboardData);
 		dataTransfer.delete(vscodeClipboardMime);
 
+		console.log('clipboardEvent.clipboardData.files : ', clipboardEvent.clipboardData.files);
+		// contains formats and those from drag operation
+		console.log('clipboardEvent.clipboardData.types : ', clipboardEvent.clipboardData.types);
 		const fileTypes = Array.from(clipboardEvent.clipboardData.files).map(file => file.type);
 
 		const allPotentialMimeTypes = [
@@ -568,16 +571,16 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		dataTransfer.setData(vscodeClipboardMime, JSON.stringify(metadata));
 	}
 
-	private fetchCopyMetadata(e: ClipboardEvent): CopyMetadata | undefined {
+	private fetchCopyMetadata(clipboardEvent: ClipboardEvent): CopyMetadata | undefined {
 		console.log('fetchCopyMetadata of CopyPasteController');
-		console.log('e : ', e);
-		if (!e.clipboardData) {
+		console.log('e : ', clipboardEvent);
+		if (!clipboardEvent.clipboardData) {
 			return;
 		}
 
 		// Prefer using the clipboard data we saved off
 		// Getting data from clipboard and then from the clipboard event utils as a fallback
-		const rawMetadata = e.clipboardData.getData(vscodeClipboardMime);
+		const rawMetadata = clipboardEvent.clipboardData.getData(vscodeClipboardMime);
 		console.log('rawMetadata : ', rawMetadata);
 		if (rawMetadata) {
 			try {
@@ -588,7 +591,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 
 		// Otherwise try to extract the generic text editor metadata
-		const [_, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+		const [_, metadata] = ClipboardEventUtils.getTextData(clipboardEvent.clipboardData);
 		if (metadata) {
 			return {
 				defaultPastePayload: {

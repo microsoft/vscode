@@ -493,8 +493,8 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
 	}
 
-	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		console.log('_ensureClipboardGetsEditorSelection e : ', e);
+	private _ensureClipboardGetsEditorSelection(clipboardEvent: ClipboardEvent): void {
+		console.log('_ensureClipboardGetsEditorSelection e : ', clipboardEvent);
 		const options = this._context.configuration.options;
 		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
@@ -512,9 +512,9 @@ export class NativeEditContext extends AbstractEditContext {
 			(isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
 			storedMetadata
 		);
-		e.preventDefault();
-		if (e.clipboardData) {
-			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
+		clipboardEvent.preventDefault();
+		if (clipboardEvent.clipboardData) {
+			ClipboardEventUtils.setTextData(clipboardEvent.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
 		}
 	}
 
