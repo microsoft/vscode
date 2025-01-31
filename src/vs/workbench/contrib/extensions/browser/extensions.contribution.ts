@@ -8,8 +8,8 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey, TrustedPublishersConfigKey, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -78,6 +78,7 @@ import { ProgressLocation } from '../../../../platform/progress/common/progress.
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions } from '../../../common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -270,16 +271,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['onExp', 'usesOnlineServices']
-			},
-			[TrustedPublishersConfigKey]: {
-				type: 'array',
-				markdownDescription: localize('extensions.trustedPublishers', "Specify a list of trusted publishers. Extensions from these publishers will be allowed to install without consent from the user."),
-				scope: ConfigurationScope.APPLICATION,
-				items: {
-					type: 'string',
-					pattern: '^[a-z0-9A-Z][a-z0-9-A-Z]*$',
-					patternErrorMessage: localize('extensions.trustedPublishers.patternError', "Publisher names must only contain letters and numbers."),
-				}
 			},
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
@@ -1880,6 +1871,39 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: () => runAction(this.instantiationService.createInstance(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL))
 		});
 
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.manageTrustedPublishers',
+			title: localize2('workbench.extensions.action.manageTrustedPublishers', "Manage Trusted Extensions Publishers"),
+			category: EXTENSIONS_CATEGORY,
+			f1: true,
+			run: async (accessor: ServicesAccessor) => {
+				const quickInputService = accessor.get(IQuickInputService);
+				const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
+				const trustedPublishers = extensionManagementService.getTrustedPublishers();
+				const trustedPublisherItems = trustedPublishers.map(publisher => ({
+					id: publisher.publisher,
+					label: publisher.publisherDisplayName,
+					description: publisher.publisher,
+					picked: true,
+				})).sort((a, b) => a.label.localeCompare(b.label));
+				const result = await quickInputService.pick(trustedPublisherItems, {
+					canPickMany: true,
+					title: localize('trustedPublishers', "Manage Trusted Extensions Publishers"),
+					placeHolder: localize('trustedPublishersPlaceholder', "Choose which publishers to trust"),
+				});
+				if (result) {
+					const untrustedPublishers = [];
+					for (const { publisher } of trustedPublishers) {
+						if (!result.some(r => r.id === publisher)) {
+							untrustedPublishers.push(publisher);
+						}
+					}
+					trustedPublishers.filter(publisher => !result.some(r => r.id === publisher.publisher));
+					extensionManagementService.untrustPublishers(...untrustedPublishers);
+				}
+			}
+		});
+
 	}
 
 	private registerExtensionAction(extensionActionOptions: IExtensionActionOptions): IDisposable {
@@ -1931,32 +1955,34 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 
 class TrustedPublishersInitializer implements IWorkbenchContribution {
 	constructor(
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IProductService productService: IProductService,
 		@IStorageService storageService: IStorageService,
 	) {
-		const trustedPublishersInitStatusKey = 'trusted-publishers-initialized';
+		const trustedPublishersInitStatusKey = 'trusted-publishers-init-migration';
 		if (!storageService.get(trustedPublishersInitStatusKey, StorageScope.APPLICATION)) {
-			extensionManagementService.getInstalled(ExtensionType.User)
-				.then(async extensions => {
-					const trustedPublishers = new Set<string>();
-					for (const extension of extensions) {
-						if (!extension.publisherId) {
-							continue;
+			for (const profile of userDataProfilesService.profiles) {
+				extensionManagementService.getInstalled(ExtensionType.User, profile.extensionsResource)
+					.then(async extensions => {
+						const trustedPublishers = new Map<string, IPublisherInfo>();
+						for (const extension of extensions) {
+							if (!extension.publisherDisplayName) {
+								continue;
+							}
+							const publisher = extension.manifest.publisher.toLowerCase();
+							if (productService.trustedExtensionPublishers?.includes(publisher)
+								|| (extension.publisherDisplayName && productService.trustedExtensionPublishers?.includes(extension.publisherDisplayName.toLowerCase()))) {
+								continue;
+							}
+							trustedPublishers.set(publisher, { publisher, publisherDisplayName: extension.publisherDisplayName });
 						}
-						const publisher = extension.manifest.publisher.toLowerCase();
-						if (productService.trustedExtensionPublishers?.includes(publisher)
-							|| (extension.publisherDisplayName && productService.trustedExtensionPublishers?.includes(extension.publisherDisplayName.toLowerCase()))) {
-							continue;
+						if (trustedPublishers.size) {
+							extensionManagementService.trustPublishers(...trustedPublishers.values());
 						}
-						trustedPublishers.add(publisher);
-					}
-					if (trustedPublishers.size) {
-						await allowedExtensionsService.trustPublishers(...trustedPublishers);
-					}
-					storageService.store(trustedPublishersInitStatusKey, 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
-				});
+						storageService.store(trustedPublishersInitStatusKey, 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
+					});
+			}
 		}
 	}
 }

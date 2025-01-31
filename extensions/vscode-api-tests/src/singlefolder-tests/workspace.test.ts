@@ -924,7 +924,8 @@ suite('vscode API - workspace', () => {
 		}
 	});
 
-	test('workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735 (with opened editor)', async function () {
+	// TODO: below test is flaky and commented out, see https://github.com/microsoft/vscode/issues/238837
+	test.skip('workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735 (with opened editor)', async function () {
 		await test77735(true);
 	});
 

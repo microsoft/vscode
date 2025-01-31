@@ -25,10 +25,10 @@ export class Rect {
 	}
 
 	public static hull(rects: Rect[]): Rect {
-		let left = Number.MAX_VALUE;
-		let top = Number.MAX_VALUE;
-		let right = Number.MIN_VALUE;
-		let bottom = Number.MIN_VALUE;
+		let left = Number.MAX_SAFE_INTEGER;
+		let top = Number.MAX_SAFE_INTEGER;
+		let right = Number.MIN_SAFE_INTEGER;
+		let bottom = Number.MIN_SAFE_INTEGER;
 
 		for (const rect of rects) {
 			left = Math.min(left, rect.left);
@@ -138,7 +138,15 @@ export class Rect {
 		return new Rect(this.left - delta, this.top, this.right - delta, this.bottom);
 	}
 
+	moveRight(delta: number): Rect {
+		return new Rect(this.left + delta, this.top, this.right + delta, this.bottom);
+	}
+
 	moveUp(delta: number): Rect {
 		return new Rect(this.left, this.top - delta, this.right, this.bottom - delta);
+	}
+
+	moveDown(delta: number): Rect {
+		return new Rect(this.left, this.top + delta, this.right, this.bottom + delta);
 	}
 }

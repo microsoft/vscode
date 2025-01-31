@@ -23,12 +23,14 @@ export class InlineCompletionsView extends Disposable {
 		return model?.ghostTexts.read(reader) ?? [];
 	});
 	private readonly _stablizedGhostTexts = convertItemsToStableObservables(this._ghostTexts, this._store);
+	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) => derivedDisposable((reader) => this._instantiationService.createInstance(readHotReloadableExport(GhostTextView, reader), this._editor, {
 		ghostText: ghostText,
 		minReservedLineCount: constObservable(0),
 		targetTextModel: this._model.map(v => v?.textModel),
-	})
+	},
+		this._editorObs.getOption(EditorOption.inlineSuggest).map(v => ({ syntaxHighlightingEnabled: v.syntaxHighlightingEnabled })))
 	).recomputeInitiallyAndOnChange(store)
 	).recomputeInitiallyAndOnChange(this._store);
 
@@ -42,7 +44,6 @@ export class InlineCompletionsView extends Disposable {
 	})
 		.recomputeInitiallyAndOnChange(this._store);
 
-	private readonly _editorObs = observableCodeEditor(this._editor);
 	private readonly _fontFamily = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => val.fontFamily);
 
 	constructor(

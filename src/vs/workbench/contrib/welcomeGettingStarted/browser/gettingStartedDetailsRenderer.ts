@@ -211,30 +211,27 @@ export class GettingStartedDetailsRenderer {
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					video {
-						max-width: 530px;
-						min-width: 350px;
-						height: 100%;
-						width: 100%;
-						object-fit: cover;
-						transform: translateY(50%);
+						max-width: 100%;
+						max-height: 100%;
+					object-fit: cover;
+					}
+					vertically-centered {
+						display: flex;
+						justify-content: center; /* Centers horizontally */
+						align-items: center; /* Centers vertically */
+						height: 100vh; /* Added missing semicolon */
 					}
 				</style>
 			</head>
 			<body>
 				<vertically-centered>
-					<video controls ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
+					<video controls autoplay loop ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
 						<source src="${path.toString(true)}" type="video/mp4">
 					</video>
 				</vertically-centered>
 			</body>
 
 			<script nonce="${nonce}">
-				const vscode = acquireVsCodeApi();
-
-				document.querySelector('video').addEventListener('play', () => {
-					vscode.postMessage('playVideo' );
-				});
-
 				let ongoingLayout = undefined;
 				const doLayout = () => {
 					document.querySelectorAll('vertically-centered').forEach(element => {
@@ -253,8 +250,8 @@ export class GettingStartedDetailsRenderer {
 				layout();
 
 				document.querySelectorAll('video').forEach(element => {
-					element.onload = layout;
-				})
+					element.addEventListener('loadeddata', layout);
+				});
 		</script>
 		</html>`;
 	}

@@ -203,6 +203,8 @@ export interface IChatToolInvocation {
 	/** A 3-way: undefined=don't know yet. */
 	isConfirmed: boolean | undefined;
 	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
 
 	isComplete: boolean;
 	isCompleteDeferred: DeferredPromise<void>;
@@ -214,6 +216,8 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
 	isConfirmed: boolean;
 	isComplete: boolean;
 	kind: 'toolInvocationSerialized';
@@ -446,7 +450,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined;
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;

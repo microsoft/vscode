@@ -162,6 +162,20 @@ suite('TerminalCompletionService', () => {
 				{ label: './../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 3 });
 		});
+		test('cd ~/| should return home folder completions', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
+				foldersRequested: true,
+				pathSeparator,
+				shouldNormalizePrefix: true,
+				env: { HOME: '/test/' }
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ~/', 5, provider);
+
+			assertCompletions(result, [
+				{ label: '~/', detail: '/test/' },
+			], { replacementIndex: 3, replacementLength: 2 });
+		});
 	});
 
 	suite('resolveResources should handle file and folder completion requests correctly', () => {

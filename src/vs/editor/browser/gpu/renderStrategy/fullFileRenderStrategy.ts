@@ -16,7 +16,7 @@ import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.
 import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
 import { createContentSegmenter, type IContentSegmenter } from '../contentSegmenter.js';
 import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
-import { BindingId } from '../gpu.js';
+import { BindingId, type IGpuRenderStrategyUpdateResult } from '../gpu.js';
 import { GPULifecycle } from '../gpuDisposable.js';
 import { quadVertices } from '../gpuUtils.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
@@ -232,7 +232,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		this._finalRenderedLine = 0;
 	}
 
-	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
+	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): IGpuRenderStrategyUpdateResult {
 		// IMPORTANT: This is a hot function. Variables are pre-allocated and shared within the
 		// loop. This is done so we don't need to trust the JIT compiler to do this optimization to
 		// avoid potential additional blocking time in garbage collector which is a common cause of
@@ -443,7 +443,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					}
 
 					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
-					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId);
+					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId, absoluteOffsetX);
 
 					absoluteOffsetY = Math.round(
 						// Top of layout box (includes line height)
@@ -459,7 +459,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					);
 
 					cellIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.round(absoluteOffsetX);
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = Math.floor(absoluteOffsetX);
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
 					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
@@ -500,7 +500,10 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 
 		this._visibleObjectCount = visibleObjectCount;
-		return visibleObjectCount;
+
+		return {
+			localContentWidth: absoluteOffsetX
+		};
 	}
 
 	draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void {

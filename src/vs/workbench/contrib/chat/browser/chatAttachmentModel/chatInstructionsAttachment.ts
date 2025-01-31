@@ -52,7 +52,7 @@ export class ChatInstructionsAttachmentModel extends Disposable {
 	 * including all its possible nested child references.
 	 */
 	public get allSettled(): Promise<FilePromptParser> {
-		return this.reference.settledAll();
+		return this.reference.allSettled();
 	}
 
 	/**

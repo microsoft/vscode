@@ -5,6 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -47,7 +48,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 	private cellDecorationIds = new Map<ICellViewModel, string[]>();
 	private cellContentListeners = new ResourceMap<IDisposable>();
 
-	private currentCancellationTokenSource: CancellationTokenSource | null = null;
+	private currentCancellationTokenSources = new ResourceMap<CancellationTokenSource>();
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -68,17 +69,35 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 				await this.updateInlineVariables(e);
 			}
 		}));
+
+		this._register(Event.runAndSubscribe(this.configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(NotebookSetting.notebookInlineValues)) {
+				if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineValues)) {
+					this.clearNotebookInlineDecorations();
+				}
+			}
+		}));
 	}
 
 	private async updateInlineVariables(event: ICellExecutionStateChangedEvent): Promise<void> {
-		// Cancel any ongoing request
-		if (this.currentCancellationTokenSource) {
-			this.currentCancellationTokenSource.cancel();
+		if (event.changed) { // undefined -> execution was completed, so return on all else. no code should execute until we know it's an execution completion
+			return;
 		}
 
-		// Create a new CancellationTokenSource for the new request
-		this.currentCancellationTokenSource = new CancellationTokenSource();
-		const token = this.currentCancellationTokenSource.token;
+		const cell = this.notebookEditor.getCellByHandle(event.cellHandle);
+		if (!cell) {
+			return;
+		}
+
+		// Cancel any ongoing request in this cell
+		const existingSource = this.currentCancellationTokenSources.get(cell.uri);
+		if (existingSource) {
+			existingSource.cancel();
+		}
+
+		// Create a new CancellationTokenSource for the new request per cell
+		this.currentCancellationTokenSources.set(cell.uri, new CancellationTokenSource());
+		const token = this.currentCancellationTokenSources.get(cell.uri)!.token;
 
 		if (this.debugService.state !== State.Inactive) {
 			this._clearNotebookInlineDecorations();
@@ -89,14 +108,6 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			return;
 		}
 
-		if (event.changed) { // undefined -> execution was completed, so return on all else
-			return;
-		}
-
-		const cell = this.notebookEditor.getCellByHandle(event.cellHandle);
-		if (!cell) {
-			return;
-		}
 		const model = await cell.resolveTextModel();
 		if (!model) {
 			return;
@@ -112,7 +123,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			const lastColumn = model.getLineMaxColumn(lastLine);
 			const ctx: InlineValueContext = {
 				frameId: 0, // ignored, we won't have a stack from since not in a debug session
-				stoppedLocation: new Range(lastLine + 1, 0, lastLine + 1, 0) // executing cell by cell, so "stopped" location would just be the end of document
+				stoppedLocation: new Range(lastLine, lastColumn, lastLine, lastColumn) // executing cell by cell, so "stopped" location would just be the end of document
 			};
 
 			const providers = this.languageFeaturesService.inlineValuesProvider.ordered(model).reverse();
@@ -155,6 +166,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 									continue;
 								}
 								text = format('{0} = {1}', name, value);
+								break;
 							}
 							case 'expression': {
 								continue; // no active debug session, so evaluate would break
@@ -328,9 +340,8 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 	override dispose(): void {
 		super.dispose();
 		this._clearNotebookInlineDecorations();
-		if (this.currentCancellationTokenSource) {
-			this.currentCancellationTokenSource.cancel();
-		}
+		this.currentCancellationTokenSources.forEach(source => source.cancel());
+		this.currentCancellationTokenSources.clear();
 	}
 }
 

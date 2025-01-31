@@ -296,6 +296,11 @@ class ChatAgentResponseStream {
 	}
 }
 
+interface InFlightChatRequest {
+	requestId: string;
+	extRequest: vscode.ChatRequest;
+}
+
 export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsShape2 {
 
 	private static _idPool = 0;
@@ -311,6 +316,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
+
+	private readonly _inFlightRequests = new Set<InFlightChatRequest>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -443,6 +450,20 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return model;
 	}
 
+	async $setRequestPaused(handle: number, requestId: string, isPaused: boolean) {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return;
+		}
+
+		const inFlight = Iterable.find(this._inFlightRequests, r => r.requestId === requestId);
+		if (!inFlight) {
+			return;
+		}
+
+		agent.setChatRequestPauseState({ request: inFlight.extRequest, isPaused });
+	}
+
 	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -450,6 +471,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		let stream: ChatAgentResponseStream | undefined;
+		let inFlightRequest: InFlightChatRequest | undefined;
 
 		try {
 			const { request, location, history } = await this._createRequest(requestDto, context, agent.extension);
@@ -465,6 +487,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			const model = await this.getModelForRequest(request, agent.extension);
 			const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, isProposedApiEnabled(agent.extension, 'chatReadonlyPromptReference'));
+			inFlightRequest = { requestId: requestDto.requestId, extRequest };
+			this._inFlightRequests.add(inFlightRequest);
 
 			const task = agent.invoke(
 				extRequest,
@@ -507,6 +531,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded } };
 
 		} finally {
+			if (inFlightRequest) {
+				this._inFlightRequests.delete(inFlightRequest);
+			}
 			stream?.close();
 		}
 	}
@@ -688,6 +715,7 @@ class ExtHostChatAgent {
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
 	private _supportsSlowReferences: boolean | undefined;
+	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -703,6 +731,10 @@ class ExtHostChatAgent {
 
 	acceptAction(event: vscode.ChatUserActionEvent) {
 		this._onDidPerformAction.fire(event);
+	}
+
+	setChatRequestPauseState(pauseState: vscode.ChatParticipantPauseStateEvent) {
+		this._pauseStateEmitter.fire(pauseState);
 	}
 
 	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatCompletionItem[]> {
@@ -909,6 +941,10 @@ class ExtHostChatAgent {
 			get titleProvider() {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._titleProvider;
+			},
+			get onDidChangePauseState() {
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
+				return that._pauseStateEmitter.event;
 			},
 			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatParticipantAdditions')
 				? undefined!

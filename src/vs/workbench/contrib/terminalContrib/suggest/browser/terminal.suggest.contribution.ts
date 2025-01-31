@@ -65,20 +65,15 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSuggestSettingId.EnableExtensionCompletions) || e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
-				const extensionCompletionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
+			if (e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
 				const completionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enabled;
-				if (!extensionCompletionsEnabled || !completionsEnabled) {
-					this._addon.clear();
-				}
 				if (!completionsEnabled) {
+					this._addon.clear();
 					this._pwshAddon.clear();
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
-				if (!!xtermRaw && extensionCompletionsEnabled || completionsEnabled) {
-					if (xtermRaw) {
-						this._loadAddons(xtermRaw);
-					}
+				if (!!xtermRaw && completionsEnabled) {
+					this._loadAddons(xtermRaw);
 				}
 			}
 		}));
@@ -160,7 +155,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
 			const focusedElement = e.relatedTarget as HTMLElement;
-			if (focusedElement?.className === SuggestDetailsClassName) {
+			if (focusedElement?.classList.contains(SuggestDetailsClassName)) {
 				// Don't hide the suggest widget if the focus is moving to the details
 				return;
 			}

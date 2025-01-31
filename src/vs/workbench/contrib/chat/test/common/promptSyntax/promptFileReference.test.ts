@@ -119,7 +119,7 @@ class TestPromptFileReference extends Disposable {
 		).start();
 
 		// wait until entire prompts tree is resolved
-		await rootReference.settledAll();
+		await rootReference.allSettled();
 
 		// resolve the root file reference including all nested references
 		const resolvedReferences: readonly (IPromptFileReference | undefined)[] = rootReference.allReferences;

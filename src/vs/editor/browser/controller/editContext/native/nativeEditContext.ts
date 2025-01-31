@@ -45,13 +45,13 @@ export class NativeEditContext extends AbstractEditContext {
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
+	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	// Overflow guard container
 	private _parent: HTMLElement | undefined;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 
-	private _textStartPositionWithinEditor: Position = new Position(1, 1);
 
 	private _targetWindowId: number = -1;
 	private _scrollTop: number = 0;
@@ -296,15 +296,19 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
-		this._textStartPositionWithinEditor = editContextState.textStartPositionWithinEditor;
+		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
 		if (!this._editContext) {
 			return;
 		}
+		if (!this._editContextPrimarySelection.equalsSelection(this._primarySelection)) {
+			this._updateEditContext();
+		}
 		const model = this._context.viewModel.model;
-		const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
+		const startPositionOfEditContext = this._editContextStartPosition();
+		const offsetOfStartOfText = model.getOffsetAt(startPositionOfEditContext);
 		const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
 		const offsetOfSelectionStart = model.getOffsetAt(this._primarySelection.getStartPosition());
 		const selectionEndOffset = offsetOfSelectionEnd - offsetOfStartOfText;
@@ -352,25 +356,29 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _getNewEditContextState(): { text: string; selectionStartOffset: number; selectionEndOffset: number; textStartPositionWithinEditor: Position } | undefined {
+	private _getNewEditContextState(): { text: string; selectionStartOffset: number; selectionEndOffset: number; editContextPrimarySelection: Selection } | undefined {
+		const editContextPrimarySelection = this._primarySelection;
 		const model = this._context.viewModel.model;
-		if (!model.isValidRange(this._primarySelection)) {
+		if (!model.isValidRange(editContextPrimarySelection)) {
 			return;
 		}
-		const primarySelectionStartLine = this._primarySelection.startLineNumber;
-		const primarySelectionEndLine = this._primarySelection.endLineNumber;
+		const primarySelectionStartLine = editContextPrimarySelection.startLineNumber;
+		const primarySelectionEndLine = editContextPrimarySelection.endLineNumber;
 		const endColumnOfEndLineNumber = model.getLineMaxColumn(primarySelectionEndLine);
 		const rangeOfText = new Range(primarySelectionStartLine, 1, primarySelectionEndLine, endColumnOfEndLineNumber);
 		const text = model.getValueInRange(rangeOfText, EndOfLinePreference.TextDefined);
-		const selectionStartOffset = this._primarySelection.startColumn - 1;
-		const selectionEndOffset = text.length + this._primarySelection.endColumn - endColumnOfEndLineNumber;
-		const textStartPositionWithinEditor = rangeOfText.getStartPosition();
+		const selectionStartOffset = editContextPrimarySelection.startColumn - 1;
+		const selectionEndOffset = text.length + editContextPrimarySelection.endColumn - endColumnOfEndLineNumber;
 		return {
 			text,
 			selectionStartOffset,
 			selectionEndOffset,
-			textStartPositionWithinEditor
+			editContextPrimarySelection
 		};
+	}
+
+	private _editContextStartPosition(): Position {
+		return new Position(this._editContextPrimarySelection.startLineNumber, 1);
 	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
@@ -378,11 +386,11 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 		const formats = e.getTextFormats();
-		const textStartPositionWithinEditor = this._textStartPositionWithinEditor;
+		const editContextStartPosition = this._editContextStartPosition();
 		const decorations: IModelDeltaDecoration[] = [];
 		formats.forEach(f => {
 			const textModel = this._context.viewModel.model;
-			const offsetOfEditContextText = textModel.getOffsetAt(textStartPositionWithinEditor);
+			const offsetOfEditContextText = textModel.getOffsetAt(editContextStartPosition);
 			const startPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeStart);
 			const endPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeEnd);
 			const decorationRange = Range.fromPositions(startPositionOfDecoration, endPositionOfDecoration);
@@ -453,7 +461,7 @@ export class NativeEditContext extends AbstractEditContext {
 		const offsetTransformer = new PositionOffsetTransformer(this._editContext.text);
 		for (let offset = e.rangeStart; offset < e.rangeEnd; offset++) {
 			const editContextStartPosition = offsetTransformer.getPosition(offset);
-			const textStartLineOffsetWithinEditor = this._textStartPositionWithinEditor.lineNumber - 1;
+			const textStartLineOffsetWithinEditor = this._editContextPrimarySelection.startLineNumber - 1;
 			const characterStartPosition = new Position(textStartLineOffsetWithinEditor + editContextStartPosition.lineNumber, editContextStartPosition.column);
 			const characterEndPosition = characterStartPosition.delta(0, 1);
 			const characterModelRange = Range.fromPositions(characterStartPosition, characterEndPosition);

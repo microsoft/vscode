@@ -76,13 +76,13 @@ export interface WorkingSetDisplayMetadata {
 }
 
 export interface IChatEditingSession {
+	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
 	readonly onDidChange: Event<ChatEditingSessionChangeType>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
-	readonly isVisible: boolean;
 	readonly isToolsAgentSession: boolean;
 	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
@@ -141,7 +141,7 @@ export interface IModifiedFileEntry {
 	reject(transaction: ITransaction | undefined): Promise<void>;
 
 	reviewMode: IObservable<boolean>;
-	autoAcceptController: IObservable<{ remaining: number; cancel(): void } | undefined>;
+	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
 }
 

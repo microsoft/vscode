@@ -102,63 +102,67 @@
 			}
 
 			// ensure there is enough space
-			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));
+			layoutInfo.auxiliarySideBarWidth = Math.min(layoutInfo.auxiliarySideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.sideBarWidth));
+			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.auxiliarySideBarWidth));
 
 			// part: title
-			const titleDiv = document.createElement('div');
-			titleDiv.style.position = 'absolute';
-			titleDiv.style.width = '100%';
-			titleDiv.style.height = `${layoutInfo.titleBarHeight}px`;
-			titleDiv.style.left = '0';
-			titleDiv.style.top = '0';
-			titleDiv.style.backgroundColor = `${colorInfo.titleBarBackground}`;
-			(titleDiv.style as any)['-webkit-app-region'] = 'drag';
-			splash.appendChild(titleDiv);
+			if (layoutInfo.titleBarHeight > 0) {
+				const titleDiv = document.createElement('div');
+				titleDiv.style.position = 'absolute';
+				titleDiv.style.width = '100%';
+				titleDiv.style.height = `${layoutInfo.titleBarHeight}px`;
+				titleDiv.style.left = '0';
+				titleDiv.style.top = '0';
+				titleDiv.style.backgroundColor = `${colorInfo.titleBarBackground}`;
+				(titleDiv.style as any)['-webkit-app-region'] = 'drag';
+				splash.appendChild(titleDiv);
 
-			if (colorInfo.titleBarBorder && layoutInfo.titleBarHeight > 0) {
-				const titleBorder = document.createElement('div');
-				titleBorder.style.position = 'absolute';
-				titleBorder.style.width = '100%';
-				titleBorder.style.height = '1px';
-				titleBorder.style.left = '0';
-				titleBorder.style.bottom = '0';
-				titleBorder.style.borderBottom = `1px solid ${colorInfo.titleBarBorder}`;
-				titleDiv.appendChild(titleBorder);
+				if (colorInfo.titleBarBorder) {
+					const titleBorder = document.createElement('div');
+					titleBorder.style.position = 'absolute';
+					titleBorder.style.width = '100%';
+					titleBorder.style.height = '1px';
+					titleBorder.style.left = '0';
+					titleBorder.style.bottom = '0';
+					titleBorder.style.borderBottom = `1px solid ${colorInfo.titleBarBorder}`;
+					titleDiv.appendChild(titleBorder);
+				}
 			}
 
 			// part: activity bar
-			const activityDiv = document.createElement('div');
-			activityDiv.style.position = 'absolute';
-			activityDiv.style.width = `${layoutInfo.activityBarWidth}px`;
-			activityDiv.style.height = `calc(100% - ${layoutInfo.titleBarHeight + layoutInfo.statusBarHeight}px)`;
-			activityDiv.style.top = `${layoutInfo.titleBarHeight}px`;
-			if (layoutInfo.sideBarSide === 'left') {
-				activityDiv.style.left = '0';
-			} else {
-				activityDiv.style.right = '0';
-			}
-			activityDiv.style.backgroundColor = `${colorInfo.activityBarBackground}`;
-			splash.appendChild(activityDiv);
-
-			if (colorInfo.activityBarBorder && layoutInfo.activityBarWidth > 0) {
-				const activityBorderDiv = document.createElement('div');
-				activityBorderDiv.style.position = 'absolute';
-				activityBorderDiv.style.width = '1px';
-				activityBorderDiv.style.height = '100%';
-				activityBorderDiv.style.top = '0';
+			if (layoutInfo.activityBarWidth > 0) {
+				const activityDiv = document.createElement('div');
+				activityDiv.style.position = 'absolute';
+				activityDiv.style.width = `${layoutInfo.activityBarWidth}px`;
+				activityDiv.style.height = `calc(100% - ${layoutInfo.titleBarHeight + layoutInfo.statusBarHeight}px)`;
+				activityDiv.style.top = `${layoutInfo.titleBarHeight}px`;
 				if (layoutInfo.sideBarSide === 'left') {
-					activityBorderDiv.style.right = '0';
-					activityBorderDiv.style.borderRight = `1px solid ${colorInfo.activityBarBorder}`;
+					activityDiv.style.left = '0';
 				} else {
-					activityBorderDiv.style.left = '0';
-					activityBorderDiv.style.borderLeft = `1px solid ${colorInfo.activityBarBorder}`;
+					activityDiv.style.right = '0';
 				}
-				activityDiv.appendChild(activityBorderDiv);
+				activityDiv.style.backgroundColor = `${colorInfo.activityBarBackground}`;
+				splash.appendChild(activityDiv);
+
+				if (colorInfo.activityBarBorder) {
+					const activityBorderDiv = document.createElement('div');
+					activityBorderDiv.style.position = 'absolute';
+					activityBorderDiv.style.width = '1px';
+					activityBorderDiv.style.height = '100%';
+					activityBorderDiv.style.top = '0';
+					if (layoutInfo.sideBarSide === 'left') {
+						activityBorderDiv.style.right = '0';
+						activityBorderDiv.style.borderRight = `1px solid ${colorInfo.activityBarBorder}`;
+					} else {
+						activityBorderDiv.style.left = '0';
+						activityBorderDiv.style.borderLeft = `1px solid ${colorInfo.activityBarBorder}`;
+					}
+					activityDiv.appendChild(activityBorderDiv);
+				}
 			}
 
 			// part: side bar (only when opening workspace/folder)
-			// folder or workspace -> status bar color, sidebar
-			if (configuration.workspace) {
+			if (configuration.workspace && layoutInfo.sideBarWidth > 0) {
 				const sideDiv = document.createElement('div');
 				sideDiv.style.position = 'absolute';
 				sideDiv.style.width = `${layoutInfo.sideBarWidth}px`;
@@ -172,7 +176,7 @@
 				sideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
 				splash.appendChild(sideDiv);
 
-				if (colorInfo.sideBarBorder && layoutInfo.sideBarWidth > 0) {
+				if (colorInfo.sideBarBorder) {
 					const sideBorderDiv = document.createElement('div');
 					sideBorderDiv.style.position = 'absolute';
 					sideBorderDiv.style.width = '1px';
@@ -189,28 +193,62 @@
 				}
 			}
 
-			// part: statusbar
-			const statusDiv = document.createElement('div');
-			statusDiv.style.position = 'absolute';
-			statusDiv.style.width = '100%';
-			statusDiv.style.height = `${layoutInfo.statusBarHeight}px`;
-			statusDiv.style.bottom = '0';
-			statusDiv.style.left = '0';
-			if (configuration.workspace && colorInfo.statusBarBackground) {
-				statusDiv.style.backgroundColor = colorInfo.statusBarBackground;
-			} else if (!configuration.workspace && colorInfo.statusBarNoFolderBackground) {
-				statusDiv.style.backgroundColor = colorInfo.statusBarNoFolderBackground;
-			}
-			splash.appendChild(statusDiv);
+			// part: auxiliary sidebar
+			if (layoutInfo.auxiliarySideBarWidth > 0) {
+				const auxSideDiv = document.createElement('div');
+				auxSideDiv.style.position = 'absolute';
+				auxSideDiv.style.width = `${layoutInfo.auxiliarySideBarWidth}px`;
+				auxSideDiv.style.height = `calc(100% - ${layoutInfo.titleBarHeight + layoutInfo.statusBarHeight}px)`;
+				auxSideDiv.style.top = `${layoutInfo.titleBarHeight}px`;
+				if (layoutInfo.sideBarSide === 'left') {
+					auxSideDiv.style.right = '0';
+				} else {
+					auxSideDiv.style.left = '0';
+				}
+				auxSideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
+				splash.appendChild(auxSideDiv);
 
-			if (colorInfo.statusBarBorder && layoutInfo.statusBarHeight > 0) {
-				const statusBorderDiv = document.createElement('div');
-				statusBorderDiv.style.position = 'absolute';
-				statusBorderDiv.style.width = '100%';
-				statusBorderDiv.style.height = '1px';
-				statusBorderDiv.style.top = '0';
-				statusBorderDiv.style.borderTop = `1px solid ${colorInfo.statusBarBorder}`;
-				statusDiv.appendChild(statusBorderDiv);
+				if (colorInfo.sideBarBorder) {
+					const auxSideBorderDiv = document.createElement('div');
+					auxSideBorderDiv.style.position = 'absolute';
+					auxSideBorderDiv.style.width = '1px';
+					auxSideBorderDiv.style.height = '100%';
+					auxSideBorderDiv.style.top = '0';
+					if (layoutInfo.sideBarSide === 'left') {
+						auxSideBorderDiv.style.left = '0';
+						auxSideBorderDiv.style.borderLeft = `1px solid ${colorInfo.sideBarBorder}`;
+					} else {
+						auxSideBorderDiv.style.right = '0';
+						auxSideBorderDiv.style.borderRight = `1px solid ${colorInfo.sideBarBorder}`;
+					}
+					auxSideDiv.appendChild(auxSideBorderDiv);
+				}
+			}
+
+			// part: statusbar
+			if (layoutInfo.statusBarHeight > 0) {
+				const statusDiv = document.createElement('div');
+				statusDiv.style.position = 'absolute';
+				statusDiv.style.width = '100%';
+				statusDiv.style.height = `${layoutInfo.statusBarHeight}px`;
+				statusDiv.style.bottom = '0';
+				statusDiv.style.left = '0';
+				if (configuration.workspace && colorInfo.statusBarBackground) {
+					statusDiv.style.backgroundColor = colorInfo.statusBarBackground;
+				} else if (!configuration.workspace && colorInfo.statusBarNoFolderBackground) {
+					statusDiv.style.backgroundColor = colorInfo.statusBarNoFolderBackground;
+				}
+				splash.appendChild(statusDiv);
+
+				if (colorInfo.statusBarBorder) {
+					const statusBorderDiv = document.createElement('div');
+					statusBorderDiv.style.position = 'absolute';
+					statusBorderDiv.style.width = '100%';
+					statusBorderDiv.style.height = '1px';
+					statusBorderDiv.style.top = '0';
+					statusBorderDiv.style.borderTop = `1px solid ${colorInfo.statusBarBorder}`;
+					statusDiv.appendChild(statusBorderDiv);
+				}
 			}
 
 			window.document.body.appendChild(splash);

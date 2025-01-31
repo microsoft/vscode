@@ -35,8 +35,11 @@ import { isDiffEditorForEntry } from './chatEditing/chatEditing.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../common/editor.js';
-import { ChatEditorOverlayWidget } from './chatEditorOverlay.js';
+import { ChatEditorOverlayController } from './chatEditorOverlay.js';
+import { IChatService } from '../common/chatService.js';
+import { StableEditorScrollState } from '../../../../editor/browser/stableEditorScroll.js';
 
+export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chat.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
 export const ctxReviewModeEnabled = new RawContextKey<boolean>('chat.ctxReviewModeEnabled', true, localize('chat.ctxReviewModeEnabled', "Review mode for chat changes is enabled"));
@@ -54,8 +57,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _viewZones: string[] = [];
 
-	private readonly _overlayWidget: ChatEditorOverlayWidget;
+	private readonly _overlayCtrl: ChatEditorOverlayController;
 
+	private readonly _ctxIsGlobalEditsSession: IContextKey<boolean>;
 	private readonly _ctxHasEditorModification: IContextKey<boolean>;
 	private readonly _ctxRequestInProgress: IContextKey<boolean>;
 	private readonly _ctxReviewModelEnabled: IContextKey<boolean>;
@@ -80,10 +84,12 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 
-		this._overlayWidget = _instantiationService.createInstance(ChatEditorOverlayWidget, _editor);
+		this._overlayCtrl = ChatEditorOverlayController.get(_editor)!;
+		this._ctxIsGlobalEditsSession = ctxIsGlobalEditingSession.bindTo(contextKeyService);
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
 		this._ctxRequestInProgress = ctxHasRequestInProgress.bindTo(contextKeyService);
 		this._ctxReviewModelEnabled = ctxReviewModeEnabled.bindTo(contextKeyService);
@@ -109,12 +115,12 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
 				const entries = session.entries.read(r);
-				const idx = model?.uri
-					? entries.findIndex(e => isEqual(e.modifiedURI, model.uri))
-					: -1;
+				const idx = entries.findIndex(e => isEqual(e.modifiedURI, model.uri));
 
-				if (idx >= 0) {
-					return { session, entry: entries[idx], entries, idx };
+				const chatModel = chatService.getSession(session.chatSessionId);
+
+				if (idx >= 0 && chatModel) {
+					return { session, chatModel, entry: entries[idx], entries, idx };
 				}
 			}
 
@@ -122,15 +128,16 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		});
 
 
-		let didReval = false;
+		let scrollState: StableEditorScrollState | undefined = undefined;
 
 		this._register(autorunWithStore((r, store) => {
 
 			const currentEditorEntry = entryForEditor.read(r);
 
 			if (!currentEditorEntry) {
+				this._ctxIsGlobalEditsSession.reset();
 				this._clear();
-				didReval = false;
+				scrollState = undefined;
 				return;
 			}
 
@@ -139,8 +146,15 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				return;
 			}
 
-			const { session, entries, idx, entry } = currentEditorEntry;
+			const { session, chatModel, entries, idx, entry } = currentEditorEntry;
 
+			const lastRequestSignal = observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1));
+			store.add(autorun(r => {
+				lastRequestSignal.read(r);
+				scrollState ??= StableEditorScrollState.capture(this._editor);
+			}));
+
+			this._ctxIsGlobalEditsSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModelEnabled.set(entry.reviewMode.read(r));
 
 			// context
@@ -148,9 +162,16 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			// overlay widget
 			if (entry.state.read(r) !== WorkingSetEntryState.Modified) {
-				this._overlayWidget.hide();
+				this._overlayCtrl.hide();
 			} else {
-				this._overlayWidget.show(session, entry, entries[(idx + 1) % entries.length]);
+				this._overlayCtrl.showEntry(
+					session,
+					entry, entries[(idx + 1) % entries.length],
+					{
+						entryIndex: this._currentEntryIndex,
+						changeIndex: this._currentChangeIndex
+					}
+				);
 			}
 
 			// scrolling logic
@@ -171,7 +192,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				fontInfoObs.read(r);
 				lineHeightObs.read(r);
 
-				const diff = entry?.diffInfo.read(r);
+				const diff = entry.diffInfo.read(r);
 
 				// Add line decorations (just markers, no UI) for diff navigation
 				this._updateDiffLineDecorations(diff);
@@ -185,9 +206,13 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					this._clearDiffRendering();
 				}
 
-				if (!didReval && !diff.identical) {
-					didReval = true;
-					this._reveal(true, false, ScrollType.Immediate);
+				if (lastRequestSignal.read(r)?.response?.isComplete) {
+					if (!diff.identical) {
+						this._reveal(true, false, ScrollType.Immediate);
+					} else {
+						scrollState?.restore(_editor);
+						scrollState = undefined;
+					}
 				}
 			}
 		}));
@@ -242,7 +267,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _clear() {
 		this._clearDiffRendering();
-		this._overlayWidget.hide();
+		this._overlayCtrl.hide();
 		this._diffLineDecorations.clear();
 		this._currentChangeIndex.set(undefined, undefined);
 		this._currentEntryIndex.set(undefined, undefined);

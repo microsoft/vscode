@@ -366,10 +366,10 @@ class y {
 
 		assert.strictEqual(change.versionId, 4);
 		assert.strictEqual(change.ranges[0].newRangeStartOffset, 7);
-		assert.strictEqual(change.ranges[0].newRangeEndOffset, 26);
+		assert.strictEqual(change.ranges[0].newRangeEndOffset, 32);
 		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
-		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 6);
-		assert.strictEqual(change.ranges[0].oldRangeLength, 22);
+		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 7);
+		assert.strictEqual(change.ranges[0].oldRangeLength, 28);
 
 		updateListener?.dispose();
 		modelService.destroyModel(model.uri);

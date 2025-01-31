@@ -196,20 +196,6 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			results.push(...await this.installExtensions(installableExtensions));
 		}
 
-		const untrustedPublishers = new Set<string>();
-		for (const result of results) {
-			if (result.local && result.source && !URI.isUri(result.source) && !this.allowedExtensionsService.isTrusted(result.source)) {
-				untrustedPublishers.add(result.source.publisher);
-			}
-		}
-		if (untrustedPublishers.size) {
-			try {
-				await this.allowedExtensionsService.trustPublishers(...untrustedPublishers);
-			} catch (error) {
-				this.logService.error('Error while trusting publishers', getErrorMessage(error), ...untrustedPublishers);
-			}
-		}
-
 		return results;
 	}
 

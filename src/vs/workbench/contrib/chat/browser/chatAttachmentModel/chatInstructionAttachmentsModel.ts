@@ -7,10 +7,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
+import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
@@ -26,17 +26,17 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * @param isRoot If the reference is the root reference in the references tree.
  * 				 This object most likely was explicitly attached by the user.
  */
-const toChatVariable = (
+export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptSnippet'>,
 	isRoot: boolean,
 ): IChatRequestVariableEntry => {
-	const { uri } = reference;
+	const { uri, isPromptSnippet } = reference;
 
 	// default `id` is the stringified `URI`
 	let id = `${uri}`;
 
 	// for prompt files, we add a prefix to the `id`
-	if (reference.isPromptSnippet) {
+	if (isPromptSnippet) {
 		// the default prefix that is used for all prompt files
 		let prefix = 'vscode.prompt.instructions';
 		// if the reference is the root object, add the `.root` suffix
@@ -57,7 +57,7 @@ const toChatVariable = (
 		enabled: true,
 		isFile: true,
 		isDynamic: true,
-		isMarkedReadonly: true,
+		isMarkedReadonly: isPromptSnippet,
 	};
 };
 
@@ -229,6 +229,6 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	 * Checks if the prompt instructions feature is enabled in the user settings.
 	 */
 	public get featureEnabled(): boolean {
-		return BasePromptParser.promptSnippetsEnabled(this.configService);
+		return PromptFilesConfig.enabled(this.configService);
 	}
 }

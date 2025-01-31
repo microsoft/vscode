@@ -2920,10 +2920,6 @@ declare namespace monaco.editor {
 		 */
 		readonly rangeLength: number;
 		/**
-		 * The new end position of the range that got replaced.
-		 */
-		readonly rangeEndPosition: Position;
-		/**
 		 * The new text for the range.
 		 */
 		readonly text: string;
@@ -4613,14 +4609,6 @@ declare namespace monaco.editor {
 		 * Font family for inline suggestions.
 		 */
 		fontFamily?: string | 'default';
-		edits?: {
-			experimental?: {
-				enabled?: boolean;
-				useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
-				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
-				useGutterIndicator?: boolean;
-			};
-		};
 	}
 
 	type RequiredRecursive<T> = {
