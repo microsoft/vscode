@@ -391,6 +391,8 @@ export async function getCompletionItemsFromSpecs(
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
 			}
 		}
+		filesRequested = true;
+		foldersRequested = true;
 	} else {
 		const shouldShowResourceCompletions =
 			!specificItemsProvided &&
