@@ -233,7 +233,7 @@ export namespace PromptFilesConfig {
 	 */
 	export const CONFIG_DESCRIPTION = nls.localize(
 		'chat.promptFiles.config.description',
-		"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nSet to `true` or use the `{ \"/path/to/folder\": boolean }` notation to specify a different path (or a couple of them). Relative paths are resolved from the root folder(s) of your workspace, and the default value of `{2}` is used if no other paths provided.\n### Examples\n{3}\n{4}",
+		"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nSet to `true` or use the `{ \"/path/to/folder\": boolean }` notation to specify a different path (or a couple of them). Relative paths are resolved from the root folder(s) of your workspace, and the default value of `{2}` is used if no other paths provided.\n#### Examples\n{3}\n{4}",
 		PROMPT_SNIPPET_FILE_EXTENSION,
 		DOCUMENTATION_URL,
 		DEFAULT_LOCATION[0],
