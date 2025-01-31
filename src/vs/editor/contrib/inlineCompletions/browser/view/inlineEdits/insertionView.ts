@@ -30,10 +30,11 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		if (!state) { return undefined; }
 
 		const textModel = this._editor.getModel()!;
+		const eol = textModel.getEOL();
 
-		if (state.startColumn === 1 && state.lineNumber > 1 && textModel.getLineLength(state.lineNumber) !== 0 && state.text.endsWith('\n') && !state.text.startsWith('\n')) {
+		if (state.startColumn === 1 && state.lineNumber > 1 && textModel.getLineLength(state.lineNumber) !== 0 && state.text.endsWith(eol) && !state.text.startsWith(eol)) {
 			const endOfLineColumn = textModel.getLineLength(state.lineNumber - 1) + 1;
-			return { lineNumber: state.lineNumber - 1, column: endOfLineColumn, text: '\n' + state.text.slice(0, -1) };
+			return { lineNumber: state.lineNumber - 1, column: endOfLineColumn, text: eol + state.text.slice(0, -eol.length) };
 		}
 
 		return { lineNumber: state.lineNumber, column: state.startColumn, text: state.text };
@@ -88,12 +89,12 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		}
 		this._editorObs.versionId.read(reader);
 		const textModel = this._editor.getModel()!;
+		const eol = textModel.getEOL();
 
-		const cleanText = state.text.replace('\r\n', '\n');
-		const textBeforeInsertion = cleanText.startsWith('\n') ? '' : textModel.getValueInRange(new Range(state.lineNumber, 1, state.lineNumber, state.column));
+		const textBeforeInsertion = state.text.startsWith(eol) ? '' : textModel.getValueInRange(new Range(state.lineNumber, 1, state.lineNumber, state.column));
 		const textAfterInsertion = textModel.getValueInRange(new Range(state.lineNumber, state.column, state.lineNumber, textModel.getLineLength(state.lineNumber) + 1));
-		const text = textBeforeInsertion + cleanText + textAfterInsertion;
-		const lines = text.split('\n');
+		const text = textBeforeInsertion + state.text + textAfterInsertion;
+		const lines = text.split(eol);
 
 		const renderOptions = RenderOptions.fromEditor(this._editor).withSetWidth(false);
 		const lineWidths = lines.map(line => {
@@ -121,15 +122,16 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 		// Adjust for leading/trailing newlines
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const eol = this._editor.getModel()!.getEOL();
 		let topTrim = 0;
 		let bottomTrim = 0;
 
 		let i = 0;
-		for (; i < text.length && text[i] === '\n'; i++) {
+		for (; i < text.length && text.startsWith(eol, i); i += eol.length) {
 			topTrim += lineHeight;
 		}
 
-		for (let j = text.length - 1; j > i && text[j] === '\n'; j--) {
+		for (let j = text.length; j > i && text.endsWith(eol, j); j -= eol.length) {
 			bottomTrim += lineHeight;
 		}
 
