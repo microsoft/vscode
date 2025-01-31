@@ -38,10 +38,10 @@ suite('CodeActionModel', () => {
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
 	let registry: LanguageFeatureRegistry<languages.CodeActionProvider>;
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(() => {
-		disposables.clear();
+		disposables = new DisposableStore();
 		markerService = new MarkerService();
 		model = createTextModel('foobar  foo bar\nfarboo far boo', languageId, undefined, uri);
 		editor = createTestCodeEditor(model);
@@ -50,7 +50,7 @@ suite('CodeActionModel', () => {
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 		editor.dispose();
 		model.dispose();
 		markerService.dispose();

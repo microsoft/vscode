@@ -38,12 +38,18 @@ function withSmartSplice(fn: (options: IIndexTreeModelSpliceOptions<number, any>
 
 suite('IndexTreeModel', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const disposables = new DisposableStore();
-	teardown(() => {
-		disposables.clear();
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
 	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('ctor', () => {
 		const list: ITreeNode<number>[] = [];

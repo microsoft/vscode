@@ -63,13 +63,15 @@ suite('ExtHostLanguageFeatures', function () {
 	let model: ITextModel;
 	let extHost: ExtHostLanguageFeatures;
 	let mainThread: MainThreadLanguageFeatures;
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 	let rpcProtocol: TestRPCProtocol;
 	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
+
+		disposables = new DisposableStore();
 
 		model = createTextModel(
 			[
@@ -138,7 +140,7 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();

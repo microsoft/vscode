@@ -36,7 +36,7 @@ suite('CodeAction', () => {
 	const uri = URI.parse('untitled:path');
 	let model: TextModel;
 	let registry: LanguageFeatureRegistry<languages.CodeActionProvider>;
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 	const testData = {
 		diagnostics: {
 			abc: {
@@ -98,13 +98,13 @@ suite('CodeAction', () => {
 
 	setup(() => {
 		registry = new LanguageFeatureRegistry();
-		disposables.clear();
+		disposables = new DisposableStore();
 		model = createTextModel('test1\ntest2\ntest3', langId, undefined, uri);
 		disposables.add(model);
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

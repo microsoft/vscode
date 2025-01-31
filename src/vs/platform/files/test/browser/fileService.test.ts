@@ -20,10 +20,14 @@ import { NullLogService } from '../../../log/common/log.js';
 
 suite('File Service', () => {
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	test('provider registration', async () => {

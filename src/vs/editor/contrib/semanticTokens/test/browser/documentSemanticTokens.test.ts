@@ -39,7 +39,7 @@ import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRed
 
 suite('ModelSemanticColoring', () => {
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 	let modelService: IModelService;
 	let languageService: ILanguageService;
 	let languageFeaturesService: ILanguageFeaturesService;
@@ -50,6 +50,7 @@ suite('ModelSemanticColoring', () => {
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK, true));
 		const logService = new NullLogService();
 		languageFeaturesService = new LanguageFeaturesService();
+		disposables = new DisposableStore();
 		languageService = disposables.add(new LanguageService(false));
 		const semanticTokensStylingService = disposables.add(new SemanticTokensStylingService(themeService, logService, languageService));
 		const instantiationService = new TestInstantiationService();
@@ -69,7 +70,7 @@ suite('ModelSemanticColoring', () => {
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

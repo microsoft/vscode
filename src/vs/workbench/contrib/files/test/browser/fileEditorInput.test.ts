@@ -25,7 +25,7 @@ import { TextEditorService } from '../../../../services/textfile/common/textEdit
 
 suite('Files - FileEditorInput', () => {
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -44,6 +44,7 @@ suite('Files - FileEditorInput', () => {
 	}
 
 	setup(() => {
+		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService({
 			textEditorService: instantiationService => instantiationService.createInstance(TestTextEditorService)
 		}, disposables);
@@ -52,7 +53,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	test('Basics', async function () {

@@ -62,13 +62,23 @@ function validateMenuBarItem(menubar: MenuBar, menubarContainer: HTMLElement, la
 }
 
 suite('Menubar', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
 	const container = $('.container');
 
-	const menubar = new MenuBar(container, {
-		enableMnemonics: true,
-		visibility: 'visible'
-	}, unthemedMenuStyles);
+	let menubar: MenuBar;
+
+	setup(function () {
+		menubar = new MenuBar(container, {
+			enableMnemonics: true,
+			visibility: 'visible'
+		}, unthemedMenuStyles);
+	});
+
+	teardown(function () {
+		container.innerHTML = '';
+		menubar.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('English File menu renders mnemonics', function () {
 		validateMenuBarItem(menubar, container, '&File', 'File', 'F');

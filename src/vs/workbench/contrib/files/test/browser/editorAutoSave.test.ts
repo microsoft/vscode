@@ -27,14 +27,15 @@ import { IAccessibilitySignalService } from '../../../../../platform/accessibili
 
 suite('EditorAutoSave', () => {
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		disposables.add(registerTestFileEditor());
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	async function createEditorAutoSave(autoSaveConfig: object): Promise<TestServiceAccessor> {

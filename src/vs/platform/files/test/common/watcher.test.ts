@@ -113,10 +113,14 @@ suite('Watcher', () => {
 
 suite('Watcher Events Normalizer', () => {
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	test('simple add/update/delete', done => {

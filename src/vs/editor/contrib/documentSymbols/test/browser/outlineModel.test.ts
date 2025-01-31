@@ -22,11 +22,15 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 
 suite('OutlineModel', function () {
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 	const languageFeaturesService = new LanguageFeaturesService();
 
+	setup(function () {
+		disposables = new DisposableStore();
+	});
+
 	teardown(function () {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -30,12 +30,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 suite('suggest, word distance', function () {
 
 	let distance: WordDistance;
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(async function () {
 		const languageId = 'bracketMode';
 
-		disposables.clear();
+		disposables = new DisposableStore();
 		const instantiationService = createCodeEditorServices(disposables);
 		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		const languageService = instantiationService.get(ILanguageService);
@@ -85,7 +85,7 @@ suite('suggest, word distance', function () {
 	});
 
 	teardown(function () {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

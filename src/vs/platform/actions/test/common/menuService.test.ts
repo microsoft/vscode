@@ -26,17 +26,17 @@ const contextKeyService = new class extends MockContextKeyService {
 suite('MenuService', function () {
 
 	let menuService: MenuService;
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 	let testMenuId: MenuId;
 
 	setup(function () {
 		menuService = new MenuService(NullCommandService, new MockKeybindingService(), new InMemoryStorageService());
 		testMenuId = new MenuId(`testo/${generateUuid()}`);
-		disposables.clear();
+		disposables = new DisposableStore();
 	});
 
 	teardown(function () {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

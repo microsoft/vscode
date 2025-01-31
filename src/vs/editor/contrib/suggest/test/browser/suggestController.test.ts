@@ -36,16 +36,20 @@ import { DeleteLinesAction } from '../../../linesOperations/browser/linesOperati
 
 suite('SuggestController', function () {
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	let controller: SuggestController;
 	let editor: ITestCodeEditor;
 	let model: TextModel;
 	const languageFeaturesService = new LanguageFeaturesService();
 
+	setup(function () {
+		disposables = new DisposableStore();
+	});
+
 	teardown(function () {
 
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	// ensureNoDisposablesAreLeakedInTestSuite();

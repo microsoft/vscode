@@ -26,7 +26,9 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('Sticky Scroll Tests', () => {
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
+
+
 
 	const serviceCollection = new ServiceCollection(
 		[ILanguageFeaturesService, new LanguageFeaturesService()],
@@ -58,10 +60,10 @@ suite('Sticky Scroll Tests', () => {
 	].join('\n');
 
 	setup(() => {
-		disposables.clear();
+		disposables = new DisposableStore();
 	});
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

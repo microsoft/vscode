@@ -14,17 +14,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 
 suite('Files - FileOnDiskContentProvider', () => {
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	test('provideTextContent', async () => {

@@ -12,14 +12,15 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 	let storageService: T;
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(async () => {
+		disposables = new DisposableStore();
 		storageService = await params.setup();
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 		return params.teardown(storageService);
 	});
 

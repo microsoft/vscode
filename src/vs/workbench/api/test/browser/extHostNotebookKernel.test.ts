@@ -46,14 +46,18 @@ suite('NotebookKernel', function () {
 
 	const notebookUri = URI.parse('test:///notebook.file');
 	const kernelData = new Map<number, INotebookKernelDto2>();
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	const cellExecuteCreate: { notebook: UriComponents; cell: number }[] = [];
 	const cellExecuteUpdates: ICellExecuteUpdateDto[] = [];
 	const cellExecuteComplete: ICellExecutionCompleteDto[] = [];
 
+	setup(function () {
+		disposables = new DisposableStore();
+	});
+
 	teardown(function () {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

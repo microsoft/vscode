@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -62,7 +62,7 @@ suite('Edit session sync', () => {
 	let fileService: FileService;
 	let sandbox: sinon.SinonSandbox;
 
-	const disposables = new DisposableStore();
+	const disposables = markAsSingleton(new DisposableStore());
 
 	suiteSetup(() => {
 

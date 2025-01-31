@@ -42,16 +42,16 @@ const emptySigHelpResult: languages.SignatureHelpResult = {
 };
 
 suite('ParameterHintsModel', () => {
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 	let registry: LanguageFeatureRegistry<languages.SignatureHelpProvider>;
 
 	setup(() => {
-		disposables.clear();
+		disposables = new DisposableStore();
 		registry = new LanguageFeatureRegistry<languages.SignatureHelpProvider>();
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -238,7 +238,7 @@ suite('ParameterHintsModel', () => {
 		});
 	});
 
-	test('Provider should be retriggered if already active', async () => {
+	test('Provider should be retriggered if already active 2', async () => {
 		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const editor = createMockEditor('');

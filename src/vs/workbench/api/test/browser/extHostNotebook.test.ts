@@ -41,10 +41,14 @@ suite('NotebookCell#Document', function () {
 	let extHostSearch: ExtHostSearch;
 
 	const notebookUri = URI.parse('test:///notebook.file');
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
+
+	setup(function () {
+		disposables = new DisposableStore();
+	});
 
 	teardown(function () {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

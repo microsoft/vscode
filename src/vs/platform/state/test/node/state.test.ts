@@ -26,9 +26,10 @@ flakySuite('StateService', () => {
 	let logService: ILogService;
 	let diskFileSystemProvider: DiskFileSystemProvider;
 
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'statemainservice');
 
 		logService = new NullLogService();
@@ -41,7 +42,7 @@ flakySuite('StateService', () => {
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 
 		return Promises.rm(testDir);
 	});
