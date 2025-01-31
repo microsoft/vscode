@@ -282,6 +282,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 						}
 					}),
 					transition: 'rotate 0.2s ease-in-out',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
 				}
 			}, [
 				this._tabAction.map(v => v === 'accept' ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
