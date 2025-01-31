@@ -77,10 +77,11 @@ async function getAliases(options: ExecOptionsWithStringEncoding, existingComman
 		return {
 			label: e.Name,
 			detail: detailParts.join('\n\n'),
-			// Aliases sometimes return the same DisplayName, show as a method in this case.
-			kind: (e.Name === e.DisplayName
-				? vscode.TerminalCompletionItemKind.Method
-				: vscode.TerminalCompletionItemKind.Alias),
+			// Aliases sometimes don't have a definition and use the same DisplayName, show them as
+			// a method in this case.
+			kind: (!e.Definition
+				? vscode.TerminalCompletionItemKind.Alias
+				: vscode.TerminalCompletionItemKind.Method),
 		};
 	}
 	);
