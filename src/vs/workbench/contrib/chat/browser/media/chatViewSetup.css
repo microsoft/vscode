@@ -11,14 +11,12 @@
 	}
 
 	.chat-features-container {
+		display: flex;
+		justify-content: center;
 		text-align: initial;
 		border-radius: 2px;
 		border: 1px solid var(--vscode-chat-requestBorder);
 		background-color: var(--vscode-chat-requestBackground);
-	}
-
-	.terms-container.is-standalone {
-		padding-top: 5px;
 	}
 
 	.chat-feature-container {
@@ -29,13 +27,17 @@
 	}
 
 	.chat-feature-container .codicon[class*='codicon-'] {
-		font-size: 20px;
+		font-size: 16px;
 	}
 
 	.codicon[class*='codicon-'] {
 		font-size: 13px;
 		line-height: 1.4em;
 		vertical-align: bottom;
+	}
+
+	.button-container {
+		padding-top: 20px;
 	}
 
 	/** Dropdown Button */
@@ -45,28 +47,5 @@
 
 	.monaco-button-dropdown .monaco-text-button {
 		width: 100%;
-	}
-
-	/** Single Button */
-	p > .monaco-button {
-		text-align: center;
-		display: inline-block;
-		width: 100%;
-		padding: 4px 7px;
-	}
-
-	/** Checkboxes */
-	.checkbox-container {
-		display: flex;
-		padding-top: 15px;
-	}
-
-	.checkbox-label {
-		flex-basis: fit-content;
-		cursor: pointer;
-	}
-
-	.checkbox-label p {
-		display: inline;
 	}
 }

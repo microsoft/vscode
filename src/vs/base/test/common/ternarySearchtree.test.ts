@@ -241,6 +241,27 @@ suite('Ternary Search Tree', () => {
 		);
 	});
 
+	test('TernarySearchTree - set w/ undefined', function () {
+
+		const trie = TernarySearchTree.forStrings<any>();
+		trie.set('foobar', undefined);
+		trie.set('foobaz', 2);
+
+		assert.strictEqual(trie.get('foobar'), undefined);
+		assert.strictEqual(trie.get('foobaz'), 2);
+		assert.strictEqual(trie.get('NOT HERE'), undefined);
+
+		assert.ok(trie.has('foobaz'));
+		assert.ok(trie.has('foobar'));
+		assert.ok(!trie.has('NOT HERE'));
+
+		assertTstDfs(trie, ['foobar', undefined], ['foobaz', 2]); // should check for undefined value
+
+		const oldValue = trie.set('foobar', 3);
+		assert.strictEqual(oldValue, undefined);
+		assert.strictEqual(trie.get('foobar'), 3);
+	});
+
 	test('TernarySearchTree - findLongestMatch', function () {
 
 		const trie = TernarySearchTree.forStrings<number>();
@@ -536,14 +557,18 @@ suite('Ternary Search Tree', () => {
 			}
 			const tst = TernarySearchTree.forUris<boolean>();
 
-			for (const item of keys) {
-				tst.set(item, true);
-				assert.ok(tst._isBalanced(), `SET${item}|${keys.map(String).join()}`);
-			}
+			try {
+				for (const item of keys) {
+					tst.set(item, true);
+					assert.ok(tst._isBalanced(), `SET${item}|${keys.map(String).join()}`);
+				}
 
-			for (const item of keys) {
-				tst.delete(item);
-				assert.ok(tst._isBalanced(), `DEL${item}|${keys.map(String).join()}`);
+				for (const item of keys) {
+					tst.delete(item);
+					assert.ok(tst._isBalanced(), `DEL${item}|${keys.map(String).join()}`);
+				}
+			} catch (err) {
+				assert.ok(false, `FAILED with keys: ${keys.map(String).join()}`);
 			}
 		}
 	});

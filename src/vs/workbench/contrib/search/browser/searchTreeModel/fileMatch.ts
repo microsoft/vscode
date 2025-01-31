@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TrackedRangeStickiness, MinimapPosition, ITextModel, FindMatch, IModelDeltaDecoration } from '../../../../../editor/common/model.js';
@@ -69,7 +69,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	protected _resource: URI;
 	private _fileStat?: IFileStatWithPartialMetadata;
 	private _model: ITextModel | null = null;
-	private _modelListener: IDisposable | null = null;
+	private _modelListener: DisposableStore | null = null;
 	protected _textMatches: Map<string, ISearchTreeMatch>;
 
 	private _removedTextMatches: Set<string>;
@@ -132,10 +132,11 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	}
 	bindModel(model: ITextModel): void {
 		this._model = model;
-		this._modelListener = this._model.onDidChangeContent(() => {
+		this._modelListener = new DisposableStore();
+		this._modelListener.add(this._model.onDidChangeContent(() => {
 			this._updateScheduler.schedule();
-		});
-		this._model.onWillDispose(() => this.onModelWillDispose());
+		}));
+		this._modelListener.add(this._model.onWillDispose(() => this.onModelWillDispose()));
 		this.updateHighlights();
 	}
 
@@ -360,4 +361,3 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 
 	//#endregion
 }
-

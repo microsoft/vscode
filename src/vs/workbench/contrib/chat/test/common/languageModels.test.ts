@@ -144,7 +144,7 @@ suite('LanguageModels', function () {
 			}
 		}));
 
-		const models = await languageModels.selectLanguageModels({ identifier: 'actual-lm' });
+		const models = await languageModels.selectLanguageModels({ id: 'actual-lm' });
 		assert.ok(models.length === 1);
 
 		const first = models[0];

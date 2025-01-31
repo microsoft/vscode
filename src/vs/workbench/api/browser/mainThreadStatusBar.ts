@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadStatusBarShape, MainContext, ExtHostContext, StatusBarItemDto } from '../common/extHost.protocol.js';
+import { MainThreadStatusBarShape, MainContext, ExtHostContext, StatusBarItemDto, ExtHostStatusBarShape } from '../common/extHost.protocol.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -12,17 +12,20 @@ import { IAccessibilityInformation } from '../../../platform/accessibility/commo
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IExtensionStatusBarItemService, StatusBarUpdateKind } from './statusBarExtensionPoint.js';
 import { IStatusbarEntry, StatusbarAlignment } from '../../services/statusbar/browser/statusbar.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
+	private readonly _proxy: ExtHostStatusBarShape;
 	private readonly _store = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IExtensionStatusBarItemService private readonly statusbarService: IExtensionStatusBarItemService
 	) {
-		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostStatusBar);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStatusBar);
 
 		// once, at startup read existing items and send them over
 		const entries: StatusBarItemDto[] = [];
@@ -30,11 +33,11 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 			entries.push(asDto(entryId, item));
 		}
 
-		proxy.$acceptStaticEntries(entries);
+		this._proxy.$acceptStaticEntries(entries);
 
 		this._store.add(statusbarService.onDidChange(e => {
 			if (e.added) {
-				proxy.$acceptStaticEntries([asDto(e.added[0], e.added[1])]);
+				this._proxy.$acceptStaticEntries([asDto(e.added[0], e.added[1])]);
 			}
 		}));
 
@@ -56,8 +59,17 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this._store.dispose();
 	}
 
-	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void {
-		const kind = this.statusbarService.setOrUpdateEntry(entryId, id, extensionId, name, text, tooltip, command, color, backgroundColor, alignLeft, priority, accessibilityInformation);
+	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, hasTooltipProvider: boolean, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void {
+		const tooltipOrTooltipProvider = hasTooltipProvider
+			? {
+				markdown: (cancellation: CancellationToken) => {
+					return this._proxy.$provideTooltip(entryId, cancellation);
+				},
+				markdownNotSupportedFallback: undefined
+			} satisfies IManagedHoverTooltipMarkdownString
+			: tooltip;
+
+		const kind = this.statusbarService.setOrUpdateEntry(entryId, id, extensionId, name, text, tooltipOrTooltipProvider, command, color, backgroundColor, alignLeft, priority, accessibilityInformation);
 		if (kind === StatusBarUpdateKind.DidDefine) {
 			this._store.add(toDisposable(() => this.statusbarService.unsetEntry(entryId)));
 		}

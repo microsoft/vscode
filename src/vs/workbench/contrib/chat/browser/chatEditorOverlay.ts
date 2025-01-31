@@ -3,34 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatEditorOverlay.css';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { autorun, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
-import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IChatEditingSession, IModifiedFileEntry } from '../common/chatEditingService.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
-import { $, append, EventLike, reset } from '../../../../base/browser/dom.js';
-import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { $, addDisposableGenericMouseMoveListener, append, EventLike, reset } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { AcceptAction, RejectAction } from './chatEditorActions.js';
+import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
+import './media/chatEditorOverlay.css';
+import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
+import { IChatService } from '../common/chatService.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { rcut } from '../../../../base/common/strings.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
-	readonly allowEditorOverflow = false;
+	readonly allowEditorOverflow = true;
 
 	private readonly _domNode: HTMLElement;
 	private readonly _progressNode: HTMLElement;
@@ -46,7 +48,9 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IEditorService editorService: IEditorService,
-		@IInstantiationService instaService: IInstantiationService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IChatService private readonly _chatService: IChatService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('chat-editor-overlay-widget');
@@ -61,7 +65,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		toolbarNode.classList.add('chat-editor-overlay-toolbar');
 		this._domNode.appendChild(toolbarNode);
 
-		this._toolbar = instaService.createInstance(MenuWorkbenchToolBar, toolbarNode, MenuId.ChatEditingEditorContent, {
+		this._toolbar = _instaService.createInstance(MenuWorkbenchToolBar, toolbarNode, MenuId.ChatEditingEditorContent, {
 			telemetrySource: 'chatEditor.overlayToolbar',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
@@ -125,6 +129,36 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 						constructor() {
 							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
 						}
+
+						override render(container: HTMLElement): void {
+							super.render(container);
+
+							if (action.id === AcceptAction.ID) {
+
+								const listener = this._store.add(new MutableDisposable());
+
+								this._store.add(autorun(r => {
+
+									assertType(this.label);
+									assertType(this.element);
+
+									const ctrl = that._entry.read(r)?.entry.autoAcceptController.read(r);
+									if (ctrl) {
+
+										const r = -100 * (ctrl.remaining / ctrl.total);
+
+										this.element.style.setProperty('--vscode-action-item-auto-timeout', `${r}%`);
+
+										this.element.classList.toggle('auto', true);
+										listener.value = addDisposableGenericMouseMoveListener(this.element, () => ctrl.cancel());
+									} else {
+										this.element.classList.toggle('auto', false);
+										listener.clear();
+									}
+								}));
+							}
+						}
+
 						override set actionRunner(actionRunner: IActionRunner) {
 							super.actionRunner = actionRunner;
 
@@ -183,7 +217,32 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		return { preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER };
 	}
 
-	show(session: IChatEditingSession, activeEntry: IModifiedFileEntry, next: IModifiedFileEntry) {
+	showRequest(session: IChatEditingSession) {
+
+		this._showStore.clear();
+
+		const chatModel = this._chatService.getSession(session.chatSessionId);
+		const chatRequest = chatModel?.getRequests().at(-1);
+
+		if (!chatRequest || !chatRequest.response) {
+			this.hide();
+			return;
+		}
+
+		this._domNode.classList.toggle('busy', true);
+
+		const message = rcut(chatRequest.message.text, 47);
+		reset(this._progressNode, message);
+
+		this._showStore.add(this._hoverService.setupDelayedHover(this._progressNode, {
+			content: chatRequest.message.text,
+			appearance: { showPointer: true }
+		}));
+
+		this._show();
+	}
+
+	showEntry(session: IChatEditingSession, activeEntry: IModifiedFileEntry, next: IModifiedFileEntry, indicies: { entryIndex: IObservable<number | undefined>; changeIndex: IObservable<number | undefined> }) {
 
 		this._showStore.clear();
 
@@ -197,35 +256,49 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		this._showStore.add(autorun(r => {
 			const value = activeEntry.rewriteRatio.read(r);
 			reset(this._progressNode, (value === 0
-				? localize('generating', "Generating edits...")
-				: localize('applyingPercentage', "{0}% Applying edits...", Math.round(value * 100))));
+				? localize('generating', "Generating Edits")
+				: localize('applyingPercentage', "{0}% Applying Edits", Math.round(value * 100))));
 		}));
 
 		this._showStore.add(autorun(r => {
 
-			const position = ChatEditorController.get(this._editor)?.currentChange.read(r);
+			const entryIndex = indicies.entryIndex.read(r);
+			const changeIndex = indicies.changeIndex.read(r);
+
 			const entries = session.entries.read(r);
 
+			let activeIdx = entryIndex !== undefined && changeIndex !== undefined
+				? changeIndex
+				: -1;
+
 			let changes = 0;
-			let activeIdx = -1;
-			for (const entry of entries) {
-				const diffInfo = entry.diffInfo.read(r);
+			for (let i = 0; i < entries.length; i++) {
+				const diffInfo = entries[i].diffInfo.read(r);
+				changes += diffInfo.changes.length;
 
-				if (activeIdx !== -1 || entry !== activeEntry) {
-					// just add up
-					changes += diffInfo.changes.length;
-
-				} else {
-					for (const change of diffInfo.changes) {
-						if (position && change.modified.includes(position.lineNumber)) {
-							activeIdx = changes;
-						}
-						changes += 1;
-					}
+				if (entryIndex !== undefined && i < entryIndex) {
+					activeIdx += diffInfo.changes.length;
 				}
 			}
 
 			this._navigationBearings.set({ changeCount: changes, activeIdx, entriesCount: entries.length }, undefined);
+		}));
+
+		this._show();
+	}
+
+	private _show(): void {
+
+		const editorWidthObs = observableFromEvent(this._editor.onDidLayoutChange, () => {
+			const diffEditor = this._instaService.invokeFunction(findDiffEditorContainingCodeEditor, this._editor);
+			return diffEditor
+				? diffEditor.getOriginalEditor().getLayoutInfo().contentWidth + diffEditor.getModifiedEditor().getLayoutInfo().contentWidth
+				: this._editor.getLayoutInfo().contentWidth;
+		});
+
+		this._showStore.add(autorun(r => {
+			const width = editorWidthObs.read(r);
+			this._domNode.style.maxWidth = `${width - 20}px`;
 		}));
 
 		if (!this._isAdded) {
@@ -249,74 +322,39 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 	}
 }
 
-export const navigationBearingFakeActionId = 'chatEditor.navigation.bearings';
-
-MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
-	command: {
-		id: navigationBearingFakeActionId,
-		title: localize('label', "Navigation Status"),
-		precondition: ContextKeyExpr.false(),
-	},
-	group: 'navigate',
-	order: -1
-});
 
 export class ChatEditorOverlayController implements IEditorContribution {
 
-	static readonly ID = 'editor.contrib.chatOverlayController';
+	static readonly ID = 'editor.contrib.chatEditorOverlayController';
 
-	private readonly _store = new DisposableStore();
-
-	static get(editor: ICodeEditor) {
-		return editor.getContribution<ChatEditorOverlayController>(ChatEditorOverlayController.ID);
+	static get(editor: ICodeEditor): ChatEditorOverlayController | undefined {
+		return editor.getContribution<ChatEditorOverlayController>(ChatEditorOverlayController.ID) ?? undefined;
 	}
+
+	private readonly _overlayWidget = new Lazy(() => this._instaService.createInstance(ChatEditorOverlayWidget, this._editor));
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IChatEditingService chatEditingService: IChatEditingService,
-		@IInstantiationService instaService: IInstantiationService,
-	) {
-		const modelObs = observableFromEvent(this._editor.onDidChangeModel, () => this._editor.getModel());
-		const widget = this._store.add(instaService.createInstance(ChatEditorOverlayWidget, this._editor));
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+	) { }
 
-		if (this._editor.getOption(EditorOption.inDiffEditor)) {
-			return;
-		}
-
-		this._store.add(autorun(r => {
-			const model = modelObs.read(r);
-			const session = chatEditingService.currentEditingSessionObs.read(r);
-			if (!session || !model) {
-				widget.hide();
-				return;
-			}
-
-			const state = session.state.read(r);
-			if (state === ChatEditingSessionState.Disposed) {
-				widget.hide();
-				return;
-			}
-
-			const entries = session.entries.read(r);
-			const idx = entries.findIndex(e => isEqual(e.modifiedURI, model.uri));
-			if (idx < 0) {
-				widget.hide();
-				return;
-			}
-
-			const isModifyingOrModified = entries.some(e => e.state.read(r) === WorkingSetEntryState.Modified || e.isCurrentlyBeingModified.read(r));
-			if (!isModifyingOrModified) {
-				widget.hide();
-				return;
-			}
-
-			const entry = entries[idx];
-			widget.show(session, entry, entries[(idx + 1) % entries.length]);
-
-		}));
+	dispose(): void {
+		this.hide();
+		this._overlayWidget.rawValue?.dispose();
 	}
 
-	dispose() {
-		this._store.dispose();
+	showRequest(session: IChatEditingSession) {
+		this._overlayWidget.value.showRequest(session);
+	}
+
+	showEntry(session: IChatEditingSession,
+		activeEntry: IModifiedFileEntry, next: IModifiedFileEntry,
+		indicies: { entryIndex: IObservable<number | undefined>; changeIndex: IObservable<number | undefined> }
+	) {
+		this._overlayWidget.value.showEntry(session, activeEntry, next, indicies);
+	}
+
+	hide() {
+		this._overlayWidget.rawValue?.hide();
 	}
 }

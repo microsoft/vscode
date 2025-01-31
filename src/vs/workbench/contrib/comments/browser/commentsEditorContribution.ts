@@ -28,6 +28,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/
 import { CommentsInputContentProvider } from './commentsInputContentProvider.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { CommentWidgetFocus } from './commentThreadZoneWidget.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerWorkbenchContribution2(CommentsInputContentProvider.ID, CommentsInputContentProvider, WorkbenchPhase.BlockRestore);
@@ -280,12 +281,7 @@ registerAction2(class extends Action2 {
 
 		const position = args?.range ? new Range(args.range.startLineNumber, args.range.startLineNumber, args.range.endLineNumber, args.range.endColumn)
 			: (args?.fileComment ? undefined : activeEditor.getSelection());
-		const notificationService = accessor.get(INotificationService);
-		try {
-			await controller.addOrToggleCommentAtLine(position, undefined);
-		} catch (e) {
-			notificationService.error(nls.localize('comments.addCommand.error', "The cursor must be within a commenting range to add a comment"));
-		}
+		await controller.addOrToggleCommentAtLine(position, undefined);
 	}
 });
 
@@ -422,8 +418,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.or(ctxCommentEditorFocused, CommentContextKeys.commentFocused),
-	handler: (accessor, args) => {
+	handler: async (accessor, args) => {
 		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		const keybindingService = accessor.get(IKeybindingService);
+		// Unfortunate, but collapsing the comment thread might cause a dialog to show
+		// If we don't wait for the key up here, then the dialog will consume it and immediately close
+		await keybindingService.enableKeybindingHoldMode(CommentCommandId.Hide);
 		if (activeCodeEditor instanceof SimpleCommentEditor) {
 			activeCodeEditor.getParentThread().collapse();
 		} else if (activeCodeEditor) {

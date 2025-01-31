@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -17,6 +17,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { runOnChange } from '../../../../base/common/observable.js';
 
 class SCMInput extends Disposable implements ISCMInput {
 
@@ -188,7 +189,7 @@ class SCMRepository implements ISCMRepository {
 	constructor(
 		public readonly id: string,
 		public readonly provider: ISCMProvider,
-		private disposable: IDisposable,
+		private readonly disposables: DisposableStore,
 		inputHistory: SCMInputHistory
 	) {
 		this.input = new SCMInput(this, inputHistory);
@@ -204,7 +205,7 @@ class SCMRepository implements ISCMRepository {
 	}
 
 	dispose(): void {
-		this.disposable.dispose();
+		this.disposables.dispose();
 		this.provider.dispose();
 	}
 }
@@ -355,6 +356,7 @@ export class SCMService implements ISCMService {
 
 	private inputHistory: SCMInputHistory;
 	private providerCount: IContextKey<number>;
+	private historyProviderCount: IContextKey<number>;
 
 	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
 	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
@@ -370,7 +372,9 @@ export class SCMService implements ISCMService {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.inputHistory = new SCMInputHistory(storageService, workspaceContextService);
+
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
+		this.historyProviderCount = contextKeyService.createKey('scm.historyProviderCount', 0);
 	}
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
@@ -380,17 +384,33 @@ export class SCMService implements ISCMService {
 			throw new Error(`SCM Provider ${provider.id} already exists.`);
 		}
 
-		const disposable = toDisposable(() => {
+		const disposables = new DisposableStore();
+
+		const historyProviderCount = () => {
+			return Array.from(this._repositories.values())
+				.filter(r => !!r.provider.historyProvider.get()).length;
+		};
+
+		disposables.add(toDisposable(() => {
 			this._repositories.delete(provider.id);
 			this._onDidRemoveProvider.fire(repository);
-			this.providerCount.set(this._repositories.size);
-		});
 
-		const repository = new SCMRepository(provider.id, provider, disposable, this.inputHistory);
+			this.providerCount.set(this._repositories.size);
+			this.historyProviderCount.set(historyProviderCount());
+		}));
+
+		const repository = new SCMRepository(provider.id, provider, disposables, this.inputHistory);
 		this._repositories.set(provider.id, repository);
-		this._onDidAddProvider.fire(repository);
+
+		disposables.add(runOnChange(provider.historyProvider, () => {
+			this.historyProviderCount.set(historyProviderCount());
+		}));
 
 		this.providerCount.set(this._repositories.size);
+		this.historyProviderCount.set(historyProviderCount());
+
+		this._onDidAddProvider.fire(repository);
+
 		return repository;
 	}
 

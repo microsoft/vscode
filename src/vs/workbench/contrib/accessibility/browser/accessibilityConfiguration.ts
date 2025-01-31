@@ -63,6 +63,7 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
 	Walkthrough = 'accessibility.verbosity.walkthrough',
+	SourceControl = 'accessibility.verbosity.sourceControl'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -187,6 +188,10 @@ const configuration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
 			type: 'boolean',
 			default: true
+		},
+		[AccessibilityVerbositySettingId.SourceControl]: {
+			description: localize('verbosity.scm', 'Provide information about how to access the source control accessibility help menu when the input is focused.'),
+			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
 			'description': localize('accessibility.signalOptions.volume', "The volume of the sounds in percent (0-100)."),
@@ -789,6 +794,12 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'minimum': 0,
 					'tags': ['accessibility']
 				},
+				[AccessibilityVoiceSettingId.IgnoreCodeBlocks]: {
+					'markdownDescription': localize('voice.ignoreCodeBlocks', "Whether to ignore code snippets in text-to-speech synthesis."),
+					'type': 'boolean',
+					'default': false,
+					'tags': ['accessibility']
+				},
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
 					'markdownDescription': localize('voice.speechLanguage', "The language that text-to-speech and speech-to-text should use. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition and synthesizers."),
 					'type': 'string',
@@ -800,14 +811,13 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 				},
 				[AccessibilityVoiceSettingId.AutoSynthesize]: {
 					'type': 'string',
-					'enum': ['on', 'off', 'auto'],
+					'enum': ['on', 'off'],
 					'enumDescriptions': [
 						localize('accessibility.voice.autoSynthesize.on', "Enable the feature. When a screen reader is enabled, note that this will disable aria updates."),
 						localize('accessibility.voice.autoSynthesize.off', "Disable the feature."),
-						localize('accessibility.voice.autoSynthesize.auto', "When a screen reader is detected, disable the feature. Otherwise, enable the feature.")
 					],
 					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
-					'default': this.productService.quality !== 'stable' ? 'auto' : 'off', // TODO@bpasero decide on a default
+					'default': this.productService.quality !== 'stable' ? 'on' : 'off',
 					'tags': ['accessibility']
 				}
 			}

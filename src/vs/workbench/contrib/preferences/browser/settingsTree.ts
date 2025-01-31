@@ -64,7 +64,7 @@ import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, 
 import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from './settingsWidgets.js';
 import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from '../common/preferences.js';
 import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
-import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ISetting, ISettingsGroup, SETTINGS_AUTHORITY, SettingValueType } from '../../../services/preferences/common/preferences.js';
@@ -841,7 +841,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	) {
 		super();
 
-		this.markdownRenderer = this._register(_instantiationService.createInstance(MarkdownRenderer, {}));
+		this.markdownRenderer = _instantiationService.createInstance(MarkdownRenderer, {});
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -2207,7 +2207,7 @@ export class SettingTreeRenderers extends Disposable {
 
 	private getActionsForSetting(setting: ISetting, settingTarget: SettingsTarget): IAction[] {
 		const actions: IAction[] = [];
-		if (setting.scope !== ConfigurationScope.APPLICATION && settingTarget === ConfigurationTarget.USER_LOCAL) {
+		if (!(setting.scope && APPLICATION_SCOPES.includes(setting.scope)) && settingTarget === ConfigurationTarget.USER_LOCAL) {
 			actions.push(this._instantiationService.createInstance(ApplySettingToAllProfilesAction, setting));
 		}
 		if (this._userDataSyncEnablementService.isEnabled() && !setting.disallowSyncIgnore) {
@@ -2560,6 +2560,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
+				scrollToActiveElement: true,
 				identityProvider: {
 					getId(e) {
 						return e.id;

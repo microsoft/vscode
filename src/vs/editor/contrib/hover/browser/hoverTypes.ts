@@ -13,6 +13,7 @@ import { Range } from '../../../common/core/range.js';
 import { IModelDecoration } from '../../../common/model.js';
 import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
 import { HoverStartSource } from './hoverOperation.js';
+import { ScrollEvent } from '../../../../base/common/scrollable.js';
 
 export interface IHoverPart {
 	/**
@@ -103,11 +104,15 @@ export interface IEditorHoverContext {
 	/**
 	 * Set the minimum dimensions of the resizable hover
 	 */
-	setMinimumDimensions?(dimensions: Dimension): void;
+	setMinimumDimensions(dimensions: Dimension): void;
 	/**
 	 * Hide the hover.
 	 */
 	hide(): void;
+	/**
+	 * Focus the hover.
+	 */
+	focus(): void;
 }
 
 export interface IEditorHoverRenderContext extends IEditorHoverContext {
@@ -163,6 +168,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
 	handleHide?(): void;
+	handleScroll?(e: ScrollEvent): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;

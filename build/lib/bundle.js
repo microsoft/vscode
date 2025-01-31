@@ -3,12 +3,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bundle = bundle;
 exports.removeAllTSBoilerplate = removeAllTSBoilerplate;
-const fs = require("fs");
-const path = require("path");
-const vm = require("vm");
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const vm_1 = __importDefault(require("vm"));
 /**
  * Bundle `entryPoints` given config `config`.
  */
@@ -30,8 +33,8 @@ function bundle(entryPoints, config, callback) {
             allMentionedModulesMap[excludedModule] = true;
         });
     });
-    const code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
-    const r = vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
+    const code = require('fs').readFileSync(path_1.default.join(__dirname, '../../src/vs/loader.js'));
+    const r = vm_1.default.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
     const loaderModule = { exports: {} };
     r.call({}, require, loaderModule, loaderModule.exports);
     const loader = loaderModule.exports;
@@ -149,7 +152,7 @@ function extractStrings(destFiles) {
                 _path = pieces[0];
             }
             if (/^\.\//.test(_path) || /^\.\.\//.test(_path)) {
-                const res = path.join(path.dirname(module), _path).replace(/\\/g, '/');
+                const res = path_1.default.join(path_1.default.dirname(module), _path).replace(/\\/g, '/');
                 return prefix + res;
             }
             return prefix + _path;
@@ -224,7 +227,7 @@ function removeAllDuplicateTSBoilerplate(destFiles) {
     return destFiles;
 }
 function removeAllTSBoilerplate(source) {
-    const seen = new Array(BOILERPLATE.length).fill(true, 0, 10);
+    const seen = new Array(BOILERPLATE.length).fill(true, 0, BOILERPLATE.length);
     return removeDuplicateTSBoilerplate(source, seen);
 }
 // Taken from typescript compiler => emitFiles
@@ -239,6 +242,8 @@ const BOILERPLATE = [
     { start: /^var __createBinding/, end: /^}\)\);$/ },
     { start: /^var __setModuleDefault/, end: /^}\);$/ },
     { start: /^var __importStar/, end: /^};$/ },
+    { start: /^var __addDisposableResource/, end: /^};$/ },
+    { start: /^var __disposeResources/, end: /^}\);$/ },
 ];
 function removeDuplicateTSBoilerplate(source, SEEN_BOILERPLATE = []) {
     const lines = source.split(/\r\n|\n|\r/);
@@ -357,7 +362,7 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
 }
 function readFileAndRemoveBOM(path) {
     const BOM_CHAR_CODE = 65279;
-    let contents = fs.readFileSync(path, 'utf8');
+    let contents = fs_1.default.readFileSync(path, 'utf8');
     // Remove BOM
     if (contents.charCodeAt(0) === BOM_CHAR_CODE) {
         contents = contents.substring(1);

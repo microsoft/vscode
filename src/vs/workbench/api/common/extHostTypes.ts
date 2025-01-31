@@ -7,7 +7,7 @@
 
 import type * as vscode from 'vscode';
 import { asArray, coalesceInPlace, equals } from '../../../base/common/arrays.js';
-import { illegalArgument } from '../../../base/common/errors.js';
+import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from '../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -22,6 +22,7 @@ import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../.
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
+import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 
 /**
  * @deprecated
@@ -765,6 +766,8 @@ export class SnippetTextEdit implements vscode.SnippetTextEdit {
 
 	snippet: SnippetString;
 
+	keepWhitespace?: boolean;
+
 	constructor(range: Range, snippet: SnippetString) {
 		this.range = range;
 		this.snippet = snippet;
@@ -808,6 +811,7 @@ export interface IFileSnippetTextEdit {
 	readonly range: vscode.Range;
 	readonly edit: vscode.SnippetString;
 	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly keepWhitespace?: boolean;
 }
 
 export interface IFileCellEdit {
@@ -937,7 +941,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 						this.replaceNotebookCells(uri, edit.range, edit.newCells, metadata);
 					}
 				} else if (SnippetTextEdit.isSnippetTextEdit(edit)) {
-					this._edits.push({ _type: FileEditType.Snippet, uri, range: edit.range, edit: edit.snippet, metadata });
+					this._edits.push({ _type: FileEditType.Snippet, uri, range: edit.range, edit: edit.snippet, metadata, keepWhitespace: edit.keepWhitespace });
 
 				} else {
 					this._edits.push({ _type: FileEditType.Text, uri, edit, metadata });
@@ -1943,11 +1947,15 @@ export enum DecorationRangeBehavior {
 }
 
 export namespace TextEditorSelectionChangeKind {
-	export function fromValue(s: string | undefined) {
+	export function fromValue(s: TextEditorSelectionSource | string | undefined) {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api': return TextEditorSelectionChangeKind.Command;
+			case 'api':
+			case TextEditorSelectionSource.PROGRAMMATIC:
+			case TextEditorSelectionSource.JUMP:
+			case TextEditorSelectionSource.NAVIGATION:
+				return TextEditorSelectionChangeKind.Command;
 		}
 		return undefined;
 	}
@@ -2065,6 +2073,22 @@ export enum TerminalShellExecutionCommandLineConfidence {
 	Low = 0,
 	Medium = 1,
 	High = 2
+}
+
+export enum TerminalShellType {
+	Sh = 1,
+	Bash = 2,
+	Fish = 3,
+	Csh = 4,
+	Ksh = 5,
+	Zsh = 6,
+	CommandPrompt = 7,
+	GitBash = 8,
+	PowerShell = 9,
+	Python = 10,
+	Julia = 11,
+	NuShell = 12,
+	Node = 13
 }
 
 export class TerminalLink implements vscode.TerminalLink {
@@ -2338,7 +2362,9 @@ export class ShellExecution implements vscode.ShellExecution {
 				throw illegalArgument('command');
 			}
 			this._command = arg0;
-			this._args = arg1 as (string | vscode.ShellQuotedString)[];
+			if (arg1) {
+				this._args = arg1;
+			}
 			this._options = arg2;
 		} else {
 			if (typeof arg0 !== 'string') {
@@ -2375,7 +2401,7 @@ export class ShellExecution implements vscode.ShellExecution {
 		return this._args;
 	}
 
-	set args(value: (string | vscode.ShellQuotedString)[]) {
+	set args(value: (string | vscode.ShellQuotedString)[] | undefined) {
 		this._args = value || [];
 	}
 
@@ -2943,6 +2969,7 @@ export enum DocumentPasteTriggerKind {
 export class DocumentDropOrPasteEditKind {
 	static Empty: DocumentDropOrPasteEditKind;
 	static Text: DocumentDropOrPasteEditKind;
+	static TextUpdateImports: DocumentDropOrPasteEditKind;
 
 	private static sep = '.';
 
@@ -2964,6 +2991,7 @@ export class DocumentDropOrPasteEditKind {
 }
 DocumentDropOrPasteEditKind.Empty = new DocumentDropOrPasteEditKind('');
 DocumentDropOrPasteEditKind.Text = new DocumentDropOrPasteEditKind('text');
+DocumentDropOrPasteEditKind.TextUpdateImports = DocumentDropOrPasteEditKind.Text.append('updateImports');
 
 export class DocumentPasteEdit {
 
@@ -4673,9 +4701,11 @@ export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
 export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	mimeType: string;
 	data: () => Thenable<Uint8Array>;
-	constructor(mimeType: string, data: () => Thenable<Uint8Array>) {
+	reference?: vscode.Uri;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri) {
 		this.mimeType = mimeType;
 		this.data = data;
+		this.reference = reference;
 	}
 }
 
@@ -4838,6 +4868,8 @@ export class LanguageModelChatAssistantMessage {
 
 export class LanguageModelError extends Error {
 
+	static readonly #name = 'LanguageModelError';
+
 	static NotFound(message?: string): LanguageModelError {
 		return new LanguageModelError(message, LanguageModelError.NotFound.name);
 	}
@@ -4850,11 +4882,18 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.Blocked.name);
 	}
 
+	static tryDeserialize(data: SerializedError): LanguageModelError | undefined {
+		if (data.name !== LanguageModelError.#name) {
+			return undefined;
+		}
+		return new LanguageModelError(data.message, data.code, data.cause);
+	}
+
 	readonly code: string;
 
 	constructor(message?: string, code?: string, cause?: Error) {
 		super(message, { cause });
-		this.name = 'LanguageModelError';
+		this.name = LanguageModelError.#name;
 		this.code = code ?? '';
 	}
 

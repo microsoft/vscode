@@ -63,6 +63,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly noRecentEntry?: boolean;
 
 	readonly addMode?: boolean;
+	readonly removeMode?: boolean;
 
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
@@ -71,8 +72,9 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly waitMarkerFileURI?: URI;
 }
 
-export interface IAddFoldersRequest {
+export interface IAddRemoveFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
+	readonly foldersToRemove: UriComponents[];
 }
 
 interface IOpenedWindow {
@@ -185,10 +187,14 @@ export const enum CustomTitleBarVisibility {
 	NEVER = 'never',
 }
 
+export let titlebarStyleDefaultOverride: 'custom' | undefined = undefined;
+export function overrideDefaultTitlebarStyle(style: 'custom'): void {
+	titlebarStyleDefaultOverride = style;
+}
+
 export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
 	// Returns if it possible to have a custom title bar in the curren session
 	// Does not imply that the title bar is visible
-
 	return true;
 }
 
@@ -196,6 +202,7 @@ export function hasNativeTitlebar(configurationService: IConfigurationService, t
 	if (!titleBarStyle) {
 		titleBarStyle = getTitleBarStyle(configurationService);
 	}
+
 	return titleBarStyle === TitlebarStyle.NATIVE;
 }
 
@@ -220,6 +227,10 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 		if (style === TitlebarStyle.NATIVE || style === TitlebarStyle.CUSTOM) {
 			return style;
 		}
+	}
+
+	if (titlebarStyleDefaultOverride === 'custom') {
+		return TitlebarStyle.CUSTOM;
 	}
 
 	return isLinux && product.quality === 'stable' ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all OS except Linux stable (for now)
@@ -393,6 +404,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	autoDetectHighContrast?: boolean;
 	autoDetectColorScheme?: boolean;
 	isCustomZoomLevel?: boolean;
+	overrideDefaultTitlebarStyle?: 'custom';
 
 	perfMarks: PerformanceMark[];
 

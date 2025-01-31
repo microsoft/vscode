@@ -14,7 +14,9 @@
     "Other"
   ],
   "enabledApiProposals": [
-    "terminalCompletionProvider"
+    "terminalCompletionProvider",
+    "terminalShellEnv",
+    "terminalShellType"
   ],
   "scripts": {
     "compile": "npx gulp compile-extension:terminal-suggest",

@@ -159,7 +159,7 @@ function deletedCharacters(changes: readonly IDiffChange[]): number {
  *
  * The parenthesis are preprocessed to ensure that they match correctly.
  */
-function smartDiff(originalValue: string, newValue: string, smartBracketMatching: boolean): (readonly IDiffChange[]) | undefined {
+export function smartDiff(originalValue: string, newValue: string, smartBracketMatching: boolean): (readonly IDiffChange[]) | undefined {
 	if (originalValue.length > 5000 || newValue.length > 5000) {
 		// We don't want to work on strings that are too big
 		return undefined;

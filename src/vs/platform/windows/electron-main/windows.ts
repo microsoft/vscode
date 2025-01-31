@@ -103,6 +103,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
 	addMode?: boolean;
+	removeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
@@ -193,7 +194,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			// to use on initialization, but prefer to keep things
 			// simple as it is temporary and not noticeable
 
-			const titleBarColor = themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
+			const titleBarColor = themeMainService.getWindowSplash(undefined)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
 			const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
 			options.titleBarOverlay = {

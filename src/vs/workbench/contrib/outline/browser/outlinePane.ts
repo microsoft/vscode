@@ -126,8 +126,10 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	}
 
 	override focus(): void {
-		super.focus();
-		this._tree?.domFocus();
+		this._editorControlChangePromise.then(() => {
+			super.focus();
+			this._tree?.domFocus();
+		});
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -197,17 +199,18 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		return false;
 	}
 
+	private _editorControlChangePromise: Promise<void> = Promise.resolve();
 	private _handleEditorChanged(pane: IEditorPane | undefined): void {
 		this._editorPaneDisposables.clear();
 
 		if (pane) {
 			// react to control changes from within pane (https://github.com/microsoft/vscode/issues/134008)
 			this._editorPaneDisposables.add(pane.onDidChangeControl(() => {
-				this._handleEditorControlChanged(pane);
+				this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 			}));
 		}
 
-		this._handleEditorControlChanged(pane);
+		this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 	}
 
 	private async _handleEditorControlChanged(pane: IEditorPane | undefined): Promise<void> {

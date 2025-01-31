@@ -478,6 +478,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	ok: boolean | 'default';
 
 	/**
+	 * The OK button label.
+	 */
+	okLabel: string | undefined;
+
+	/**
 	 * An event that is fired when the custom button is triggered. The custom button is a button with text rendered to the right of the input.
 	 */
 	readonly onDidCustom: Event<void>;
@@ -926,4 +931,10 @@ export interface IQuickInputService {
 	 * The current quick pick that is visible. Undefined if none is open.
 	 */
 	currentQuickInput: IQuickInput | undefined;
+
+	/**
+	 * Set the alignment of the quick input.
+	 * @param alignment either a preset or a custom alignment
+	 */
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void;
 }

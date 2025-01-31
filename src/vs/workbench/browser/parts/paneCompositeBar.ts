@@ -99,7 +99,7 @@ export class PaneCompositeBar extends Disposable {
 
 	constructor(
 		protected readonly options: IPaneCompositeBarOptions,
-		private readonly part: Parts,
+		protected readonly part: Parts,
 		private readonly paneCompositePart: IPaneCompositePart,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -795,8 +795,7 @@ class ViewContainerActivityAction extends CompositeBarAction {
 	}
 
 	private updateActivity(): void {
-		const activities = this.activityService.getViewContainerActivities(this.compositeBarActionItem.id);
-		this.activity = activities[0];
+		this.activities = this.activityService.getViewContainerActivities(this.compositeBarActionItem.id);
 	}
 
 	override async run(event: { preserveFocus: boolean }): Promise<void> {
@@ -844,7 +843,7 @@ class ViewContainerActivityAction extends CompositeBarAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
-			owner: 'sbatten';
+			owner: 'benibenj';
 			comment: 'Event logged when an activity bar action is triggered.';
 			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view in the activity bar for which the action was performed.' };
 			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was performed. e.g. "hide", "show", or "refocus"' };

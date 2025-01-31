@@ -203,6 +203,10 @@ export class LineTokens implements IViewLineTokens {
 		return new SliceLineTokens(this, startOffset, endOffset, deltaOffset);
 	}
 
+	public sliceZeroCopy(range: OffsetRange): IViewLineTokens {
+		return this.sliceAndInflate(range.start, range.endExclusive, 0);
+	}
+
 	/**
 	 * @pure
 	 * @param insertTokens Must be sorted by offset.

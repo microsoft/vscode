@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../nls.js';
-import { IDisposable, combinedDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -26,7 +26,6 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -87,17 +86,31 @@ type ExtensionUrlHandlerClassification = {
 	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
 };
 
-interface ExtensionUrlReloadHandlerEvent {
-	readonly extensionId: string;
-	readonly isRemote: boolean;
+export interface IExtensionUrlHandlerOverride {
+	canHandleURL(uri: URI): boolean;
+	handleURL(uri: URI): Promise<boolean>;
 }
 
-type ExtensionUrlReloadHandlerClassification = {
-	owner: 'sandy081';
-	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
-	readonly isRemote: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Whether the current window is a remote window' };
-	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
-};
+export class ExtensionUrlHandlerOverrideRegistry {
+
+	private static readonly handlers = new Set<IExtensionUrlHandlerOverride>();
+
+	static registerHandler(handler: IExtensionUrlHandlerOverride): IDisposable {
+		this.handlers.add(handler);
+
+		return toDisposable(() => this.handlers.delete(handler));
+	}
+
+	static getHandler(uri: URI): IExtensionUrlHandlerOverride | undefined {
+		for (const handler of this.handlers) {
+			if (handler.canHandleURL(uri)) {
+				return handler;
+			}
+		}
+
+		return undefined;
+	}
+}
 
 /**
  * This class handles URLs which are directed towards extensions.
@@ -128,7 +141,6 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
@@ -151,6 +163,14 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!isExtensionId(uri.authority)) {
 			return false;
+		}
+
+		const overrideHandler = ExtensionUrlHandlerOverrideRegistry.getHandler(uri);
+		if (overrideHandler) {
+			const handled = await overrideHandler.handleURL(uri);
+			if (handled) {
+				return handled;
+			}
 		}
 
 		const extensionId = uri.authority;
@@ -283,7 +303,6 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		/* Extension cannot be added and require window reload */
 		else {
-			this.telemetryService.publicLog2<ExtensionUrlReloadHandlerEvent, ExtensionUrlReloadHandlerClassification>('uri_invoked/install_extension/reload', { extensionId, isRemote: !!this.workbenchEnvironmentService.remoteAuthority });
 			const result = await this.dialogService.confirm({
 				message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extensionId),
 				primaryButton: localize({ key: 'reloadAndOpen', comment: ['&& denotes a mnemonic'] }, "&&Reload Window and Open")

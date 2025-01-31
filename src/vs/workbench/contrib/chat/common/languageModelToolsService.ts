@@ -34,6 +34,7 @@ export interface IToolInvocation {
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
+	chatRequestId?: string;
 }
 
 export interface IToolInvocationContext {
@@ -65,6 +66,8 @@ export interface IToolConfirmationMessages {
 
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
+	pastTenseMessage?: string | IMarkdownString;
+	tooltip?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 }
 
@@ -86,4 +89,5 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	cancelToolCallsForRequest(requestId: string): void;
 }

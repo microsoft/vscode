@@ -19,7 +19,7 @@ import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPositio
 import { TextModelResolverService } from '../../services/textmodelResolver/common/textModelResolverService.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { IEditorOptions, IResourceEditorInput, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from '../../../platform/editor/common/editor.js';
-import { IUntitledTextEditorService, UntitledTextEditorService } from '../../services/untitled/common/untitledTextEditorService.js';
+import { IUntitledTextEditorModelManager, IUntitledTextEditorService, UntitledTextEditorService } from '../../services/untitled/common/untitledTextEditorService.js';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent, IWillShutdownEventJoiner } from '../../services/lifecycle/common/lifecycle.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
@@ -160,7 +160,7 @@ import { ILayoutOffsetInfo } from '../../../platform/layout/browser/layoutServic
 import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
-import { EnablementState, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
 import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo, UninstallExtensionInfo } from '../../../platform/extensionManagement/common/extensionManagement.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
@@ -414,7 +414,7 @@ export class TestTextFileService extends BrowserTextFileService {
 
 	constructor(
 		@IFileService fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorModelManager,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
@@ -2134,6 +2134,7 @@ export class TestQuickInputService implements IQuickInputService {
 	accept(): Promise<void> { throw new Error('not implemented.'); }
 	back(): Promise<void> { throw new Error('not implemented.'); }
 	cancel(): Promise<void> { throw new Error('not implemented.'); }
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void { throw new Error('not implemented.'); }
 }
 
 class TestLanguageDetectionService implements ILanguageDetectionService {
@@ -2226,9 +2227,6 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
-		throw new Error('Method not implemented.');
-	}
 	async getInstalled(type?: ExtensionType | undefined): Promise<ILocalExtension[]> { return []; }
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
 		throw new Error('Method not implemented.');
@@ -2249,6 +2247,12 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
 	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }
 	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> { throw new Error('Method not implemented.'); }
+	getInstallableServers(extension: IGalleryExtension): Promise<IExtensionManagementServer[]> { throw new Error('Method not implemented.'); }
+	isPublisherTrusted(extension: IGalleryExtension): boolean { return false; }
+	getTrustedPublishers() { return []; }
+	trustPublishers(): void { }
+	untrustPublishers(): void { }
+	async requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void> { }
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {

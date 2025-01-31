@@ -40,6 +40,7 @@ import { INotebookKernelService } from '../../common/notebookKernelService.js';
 import { ICellRange } from '../../common/notebookRange.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { NotebookInlineVariablesController } from '../contrib/notebookVariables/notebookInlineVariables.js';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -338,6 +339,9 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 		if (clearExecutionMetadataEdits.length) {
 			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
 		}
+
+		const controller = editor.getContribution<NotebookInlineVariablesController>(NotebookInlineVariablesController.id);
+		controller.clearNotebookInlineDecorations();
 	}
 });
 
