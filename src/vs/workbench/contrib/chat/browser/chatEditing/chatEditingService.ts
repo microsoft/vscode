@@ -5,7 +5,7 @@
 
 import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
 import { AsyncIterableSource } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -38,7 +38,7 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
@@ -65,11 +65,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}
 		return result;
 	});
-
-	private readonly _currentAutoApplyOperationObs = observableValue<CancellationTokenSource | null>(this, null);
-	get currentAutoApplyOperation(): CancellationTokenSource | null {
-		return this._currentAutoApplyOperationObs.get();
-	}
 
 	get currentEditingSession(): IChatEditingSession | null {
 		return this._currentSessionObs.get();
@@ -149,9 +144,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._register(bindContextKey(inChatEditingSessionContextKey, contextKeyService, (reader) => {
 			return this._currentSessionObs.read(reader) !== null;
 		}));
-		this._register(bindContextKey(applyingChatEditsContextKey, contextKeyService, (reader) => {
-			return this._currentAutoApplyOperationObs.read(reader) !== null;
-		}));
+
 		this._register(bindContextKey(ChatContextKeys.chatEditingCanUndo, contextKeyService, (r) => {
 			return this._currentSessionObs.read(r)?.canUndo.read(r) || false;
 		}));
@@ -317,94 +310,99 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 
 		const handleResponseParts = async (responseModel: IChatResponseModel) => {
+
+			if (responseModel.isCanceled) {
+				return;
+			}
+
 			for (const part of responseModel.response.value) {
-				if (part.kind === 'codeblockUri' || part.kind === 'textEditGroup') {
-					// ensure editor is open asap
-					if (!editedFilesExist.get(part.uri)) {
-						const uri = part.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(part.uri)?.notebook ?? part.uri : part.uri;
-						editedFilesExist.set(part.uri, this._fileService.exists(uri).then((e) => {
-							if (e) {
-								this._editorService.openEditor({ resource: uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+				if (part.kind !== 'codeblockUri' && part.kind !== 'textEditGroup') {
+					continue;
+				}
+				// ensure editor is open asap
+				if (!editedFilesExist.get(part.uri)) {
+					const uri = part.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(part.uri)?.notebook ?? part.uri : part.uri;
+					editedFilesExist.set(part.uri, this._fileService.exists(uri).then((e) => {
+						if (e) {
+							this._editorService.openEditor({ resource: uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+						}
+						return e;
+					}));
+				}
+
+				// get new edits and start editing session
+				const first = editsSeen.size === 0;
+				let entry = editsSeen.get(part.uri);
+				if (!entry) {
+					entry = { seen: 0 };
+					editsSeen.set(part.uri, entry);
+				}
+
+				const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
+				const newEdits = allEdits.slice(entry.seen);
+				entry.seen += newEdits.length;
+
+				if (newEdits.length > 0 || entry.seen === 0) {
+					// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
+					editsSource ??= new AsyncIterableSource();
+					editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+				}
+
+				if (first) {
+
+					await editsPromise;
+
+					editsPromise = this._continueEditingSession(session, async (builder) => {
+						for await (const item of editsSource!.asyncIterable) {
+							if (responseModel.isCanceled) {
+								break;
 							}
-							return e;
-						}));
-					}
-
-					// get new edits and start editing session
-					const first = editsSeen.size === 0;
-					let entry = editsSeen.get(part.uri);
-					if (!entry) {
-						entry = { seen: 0 };
-						editsSeen.set(part.uri, entry);
-					}
-
-					const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
-					const newEdits = allEdits.slice(entry.seen);
-					entry.seen += newEdits.length;
-
-					if (newEdits.length > 0 || entry.seen === 0) {
-						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
-						editsSource ??= new AsyncIterableSource();
-						editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
-					}
-
-					if (first) {
-
-						await editsPromise;
-
-						editsPromise = this._continueEditingSession(session, async (builder, token) => {
-							for await (const item of editsSource!.asyncIterable) {
-								if (responseModel.isCanceled) {
-									break;
-								}
-								if (token.isCancellationRequested) {
-									break;
-								}
-								if (item.edits.length === 0) {
-									// EMPTY edit, just signal via empty edits that work is starting
-									builder.textEdits(item.uri, [], item.done ?? false, responseModel);
-									continue;
-								}
-								for (let i = 0; i < item.edits.length; i++) {
-									const group = item.edits[i];
-									const isLastGroup = i === item.edits.length - 1;
-									builder.textEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
-								}
+							if (item.edits.length === 0) {
+								// EMPTY edit, just signal via empty edits that work is starting
+								builder.textEdits(item.uri, [], item.done ?? false, responseModel);
+								continue;
 							}
-						}).finally(() => {
-							editsPromise = undefined;
-						});
-					}
+							for (let i = 0; i < item.edits.length; i++) {
+								const group = item.edits[i];
+								const isLastGroup = i === item.edits.length - 1;
+								builder.textEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
+							}
+						}
+					}).finally(() => {
+						editsPromise = undefined;
+					});
 				}
 			}
 		};
 
 		observerDisposables.add(chatModel.onDidChange(async e => {
-			if (e.kind === 'addRequest') {
-				session.createSnapshot(e.request.id);
-				this._applyingChatEditsFailedContextKey.set(false);
-				const responseModel = e.request.response;
-				if (responseModel) {
+			if (e.kind !== 'addRequest') {
+				return;
+			}
+			session.createSnapshot(e.request.id);
+			this._applyingChatEditsFailedContextKey.set(false);
+			const responseModel = e.request.response;
+			if (!responseModel) {
+				return;
+			}
+			if (responseModel.isComplete) {
+				await handleResponseParts(responseModel);
+				onResponseComplete(responseModel);
+			} else {
+				const disposable = observerDisposables.add(responseModel.onDidChange(async () => {
+					await handleResponseParts(responseModel);
 					if (responseModel.isComplete) {
-						await handleResponseParts(responseModel);
 						onResponseComplete(responseModel);
-					} else {
-						const disposable = responseModel.onDidChange(async () => {
-							await handleResponseParts(responseModel);
-							if (responseModel.isComplete) {
-								onResponseComplete(responseModel);
-								disposable.dispose();
-							}
-						});
+						observerDisposables.delete(disposable);
 					}
-				}
+				}));
 			}
 		}));
 		observerDisposables.add(chatModel.onDidDispose(() => observerDisposables.dispose()));
 		return observerDisposables;
 	}
 
-	private async _continueEditingSession(session: ChatEditingSession, builder: (stream: IChatEditingSessionStream, token: CancellationToken) => Promise<void>): Promise<void> {
+	private async _continueEditingSession(session: ChatEditingSession, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
 		if (session.state.get() === ChatEditingSessionState.StreamingEdits) {
 			throw new BugIndicatingError('Cannot continue session that is still streaming');
 		}
@@ -415,13 +413,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			}
 		};
 		session.acceptStreamingEditsStart();
-		const cancellationTokenSource = new CancellationTokenSource();
-		this._currentAutoApplyOperationObs.set(cancellationTokenSource, undefined);
 		try {
-			await builder(stream, cancellationTokenSource.token);
+			await builder(stream);
 		} finally {
-			cancellationTokenSource.dispose();
-			this._currentAutoApplyOperationObs.set(null, undefined);
 			session.resolve();
 		}
 	}
