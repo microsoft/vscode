@@ -630,7 +630,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const welcomePart = this._register(this.instantiationService.createInstance(
 				ChatViewWelcomePart,
 				{ ...welcomeContent, tips, },
-				{ location: this.location }
+				{
+					location: this.location,
+					isWidgetWelcomeViewContent: true
+				}
 			));
 			dom.append(this.welcomeMessageContainer, welcomePart.element);
 		}
