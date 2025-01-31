@@ -22,11 +22,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -37,8 +36,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, defaultChatEditingMaxFileLimit, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
@@ -86,8 +84,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 	private _restoringEditingSession: Promise<IChatEditingSession> | undefined;
 
-	private _applyingChatEditsFailedContextKey: IContextKey<boolean | undefined>;
-
 	private _chatRelatedFilesProviders = new Map<number, IChatRelatedFilesProvider>();
 
 	constructor(
@@ -108,52 +104,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IProductService productService: IProductService,
 	) {
 		super();
-		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
-		this._applyingChatEditsFailedContextKey.set(false);
 		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this._currentSessionObs)));
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider, this._currentSessionObs)));
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingSnapshotTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider, this._currentSessionObs)));
-		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
-			const currentSession = this._currentSessionObs.read(reader);
-			if (!currentSession) {
-				return;
-			}
-			const entries = currentSession.entries.read(reader);
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Modified);
-			return decidedEntries.map(entry => entry.entryId);
-		}));
-		this._register(bindContextKey(hasUndecidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 
-			for (const session of this.editingSessionsObs.read(reader)) {
-				const entries = session.entries.read(reader);
-				const decidedEntries = entries.filter(entry => entry.state.read(reader) === WorkingSetEntryState.Modified);
-				return decidedEntries.length > 0;
-			}
 
-			return false;
-		}));
-		this._register(bindContextKey(hasAppliedChatEditsContextKey, contextKeyService, (reader) => {
-			const currentSession = this._currentSessionObs.read(reader);
-			if (!currentSession) {
-				return false;
-			}
-			const entries = currentSession.entries.read(reader);
-			return entries.length > 0;
-		}));
-		this._register(bindContextKey(inChatEditingSessionContextKey, contextKeyService, (reader) => {
-			return this._currentSessionObs.read(reader) !== null;
-		}));
-
-		this._register(bindContextKey(ChatContextKeys.chatEditingCanUndo, contextKeyService, (r) => {
-			return this._currentSessionObs.read(r)?.canUndo.read(r) || false;
-		}));
-		this._register(bindContextKey(ChatContextKeys.chatEditingCanRedo, contextKeyService, (r) => {
-			return this._currentSessionObs.read(r)?.canRedo.read(r) || false;
-		}));
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared' && this._currentSessionObs.get()?.chatSessionId === e.sessionId) {
-				this._applyingChatEditsFailedContextKey.set(false);
 				void this._currentSessionObs.get()?.stop();
 			}
 		}));
@@ -299,7 +257,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
 				// Roll back everything
 				session.restoreSnapshot(responseModel.requestId);
-				this._applyingChatEditsFailedContextKey.set(true);
 			}
 
 			editsSource?.resolve();
@@ -380,7 +337,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				return;
 			}
 			session.createSnapshot(e.request.id);
-			this._applyingChatEditsFailedContextKey.set(false);
 			const responseModel = e.request.response;
 			if (!responseModel) {
 				return;

@@ -100,6 +100,8 @@ export interface IChatEditingSession {
 	 */
 	stop(clearState?: boolean): Promise<void>;
 
+	readonly canUndo: IObservable<boolean>;
+	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
 }
@@ -125,6 +127,7 @@ export const enum ChatEditingSessionChangeType {
 }
 
 export interface IModifiedFileEntry {
+	readonly entryId: string;
 	readonly originalURI: URI;
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
