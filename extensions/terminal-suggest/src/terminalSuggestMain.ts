@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec, ExecOptionsWithStringEncoding, execSync } from 'child_process';
+import { exec, ExecOptionsWithStringEncoding, execSync, spawnSync } from 'child_process';
 import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
@@ -45,11 +45,27 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 			return;
 		}
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
-		let commands: string[] | undefined;
+		let commands: (string | ICompletionResource)[] | undefined;
 		switch (shellType) {
 			case TerminalShellType.Bash: {
 				const bashOutput = execSync('compgen -b', options);
 				commands = bashOutput.split('\n').filter(filter);
+
+				// This must be run with interactive, otherwise there's a good chance aliases won't
+				// be set up
+				const bashOutput2 = spawnSync('bash', ['-ic', 'alias'], options).stdout;
+				for (const line of bashOutput2.split('\n')) {
+					const match = line.match(/^alias (?<alias>[a-zA-Z]+)='(?<resolved>.+)'$/);
+					if (!match?.groups) {
+						continue;
+					}
+					commands.push({
+						label: match.groups.alias,
+						detail: match.groups.resolved,
+						kind: vscode.TerminalCompletionItemKind.Alias,
+					});
+				}
+
 				break;
 			}
 			case TerminalShellType.Zsh: {
@@ -89,6 +105,7 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 							return {
 								label: e.Name,
 								detail: e.DisplayName,
+								kind: vscode.TerminalCompletionItemKind.Alias,
 							};
 						}
 						default: {
@@ -104,7 +121,7 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 			}
 		}
 
-		const commandResources = commands?.map(command => ({ label: command }));
+		const commandResources = commands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
 		cachedBuiltinCommands.set(shellType, commandResources);
 		return commandResources;
 
@@ -236,14 +253,16 @@ function createCompletionItem(cursorPosition: number, prefix: string, commandRes
 		documentation,
 		replacementIndex: cursorPosition - lastWord.length,
 		replacementLength: lastWord.length,
-		kind: kind ?? vscode.TerminalCompletionItemKind.Method
+		kind: kind ?? commandResource.kind ?? vscode.TerminalCompletionItemKind.Method
 	};
 }
 
 interface ICompletionResource {
 	label: string;
 	detail?: string;
+	kind?: vscode.TerminalCompletionItemKind;
 }
+
 async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 	const labels: Set<string> = new Set<string>();
 	let pathValue: string | undefined;

@@ -241,9 +241,14 @@ __vsc_continuation_end() {
 	builtin printf '\e]633;G\a'
 }
 
+__vsc_report_aliases() {
+	builtin printf '\e]633;P;Aliases=%s\a' "$(__vsc_escape_value "$(alias -p)")" $__vsc_nonce
+}
+
 __vsc_command_complete() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
 		__vsc_update_cwd
+		__vsc_report_aliases
 		builtin return
 	fi
 	if [ "$__vsc_current_command" = "" ]; then
