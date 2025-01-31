@@ -752,7 +752,7 @@ suite.skip('File Watcher (parcel)', function () {
 		await testWatchFolderDoesNotExist(false);
 	});
 
-	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, does not exist in beginning, reusing watcher)', async () => {
+	test('watch requests support suspend/resume (folder, does not exist in beginning, reusing watcher)', async () => {
 		await testWatchFolderDoesNotExist(true);
 	});
 
@@ -809,7 +809,7 @@ suite.skip('File Watcher (parcel)', function () {
 		await testWatchFolderExists(false);
 	});
 
-	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, exist in beginning, reusing watcher)', async () => {
+	test('watch requests support suspend/resume (folder, exist in beginning, reusing watcher)', async () => {
 		await testWatchFolderExists(true);
 	});
 
