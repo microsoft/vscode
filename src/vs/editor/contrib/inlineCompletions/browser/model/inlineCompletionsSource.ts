@@ -378,8 +378,9 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	private _toIndividualEdits(editRange: Range, _replaceText: string): OffsetEdit {
+		const eol = this._textModel.getEOL();
 		const editOriginalText = this._textModel.getValueInRange(editRange);
-		const editReplaceText = _replaceText.replace(/\r\n|\r|\n/g, this._textModel.getEOL());
+		const editReplaceText = _replaceText.replace(/\r\n|\r|\n/g, eol);
 
 		const diffAlgorithm = linesDiffComputers.getDefault();
 		const lineDiffs = diffAlgorithm.computeDiff(
@@ -414,7 +415,15 @@ export class InlineCompletionWithUpdatedRange {
 				const startOffset = this._textModel.getOffsetAt(range.getStartPosition());
 				const endOffset = this._textModel.getOffsetAt(range.getEndPosition());
 				const originalRange = OffsetRange.ofStartAndLength(startOffset, endOffset - startOffset);
-				return new SingleOffsetEdit(originalRange, modifiedText.getValueOfRange(c.modifiedRange));
+
+				// TODO: EOL are not properly trimmed by the diffAlgorithm #12680
+				const replaceText = modifiedText.getValueOfRange(c.modifiedRange);
+				const oldText = this._textModel.getValueInRange(range);
+				if (replaceText.endsWith(eol) && oldText.endsWith(eol)) {
+					return new SingleOffsetEdit(originalRange.deltaEnd(-eol.length), replaceText.slice(0, -eol.length));
+				}
+
+				return new SingleOffsetEdit(originalRange, replaceText);
 			})
 		);
 	}
