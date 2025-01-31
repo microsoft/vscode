@@ -86,6 +86,8 @@ import { PromptFilesConfig } from '../common/promptSyntax/config.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -228,16 +230,19 @@ class ChatAgentSettingContribution implements IWorkbenchContribution {
 	constructor(
 		@IWorkbenchAssignmentService experimentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		if (this.productService.quality !== 'stable') {
 			this.registerSetting();
 		}
 
+		const expDisabledKey = ChatContextKeys.Editing.agentModeDisallowed.bindTo(contextKeyService);
 		experimentService.getTreatment<boolean>('chatAgentEnabled').then(value => {
 			if (value) {
 				this.registerSetting();
 			} else if (value === false) {
 				this.deregisterSetting();
+				expDisabledKey.set(true);
 			}
 		});
 	}
