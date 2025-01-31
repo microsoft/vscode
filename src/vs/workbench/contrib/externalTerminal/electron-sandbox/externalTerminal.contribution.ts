@@ -107,7 +107,7 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 					enumDescriptions: [
 						nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
 						nls.localize('terminal.explorerKind.external', "Use the configured external terminal."),
-						nls.localize('terminal.explorerKind.both', "Use the other two together.")
+						nls.localize('terminal.explorerKind.both', "Show both integrated and external terminal actions.")
 					],
 					description: nls.localize('explorer.openInTerminalKind', "When opening a file from the Explorer in a terminal, determines what kind of terminal will be launched"),
 					default: 'integrated'
@@ -122,7 +122,7 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 					enumDescriptions: [
 						nls.localize('terminal.sourceControlRepositoriesKind.integrated', "Use VS Code's integrated terminal."),
 						nls.localize('terminal.sourceControlRepositoriesKind.external', "Use the configured external terminal."),
-						nls.localize('terminal.sourceControlRepositoriesKind.both', "Use the other two together.")
+						nls.localize('terminal.sourceControlRepositoriesKind.both', "Show both integrated and external terminal actions.")
 					],
 					description: nls.localize('sourceControlRepositories.openInTerminalKind', "When opening a repository from the Source Control Repositories view in a terminal, determines what kind of terminal will be launched"),
 					default: 'integrated'
