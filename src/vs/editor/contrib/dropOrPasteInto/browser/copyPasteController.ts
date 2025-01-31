@@ -278,6 +278,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 
 		const metadata = this.fetchCopyMetadata(e);
+		console.log('metadata : ', metadata);
 		const dataTransfer = toExternalVSDataTransfer(e.clipboardData);
 		dataTransfer.delete(vscodeClipboardMime);
 
@@ -292,6 +293,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			// We filter providers again once we have the final dataTransfer we will use.
 			Mimes.uriList,
 		];
+		console.log('allPotentialMimeTypes : ', allPotentialMimeTypes);
 
 		const allProviders = this._languageFeaturesService.documentPasteEditProvider
 			.ordered(model)
@@ -307,6 +309,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				// And providers that don't handle any of mime types in the clipboard
 				return provider.pasteMimeTypes?.some(type => matchesMimeType(type, allPotentialMimeTypes));
 			});
+		console.log('allProviders : ', allProviders);
 		if (!allProviders.length) {
 			if (this._pasteAsActionContext?.preferred) {
 				this.showPasteAsNoEditMessage(selections, this._pasteAsActionContext.preferred);
@@ -342,6 +345,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, clipboardEvent: ClipboardEvent): void {
+		console.log('doPasteInline');
 		const editor = this._editor;
 		if (!editor.hasModel()) {
 			return;
@@ -445,6 +449,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private showPasteAsPick(preference: PastePreference | undefined, allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined): void {
+		console.log('showPasteAsPick');
 		const p = createCancelablePromise(async (token) => {
 			const editor = this._editor;
 			if (!editor.hasModel()) {
@@ -661,6 +666,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken, clipboardEvent: ClipboardEvent) {
+		console.log('applyDefaultPasteHandler');
+		console.log('dataTransfer : ', dataTransfer);
+		console.log('metadata : ', metadata);
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
 		const text = (await textDataTransfer?.asString()) ?? '';
 		if (token.isCancellationRequested) {

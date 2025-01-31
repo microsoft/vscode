@@ -93,6 +93,8 @@ interface InMemoryClipboardMetadata {
 export const ClipboardEventUtils = {
 
 	getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
+		console.log('getTextData');
+		console.log('clipboardData : ', clipboardData);
 		const text = clipboardData.getData(Mimes.text);
 		let metadata: ClipboardStoredMetadata | null = null;
 		const rawmetadata = clipboardData.getData('vscode-editor-data');
@@ -111,6 +113,8 @@ export const ClipboardEventUtils = {
 			const files: File[] = Array.prototype.slice.call(clipboardData.files, 0);
 			return [files.map(file => file.name).join('\n'), null];
 		}
+		console.log('text: ', text);
+		console.log('metadata: ', metadata);
 		return [text, metadata];
 	},
 

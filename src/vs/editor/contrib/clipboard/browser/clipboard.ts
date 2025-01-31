@@ -210,9 +210,11 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 			if (focusedEditor.getOption(EditorOption.experimentalEditContextEnabled) && browserCommand === 'cut') {
 				// execCommand(copy) works for edit context, but not execCommand(cut).
 				// do the normal copy, but trigger the cut command from the editor
+				console.log('before execCommand : copy');
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
 				focusedEditor.trigger(undefined, Handler.Cut, undefined);
 			} else {
+				console.log('before execCommand : ', browserCommand);
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
 			}
 			return true;
@@ -233,6 +235,7 @@ registerExecCommandImpl(CopyAction, 'copy');
 if (PasteAction) {
 	// 1. Paste: handle case when focus is in editor.
 	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
+		console.log('PasteAction.addImplementation');
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 
@@ -242,6 +245,7 @@ if (PasteAction) {
 			// execCommand(paste) does not work with edit context
 			let result: boolean;
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
+			console.log('experimentalEditContextEnabled ', experimentalEditContextEnabled);
 			if (experimentalEditContextEnabled) {
 				// Since we can not call execCommand('paste') on a dom node with edit context set
 				// we added a hidden text area that receives the paste execution
@@ -269,6 +273,7 @@ if (PasteAction) {
 				// otherwise directly execute the paste command, where the original text area is focused, and so the paste command is done on the hidden text area
 				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
 			}
+			console.log('result : ', result);
 			if (result) {
 				// if the result is true, so pasting worked, then finish the paste
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
@@ -278,6 +283,7 @@ if (PasteAction) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();
+					console.log('clipboardText : ', clipboardText);
 					if (clipboardText !== '') {
 						// fetching the text from the instance of the in memory clipboard metadata manager
 						// singleton
@@ -290,7 +296,6 @@ if (PasteAction) {
 							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 							mode = metadata.mode;
 						}
-						console.log('clipboardText : ', clipboardText);
 						console.log('pasteOnNewLine : ', pasteOnNewLine);
 						console.log('multicursorText : ', multicursorText);
 						console.log('mode : ', mode);
