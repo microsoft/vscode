@@ -82,6 +82,7 @@ import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from 
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatEditorOverlayController } from './chatEditing/chatEditingEditorOverlay.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
+import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
 import { PromptFilesConfig } from '../common/promptSyntax/config.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
