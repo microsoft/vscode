@@ -55,7 +55,7 @@ const pwshCommandTypeToCompletionKind: Map<PwshCommandType, vscode.TerminalCompl
 ]);
 
 async function getAliases(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<ICompletionResource[]> {
-	const output = await execHelper('Get-Command -CommandType Alias | Select-Object Name, CommandType, Definition, ModuleName, @{Name="Version";Expression={$_.Version.ToString()}} | ConvertTo-Json', {
+	const output = await execHelper('Get-Command -CommandType Alias | Select-Object Name, CommandType, Definition, DisplayName, ModuleName, @{Name="Version";Expression={$_.Version.ToString()}} | ConvertTo-Json', {
 		...options,
 		maxBuffer: 1024 * 1024 * 100 // This is a lot of content, increase buffer size
 	});
@@ -67,9 +67,11 @@ async function getAliases(options: ExecOptionsWithStringEncoding, existingComman
 		return [];
 	}
 	return (json as any[]).map(e => {
+		// Aliases sometimes use the same Name and DisplayName, show them as methods in this case.
+		const isAlias = e.Name !== e.DisplayName;
 		const detailParts: string[] = [];
 		if (e.Definition) {
-			detailParts.push(e.Definition);
+			detailParts.push(isAlias ? `→ ${e.Definition}` : e.Definition);
 		}
 		if (e.ModuleName && e.Version) {
 			detailParts.push(`${e.ModuleName} v${e.Version}`);
@@ -77,18 +79,15 @@ async function getAliases(options: ExecOptionsWithStringEncoding, existingComman
 		return {
 			label: e.Name,
 			detail: detailParts.join('\n\n'),
-			// Aliases sometimes don't have a definition and use the same DisplayName, show them as
-			// a method in this case.
-			kind: (!e.Definition
+			kind: (isAlias
 				? vscode.TerminalCompletionItemKind.Alias
 				: vscode.TerminalCompletionItemKind.Method),
 		};
-	}
-	);
+	});
 }
 
 async function getCommands(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<ICompletionResource[]> {
-	const output = await execHelper('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
+	const output = await execHelper('Get-Command -All | Select-Object Name, CommandType, Definition, ModuleName, @{Name="Version";Expression={$_.Version.ToString()}} | ConvertTo-Json', {
 		...options,
 		maxBuffer: 1024 * 1024 * 100 // This is a lot of content, increase buffer size
 	});
@@ -102,10 +101,19 @@ async function getCommands(options: ExecOptionsWithStringEncoding, existingComma
 	return (
 		(json as any[])
 			.filter(e => e.CommandType !== PwshCommandType.Alias)
-			.map(e => ({
-				label: e.Name,
-				detail: e.Definition,
-				kind: pwshCommandTypeToCompletionKind.get(e.CommandType)
-			}))
+			.map(e => {
+				const detailParts: string[] = [];
+				if (e.Definition) {
+					detailParts.push(e.Definition.trim());
+				}
+				if (e.ModuleName && e.Version) {
+					detailParts.push(`${e.ModuleName} v${e.Version}`);
+				}
+				return {
+					label: e.Name,
+					detail: detailParts.join('\n\n'),
+					kind: pwshCommandTypeToCompletionKind.get(e.CommandType)
+				};
+			})
 	);
 }
