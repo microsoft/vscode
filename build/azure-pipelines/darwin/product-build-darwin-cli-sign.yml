@@ -3,6 +3,8 @@ parameters:
     type: boolean
   - name: VSCODE_BUILD_MACOS_ARM64
     type: boolean
+  - name: VSCODE_QUALITY
+    type: string
 
 steps:
   - task: NodeTool@0
