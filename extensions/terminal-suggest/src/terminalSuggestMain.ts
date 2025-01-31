@@ -393,7 +393,7 @@ export async function getCompletionItemsFromSpecs(
 		}
 	} else {
 		const shouldShowResourceCompletions =
-			(!terminalContext.commandLine.trim() || !specificItemsProvided) &&
+			!specificItemsProvided &&
 			!filesRequested &&
 			!foldersRequested;
 		if (shouldShowResourceCompletions) {
