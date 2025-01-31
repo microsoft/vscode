@@ -7,16 +7,16 @@ import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
 import { exec, spawn, type ExecOptionsWithStringEncoding } from 'node:child_process';
 
-export async function getBashGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
+export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
-		...await getBashAliases(options),
-		...await getBashBuiltins(options, existingCommands)
+		...await getZshBuiltins(options, existingCommands),
+		...await getZshAliases(options),
 	];
 }
 
-async function getBashBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<string[]> {
+async function getZshBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<string[]> {
 	const compgenOutput = await new Promise<string>((resolve, reject) => {
-		exec('compgen -b', options, (error, stdout) => {
+		exec('printf "%s\\n" ${(k)builtins}', options, (error, stdout) => {
 			if (error) {
 				reject(error);
 			} else {
@@ -28,20 +28,20 @@ async function getBashBuiltins(options: ExecOptionsWithStringEncoding, existingC
 	return compgenOutput.split('\n').filter(filter);
 }
 
-async function getBashAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
+async function getZshAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
 	// This must be run with interactive, otherwise there's a good chance aliases won't
 	// be set up. Note that this could differ from the actual aliases as it's a new bash
 	// session, for the same reason this would not include aliases that are created
 	// by simply running `alias ...` in the terminal.
 	const aliasOutput = await new Promise<string>((resolve, reject) => {
-		const child = spawn('bash', ['-ic', 'alias'], options);
+		const child = spawn('zsh', ['-ic', 'alias'], options);
 		let stdout = '';
 		child.stdout.on('data', (data) => {
 			stdout += data;
 		});
 		child.on('close', (code) => {
 			if (code !== 0) {
-				reject(new Error(`bash process exited with code ${code}`));
+				reject(new Error(`zsh process exited with code ${code}`));
 			} else {
 				resolve(stdout);
 			}
@@ -50,7 +50,7 @@ async function getBashAliases(options: ExecOptionsWithStringEncoding): Promise<I
 
 	const result: ICompletionResource[] = [];
 	for (const line of aliasOutput.split('\n')) {
-		const match = line.match(/^alias (?<alias>[a-zA-Z0-9\.:-]+)='(?<resolved>.+)'$/);
+		const match = line.match(/^(?<alias>[a-zA-Z0-9\.:-]+)=(?:'(?<resolved>.+)'|(?<resolved>.+))$/);
 		if (!match?.groups) {
 			continue;
 		}

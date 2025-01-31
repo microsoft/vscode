@@ -244,7 +244,6 @@ __vsc_continuation_end() {
 __vsc_command_complete() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
 		__vsc_update_cwd
-		__vsc_report_aliases
 		builtin return
 	fi
 	if [ "$__vsc_current_command" = "" ]; then

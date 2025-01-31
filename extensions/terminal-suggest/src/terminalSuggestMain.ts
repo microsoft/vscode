@@ -14,6 +14,7 @@ import { osIsWindows } from './helpers/os';
 import { isExecutable } from './helpers/executable';
 import type { ICompletionResource } from './types';
 import { getBashGlobals } from './shell/bash';
+import { getZshGlobals } from './shell/zsh';
 
 const enum PwshCommandType {
 	Alias = 1
@@ -50,12 +51,11 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 		let commands: (string | ICompletionResource)[] | undefined;
 		switch (shellType) {
 			case TerminalShellType.Bash: {
-				commands = await getBashGlobals(options);
+				commands = await getBashGlobals(options, existingCommands);
 				break;
 			}
 			case TerminalShellType.Zsh: {
-				const zshOutput = execSync('printf "%s\\n" ${(k)builtins}', options);
-				commands = zshOutput.split('\n').filter(filter);
+				commands = await getZshGlobals(options, existingCommands);
 				break;
 			}
 			case TerminalShellType.Fish: {
