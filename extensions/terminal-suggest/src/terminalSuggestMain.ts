@@ -381,10 +381,7 @@ export async function getCompletionItemsFromSpecs(
 		}
 	}
 
-	const shouldShowResourceCompletions =
-		(!terminalContext.commandLine.trim() || !specificItemsProvided) &&
-		!filesRequested &&
-		!foldersRequested;
+
 
 	if (tokenType === TokenType.Command) {
 		// Include builitin/available commands in the results
@@ -394,11 +391,15 @@ export async function getCompletionItemsFromSpecs(
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
 			}
 		}
-	}
-
-	if (shouldShowResourceCompletions) {
-		filesRequested = true;
-		foldersRequested = true;
+	} else {
+		const shouldShowResourceCompletions =
+			(!terminalContext.commandLine.trim() || !specificItemsProvided) &&
+			!filesRequested &&
+			!foldersRequested;
+		if (shouldShowResourceCompletions) {
+			filesRequested = true;
+			foldersRequested = true;
+		}
 	}
 
 	let cwd: vscode.Uri | undefined;
