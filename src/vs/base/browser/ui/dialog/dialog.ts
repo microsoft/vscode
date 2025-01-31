@@ -324,10 +324,6 @@ export class Dialog extends Disposable {
 
 					// Focus next element (with wrapping)
 					if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
-						if (focusedIndex === -1) {
-							focusedIndex = 0; // default to focus first element if none have focus
-						}
-
 						const newFocusedIndex = (focusedIndex + 1) % focusableElements.length;
 						focusableElements[newFocusedIndex].focus();
 					}
