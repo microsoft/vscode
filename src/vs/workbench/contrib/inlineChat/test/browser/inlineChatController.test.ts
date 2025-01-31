@@ -841,8 +841,7 @@ suite('InlineChatController', function () {
 		const newSession = await inlineChatSessionService.createSession(editor, {}, CancellationToken.None);
 		assertType(newSession);
 
-		await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.Editor });
-
+		await (await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.Editor }))?.responseCreatedPromise;
 
 		assert.strictEqual(newSession.chatModel.requestInProgress, true);
 
