@@ -508,10 +508,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					return true;
 				}
 				switch (key) {
-					case 'Aliases': {
-						console.log('aliases', value);
-						return true;
-					}
 					case 'ContinuationPrompt': {
 						this._updateContinuationPrompt(removeAnsiEscapeCodesFromPrompt(value));
 						return true;
