@@ -71,7 +71,7 @@ async function getAliases(options: ExecOptionsWithStringEncoding, existingComman
 		const isAlias = e.Name !== e.DisplayName;
 		const detailParts: string[] = [];
 		if (e.Definition) {
-			detailParts.push(isAlias ? `→ ${e.Definition}` : e.Definition);
+			detailParts.push(e.Definition);
 		}
 		if (e.ModuleName && e.Version) {
 			detailParts.push(`${e.ModuleName} v${e.Version}`);
