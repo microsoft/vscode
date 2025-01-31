@@ -14,9 +14,45 @@ export async function getPwshGlobals(options: ExecOptionsWithStringEncoding, exi
 	];
 }
 
+/**
+ * The numeric values associated with CommandType from Get-Command. It appears that this is a
+ * bitfield based on the values but I think it's actually used as an enum where a CommandType can
+ * only be a single one of these.
+ *
+ * Source:
+ *
+ * ```
+ * [enum]::GetValues([System.Management.Automation.CommandTypes]) | ForEach-Object {
+ *     [pscustomobject]@{
+ *         Name  = $_
+ *         Value = [int]$_
+ *     }
+ * }
+ * ```
+ */
 const enum PwshCommandType {
-	Alias = 1
+	Alias = 1,
+	Function = 2,
+	Filter = 4,
+	Cmdlet = 8,
+	ExternalScript = 16,
+	Application = 32,
+	Script = 64,
+	Configuration = 256,
+	// All = 383,
 }
+
+const pwshCommandTypeToCompletionKind: Map<PwshCommandType, vscode.TerminalCompletionItemKind> = new Map([
+	[PwshCommandType.Alias, vscode.TerminalCompletionItemKind.Alias],
+	[PwshCommandType.Function, vscode.TerminalCompletionItemKind.Method],
+	[PwshCommandType.Filter, vscode.TerminalCompletionItemKind.Method],
+	[PwshCommandType.Cmdlet, vscode.TerminalCompletionItemKind.Method],
+	[PwshCommandType.ExternalScript, vscode.TerminalCompletionItemKind.Method],
+	[PwshCommandType.Application, vscode.TerminalCompletionItemKind.Method],
+	[PwshCommandType.Script, vscode.TerminalCompletionItemKind.Method],
+	[PwshCommandType.Configuration, vscode.TerminalCompletionItemKind.Argument],
+]);
+
 
 async function getCommands(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<ICompletionResource[]> {
 	const output = await execHelper('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
@@ -36,13 +72,17 @@ async function getCommands(options: ExecOptionsWithStringEncoding, existingComma
 				return {
 					label: e.Name,
 					detail: e.DisplayName,
-					kind: vscode.TerminalCompletionItemKind.Alias,
+					// Aliases sometimes return the same DisplayName, show as a method in this case.
+					kind: (e.Name === e.DisplayName
+						? vscode.TerminalCompletionItemKind.Method
+						: vscode.TerminalCompletionItemKind.Alias),
 				};
 			}
 			default: {
 				return {
 					label: e.Name,
 					detail: e.Definition,
+					kind: pwshCommandTypeToCompletionKind.get(e.CommandType)
 				};
 			}
 		}
