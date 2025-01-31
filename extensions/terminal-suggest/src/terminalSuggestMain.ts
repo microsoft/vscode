@@ -336,6 +336,7 @@ export async function getCompletionItemsFromSpecs(
 
 	const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 
+	let specificItemsProvided = false;
 	for (const spec of specs) {
 		const specLabels = getLabel(spec);
 
@@ -365,6 +366,7 @@ export async function getCompletionItemsFromSpecs(
 				items.push(...argsCompletionResult.items);
 				filesRequested ||= argsCompletionResult.filesRequested;
 				foldersRequested ||= argsCompletionResult.foldersRequested;
+				specificItemsProvided ||= true;
 			}
 			if (!argsCompletionResult?.items.length) {
 				// Arg completions are more specific, only get options if those are not provided.
@@ -373,13 +375,14 @@ export async function getCompletionItemsFromSpecs(
 					items.push(...optionsCompletionResult.items);
 					filesRequested ||= optionsCompletionResult.filesRequested;
 					foldersRequested ||= optionsCompletionResult.foldersRequested;
+					specificItemsProvided ||= true;
 				}
 			}
 		}
 	}
 
 	const shouldShowResourceCompletions =
-		(!terminalContext.commandLine.trim() || !items.length) &&
+		(!terminalContext.commandLine.trim() || !specificItemsProvided) &&
 		!filesRequested &&
 		!foldersRequested;
 
