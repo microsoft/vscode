@@ -355,7 +355,7 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			if (!terminalContext.commandLine.startsWith(specLabel)) {
+			if (!terminalContext.commandLine.startsWith(`${specLabel} `)) {
 				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
 			}
