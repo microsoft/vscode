@@ -16,11 +16,53 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { Event as BaseEvent } from '../../../base/common/event.js';
 import { Lazy } from '../../../base/common/lazy.js';
 
+export function createTextInputActions(clipboardService: IClipboardService): IAction[] {
+	return [
+
+		// Undo/Redo
+		new Action('undo', localize('undo', "Undo"), undefined, true, async () => getActiveDocument().execCommand('undo')),
+		new Action('redo', localize('redo', "Redo"), undefined, true, async () => getActiveDocument().execCommand('redo')),
+		new Separator(),
+
+		// Cut / Copy / Paste
+		new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => getActiveDocument().execCommand('cut')),
+		new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => getActiveDocument().execCommand('copy')),
+		new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
+
+			// Native: paste is supported
+			if (isNative) {
+				getActiveDocument().execCommand('paste');
+			}
+
+			// Web: paste is not supported due to security reasons
+			else {
+				const clipboardText = await clipboardService.readText();
+				if (
+					isHTMLTextAreaElement(element) ||
+					isHTMLInputElement(element)
+				) {
+					const selectionStart = element.selectionStart || 0;
+					const selectionEnd = element.selectionEnd || 0;
+
+					element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
+					element.selectionStart = selectionStart + clipboardText.length;
+					element.selectionEnd = element.selectionStart;
+					element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+				}
+			}
+		}),
+		new Separator(),
+
+		// Select All
+		new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => getActiveDocument().execCommand('selectAll'))
+	];
+}
+
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.textInputActionsProvider';
 
-	private readonly textInputActions = new Lazy<IAction[]>(() => this.createActions());
+	private readonly textInputActions = new Lazy<IAction[]>(() => createTextInputActions(this.clipboardService));
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -30,48 +72,6 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 		super();
 
 		this.registerListeners();
-	}
-
-	private createActions(): IAction[] {
-		return [
-
-			// Undo/Redo
-			new Action('undo', localize('undo', "Undo"), undefined, true, async () => getActiveDocument().execCommand('undo')),
-			new Action('redo', localize('redo', "Redo"), undefined, true, async () => getActiveDocument().execCommand('redo')),
-			new Separator(),
-
-			// Cut / Copy / Paste
-			new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => getActiveDocument().execCommand('cut')),
-			new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => getActiveDocument().execCommand('copy')),
-			new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
-
-				// Native: paste is supported
-				if (isNative) {
-					getActiveDocument().execCommand('paste');
-				}
-
-				// Web: paste is not supported due to security reasons
-				else {
-					const clipboardText = await this.clipboardService.readText();
-					if (
-						isHTMLTextAreaElement(element) ||
-						isHTMLInputElement(element)
-					) {
-						const selectionStart = element.selectionStart || 0;
-						const selectionEnd = element.selectionEnd || 0;
-
-						element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
-						element.selectionStart = selectionStart + clipboardText.length;
-						element.selectionEnd = element.selectionStart;
-						element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-					}
-				}
-			}),
-			new Separator(),
-
-			// Select All
-			new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => getActiveDocument().execCommand('selectAll'))
-		];
 	}
 
 	private registerListeners(): void {
