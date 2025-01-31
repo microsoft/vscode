@@ -9,6 +9,7 @@ properties:
       settings:
         id: Git.Git
         source: winget
+        version: "2.39.0"  # Update to the latest version
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: npm
       directives:
@@ -16,8 +17,8 @@ properties:
         allowPrerelease: true
       settings:
         id: OpenJS.NodeJS.LTS
-        version: "20.14.0"
         source: winget
+        version: "20.15.1"  # Update to the latest version
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       directives:
         description: Install Python 3.10
@@ -25,6 +26,7 @@ properties:
       settings:
         id: Python.Python.3.10
         source: winget
+        version: "3.10.11"  # Update to the latest version
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: vsPackage
       directives:
@@ -33,6 +35,7 @@ properties:
       settings:
         id: Microsoft.VisualStudio.2022.BuildTools
         source: winget
+        version: "17.4.1"  # Update to the latest version
     - resource: Microsoft.VisualStudio.DSC/VSComponents
       dependsOn:
         - vsPackage
