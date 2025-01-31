@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec, ExecOptionsWithStringEncoding, execSync } from 'child_process';
+import { exec, ExecOptionsWithStringEncoding } from 'child_process';
 import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
@@ -15,6 +15,7 @@ import { isExecutable } from './helpers/executable';
 import type { ICompletionResource } from './types';
 import { getBashGlobals } from './shell/bash';
 import { getZshGlobals } from './shell/zsh';
+import { getFishGlobals } from './shell/fish';
 
 const enum PwshCommandType {
 	Alias = 1
@@ -60,8 +61,7 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 			}
 			case TerminalShellType.Fish: {
 				// TODO: Ghost text in the command line prevents completions from working ATM for fish
-				const fishOutput = execSync('functions -n', options);
-				commands = fishOutput.split(', ').filter(filter);
+				commands = await getFishGlobals(options, existingCommands);
 				break;
 			}
 			case TerminalShellType.PowerShell: {

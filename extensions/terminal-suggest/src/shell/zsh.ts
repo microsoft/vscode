@@ -9,12 +9,12 @@ import { exec, spawn, type ExecOptionsWithStringEncoding } from 'node:child_proc
 
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
-		...await getZshBuiltins(options, existingCommands),
-		...await getZshAliases(options),
+		...await getAliases(options),
+		...await getBuiltins(options, existingCommands),
 	];
 }
 
-async function getZshBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<string[]> {
+async function getBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<string[]> {
 	const compgenOutput = await new Promise<string>((resolve, reject) => {
 		exec('printf "%s\\n" ${(k)builtins}', options, (error, stdout) => {
 			if (error) {
@@ -28,7 +28,7 @@ async function getZshBuiltins(options: ExecOptionsWithStringEncoding, existingCo
 	return compgenOutput.split('\n').filter(filter);
 }
 
-async function getZshAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
+async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
 	// This must be run with interactive, otherwise there's a good chance aliases won't
 	// be set up. Note that this could differ from the actual aliases as it's a new bash
 	// session, for the same reason this would not include aliases that are created

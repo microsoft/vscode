@@ -7,16 +7,16 @@ import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
 import { exec, spawn, type ExecOptionsWithStringEncoding } from 'node:child_process';
 
-export async function getBashGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
+export async function getFishGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
 		...await getAliases(options),
-		...await getBuiltins(options, existingCommands)
+		...await getBuiltins(options, existingCommands),
 	];
 }
 
 async function getBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<string[]> {
 	const compgenOutput = await new Promise<string>((resolve, reject) => {
-		exec('compgen -b', options, (error, stdout) => {
+		exec('functions -n', options, (error, stdout) => {
 			if (error) {
 				reject(error);
 			} else {
@@ -25,7 +25,7 @@ async function getBuiltins(options: ExecOptionsWithStringEncoding, existingComma
 		});
 	});
 	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
-	return compgenOutput.split('\n').filter(filter);
+	return compgenOutput.split(', ').filter(filter);
 }
 
 async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
@@ -34,7 +34,7 @@ async function getAliases(options: ExecOptionsWithStringEncoding): Promise<IComp
 	// session, for the same reason this would not include aliases that are created
 	// by simply running `alias ...` in the terminal.
 	const aliasOutput = await new Promise<string>((resolve, reject) => {
-		const child = spawn('bash', ['-ic', 'alias'], options);
+		const child = spawn('fish', ['-ic', 'alias'], options);
 		let stdout = '';
 		child.stdout.on('data', (data) => {
 			stdout += data;
@@ -50,7 +50,7 @@ async function getAliases(options: ExecOptionsWithStringEncoding): Promise<IComp
 
 	const result: ICompletionResource[] = [];
 	for (const line of aliasOutput.split('\n')) {
-		const match = line.match(/^alias (?<alias>[a-zA-Z0-9\.:-]+)='(?<resolved>.+)'$/);
+		const match = line.match(/^alias (?<alias>[a-zA-Z0-9\.:-]+) (?<resolved>.+)$/);
 		if (!match?.groups) {
 			continue;
 		}
