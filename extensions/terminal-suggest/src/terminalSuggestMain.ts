@@ -21,6 +21,23 @@ const enum PwshCommandType {
 	Alias = 1
 }
 
+// TODO: remove once API is finalized
+export enum TerminalShellType {
+	Sh = 1,
+	Bash = 2,
+	Fish = 3,
+	Csh = 4,
+	Ksh = 5,
+	Zsh = 6,
+	CommandPrompt = 7,
+	GitBash = 8,
+	PowerShell = 9,
+	Python = 10,
+	Julia = 11,
+	NuShell = 12,
+	Node = 13
+}
+
 const isWindows = osIsWindows();
 let cachedAvailableCommandsPath: string | undefined;
 let cachedWindowsExecutableExtensions: { [key: string]: boolean | undefined } | undefined;
@@ -37,6 +54,14 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
+const getShellGlobals: Map<TerminalShellType, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
+	[TerminalShellType.Bash, getBashGlobals],
+	[TerminalShellType.Zsh, getZshGlobals],
+	// TODO: Ghost text in the command line prevents completions from working ATM for fish
+	[TerminalShellType.Fish, getFishGlobals],
+	// [TerminalShellType.PowerShell]: getPwshGlobals,
+]);
+
 async function getBuiltinCommands(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
 		const cachedCommands = cachedBuiltinCommands.get(shellType);
@@ -50,19 +75,6 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
 		let commands: (string | ICompletionResource)[] | undefined;
 		switch (shellType) {
-			case TerminalShellType.Bash: {
-				commands = await getBashGlobals(options, existingCommands);
-				break;
-			}
-			case TerminalShellType.Zsh: {
-				commands = await getZshGlobals(options, existingCommands);
-				break;
-			}
-			case TerminalShellType.Fish: {
-				// TODO: Ghost text in the command line prevents completions from working ATM for fish
-				commands = await getFishGlobals(options, existingCommands);
-				break;
-			}
 			case TerminalShellType.PowerShell: {
 				const output = await new Promise<string>((resolve, reject) => {
 					exec('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
@@ -102,6 +114,10 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 				});
 				cachedBuiltinCommands.set(shellType, commandResources);
 				return commandResources;
+			}
+			default: {
+				commands = await getShellGlobals.get(shellType)?.(options, existingCommands);
+				break;
 			}
 		}
 
@@ -560,24 +576,6 @@ function getFriendlyResourcePath(uri: vscode.Uri, pathSeparator: string, kind?: 
 	}
 	return path;
 }
-
-// TODO: remove once API is finalized
-export enum TerminalShellType {
-	Sh = 1,
-	Bash = 2,
-	Fish = 3,
-	Csh = 4,
-	Ksh = 5,
-	Zsh = 6,
-	CommandPrompt = 7,
-	GitBash = 8,
-	PowerShell = 9,
-	Python = 10,
-	Julia = 11,
-	NuShell = 12,
-	Node = 13
-}
-
 
 function getShell(shellType: TerminalShellType): string | undefined {
 	switch (shellType) {
