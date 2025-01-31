@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
-import { exec, spawn, type ExecOptionsWithStringEncoding } from 'node:child_process';
+import { execHelper, spawnHelper } from './common';
+import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
@@ -15,15 +16,7 @@ export async function getZshGlobals(options: ExecOptionsWithStringEncoding, exis
 }
 
 async function getBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<string[]> {
-	const compgenOutput = await new Promise<string>((resolve, reject) => {
-		exec('printf "%s\\n" ${(k)builtins}', options, (error, stdout) => {
-			if (error) {
-				reject(error);
-			} else {
-				resolve(stdout);
-			}
-		});
-	});
+	const compgenOutput = await execHelper('printf "%s\\n" ${(k)builtins}', options);
 	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
 	return compgenOutput.split('\n').filter(filter);
 }
@@ -33,21 +26,7 @@ async function getAliases(options: ExecOptionsWithStringEncoding): Promise<IComp
 	// be set up. Note that this could differ from the actual aliases as it's a new bash
 	// session, for the same reason this would not include aliases that are created
 	// by simply running `alias ...` in the terminal.
-	const aliasOutput = await new Promise<string>((resolve, reject) => {
-		const child = spawn('zsh', ['-ic', 'alias'], options);
-		let stdout = '';
-		child.stdout.on('data', (data) => {
-			stdout += data;
-		});
-		child.on('close', (code) => {
-			if (code !== 0) {
-				reject(new Error(`zsh process exited with code ${code}`));
-			} else {
-				resolve(stdout);
-			}
-		});
-	});
-
+	const aliasOutput = await spawnHelper('zsh', ['-ic', 'alias'], options);
 	const result: ICompletionResource[] = [];
 	for (const line of aliasOutput.split('\n')) {
 		const match = line.match(/^(?<alias>[a-zA-Z0-9\.:-]+)=(?:'(?<resolved>.+)'|(?<resolved>.+))$/);

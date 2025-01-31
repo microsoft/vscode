@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec, ExecOptionsWithStringEncoding } from 'child_process';
+import { ExecOptionsWithStringEncoding } from 'child_process';
 import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';

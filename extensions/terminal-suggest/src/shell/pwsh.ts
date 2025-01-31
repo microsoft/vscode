@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
-import { exec, type ExecOptionsWithStringEncoding } from 'node:child_process';
+import { type ExecOptionsWithStringEncoding } from 'node:child_process';
+import { execHelper } from './common';
 
 export async function getPwshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
@@ -18,18 +19,9 @@ const enum PwshCommandType {
 }
 
 async function getCommands(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<ICompletionResource[]> {
-
-	const output = await new Promise<string>((resolve, reject) => {
-		exec('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
-			...options,
-			maxBuffer: 1024 * 1024 * 100 // This is a lot of content, increase buffer size
-		}, (error, stdout) => {
-			if (error) {
-				reject(error);
-				return;
-			}
-			resolve(stdout);
-		});
+	const output = await execHelper('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
+		...options,
+		maxBuffer: 1024 * 1024 * 100 // This is a lot of content, increase buffer size
 	});
 	let json: any;
 	try {
