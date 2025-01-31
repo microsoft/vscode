@@ -242,6 +242,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.viewContext = _viewContext ?? {};
 
+		const viewModelObs = observableFromEvent(this, this.onDidChangeViewModel, () => this.viewModel);
+
 		if (typeof location === 'object') {
 			this._location = location;
 		} else {
@@ -300,7 +302,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
-		const viewModelObs = observableFromEvent(this, this.onDidChangeViewModel, () => this.viewModel);
 
 		this._register(autorunWithStore((r, store) => {
 
