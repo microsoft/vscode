@@ -18,7 +18,7 @@ export async function spawnHelper(command: string, args: string[], options: Exec
 		});
 		child.on('close', (code) => {
 			if (code !== 0) {
-				reject(new Error(`bash process exited with code ${code}`));
+				reject(new Error(`process exited with code ${code}`));
 			} else {
 				resolve(stdout);
 			}

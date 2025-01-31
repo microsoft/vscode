@@ -10,6 +10,7 @@ import { execHelper } from './common';
 
 export async function getPwshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
+		...await getAliases(options, existingCommands),
 		...await getCommands(options, existingCommands),
 	];
 }
@@ -53,6 +54,37 @@ const pwshCommandTypeToCompletionKind: Map<PwshCommandType, vscode.TerminalCompl
 	[PwshCommandType.Configuration, vscode.TerminalCompletionItemKind.Argument],
 ]);
 
+async function getAliases(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<ICompletionResource[]> {
+	const output = await execHelper('Get-Command -CommandType Alias | Select-Object Name, CommandType, Definition, ModuleName, @{Name="Version";Expression={$_.Version.ToString()}} | ConvertTo-Json', {
+		...options,
+		maxBuffer: 1024 * 1024 * 100 // This is a lot of content, increase buffer size
+	});
+	let json: any;
+	try {
+		json = JSON.parse(output);
+	} catch (e) {
+		console.error('Error parsing output:', e);
+		return [];
+	}
+	return (json as any[]).map(e => {
+		const detailParts: string[] = [];
+		if (e.Definition) {
+			detailParts.push(e.Definition);
+		}
+		if (e.ModuleName && e.Version) {
+			detailParts.push(`${e.ModuleName} v${e.Version}`);
+		}
+		return {
+			label: e.Name,
+			detail: detailParts.join('\n\n'),
+			// Aliases sometimes return the same DisplayName, show as a method in this case.
+			kind: (e.Name === e.DisplayName
+				? vscode.TerminalCompletionItemKind.Method
+				: vscode.TerminalCompletionItemKind.Alias),
+		};
+	}
+	);
+}
 
 async function getCommands(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<ICompletionResource[]> {
 	const output = await execHelper('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
@@ -66,25 +98,13 @@ async function getCommands(options: ExecOptionsWithStringEncoding, existingComma
 		console.error('Error parsing pwsh output:', e);
 		return [];
 	}
-	return (json as any[]).map(e => {
-		switch (e.CommandType) {
-			case PwshCommandType.Alias: {
-				return {
-					label: e.Name,
-					detail: e.DisplayName,
-					// Aliases sometimes return the same DisplayName, show as a method in this case.
-					kind: (e.Name === e.DisplayName
-						? vscode.TerminalCompletionItemKind.Method
-						: vscode.TerminalCompletionItemKind.Alias),
-				};
-			}
-			default: {
-				return {
-					label: e.Name,
-					detail: e.Definition,
-					kind: pwshCommandTypeToCompletionKind.get(e.CommandType)
-				};
-			}
-		}
-	});
+	return (
+		(json as any[])
+			.filter(e => e.CommandType !== PwshCommandType.Alias)
+			.map(e => ({
+				label: e.Name,
+				detail: e.Definition,
+				kind: pwshCommandTypeToCompletionKind.get(e.CommandType)
+			}))
+	);
 }
