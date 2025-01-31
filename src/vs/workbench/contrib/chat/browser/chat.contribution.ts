@@ -260,7 +260,6 @@ class ChatAgentSettingContribution implements IWorkbenchContribution {
 				},
 			}
 		};
-		console.log('registerSetting');
 		configurationRegistry.registerConfiguration(this.registeredNode);
 	}
 
