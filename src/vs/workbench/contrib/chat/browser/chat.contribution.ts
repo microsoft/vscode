@@ -230,16 +230,18 @@ class ChatAgentSettingContribution implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 	) {
 		if (this.productService.quality !== 'stable') {
-			this.registerSetting();
+			timeout(10000).then(() => {
+				this.registerSetting();
+			});
 		}
 
-		experimentService.getTreatment<boolean>('chatAgentEnabled').then(value => {
-			if (value) {
-				this.registerSetting();
-			} else if (value === false) {
-				this.deregisterSetting();
-			}
-		});
+		// experimentService.getTreatment<boolean>('chatAgentEnabled').then(value => {
+		// 	if (value) {
+		// 		this.registerSetting();
+		// 	} else if (value === false) {
+		// 		this.deregisterSetting();
+		// 	}
+		// });
 	}
 
 	private registerSetting() {
@@ -264,12 +266,12 @@ class ChatAgentSettingContribution implements IWorkbenchContribution {
 		configurationRegistry.registerConfiguration(this.registeredNode);
 	}
 
-	private deregisterSetting() {
-		if (this.registeredNode) {
-			configurationRegistry.deregisterConfigurations([this.registeredNode]);
-			this.registeredNode = undefined;
-		}
-	}
+	// private deregisterSetting() {
+	// 	if (this.registeredNode) {
+	// 		configurationRegistry.deregisterConfigurations([this.registeredNode]);
+	// 		this.registeredNode = undefined;
+	// 	}
+	// }
 }
 
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
