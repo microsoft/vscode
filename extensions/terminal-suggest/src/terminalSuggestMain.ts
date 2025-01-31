@@ -12,6 +12,7 @@ import cdSpec from './completions/cd';
 import codeInsidersCompletionSpec from './completions/code-insiders';
 import { osIsWindows } from './helpers/os';
 import { isExecutable } from './helpers/executable';
+import { getTokenType, TokenType } from './tokens';
 
 const enum PwshCommandType {
 	Alias = 1
@@ -136,7 +137,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
-			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, terminal.shellIntegration?.cwd, token);
+			const tokenType = getTokenType(terminalContext, shellType);
+			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, token);
 			if (terminal.shellIntegration?.env) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
 				if (homeDirCompletion && terminal.shellIntegration.env.HOME) {
@@ -324,6 +326,7 @@ export async function getCompletionItemsFromSpecs(
 	terminalContext: { commandLine: string; cursorPosition: number },
 	availableCommands: ICompletionResource[],
 	prefix: string,
+	tokenType: TokenType,
 	shellIntegrationCwd?: vscode.Uri,
 	token?: vscode.CancellationToken
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; cwd?: vscode.Uri }> {
@@ -331,7 +334,6 @@ export async function getCompletionItemsFromSpecs(
 	let filesRequested = false;
 	let foldersRequested = false;
 
-	const firstCommand = getFirstCommand(terminalContext.commandLine);
 	const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 
 	for (const spec of specs) {
@@ -347,14 +349,10 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			if (
-				// If the prompt is empty
-				!terminalContext.commandLine
-				// or the first command matches the command
-				|| !!firstCommand && specLabel.startsWith(firstCommand)
-			) {
-				// push it to the completion items
+			// push it to the completion items
+			if (tokenType === TokenType.Command) {
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, getDescription(spec), availableCommand.detail));
+				continue;
 			}
 
 			if (!terminalContext.commandLine.startsWith(specLabel)) {
@@ -385,9 +383,7 @@ export async function getCompletionItemsFromSpecs(
 		!filesRequested &&
 		!foldersRequested;
 
-	const shouldShowCommands = !terminalContext.commandLine.substring(0, terminalContext.cursorPosition).trimStart().includes(' ');
-
-	if (shouldShowCommands && !filesRequested && !foldersRequested) {
+	if (tokenType === TokenType.Command) {
 		// Include builitin/available commands in the results
 		const labels = new Set(items.map((i) => i.label));
 		for (const command of availableCommands) {
@@ -536,19 +532,6 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 	return { items, filesRequested, foldersRequested };
 }
 
-
-
-function getFirstCommand(commandLine: string): string | undefined {
-	const wordsOnLine = commandLine.split(' ');
-	let firstCommand: string | undefined = wordsOnLine[0];
-	if (wordsOnLine.length > 1) {
-		firstCommand = undefined;
-	} else if (wordsOnLine.length === 0) {
-		firstCommand = commandLine;
-	}
-	return firstCommand;
-}
-
 function getFriendlyResourcePath(uri: vscode.Uri, pathSeparator: string, kind?: vscode.TerminalCompletionItemKind): string {
 	let path = uri.fsPath;
 	// Ensure drive is capitalized on Windows
@@ -564,7 +547,7 @@ function getFriendlyResourcePath(uri: vscode.Uri, pathSeparator: string, kind?: 
 }
 
 // TODO: remove once API is finalized
-export enum TerminalShellType {
+export const enum TerminalShellType {
 	Sh = 1,
 	Bash = 2,
 	Fish = 3,
