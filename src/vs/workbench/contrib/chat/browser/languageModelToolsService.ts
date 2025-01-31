@@ -67,7 +67,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this._tools.set(toolData.id, { data: toolData });
 		this._onDidChangeToolsScheduler.schedule();
 
-		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
+		if (toolData.when) {
+			this._contextKeyService.contextMatchesRules(toolData.when);
+			toolData.when.keys().forEach(key => this._toolContextKeys.add(key));
+		}
 
 		return toDisposable(() => {
 			this._tools.delete(toolData.id);

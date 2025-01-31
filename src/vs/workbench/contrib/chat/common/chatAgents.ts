@@ -307,6 +307,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._agents.set(id, entry);
 		this._updateAgentsContextKeys();
 		this._updateContextKeys();
+		this._agentIsEnabled(entry);
+
 		this._onDidChangeAgents.fire(undefined);
 
 		return toDisposable(() => {
