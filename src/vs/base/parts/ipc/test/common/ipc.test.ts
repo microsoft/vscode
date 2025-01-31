@@ -348,9 +348,10 @@ suite('Base IPC', function () {
 		let service: TestService;
 		let ipcService: ITestService;
 
-		const disposables = new DisposableStore();
+		let disposables: DisposableStore;
 
 		setup(function () {
+			disposables = new DisposableStore();
 			service = store.add(new TestService());
 			const testServer = disposables.add(new TestIPCServer());
 			server = testServer;
@@ -362,8 +363,9 @@ suite('Base IPC', function () {
 		});
 
 		teardown(function () {
-			disposables.clear();
+			disposables.dispose();
 		});
+
 
 		test('call success', async function () {
 			const r = await ipcService.marco();
@@ -415,9 +417,10 @@ suite('Base IPC', function () {
 		let service: TestService;
 		let ipcService: ITestService;
 
-		const disposables = new DisposableStore();
+		let disposables: DisposableStore;
 
 		setup(function () {
+			disposables = new DisposableStore();
 			service = store.add(new TestService());
 			const testServer = disposables.add(new TestIPCServer());
 			server = testServer;
@@ -429,7 +432,7 @@ suite('Base IPC', function () {
 		});
 
 		teardown(function () {
-			disposables.clear();
+			disposables.dispose();
 		});
 
 		test('call extra context', async function () {

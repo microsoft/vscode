@@ -109,13 +109,12 @@ export class DisposableTracker implements IDisposableTracker {
 		return val;
 	}
 
-	trackDisposable(d: IDisposable, _leakType: LeakType): void {
+	trackDisposable(d: IDisposable): void {
 		const data = this.getDisposableData(d);
 		if (!data.source) {
 			data.source =
 				new Error().stack!;
 		}
-		// Handle the leakType if necessary
 	}
 
 	setParent(child: IDisposable, parent: IDisposable | null): void {
@@ -277,10 +276,8 @@ if (TRACK_DISPOSABLES) {
 	});
 }
 
-
 export function trackDisposable<T extends IDisposable>(x: T, leakType: LeakType = LeakType.StrongLeak): T {
 	disposableTracker?.trackDisposable(x, leakType);
-	// Handle the leakType if necessary
 	return x;
 }
 
