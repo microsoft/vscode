@@ -16,10 +16,7 @@ import type { ICompletionResource } from './types';
 import { getBashGlobals } from './shell/bash';
 import { getZshGlobals } from './shell/zsh';
 import { getFishGlobals } from './shell/fish';
-
-const enum PwshCommandType {
-	Alias = 1
-}
+import { getPwshGlobals } from './shell/pwsh';
 
 // TODO: remove once API is finalized
 export enum TerminalShellType {
@@ -54,15 +51,15 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
-const getShellGlobals: Map<TerminalShellType, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
+const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
 	[TerminalShellType.Bash, getBashGlobals],
 	[TerminalShellType.Zsh, getZshGlobals],
 	// TODO: Ghost text in the command line prevents completions from working ATM for fish
 	[TerminalShellType.Fish, getFishGlobals],
-	// [TerminalShellType.PowerShell]: getPwshGlobals,
+	[TerminalShellType.PowerShell, getPwshGlobals],
 ]);
 
-async function getBuiltinCommands(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
+async function getShellGlobals(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
 		const cachedCommands = cachedBuiltinCommands.get(shellType);
 		if (cachedCommands) {
@@ -73,57 +70,10 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 			return;
 		}
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
-		let commands: (string | ICompletionResource)[] | undefined;
-		switch (shellType) {
-			case TerminalShellType.PowerShell: {
-				const output = await new Promise<string>((resolve, reject) => {
-					exec('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
-						...options,
-						maxBuffer: 1024 * 1024 * 100 // This is a lot of content, increase buffer size
-					}, (error, stdout) => {
-						if (error) {
-							reject(error);
-							return;
-						}
-						resolve(stdout);
-					});
-				});
-				let json: any;
-				try {
-					json = JSON.parse(output);
-				} catch (e) {
-					console.error('Error parsing pwsh output:', e);
-					return [];
-				}
-				const commandResources = (json as any[]).map(e => {
-					switch (e.CommandType) {
-						case PwshCommandType.Alias: {
-							return {
-								label: e.Name,
-								detail: e.DisplayName,
-								kind: vscode.TerminalCompletionItemKind.Alias,
-							};
-						}
-						default: {
-							return {
-								label: e.Name,
-								detail: e.Definition,
-							};
-						}
-					}
-				});
-				cachedBuiltinCommands.set(shellType, commandResources);
-				return commandResources;
-			}
-			default: {
-				commands = await getShellGlobals.get(shellType)?.(options, existingCommands);
-				break;
-			}
-		}
-
-		const commandResources = commands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
-		cachedBuiltinCommands.set(shellType, commandResources);
-		return commandResources;
+		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
+		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
+		cachedBuiltinCommands.set(shellType, normalizedCommands);
+		return normalizedCommands;
 
 	} catch (error) {
 		console.error('Error fetching builtin commands:', error);
@@ -145,11 +95,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
-			const builtinCommands = await getBuiltinCommands(shellType, commandsInPath?.labels) ?? [];
+			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				return;
 			}
-			const commands = [...commandsInPath.completionResources, ...builtinCommands];
+			const commands = [...commandsInPath.completionResources, ...shellGlobals];
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
