@@ -1312,6 +1312,10 @@ declare module 'vscode' {
 			 * Add undo stop after making the edits.
 			 */
 			readonly undoStopAfter: boolean;
+			/**
+			 * Keep whitespace of the {@link SnippetString.value} as is.
+			 */
+			readonly keepWhitespace?: boolean;
 		}): Thenable<boolean>;
 
 		/**
@@ -3775,6 +3779,11 @@ declare module 'vscode' {
 		 * The {@link SnippetString snippet} this edit will perform.
 		 */
 		snippet: SnippetString;
+
+		/**
+		 * Whether the snippet edit should be applied with existing whitespace preserved.
+		 */
+		keepWhitespace?: boolean;
 
 		/**
 		 * Create a new snippet edit.
