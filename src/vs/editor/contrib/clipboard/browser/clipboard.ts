@@ -14,14 +14,14 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
-import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
+// import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Handler } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
-import { CopyPasteController } from '../../dropOrPasteInto/browser/copyPasteController.js';
+// import { CopyPasteController } from '../../dropOrPasteInto/browser/copyPasteController.js';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -242,6 +242,7 @@ if (PasteAction) {
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
+			/*
 			// execCommand(paste) does not work with edit context
 			let result: boolean;
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
@@ -278,37 +279,39 @@ if (PasteAction) {
 				// if the result is true, so pasting worked, then finish the paste
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 			} else if (platform.isWeb) {
-				// Else if the result is false, this could be because we are on web, where execCommand is deprecated
-				// Why do we not use the clipboard service directly?
-				// Use the clipboard service if document.execCommand('paste') was not successful
-				return (async () => {
-					const clipboardText = await clipboardService.readText();
-					console.log('clipboardText : ', clipboardText);
-					if (clipboardText !== '') {
-						// fetching the text from the instance of the in memory clipboard metadata manager
-						// singleton
-						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
-						let pasteOnNewLine = false;
-						let multicursorText: string[] | null = null;
-						let mode: string | null = null;
-						if (metadata) {
-							pasteOnNewLine = (focusedEditor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
-							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
-							mode = metadata.mode;
-						}
-						console.log('pasteOnNewLine : ', pasteOnNewLine);
-						console.log('multicursorText : ', multicursorText);
-						console.log('mode : ', mode);
-						focusedEditor.trigger('keyboard', Handler.Paste, {
-							text: clipboardText,
-							pasteOnNewLine,
-							multicursorText,
-							mode
-						});
+			*/
+			// Else if the result is false, this could be because we are on web, where execCommand is deprecated
+			// Why do we not use the clipboard service directly?
+			// Use the clipboard service if document.execCommand('paste') was not successful
+			return (async () => {
+				// need to call the code in copy/paste controller
+				const clipboardText = await clipboardService.readText();
+				console.log('clipboardText : ', clipboardText);
+				if (clipboardText !== '') {
+					// fetching the text from the instance of the in memory clipboard metadata manager
+					// singleton
+					const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
+					let pasteOnNewLine = false;
+					let multicursorText: string[] | null = null;
+					let mode: string | null = null;
+					if (metadata) {
+						pasteOnNewLine = (focusedEditor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
+						multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
+						mode = metadata.mode;
 					}
-				})();
-			}
-			return true;
+					console.log('pasteOnNewLine : ', pasteOnNewLine);
+					console.log('multicursorText : ', multicursorText);
+					console.log('mode : ', mode);
+					focusedEditor.trigger('keyboard', Handler.Paste, {
+						text: clipboardText,
+						pasteOnNewLine,
+						multicursorText,
+						mode
+					});
+				}
+			})();
+			/* } */
+			// return true;
 		}
 		// if not focused editor, then return false
 		return false;
