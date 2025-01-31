@@ -43,7 +43,6 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 		if (cachedCommands) {
 			return cachedCommands;
 		}
-		const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
 		const shell = getShell(shellType);
 		if (!shell) {
 			return;
