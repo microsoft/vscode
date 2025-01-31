@@ -8,9 +8,8 @@ import { localize } from '../../../nls.js';
 import { IWorkbenchLayoutService } from '../../services/layout/browser/layoutService.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { EventHelper, addDisposableListener, getActiveDocument, getWindow, isHTMLElement, isHTMLInputElement, isHTMLTextAreaElement } from '../../../base/browser/dom.js';
+import { EventHelper, addDisposableListener, getActiveDocument, getWindow, isHTMLInputElement, isHTMLTextAreaElement } from '../../../base/browser/dom.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
-import { isNative } from '../../../base/common/platform.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { Event as BaseEvent } from '../../../base/common/event.js';
@@ -28,27 +27,15 @@ export function createTextInputActions(clipboardService: IClipboardService): IAc
 		new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => getActiveDocument().execCommand('cut')),
 		new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => getActiveDocument().execCommand('copy')),
 		new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
+			const clipboardText = await clipboardService.readText();
+			if (isHTMLTextAreaElement(element) || isHTMLInputElement(element)) {
+				const selectionStart = element.selectionStart || 0;
+				const selectionEnd = element.selectionEnd || 0;
 
-			// Native: paste is supported
-			if (isNative) {
-				getActiveDocument().execCommand('paste');
-			}
-
-			// Web: paste is not supported due to security reasons
-			else {
-				const clipboardText = await clipboardService.readText();
-				if (
-					isHTMLTextAreaElement(element) ||
-					isHTMLInputElement(element)
-				) {
-					const selectionStart = element.selectionStart || 0;
-					const selectionEnd = element.selectionEnd || 0;
-
-					element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
-					element.selectionStart = selectionStart + clipboardText.length;
-					element.selectionEnd = element.selectionStart;
-					element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-				}
+				element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
+				element.selectionStart = selectionStart + clipboardText.length;
+				element.selectionEnd = element.selectionStart;
+				element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
 			}
 		}),
 		new Separator(),
@@ -88,7 +75,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 		}
 
 		const target = e.target;
-		if (!(isHTMLElement(target)) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
+		if (!isHTMLTextAreaElement(target) && !isHTMLInputElement(target)) {
 			return; // only for inputs or textareas
 		}
 
