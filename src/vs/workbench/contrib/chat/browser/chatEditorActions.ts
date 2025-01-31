@@ -14,7 +14,7 @@ import { ChatEditorController, ctxHasEditorModification, ctxReviewModeEnabled } 
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '../common/chatEditingService.js';
+import { IChatEditingService } from '../common/chatEditingService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -134,7 +134,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -212,7 +212,7 @@ class RejectHunkAction extends EditorAction2 {
 			id: 'chatEditor.action.undoHunk',
 			title: localize2('undo', 'Discard this Change'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.discard,
 			f1: true,
 			keybinding: {
@@ -238,7 +238,7 @@ class AcceptHunkAction extends EditorAction2 {
 			id: 'chatEditor.action.acceptHunk',
 			title: localize2('acceptHunk', 'Accept this Change'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.check,
 			f1: true,
 			keybinding: {
@@ -268,7 +268,7 @@ class OpenDiffAction extends EditorAction2 {
 				condition: EditorContextKeys.inDiffEditor,
 				icon: Codicon.goToFile,
 			},
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.diffSingle,
 			keybinding: {
 				when: EditorContextKeys.focus,
