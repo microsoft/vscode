@@ -5,13 +5,15 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec, ExecOptionsWithStringEncoding, execSync, spawnSync } from 'child_process';
+import { exec, ExecOptionsWithStringEncoding, execSync } from 'child_process';
 import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
 import codeInsidersCompletionSpec from './completions/code-insiders';
 import { osIsWindows } from './helpers/os';
 import { isExecutable } from './helpers/executable';
+import type { ICompletionResource } from './types';
+import { getBashGlobals } from './shell/bash';
 
 const enum PwshCommandType {
 	Alias = 1
@@ -48,24 +50,7 @@ async function getBuiltinCommands(shellType: TerminalShellType, existingCommands
 		let commands: (string | ICompletionResource)[] | undefined;
 		switch (shellType) {
 			case TerminalShellType.Bash: {
-				const bashOutput = execSync('compgen -b', options);
-				commands = bashOutput.split('\n').filter(filter);
-
-				// This must be run with interactive, otherwise there's a good chance aliases won't
-				// be set up
-				const bashOutput2 = spawnSync('bash', ['-ic', 'alias'], options).stdout;
-				for (const line of bashOutput2.split('\n')) {
-					const match = line.match(/^alias (?<alias>[a-zA-Z]+)='(?<resolved>.+)'$/);
-					if (!match?.groups) {
-						continue;
-					}
-					commands.push({
-						label: match.groups.alias,
-						detail: match.groups.resolved,
-						kind: vscode.TerminalCompletionItemKind.Alias,
-					});
-				}
-
+				commands = await getBashGlobals(options);
 				break;
 			}
 			case TerminalShellType.Zsh: {
@@ -257,11 +242,6 @@ function createCompletionItem(cursorPosition: number, prefix: string, commandRes
 	};
 }
 
-interface ICompletionResource {
-	label: string;
-	detail?: string;
-	kind?: vscode.TerminalCompletionItemKind;
-}
 
 async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 	const labels: Set<string> = new Set<string>();
