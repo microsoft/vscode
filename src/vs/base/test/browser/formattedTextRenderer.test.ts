@@ -9,14 +9,14 @@ import { DisposableStore } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('FormattedTextRenderer', () => {
-	const store = new DisposableStore();
+	let store: DisposableStore;
 
 	setup(() => {
-		store.clear();
+		store = new DisposableStore();
 	});
 
 	teardown(() => {
-		store.clear();
+		store.dispose();
 	});
 
 	test('render simple element', () => {
