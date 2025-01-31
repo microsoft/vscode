@@ -84,7 +84,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Folder, Codicon.folder],
 		[TerminalCompletionItemKind.Flag, Codicon.symbolProperty],
 		[TerminalCompletionItemKind.Method, Codicon.symbolMethod],
-		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable]
+		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable],
+		[TerminalCompletionItemKind.Alias, Codicon.replace],
 	]);
 
 	private _shouldSyncWhenReady: boolean = false;

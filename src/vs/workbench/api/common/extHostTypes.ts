@@ -2143,7 +2143,8 @@ export enum TerminalCompletionItemKind {
 	Folder = 1,
 	Flag = 2,
 	Method = 3,
-	Argument = 4
+	Argument = 4,
+	Alias = 5
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
