@@ -215,9 +215,9 @@ export class SimpleCompletionModel {
 				}
 			}
 
-			// Sort by unscore penalty (eg. `__init__/` should be penalized)
-			if (a.unscorePenalty !== b.unscorePenalty) {
-				return a.unscorePenalty - b.unscorePenalty;
+			// Sort by underscore penalty (eg. `__init__/` should be penalized)
+			if (a.underscorePenalty !== b.underscorePenalty) {
+				return a.underscorePenalty - b.underscorePenalty;
 			}
 
 			// Sort by folder depth (eg. `vscode/` should come before `vscode-.../`)

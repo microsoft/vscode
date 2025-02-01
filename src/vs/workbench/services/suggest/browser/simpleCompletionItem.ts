@@ -74,7 +74,10 @@ export class SimpleCompletionItem {
 	 */
 	readonly labelLowNormalizedPath: string;
 
-	readonly unscorePenalty: number = 0;
+	/**
+	 * A penalty that applies to files or folders starting with the underscore character.
+	 */
+	readonly underscorePenalty: 0 | 1 = 0;
 
 	/**
 	 * The file extension part from {@link labelLow}.
@@ -112,7 +115,7 @@ export class SimpleCompletionItem {
 			if (completion.isDirectory) {
 				this.labelLowNormalizedPath = this.labelLowNormalizedPath.replace(/\/$/, '');
 			}
-			this.unscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
+			this.underscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
 		}
 	}
 }
