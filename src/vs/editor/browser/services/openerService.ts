@@ -104,7 +104,7 @@ export class OpenerService implements IOpenerService {
 	private readonly _openers = new LinkedList<IOpener>();
 	private readonly _validators = new LinkedList<IValidator>();
 	private readonly _resolvers = new LinkedList<IExternalUriResolver>();
-	private readonly _resolvedUriTargets = new ResourceMap<URI>(uri => uri.with({ path: null, fragment: null, query: null }).toString());
+	private readonly _resolvedUriTargets = new ResourceMap<URI | URL>(uri => uri.with({ path: null, fragment: null, query: null }).toString());
 
 	private _defaultExternalOpener: IExternalOpener;
 	private readonly _externalOpeners = new LinkedList<IExternalOpener>();
@@ -172,7 +172,8 @@ export class OpenerService implements IOpenerService {
 		// check with contributed validators
 		const targetURI = typeof target === 'string' ? URI.parse(target) : target;
 		// validate against the original URI that this URI resolves to, if one exists
-		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target;
+		const resolvedTarget = this._resolvedUriTargets.get(targetURI);
+		const validationTarget = (resolvedTarget instanceof URL ? resolvedTarget.toString() : resolvedTarget) ?? target;
 		for (const validator of this._validators) {
 			if (!(await validator.shouldOpen(validationTarget, options))) {
 				return false;
@@ -195,8 +196,9 @@ export class OpenerService implements IOpenerService {
 			try {
 				const result = await resolver.resolveExternalUri(resource, options);
 				if (result) {
-					if (!this._resolvedUriTargets.has(result.resolved)) {
-						this._resolvedUriTargets.set(result.resolved, resource);
+					const resolved = result.resolved instanceof URL ? URI.parse(result.resolved.toString()) : result.resolved;
+					if (!this._resolvedUriTargets.has(resolved)) {
+						this._resolvedUriTargets.set(resolved, result.resolved);
 					}
 					return result;
 				}
@@ -212,7 +214,7 @@ export class OpenerService implements IOpenerService {
 
 		//todo@jrieken IExternalUriResolver should support `uri: URI | string`
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
-		let externalUri: URI;
+		let externalUri: URI | URL;
 
 		try {
 			externalUri = (await this.resolveExternalUri(uri, options)).resolved;
@@ -224,9 +226,11 @@ export class OpenerService implements IOpenerService {
 		if (typeof resource === 'string' && uri.toString() === externalUri.toString()) {
 			// open the url-string AS IS
 			href = resource;
-		} else {
+		} else if (externalUri instanceof URI) {
 			// open URI using the toString(noEncode)+encodeURI-trick
 			href = encodeURI(externalUri.toString(true));
+		} else {
+			href = externalUri.toString();
 		}
 
 		if (options?.allowContributedOpeners) {
