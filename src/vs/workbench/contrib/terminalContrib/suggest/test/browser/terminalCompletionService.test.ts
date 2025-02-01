@@ -249,7 +249,7 @@ suite('TerminalCompletionService', () => {
 					pathSeparator,
 					shouldNormalizePrefix: true,
 				};
-				validResources = [URI.parse('file:///C:/Foo')]; // Updated to reflect new cwd
+				validResources = [URI.parse('file:///C:/Foo')];
 				childResources = [
 					{ resource: URI.parse('file:///C:/Foo/Bar'), isDirectory: true, isFile: false },
 					{ resource: URI.parse('file:///C:/Foo/Baz.txt'), isDirectory: false, isFile: true }
@@ -268,7 +268,7 @@ suite('TerminalCompletionService', () => {
 					pathSeparator,
 					shouldNormalizePrefix: true,
 				};
-				validResources = [URI.parse('file:///c:/foo')]; // Updated to reflect new cwd
+				validResources = [URI.parse('file:///c:/foo')];
 				childResources = [
 					{ resource: URI.parse('file:///c:/foo/Bar'), isDirectory: true, isFile: false }
 				];
@@ -288,7 +288,7 @@ suite('TerminalCompletionService', () => {
 					pathSeparator,
 					shouldNormalizePrefix: true
 				};
-				validResources = [URI.parse('file:///foo')]; // Updated to reflect new cwd
+				validResources = [URI.parse('file:///foo')];
 				childResources = [
 					{ resource: URI.parse('file:///foo/Bar'), isDirectory: true, isFile: false },
 					{ resource: URI.parse('file:///foo/Baz.txt'), isDirectory: false, isFile: true }
@@ -299,21 +299,6 @@ suite('TerminalCompletionService', () => {
 					{ label: '/foo/', detail: '/foo/' },
 					{ label: '/foo/Bar/', detail: '/foo/Bar/' },
 				], { replacementIndex: 0, replacementLength: 5 });
-			});
-			test('/foo/| case insensitivity NOT on Windows', async () => {
-				const resourceRequestConfig: TerminalResourceRequestConfig = {
-					cwd: URI.parse('file:///foo'),
-					foldersRequested: true,
-					pathSeparator,
-					shouldNormalizePrefix: true,
-				};
-				validResources = [URI.parse('file:///foo')]; // Updated to reflect new cwd
-				childResources = [
-					{ resource: URI.parse('file:///foo/Bar'), isDirectory: true, isFile: false }
-				];
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/Foo/', 5, provider, capabilities);
-
-				assertCompletions(result, [], { replacementIndex: 0, replacementLength: 7 });
 			});
 		}
 

@@ -276,7 +276,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		if (isAbsolutePath) {
 
-			const fileStat = await this._fileService.resolve(URI.file(lastWordFolder), { resolveSingleChildDescendants: true });
+			const lastWordResource = URI.file(lastWordFolder);
+			const fileStat = await this._fileService.resolve(lastWordResource, { resolveSingleChildDescendants: true });
 			if (!fileStat?.children) {
 				return;
 			}
@@ -294,7 +295,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					kind: TerminalCompletionItemKind.Folder,
 					isDirectory: true,
 					isFile: false,
-					detail: getFriendlyPath(cwd, resourceRequestConfig.pathSeparator),
+					detail: getFriendlyPath(lastWordResource, resourceRequestConfig.pathSeparator),
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
 				});
