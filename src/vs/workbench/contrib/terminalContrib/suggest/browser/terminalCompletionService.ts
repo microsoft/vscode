@@ -363,6 +363,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 							const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
 							if (fileStat?.children) {
 								for (const child of fileStat.children) {
+									if (!child.isDirectory) {
+										continue;
+									}
 									const useRelative = config === 'relative';
 									const label = useRelative ? basename(child.resource.fsPath) : getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator);
 									const detail = useRelative ? `CDPATH ${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator)}` : `CDPATH`;
