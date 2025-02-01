@@ -220,11 +220,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		}
 
-		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
-		if (!fileStat || !fileStat?.children) {
-			return;
-		}
-
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
 
@@ -271,39 +266,107 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return resourceCompletions;
 			}
 		}
-		// Add current directory. This should be shown at the top because it will be an exact match
-		// and therefore highlight the detail, plus it improves the experience when runOnEnter is
-		// used.
-		//
-		// For example:
-		// - `|` -> `.`, this does not have the trailing `/` intentionally as it's common to
-		//   complete the current working directory and we do not want to complete `./` when
-		//   `runOnEnter` is used.
-		// - `./src/|` -> `./src/`
-		if (foldersRequested) {
-			resourceCompletions.push({
-				label: lastWordFolder.length === 0 ? '.' : lastWordFolder,
-				provider,
-				kind: TerminalCompletionItemKind.Folder,
-				isDirectory: true,
-				isFile: false,
-				detail: getFriendlyPath(cwd, resourceRequestConfig.pathSeparator),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
-			});
-		}
 
 		// Handle absolute paths differently to avoid adding `./` prefixes
 		// TODO: Deal with git bash case
 		const isAbsolutePath = useForwardSlash
-			? /^[a-zA-Z]:\\/.test(lastWord)
-			: lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator);
+			? lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator)
+			: /^[a-zA-Z]:[\\\/]/.test(lastWord);
 
-		// Add all direct children files or folders
-		//
-		// For example:
-		// - `cd ./src/` -> `cd ./src/folder1`, ...
-		if (!isAbsolutePath) {
+		if (isAbsolutePath) {
+
+			const fileStat = await this._fileService.resolve(URI.file(lastWordFolder), { resolveSingleChildDescendants: true });
+			if (!fileStat?.children) {
+				return;
+			}
+
+			// Add current directory. This should be shown at the top because it will be an exact match
+			// and therefore highlight the detail, plus it improves the experience when runOnEnter is
+			// used.
+			//
+			// For example:
+			// - `c:/foo/|` -> `c:/foo/`
+			if (foldersRequested) {
+				resourceCompletions.push({
+					label: lastWordFolder.length === 0 ? '.' : lastWordFolder,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					detail: getFriendlyPath(cwd, resourceRequestConfig.pathSeparator),
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
+
+			// Add all direct children files or folders
+			//
+			// For example:
+			// - `cd c:/src/` -> `cd c:/src/folder1/`, ...
+			for (const child of fileStat.children) {
+				if (
+					(child.isDirectory && !foldersRequested) ||
+					(child.isFile && !filesRequested)
+				) {
+					continue;
+				}
+
+				let label = lastWordFolder;
+				if (!label.endsWith(resourceRequestConfig.pathSeparator)) {
+					label += resourceRequestConfig.pathSeparator;
+				}
+				label += child.name;
+				if (child.isDirectory) {
+					label += resourceRequestConfig.pathSeparator;
+				}
+
+				const kind = child.isDirectory ? TerminalCompletionItemKind.Folder : TerminalCompletionItemKind.File;
+
+				resourceCompletions.push({
+					label,
+					provider,
+					kind,
+					detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind),
+					isDirectory: child.isDirectory,
+					isFile: child.isFile,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
+
+		} else { // !isAbsolutePath
+
+			const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
+			if (!fileStat?.children) {
+				return;
+			}
+
+			// Add current directory. This should be shown at the top because it will be an exact match
+			// and therefore highlight the detail, plus it improves the experience when runOnEnter is
+			// used.
+			//
+			// For example:
+			// - `|` -> `.`, this does not have the trailing `/` intentionally as it's common to
+			//   complete the current working directory and we do not want to complete `./` when
+			//   `runOnEnter` is used.
+			// - `./src/|` -> `./src/`
+			if (foldersRequested) {
+				resourceCompletions.push({
+					label: lastWordFolder.length === 0 ? '.' : lastWordFolder,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					isDirectory: true,
+					isFile: false,
+					detail: getFriendlyPath(cwd, resourceRequestConfig.pathSeparator),
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
+
+			// Add all direct children files or folders
+			//
+			// For example:
+			// - `cd ./src/` -> `cd ./src/folder1/`, ...
 			for (const stat of fileStat.children) {
 				let kind: TerminalCompletionItemKind | undefined;
 				if (foldersRequested && stat.isDirectory) {
@@ -349,64 +412,65 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					replacementLength: lastWord.length
 				});
 			}
-		}
 
-		// Support $CDPATH specially for the `cd` command only
-		if (promptValue.startsWith('cd ')) {
-			const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
-			if (config === 'absolute' || config === 'relative') {
-				const cdPath = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.get('CDPATH');
-				if (cdPath) {
-					const cdPathEntries = cdPath.split(useForwardSlash ? ';' : ':');
-					for (const cdPathEntry of cdPathEntries) {
-						try {
-							const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
-							if (fileStat?.children) {
-								for (const child of fileStat.children) {
-									if (!child.isDirectory) {
-										continue;
+			// Support $CDPATH specially for the `cd` command only
+			if (promptValue.startsWith('cd ')) {
+				const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
+				if (config === 'absolute' || config === 'relative') {
+					const cdPath = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.get('CDPATH');
+					if (cdPath) {
+						const cdPathEntries = cdPath.split(useForwardSlash ? ';' : ':');
+						for (const cdPathEntry of cdPathEntries) {
+							try {
+								const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
+								if (fileStat?.children) {
+									for (const child of fileStat.children) {
+										if (!child.isDirectory) {
+											continue;
+										}
+										const useRelative = config === 'relative';
+										const label = useRelative ? basename(child.resource.fsPath) : getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator);
+										const detail = useRelative ? `CDPATH ${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator)}` : `CDPATH`;
+										resourceCompletions.push({
+											label,
+											provider,
+											kind: TerminalCompletionItemKind.Folder,
+											isDirectory: child.isDirectory,
+											isFile: child.isFile,
+											detail,
+											replacementIndex: cursorPosition - lastWord.length,
+											replacementLength: lastWord.length
+										});
 									}
-									const useRelative = config === 'relative';
-									const label = useRelative ? basename(child.resource.fsPath) : getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator);
-									const detail = useRelative ? `CDPATH ${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator)}` : `CDPATH`;
-									resourceCompletions.push({
-										label,
-										provider,
-										kind: TerminalCompletionItemKind.Folder,
-										isDirectory: child.isDirectory,
-										isFile: child.isFile,
-										detail,
-										replacementIndex: cursorPosition - lastWord.length,
-										replacementLength: lastWord.length
-									});
 								}
-							}
-						} catch { /* ignore */ }
+							} catch { /* ignore */ }
+						}
 					}
 				}
 			}
-		}
 
-		// Add parent directory to the bottom of the list because it's not as useful as other suggestions
-		//
-		// For example:
-		// - `|` -> `../`
-		// - `./src/|` -> `./src/../`
-		//
-		// On Windows, the path seprators are normalized to `\`:
-		// - `./src/|` -> `.\src\..\`
-		if (!isAbsolutePath && foldersRequested) {
-			const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
-			resourceCompletions.push({
-				label: lastWordFolder + '..' + resourceRequestConfig.pathSeparator,
-				provider,
-				kind: TerminalCompletionItemKind.Folder,
-				detail: getFriendlyPath(parentDir, resourceRequestConfig.pathSeparator),
-				isDirectory: true,
-				isFile: false,
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
-			});
+			// Add parent directory to the bottom of the list because it's not as useful as other suggestions
+			//
+			// For example:
+			// - `|` -> `../`
+			// - `./src/|` -> `./src/../`
+			//
+			// On Windows, the path seprators are normalized to `\`:
+			// - `./src/|` -> `.\src\..\`
+			if (foldersRequested) {
+				const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
+				resourceCompletions.push({
+					label: lastWordFolder + '..' + resourceRequestConfig.pathSeparator,
+					provider,
+					kind: TerminalCompletionItemKind.Folder,
+					detail: getFriendlyPath(parentDir, resourceRequestConfig.pathSeparator),
+					isDirectory: true,
+					isFile: false,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: lastWord.length
+				});
+			}
+
 		}
 
 		return resourceCompletions.length ? resourceCompletions : undefined;

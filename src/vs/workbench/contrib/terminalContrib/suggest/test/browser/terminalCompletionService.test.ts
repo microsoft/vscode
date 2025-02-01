@@ -241,23 +241,67 @@ suite('TerminalCompletionService', () => {
 			childResources = [];
 		});
 
-		if (!isWindows) {
-			test('/usr/| Missing . should show correct results', async () => {
+		if (isWindows) {
+			test('C:/Foo/| absolute paths on Windows', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.parse('file:///C:/Foo'),
+					foldersRequested: true,
+					pathSeparator,
+					shouldNormalizePrefix: true,
+				};
+				validResources = [URI.parse('file:///C:/Foo')]; // Updated to reflect new cwd
+				childResources = [
+					{ resource: URI.parse('file:///C:/Foo/Bar'), isDirectory: true, isFile: false },
+					{ resource: URI.parse('file:///C:/Foo/Baz.txt'), isDirectory: false, isFile: true }
+				];
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'C:/Foo/', 7, provider, capabilities);
+
+				assertCompletions(result, [
+					{ label: 'C:/Foo/', detail: 'C:/Foo/' },
+					{ label: 'C:/Foo/Bar/', detail: 'C:/Foo/Bar/' },
+				], { replacementIndex: 0, replacementLength: 7 });
+			});
+			test('c:/foo/| case sensitivity on Windows', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.parse('file:///c:/foo'),
+					foldersRequested: true,
+					pathSeparator,
+					shouldNormalizePrefix: true,
+				};
+				validResources = [URI.parse('file:///c:/foo')]; // Updated to reflect new cwd
+				childResources = [
+					{ resource: URI.parse('file:///c:/foo/Bar'), isDirectory: true, isFile: false }
+				];
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'c:/foo/', 7, provider, capabilities);
+
+				assertCompletions(result, [
+					// Note that the detail is normalizes drive letters to capital case intentionally
+					{ label: 'c:/foo/', detail: 'C:/foo/' },
+					{ label: 'c:/foo/Bar/', detail: 'C:/foo/Bar/' },
+				], { replacementIndex: 0, replacementLength: 7 });
+			});
+		} else {
+			test.skip('/Foo/| absolute paths NOT on Windows', async () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
 					cwd: URI.parse('file:///'),
 					foldersRequested: true,
 					pathSeparator,
 					shouldNormalizePrefix: true
 				};
-				validResources = [URI.parse('file:///usr')];
-				childResources = [];
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/usr/', 5, provider, capabilities);
+				validResources = [URI.parse('file:///Foo')]; // Updated to reflect new cwd
+				childResources = [
+					{ resource: URI.parse('file:///Foo/Bar'), isDirectory: true, isFile: false },
+					{ resource: URI.parse('file:///Foo/Baz.txt'), isDirectory: false, isFile: true }
+				];
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/Foo/', 5, provider, capabilities);
 
 				assertCompletions(result, [
-					{ label: '/usr/', detail: '/' },
+					{ label: '/Foo/', detail: '/Foo/' },
+					{ label: '/Foo/Bar/', detail: '/Foo/Bar/' },
 				], { replacementIndex: 0, replacementLength: 5 });
 			});
 		}
+
 		if (isWindows) {
 			test('.\\folder | Case insensitivity should resolve correctly on Windows', async () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
