@@ -15,7 +15,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Set control output variable
         id: control
-        run: |
+        run: |u
           echo "user: ${{ github.event.pull_request.user.login }}"
           echo "role: ${{ fromJson(steps.get_permissions.outputs.data).permission }}"
           echo "is dependabot: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}"
@@ -26,6 +26,6 @@ jobs:
         if: ${{ steps.control.outputs.should_run == 'true' }}
       - name: Check for lockfile changes
         if: ${{ steps.control.outputs.should_run == 'true' }}
-        run: |
+        run:
           cat $HOME/files.json | jq -e 'any(test("yarn\\.lock$|Cargo\\.lock$")) | not' \
             || (echo "Changes to yarn.lock/Cargo.lock files aren't allowed in PRs." && exit 1)
