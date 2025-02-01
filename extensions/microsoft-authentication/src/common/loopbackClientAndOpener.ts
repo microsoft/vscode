@@ -49,6 +49,9 @@ export class UriHandlerLoopbackClient implements ILoopbackClientAndOpener {
 		if (isSupportedClient(callbackUri)) {
 			void this._getCodeResponseFromUriHandler();
 		} else {
+			// Unsupported clients will be shown the code in the browser, but it will not redirect back since this
+			// isn't a supported client. Instead, they will copy that code in the browser and paste it in an input box
+			// that will be shown to them by the extension.
 			void this._getCodeResponseFromQuickPick();
 		}
 
