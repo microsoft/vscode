@@ -18,8 +18,7 @@ export class PathExecutableCache implements vscode.Disposable {
 
 	private _cachedAvailableCommandsPath: string | undefined;
 	private _cachedWindowsExecutableExtensions: { [key: string]: boolean | undefined } | undefined;
-	private _cachedAvailableCommands: Set<ICompletionResource> | undefined;
-	private _cachedAvailableCommandsLabels: Set<string> | undefined;
+	private _cachedCommandsInPath: { completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined;
 
 	constructor() {
 		if (isWindows) {
@@ -27,8 +26,7 @@ export class PathExecutableCache implements vscode.Disposable {
 			this._disposables.push(vscode.workspace.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(SettingsIds.CachedWindowsExecutableExtensions)) {
 					this._cachedWindowsExecutableExtensions = vscode.workspace.getConfiguration(SettingsIds.SuggestPrefix).get(SettingsIds.CachedWindowsExecutableExtensionsSuffixOnly);
-					this._cachedAvailableCommands = undefined;
-					this._cachedAvailableCommandsPath = undefined;
+					this._cachedCommandsInPath = undefined;
 				}
 			}));
 		}
@@ -56,8 +54,8 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 
 		// Check cache
-		if (this._cachedAvailableCommands && this._cachedAvailableCommandsPath === pathValue) {
-			return { completionResources: this._cachedAvailableCommands, labels: this._cachedAvailableCommandsLabels };
+		if (this._cachedCommandsInPath && this._cachedAvailableCommandsPath === pathValue) {
+			return this._cachedCommandsInPath;
 		}
 
 		// Extract executables from PATH
@@ -81,10 +79,9 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 
 		// Return
-		this._cachedAvailableCommands = executables;
-		this._cachedAvailableCommandsLabels = labels;
 		this._cachedAvailableCommandsPath = pathValue;
-		return { completionResources: executables, labels };
+		this._cachedCommandsInPath = { completionResources: executables, labels };
+		return this._cachedCommandsInPath;
 	}
 
 	private async _getFilesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
