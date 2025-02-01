@@ -23,6 +23,8 @@ export function isSupportedClient(uri: Uri): boolean {
 		// github.dev & codespaces
 		/(?:^|\.)github\.dev$/.test(uri.authority) ||
 		// localhost
-		/^localhost:\d+$/.test(uri.authority)
+		/^localhost:\d+$/.test(uri.authority) ||
+		// 127.0.0.1
+		/^127\.0\.0\.1:\d+$/.test(uri.authority)
 	);
 }
