@@ -359,22 +359,26 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (cdPath) {
 					const cdPathEntries = cdPath.split(useForwardSlash ? ';' : ':');
 					for (const cdPathEntry of cdPathEntries) {
-						const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
-						if (fileStat?.children) {
-							for (const child of fileStat.children) {
-								const label = config === 'relative' ? basename(child.resource.fsPath) : getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator);
-								resourceCompletions.push({
-									label,
-									provider,
-									kind: TerminalCompletionItemKind.Folder,
-									isDirectory: child.isDirectory,
-									isFile: child.isFile,
-									detail: `CDPATH`,
-									replacementIndex: cursorPosition - lastWord.length,
-									replacementLength: lastWord.length
-								});
+						try {
+							const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
+							if (fileStat?.children) {
+								for (const child of fileStat.children) {
+									const useRelative = config === 'relative';
+									const label = useRelative ? basename(child.resource.fsPath) : getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator);
+									const detail = useRelative ? `CDPATH ${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator)}` : `CDPATH`;
+									resourceCompletions.push({
+										label,
+										provider,
+										kind: TerminalCompletionItemKind.Folder,
+										isDirectory: child.isDirectory,
+										isFile: child.isFile,
+										detail,
+										replacementIndex: cursorPosition - lastWord.length,
+										replacementLength: lastWord.length
+									});
+								}
 							}
-						}
+						} catch { /* ignore */ }
 					}
 				}
 			}
