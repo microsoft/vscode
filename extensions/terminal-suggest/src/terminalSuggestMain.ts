@@ -41,6 +41,7 @@ let cachedAvailableCommandsPath: string | undefined;
 let cachedWindowsExecutableExtensions: { [key: string]: boolean | undefined } | undefined;
 const cachedWindowsExecutableExtensionsSettingId = 'terminal.integrated.suggest.windowsExecutableExtensions';
 let cachedAvailableCommands: Set<ICompletionResource> | undefined;
+let cachedAvailableCommandsLabels: Set<string> | undefined;
 const cachedBuiltinCommands: Map<TerminalShellType, ICompletionResource[] | undefined> = new Map();
 
 export const availableSpecs: Fig.Spec[] = [
@@ -211,7 +212,7 @@ function createCompletionItem(cursorPosition: number, prefix: string, commandRes
 
 
 async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
-	const labels: Set<string> = new Set<string>();
+	// Create cache key
 	let pathValue: string | undefined;
 	if (isWindows) {
 		const caseSensitivePathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
@@ -227,35 +228,57 @@ async function getCommandsInPath(env: { [key: string]: string | undefined } = pr
 
 	// Check cache
 	if (cachedAvailableCommands && cachedAvailableCommandsPath === pathValue) {
-		return { completionResources: cachedAvailableCommands, labels };
+		return { completionResources: cachedAvailableCommands, labels: cachedAvailableCommandsLabels };
 	}
 
 	// Extract executables from PATH
 	const paths = pathValue.split(isWindows ? ';' : ':');
 	const pathSeparator = isWindows ? '\\' : '/';
-	const executables = new Set<ICompletionResource>();
+	const promises: Promise<Set<ICompletionResource> | undefined>[] = [];
+	const labels: Set<string> = new Set<string>();
 	for (const path of paths) {
-		try {
-			const dirExists = await fs.stat(path).then(stat => stat.isDirectory()).catch(() => false);
-			if (!dirExists) {
-				continue;
+		promises.push(getFilesInPath(path, pathSeparator, labels));
+	}
+
+	// Merge all results
+	const executables = new Set<ICompletionResource>();
+	const resultSets = await Promise.all(promises);
+	for (const resultSet of resultSets) {
+		if (resultSet) {
+			for (const executable of resultSet) {
+				executables.add(executable);
 			}
-			const fileResource = vscode.Uri.file(path);
-			const files = await vscode.workspace.fs.readDirectory(fileResource);
-			for (const [file, fileType] of files) {
-				const formattedPath = getFriendlyResourcePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
-				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, cachedWindowsExecutableExtensions)) {
-					executables.add({ label: file, detail: formattedPath });
-					labels.add(file);
-				}
-			}
-		} catch (e) {
-			// Ignore errors for directories that can't be read
-			continue;
 		}
 	}
+
+	// Return
 	cachedAvailableCommands = executables;
+	cachedAvailableCommandsLabels = labels;
+	cachedAvailableCommandsPath = pathValue;
 	return { completionResources: executables, labels };
+}
+
+async function getFilesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
+	try {
+		const dirExists = await fs.stat(path).then(stat => stat.isDirectory()).catch(() => false);
+		if (!dirExists) {
+			return undefined;
+		}
+		const result = new Set<ICompletionResource>();
+		const fileResource = vscode.Uri.file(path);
+		const files = await vscode.workspace.fs.readDirectory(fileResource);
+		for (const [file, fileType] of files) {
+			const formattedPath = getFriendlyResourcePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
+			if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, cachedWindowsExecutableExtensions)) {
+				result.add({ label: file, detail: formattedPath });
+				labels.add(file);
+			}
+		}
+		return result;
+	} catch (e) {
+		// Ignore errors for directories that can't be read
+		return undefined;
+	}
 }
 
 function getPrefix(commandLine: string, cursorPosition: number): string {
