@@ -261,7 +261,7 @@ suite('TerminalCompletionService', () => {
 					{ label: 'C:/Foo/Bar/', detail: 'C:/Foo/Bar/' },
 				], { replacementIndex: 0, replacementLength: 7 });
 			});
-			test('c:/foo/| case sensitivity on Windows', async () => {
+			test('c:/foo/| case insensitivity on Windows', async () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
 					cwd: URI.parse('file:///c:/foo'),
 					foldersRequested: true,
@@ -281,24 +281,39 @@ suite('TerminalCompletionService', () => {
 				], { replacementIndex: 0, replacementLength: 7 });
 			});
 		} else {
-			test.skip('/Foo/| absolute paths NOT on Windows', async () => {
+			test('/foo/| absolute paths NOT on Windows', async () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
 					cwd: URI.parse('file:///'),
 					foldersRequested: true,
 					pathSeparator,
 					shouldNormalizePrefix: true
 				};
-				validResources = [URI.parse('file:///Foo')]; // Updated to reflect new cwd
+				validResources = [URI.parse('file:///foo')]; // Updated to reflect new cwd
 				childResources = [
-					{ resource: URI.parse('file:///Foo/Bar'), isDirectory: true, isFile: false },
-					{ resource: URI.parse('file:///Foo/Baz.txt'), isDirectory: false, isFile: true }
+					{ resource: URI.parse('file:///foo/Bar'), isDirectory: true, isFile: false },
+					{ resource: URI.parse('file:///foo/Baz.txt'), isDirectory: false, isFile: true }
+				];
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/foo/', 5, provider, capabilities);
+
+				assertCompletions(result, [
+					{ label: '/foo/', detail: '/foo/' },
+					{ label: '/foo/Bar/', detail: '/foo/Bar/' },
+				], { replacementIndex: 0, replacementLength: 5 });
+			});
+			test('/foo/| case insensitivity NOT on Windows', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.parse('file:///foo'),
+					foldersRequested: true,
+					pathSeparator,
+					shouldNormalizePrefix: true,
+				};
+				validResources = [URI.parse('file:///foo')]; // Updated to reflect new cwd
+				childResources = [
+					{ resource: URI.parse('file:///foo/Bar'), isDirectory: true, isFile: false }
 				];
 				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/Foo/', 5, provider, capabilities);
 
-				assertCompletions(result, [
-					{ label: '/Foo/', detail: '/Foo/' },
-					{ label: '/Foo/Bar/', detail: '/Foo/Bar/' },
-				], { replacementIndex: 0, replacementLength: 5 });
+				assertCompletions(result, [], { replacementIndex: 0, replacementLength: 7 });
 			});
 		}
 
