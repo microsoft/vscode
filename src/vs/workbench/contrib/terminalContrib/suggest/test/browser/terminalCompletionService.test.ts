@@ -244,7 +244,7 @@ suite('TerminalCompletionService', () => {
 		if (isWindows) {
 			test('C:/Foo/| absolute paths on Windows', async () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
-					cwd: URI.parse('file:///C:/Foo'),
+					cwd: URI.parse('file:///C:'),
 					foldersRequested: true,
 					pathSeparator,
 					shouldNormalizePrefix: true,
@@ -263,7 +263,7 @@ suite('TerminalCompletionService', () => {
 			});
 			test('c:/foo/| case insensitivity on Windows', async () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
-					cwd: URI.parse('file:///c:/foo'),
+					cwd: URI.parse('file:///c:'),
 					foldersRequested: true,
 					pathSeparator,
 					shouldNormalizePrefix: true,
