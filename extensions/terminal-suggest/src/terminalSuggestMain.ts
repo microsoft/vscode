@@ -17,7 +17,7 @@ import { getZshGlobals } from './shell/zsh';
 import { getFishGlobals } from './shell/fish';
 import { getPwshGlobals } from './shell/pwsh';
 import { getTokenType, TokenType } from './tokens';
-import { activatePathExecutables, getCommandsInPath } from './env/pathExecutables';
+import { PathExecutableCache } from './env/pathExecutableCache';
 import { getFriendlyResourcePath } from './helpers/uri';
 
 // TODO: remove once API is finalized
@@ -39,6 +39,7 @@ export const enum TerminalShellType {
 
 const isWindows = osIsWindows();
 const cachedGlobals: Map<TerminalShellType, ICompletionResource[] | undefined> = new Map();
+let pathExecutableCache: PathExecutableCache;
 
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
@@ -80,6 +81,9 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 }
 
 export async function activate(context: vscode.ExtensionContext) {
+	pathExecutableCache = new PathExecutableCache();
+	context.subscriptions.push(pathExecutableCache);
+
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string; cursorPosition: number }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
@@ -92,7 +96,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
+			const commandsInPath = await pathExecutableCache.getCommandsInPath(terminal.shellIntegration?.env);
 			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				return;
@@ -117,7 +121,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			return result.items;
 		}
 	}, '/', '\\'));
-	activatePathExecutables(context);
 }
 
 /**
