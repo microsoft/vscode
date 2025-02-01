@@ -54,7 +54,7 @@ import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatW
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
-import { ChatEditingService } from './chatEditing/chatEditingService.js';
+import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { registerChatEditorActions } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
@@ -79,11 +79,11 @@ import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js'
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from './chatQuotasService.js';
-import { BuiltinToolsContribution } from './tools/tools.js';
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatEditorOverlayController } from './chatEditorOverlay.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
 import { PromptFilesConfig } from '../common/promptSyntax/config.js';
+import { BuiltinToolsContribution } from '../common/tools/tools.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -154,14 +154,9 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		[PromptFilesConfig.CONFIG_KEY]: {
-			type: ['string', 'array', 'boolean', 'null'],
-			title: nls.localize('chat.promptFiles.setting.title', "Prompt Files"),
-			markdownDescription: nls.localize(
-				'chat.promptFiles.setting.markdownDescription',
-				"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
-				'.prompt.md',
-				PromptFilesConfig.DOCUMENTATION_URL,
-			),
+			type: ['boolean', 'object', 'array', 'string', 'null'],
+			title: PromptFilesConfig.CONFIG_TITLE,
+			markdownDescription: PromptFilesConfig.CONFIG_DESCRIPTION,
 			default: null,
 			tags: ['experimental'],
 		},

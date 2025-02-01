@@ -243,6 +243,7 @@ __vsc_continuation_end() {
 
 __vsc_command_complete() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
+		__vsc_update_cwd
 		builtin return
 	fi
 	if [ "$__vsc_current_command" = "" ]; then

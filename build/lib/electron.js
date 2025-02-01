@@ -195,7 +195,7 @@ exports.config = {
             'F# source code': 'fs',
             'F# signature file': 'fsi',
             'F# script': ['fsx', 'fsscript'],
-            'SVG document': ['svg', 'svgz'],
+            'SVG document': ['svg'],
             'TOML document': 'toml',
             'Swift source code': 'swift',
         }, 'default'),

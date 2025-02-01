@@ -94,6 +94,7 @@ import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAt
 import { InstructionAttachmentsWidget } from './attachments/instructionsAttachment/instructionAttachments.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel, EditsAttachmentModel } from './chatAttachmentModel.js';
+import { toChatVariable } from './chatAttachmentModel/chatInstructionAttachmentsModel.js';
 import { hookUpResourceAttachmentDragAndContextMenu, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
@@ -193,17 +194,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				continue;
 			}
 
-			for (const childUri of variable.allValidReferencesUris) {
-				contextArr.push({
-					id: variable.id,
-					name: basename(childUri.path),
-					value: childUri,
-					isSelection: false,
-					enabled: true,
-					isFile: true,
-					isDynamic: true,
-				});
-			}
+			// the usual URIs list of prompt instructions is `bottom-up`, therefore
+			// we do the same here - first add all child references to the list
+			contextArr.push(
+				...variable.allValidReferences.map((link) => {
+					return toChatVariable(link, false);
+				}),
+			);
+			// then add the root reference itself
+			contextArr.push(
+				toChatVariable(variable, true),
+			);
 		}
 
 		contextArr
@@ -253,6 +254,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _followupsHeight: number = 0;
 	get followupsHeight() {
 		return this._followupsHeight;
+	}
+
+	private _editSessionWidgetHeight: number = 0;
+	get editSessionWidgetHeight() {
+		return this._editSessionWidgetHeight;
 	}
 
 	private _inputEditor!: CodeEditorWidget;
@@ -1310,8 +1316,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			suggestedFilesInWorkingSetCount = entries.filter(e => e.kind === 'reference' && e.state === WorkingSetEntryState.Suggested).length;
 		}
-		overviewTitle.ariaLabel = overviewTitle.textContent;
-		overviewTitle.tabIndex = 0;
 
 		if (excludedEntries.length > 0) {
 			overviewFileCount.textContent = ' ' + localize('chatEditingSession.excludedFiles', '({0}/{1} files)', this.chatEditingService.editingSessionFileLimit + excludedEntries.length, this.chatEditingService.editingSessionFileLimit);
@@ -1319,6 +1323,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const fileCount = entries.length - suggestedFilesInWorkingSetCount;
 			overviewFileCount.textContent = ' ' + (fileCount === 1 ? localize('chatEditingSession.oneFile', '(1 file)') : localize('chatEditingSession.manyFiles', '({0} files)', fileCount));
 		}
+
+		overviewTitle.ariaLabel = overviewWorkingSet.textContent + overviewFileCount.textContent;
+		overviewTitle.tabIndex = 0;
 
 		const fileLimitReached = remainingFileEntriesBudget <= 0;
 		overviewFileCount.classList.toggle('file-limit-reached', fileLimitReached);
@@ -1512,6 +1519,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
 		this._followupsHeight = data.followupsHeight;
+		this._editSessionWidgetHeight = data.chatEditingStateHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
