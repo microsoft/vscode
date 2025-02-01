@@ -13,6 +13,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { createFileStat } from '../../../../../test/common/workbenchTestServices.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -77,7 +78,7 @@ suite('TerminalCompletionService', () => {
 	suite('resolveResources should return undefined', () => {
 		test('if cwd is not provided', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = { pathSeparator };
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, new TerminalCapabilityStore());
 			assert(!result);
 		});
 
@@ -87,7 +88,7 @@ suite('TerminalCompletionService', () => {
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, new TerminalCapabilityStore());
 			assert(!result);
 		});
 	});
@@ -107,7 +108,7 @@ suite('TerminalCompletionService', () => {
 				foldersRequested: true,
 				pathSeparator
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 1, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 1, provider, new TerminalCapabilityStore());
 
 			assertCompletions(result, [
 				{ label: '.', detail: '/test/' },
@@ -123,7 +124,7 @@ suite('TerminalCompletionService', () => {
 				pathSeparator,
 				shouldNormalizePrefix: true
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3, provider, new TerminalCapabilityStore());
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
@@ -139,7 +140,7 @@ suite('TerminalCompletionService', () => {
 				pathSeparator,
 				shouldNormalizePrefix: true
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5, provider, new TerminalCapabilityStore());
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
@@ -154,7 +155,7 @@ suite('TerminalCompletionService', () => {
 				pathSeparator,
 				shouldNormalizePrefix: true
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./f', 6, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./f', 6, provider, new TerminalCapabilityStore());
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
@@ -170,7 +171,7 @@ suite('TerminalCompletionService', () => {
 				shouldNormalizePrefix: true,
 				env: { HOME: '/test/' }
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ~/', 5, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ~/', 5, provider, new TerminalCapabilityStore());
 
 			assertCompletions(result, [
 				{ label: '~/', detail: '/test/' },
@@ -197,7 +198,7 @@ suite('TerminalCompletionService', () => {
 				pathSeparator,
 				shouldNormalizePrefix: true
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider, new TerminalCapabilityStore());
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
@@ -217,7 +218,7 @@ suite('TerminalCompletionService', () => {
 				pathSeparator,
 				shouldNormalizePrefix: true
 			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './h', 3, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './h', 3, provider, new TerminalCapabilityStore());
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
@@ -245,7 +246,7 @@ suite('TerminalCompletionService', () => {
 				};
 				validResources = [URI.parse('file:///usr')];
 				childResources = [];
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/usr/', 5, provider);
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/usr/', 5, provider, new TerminalCapabilityStore());
 
 				assertCompletions(result, [
 					{ label: '/usr/', detail: '/' },
@@ -267,7 +268,7 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.parse('file:///C:/test/anotherFolder/'), isDirectory: true }
 				];
 
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.\\folder', 8, provider);
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '.\\folder', 8, provider, new TerminalCapabilityStore());
 
 				assertCompletions(result, [
 					{ label: '.\\', detail: 'C:\\test\\' },
@@ -290,7 +291,7 @@ suite('TerminalCompletionService', () => {
 					{ resource: URI.parse('file:///test/foldera/'), isDirectory: true }
 				];
 
-				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder', 8, provider);
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder', 8, provider, new TerminalCapabilityStore());
 
 				assertCompletions(result, [
 					{ label: './', detail: '/test/' },
@@ -313,7 +314,7 @@ suite('TerminalCompletionService', () => {
 				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
 			];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 0, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '', 0, provider, new TerminalCapabilityStore());
 
 			assertCompletions(result, [
 				{ label: '.', detail: '/test/' },
@@ -335,7 +336,7 @@ suite('TerminalCompletionService', () => {
 				resource: URI.parse(`file:///test/folder${i}/`),
 				isDirectory: true
 			}));
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider, new TerminalCapabilityStore());
 
 			assert(result);
 			// includes the 1000 folders + ./ and ./../
@@ -356,7 +357,7 @@ suite('TerminalCompletionService', () => {
 				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
 				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
 			];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder1', 10, provider);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './folder1', 10, provider, new TerminalCapabilityStore());
 
 			assertCompletions(result, [
 				{ label: './', detail: '/test/' },
