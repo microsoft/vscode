@@ -10,6 +10,7 @@ import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
 import codeInsidersCompletionSpec from './completions/code-insiders';
+import gitSpec from './completions/git';
 import { osIsWindows } from './helpers/os';
 import { isExecutable } from './helpers/executable';
 import type { ICompletionResource } from './types';
@@ -47,6 +48,7 @@ export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
+	gitSpec,
 ];
 for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
@@ -308,7 +310,8 @@ export async function getCompletionItemsFromSpecs(
 		}
 
 		for (const specLabel of specLabels) {
-			const availableCommand = availableCommands.find(command => command.label === specLabel);
+			// TODO: Fix extension problem
+			const availableCommand = availableCommands.find(command => path.basename(command.label, '.exe') === specLabel);
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -319,6 +322,7 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
+			// TODO: Fix optional extension problem on Windows
 			if (!terminalContext.commandLine.startsWith(`${specLabel} `)) {
 				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
@@ -330,6 +334,7 @@ export async function getCompletionItemsFromSpecs(
 				filesRequested ||= argsCompletionResult.filesRequested;
 				foldersRequested ||= argsCompletionResult.foldersRequested;
 			}
+
 			if (!argsCompletionResult?.items.length) {
 				// Arg completions are more specific, only get options if those are not provided.
 				const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
@@ -338,6 +343,13 @@ export async function getCompletionItemsFromSpecs(
 					filesRequested ||= optionsCompletionResult.filesRequested;
 					foldersRequested ||= optionsCompletionResult.foldersRequested;
 				}
+			}
+
+			const subcommands = handleSubcommands(specLabel, spec, terminalContext, precedingText, prefix);
+			if (subcommands) {
+				items.push(...subcommands.items);
+				filesRequested ||= subcommands.filesRequested;
+				foldersRequested ||= subcommands.foldersRequested;
 			}
 		}
 	}
@@ -382,7 +394,7 @@ function handleArguments(specLabel: string, spec: Fig.Spec, terminalContext: { c
 	}
 
 	const currentPrefix = precedingText.slice(precedingText.lastIndexOf(expectedText) + expectedText.length);
-	const argsCompletions = getCompletionItemsFromArgs(args, currentPrefix, terminalContext);
+	const argsCompletions = getCompletionItemsFromArgs(args, currentPrefix, terminalContext, vscode.TerminalCompletionItemKind.Argument);
 
 	if (!argsCompletions) {
 		return;
@@ -434,7 +446,7 @@ function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { com
 			}
 
 			const currentPrefix = precedingText.slice(precedingText.lastIndexOf(expectedText) + expectedText.length);
-			const argsCompletions = getCompletionItemsFromArgs(option.args, currentPrefix, terminalContext);
+			const argsCompletions = getCompletionItemsFromArgs(option.args, currentPrefix, terminalContext, vscode.TerminalCompletionItemKind.Argument);
 
 			if (argsCompletions) {
 				return { items: argsCompletions.items, filesRequested: argsCompletions.filesRequested, foldersRequested: argsCompletions.foldersRequested };
@@ -445,8 +457,59 @@ function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { com
 	return { items: optionItems, filesRequested: false, foldersRequested: false };
 }
 
+function handleSubcommands(specLabel: string, spec: Fig.Spec, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string, prefix: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
+	let subcommands;
+	if ('subcommands' in spec && spec.subcommands) {
+		subcommands = spec.subcommands;
+	}
+	if (!subcommands) {
+		return;
+	}
+	const items: vscode.TerminalCompletionItem[] = [];
+	for (const option of subcommands) {
+		const optionLabels = getLabel(option);
 
-function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
+		if (!optionLabels) {
+			continue;
+		}
+
+		for (const optionLabel of optionLabels) {
+			if (
+				// Already includes this option
+				items.find((i) => i.label === optionLabel)
+			) {
+				continue;
+			}
+
+			items.push(
+				createCompletionItem(
+					terminalContext.cursorPosition,
+					prefix,
+					{ label: optionLabel },
+					option.description,
+					undefined,
+					vscode.TerminalCompletionItemKind.Flag
+				)
+			);
+
+			const expectedText = `${specLabel} ${optionLabel} `;
+			if (!precedingText.includes(expectedText)) {
+				continue;
+			}
+
+			const currentPrefix = precedingText.slice(precedingText.lastIndexOf(expectedText) + expectedText.length);
+			const argsCompletions = getCompletionItemsFromArgs(option.args, currentPrefix, terminalContext, vscode.TerminalCompletionItemKind.Method);
+
+			if (argsCompletions) {
+				return { items: argsCompletions.items, filesRequested: argsCompletions.filesRequested, foldersRequested: argsCompletions.foldersRequested };
+			}
+		}
+	}
+	return { items, filesRequested: false, foldersRequested: false };
+}
+
+
+function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }, kind: vscode.TerminalCompletionItemKind): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
 	if (!args) {
 		return;
 	}
@@ -484,7 +547,7 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 					}
 					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const description = typeof suggestion !== 'string' ? suggestion.description : '';
-						items.push(createCompletionItem(terminalContext.cursorPosition, wordBefore ?? '', { label: suggestionLabel }, description, undefined, vscode.TerminalCompletionItemKind.Argument));
+						items.push(createCompletionItem(terminalContext.cursorPosition, wordBefore ?? '', { label: suggestionLabel }, description, undefined, kind));
 					}
 				}
 			}
