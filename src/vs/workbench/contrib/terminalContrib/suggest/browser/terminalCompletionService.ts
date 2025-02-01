@@ -340,7 +340,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					label,
 					provider,
 					kind,
-					detail: getFriendlyPath(stat.resource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.File),
+					detail: getFriendlyPath(stat.resource, resourceRequestConfig.pathSeparator, kind),
 					isDirectory,
 					isFile: kind === TerminalCompletionItemKind.File,
 					replacementIndex: cursorPosition - lastWord.length,
