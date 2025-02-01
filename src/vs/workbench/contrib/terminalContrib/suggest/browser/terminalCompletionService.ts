@@ -223,7 +223,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
 
-		const useForwardSlash = !resourceRequestConfig.shouldNormalizePrefix && isWindows;
+		// TODO: This should come in through the resourceRequestConfig
+		const useBackslash = isWindows;
 
 		// The last word (or argument). When the cursor is following a space it will be the empty
 		// string
@@ -232,7 +233,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
 		// they are what triggers changes in the directory.
 		let lastSlashIndex: number;
-		if (useForwardSlash) {
+		if (useBackslash) {
 			lastSlashIndex = Math.max(lastWord.lastIndexOf('\\'), lastWord.lastIndexOf('/'));
 		} else {
 			lastSlashIndex = lastWord.lastIndexOf(resourceRequestConfig.pathSeparator);
@@ -269,9 +270,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		// Handle absolute paths differently to avoid adding `./` prefixes
 		// TODO: Deal with git bash case
-		const isAbsolutePath = useForwardSlash
-			? lastWord.startsWith(resourceRequestConfig.pathSeparator) && lastWord.endsWith(resourceRequestConfig.pathSeparator)
-			: /^[a-zA-Z]:[\\\/]/.test(lastWord);
+		const isAbsolutePath = useBackslash
+			? /^[a-zA-Z]:[\\\/]/.test(lastWord)
+			: lastWord.startsWith(resourceRequestConfig.pathSeparator);
 
 		if (isAbsolutePath) {
 
@@ -397,7 +398,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 				// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
 				// suggestions should all use `\`
-				if (useForwardSlash) {
+				if (useBackslash) {
 					label = label.replaceAll('/', '\\');
 				}
 
@@ -419,7 +420,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (config === 'absolute' || config === 'relative') {
 					const cdPath = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.get('CDPATH');
 					if (cdPath) {
-						const cdPathEntries = cdPath.split(useForwardSlash ? ';' : ':');
+						const cdPathEntries = cdPath.split(useBackslash ? ';' : ':');
 						for (const cdPathEntry of cdPathEntries) {
 							try {
 								const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
