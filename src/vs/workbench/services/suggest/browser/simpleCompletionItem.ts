@@ -5,6 +5,7 @@
 
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { basename } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
@@ -73,6 +74,8 @@ export class SimpleCompletionItem {
 	 */
 	readonly labelLowNormalizedPath: string;
 
+	readonly unscorePenalty: number = 0;
+
 	/**
 	 * The file extension part from {@link labelLow}.
 	 */
@@ -109,6 +112,7 @@ export class SimpleCompletionItem {
 			if (completion.isDirectory) {
 				this.labelLowNormalizedPath = this.labelLowNormalizedPath.replace(/\/$/, '');
 			}
+			this.unscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
 		}
 	}
 }

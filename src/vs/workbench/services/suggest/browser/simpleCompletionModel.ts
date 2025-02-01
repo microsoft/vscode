@@ -188,11 +188,13 @@ export class SimpleCompletionModel {
 					return score;
 				}
 			}
+
 			// Sort by the score
 			score = b.score[0] - a.score[0];
 			if (score !== 0) {
 				return score;
 			}
+
 			// Sort files with the same score against each other specially
 			const isArg = leadingLineContent.includes(' ');
 			if (!isArg && a.fileExtLow.length > 0 && b.fileExtLow.length > 0) {
@@ -212,6 +214,13 @@ export class SimpleCompletionModel {
 					return score;
 				}
 			}
+
+			// Sort by unscore penalty (eg. `__init__/` should be penalized)
+			if (a.unscorePenalty !== b.unscorePenalty) {
+				return a.unscorePenalty - b.unscorePenalty;
+			}
+
+			// Sort by folder depth (eg. `vscode/` should come before `vscode-.../`)
 			if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
 				// Directories
 				// Count depth of path (number of / or \ occurrences)
@@ -228,8 +237,10 @@ export class SimpleCompletionModel {
 					return 1; // `b` is a prefix of `a`, so `b` should come first
 				}
 			}
-			// Sort alphabetically
-			return a.labelLow.localeCompare(b.labelLow);
+
+			// Sort alphabetically, ignoring punctuation causes dot files to be mixed in rather than
+			// all at the top
+			return a.labelLow.localeCompare(b.labelLow, undefined, { ignorePunctuation: true });
 		});
 		this._refilterKind = Refilter.Nothing;
 
