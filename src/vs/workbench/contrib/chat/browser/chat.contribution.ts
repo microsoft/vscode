@@ -54,7 +54,7 @@ import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatW
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
-import { ChatEditingService } from './chatEditing/chatEditingService.js';
+import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { registerChatEditorActions } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
@@ -154,14 +154,9 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		[PromptFilesConfig.CONFIG_KEY]: {
-			type: ['string', 'array', 'object', 'boolean', 'null'],
-			title: nls.localize('chat.promptFiles.setting.title', "Prompt Files"),
-			markdownDescription: nls.localize(
-				'chat.promptFiles.setting.markdownDescription',
-				"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
-				'.prompt.md',
-				PromptFilesConfig.DOCUMENTATION_URL,
-			),
+			type: ['boolean', 'object', 'array', 'string', 'null'],
+			title: PromptFilesConfig.CONFIG_TITLE,
+			markdownDescription: PromptFilesConfig.CONFIG_DESCRIPTION,
 			default: null,
 			tags: ['experimental'],
 		},

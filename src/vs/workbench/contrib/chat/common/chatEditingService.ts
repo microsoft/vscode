@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -27,7 +27,6 @@ export interface IChatEditingService {
 	readonly currentEditingSessionObs: IObservable<IChatEditingSession | null>;
 
 	readonly currentEditingSession: IChatEditingSession | null;
-	readonly currentAutoApplyOperation: CancellationTokenSource | null;
 
 	readonly editingSessionFileLimit: number;
 
@@ -101,6 +100,8 @@ export interface IChatEditingSession {
 	 */
 	stop(clearState?: boolean): Promise<void>;
 
+	readonly canUndo: IObservable<boolean>;
+	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
 }
@@ -126,6 +127,7 @@ export const enum ChatEditingSessionChangeType {
 }
 
 export interface IModifiedFileEntry {
+	readonly entryId: string;
 	readonly originalURI: URI;
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
@@ -164,7 +166,6 @@ export const chatEditingAgentSupportsReadonlyReferencesContextKey = new RawConte
 export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
-export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
 export const hasUndecidedChatEditingResourceContextKey = new RawContextKey<boolean | undefined>('hasUndecidedChatEditingResource', false);
 export const hasAppliedChatEditsContextKey = new RawContextKey<boolean | undefined>('hasAppliedChatEdits', false);
 export const applyingChatEditsFailedContextKey = new RawContextKey<boolean | undefined>('applyingChatEditsFailed', false);
