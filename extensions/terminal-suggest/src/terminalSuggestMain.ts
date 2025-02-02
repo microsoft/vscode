@@ -249,14 +249,16 @@ export async function getCompletionItemsFromSpecs(
 		}
 
 		for (const specLabel of specLabels) {
-			const availableCommand = availableCommands.find(command => command.label === specLabel);
+			const availableCommand = availableCommands.find(command => specLabel === (command.definition ?? command.label));
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
 
 			// push it to the completion items
 			if (tokenType === TokenType.Command) {
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, getDescription(spec), availableCommand.detail));
+				if (availableCommand.kind !== vscode.TerminalCompletionItemKind.Alias) {
+					items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, getDescription(spec), availableCommand.detail));
+				}
 				continue;
 			}
 

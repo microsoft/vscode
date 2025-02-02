@@ -82,6 +82,7 @@ async function getAliases(options: ExecOptionsWithStringEncoding, existingComman
 			kind: (isAlias
 				? vscode.TerminalCompletionItemKind.Alias
 				: vscode.TerminalCompletionItemKind.Method),
+			definition: (isAlias && e.Definition ? e.Definition : undefined)
 		};
 	});
 }

@@ -37,6 +37,7 @@ async function getAliases(options: ExecOptionsWithStringEncoding): Promise<IComp
 			label: match.groups.alias,
 			detail: match.groups.resolved,
 			kind: vscode.TerminalCompletionItemKind.Alias,
+			definition: match.groups.resolved.substring(0, match.groups.resolved.indexOf(' ')),
 		});
 	}
 	return result;

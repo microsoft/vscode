@@ -27,7 +27,6 @@ async function getAliases(options: ExecOptionsWithStringEncoding): Promise<IComp
 	// session, for the same reason this would not include aliases that are created
 	// by simply running `alias ...` in the terminal.
 	const aliasOutput = await spawnHelper('fish', ['-ic', 'alias'], options);
-
 	const result: ICompletionResource[] = [];
 	for (const line of aliasOutput.split('\n')) {
 		const match = line.match(/^alias (?<alias>[a-zA-Z0-9\.:-]+) (?<resolved>.+)$/);
@@ -38,6 +37,7 @@ async function getAliases(options: ExecOptionsWithStringEncoding): Promise<IComp
 			label: match.groups.alias,
 			detail: match.groups.resolved,
 			kind: vscode.TerminalCompletionItemKind.Alias,
+			definition: match.groups.resolved.substring(0, match.groups.resolved.indexOf(' ')),
 		});
 	}
 	return result;
