@@ -33,11 +33,17 @@ async function getAliases(options: ExecOptionsWithStringEncoding): Promise<IComp
 		if (!match?.groups) {
 			continue;
 		}
+		let definitionCommand = '';
+		let definitionIndex = match.groups.resolved.indexOf(' ');
+		if (definitionIndex === -1) {
+			definitionIndex = match.groups.resolved.length;
+		}
+		definitionCommand = match.groups.resolved.substring(0, definitionIndex);
 		result.push({
 			label: match.groups.alias,
 			detail: match.groups.resolved,
 			kind: vscode.TerminalCompletionItemKind.Alias,
-			definition: match.groups.resolved.substring(0, match.groups.resolved.indexOf(' ')),
+			definitionCommand,
 		});
 	}
 	return result;

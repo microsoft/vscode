@@ -8,10 +8,10 @@ import * as vscode from 'vscode';
 export interface ICompletionResource {
 	label: string;
 	/**
-	 * The definition of the completion, this will be the resolved value of an
-	 * alias completion.
+	 * The definition command of the completion, this will be the resolved value of an alias
+	 * completion.
 	 */
-	definition?: string;
+	definitionCommand?: string;
 	detail?: string;
 	kind?: vscode.TerminalCompletionItemKind;
 }

@@ -249,7 +249,7 @@ export async function getCompletionItemsFromSpecs(
 		}
 
 		for (const specLabel of specLabels) {
-			const availableCommand = availableCommands.find(command => specLabel === (command.definition ?? command.label));
+			const availableCommand = availableCommands.find(command => specLabel === command.label);
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -262,7 +262,8 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			if (!terminalContext.commandLine.startsWith(`${specLabel} `)) {
+			const commandAndAliases = availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label));
+			if (!commandAndAliases.some(e => terminalContext.commandLine.startsWith(`${e.label} `))) {
 				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
 			}
