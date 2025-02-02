@@ -620,6 +620,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly usedShellIntegrationInjection: boolean;
 	readonly injectedArgs: string[] | undefined;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
+	readonly scopedContextKeyService: IContextKeyService;
 
 	/**
 	 * The underlying disposable store, allowing objects who share the same lifecycle as the

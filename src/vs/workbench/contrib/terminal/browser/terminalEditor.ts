@@ -27,7 +27,7 @@ import { openContextMenu } from './terminalContextMenu.js';
 import { ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 
 export class TerminalEditor extends EditorPane {
 
@@ -40,7 +40,7 @@ export class TerminalEditor extends EditorPane {
 
 	private readonly _dropdownMenu: IMenu;
 
-	private readonly _instanceMenu: IMenu;
+	private readonly _instanceMenu = this._register(new MutableDisposable<IMenu>());
 
 	private _cancelContextMenu: boolean = false;
 
@@ -63,8 +63,13 @@ export class TerminalEditor extends EditorPane {
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService
 	) {
 		super(terminalEditorId, group, telemetryService, themeService, storageService);
-		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
+		const activeScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
+		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, activeScopedContextKeyService || contextKeyService));
+		this._instanceMenu.value = menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService);
+		this._register(this._terminalEditorService.onDidChangeActiveInstance(() => {
+			const activeScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
+			this._instanceMenu.value = menuService.createMenu(MenuId.TerminalInstanceContext, activeScopedContextKeyService || contextKeyService);
+		}));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -120,8 +125,8 @@ export class TerminalEditor extends EditorPane {
 		}
 		this._register(dom.addDisposableListener(this._editorInstanceElement, 'mousedown', async (event: MouseEvent) => {
 			const terminal = this._terminalEditorService.activeInstance;
-			if (this._terminalEditorService.instances.length > 0 && terminal) {
-				const result = await terminal.handleMouseEvent(event, this._instanceMenu);
+			if (this._terminalEditorService.instances.length > 0 && terminal && this._instanceMenu.value) {
+				const result = await terminal.handleMouseEvent(event, this._instanceMenu.value);
 				if (typeof result === 'object' && result.cancelContextMenu) {
 					this._cancelContextMenu = true;
 				}
@@ -137,8 +142,8 @@ export class TerminalEditor extends EditorPane {
 			}
 			else
 				if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
-					if (!this._cancelContextMenu) {
-						openContextMenu(this.window, event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
+					if (!this._cancelContextMenu && this._instanceMenu.value) {
+						openContextMenu(this.window, event, this._editorInput?.terminalInstance, this._instanceMenu.value, this._contextMenuService);
 					}
 					event.preventDefault();
 					event.stopImmediatePropagation();

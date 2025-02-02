@@ -162,6 +162,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _terminalShellIntegrationEnabledContextKey: IContextKey<boolean>;
+	private _terminalHasCwdDetectionCapabilityContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
 	private _rows: number = 0;
 	private _fixedCols: number | undefined;
@@ -202,6 +203,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	readonly capabilities = this._register(new TerminalCapabilityStoreMultiplexer());
 	readonly statusList: ITerminalStatusList;
+
+	get scopedContextKeyService(): IContextKeyService { return this._scopedContextKeyService; }
 
 	get store(): DisposableStore {
 		return this._store;
@@ -444,8 +447,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalHasTextContextKey = TerminalContextKeys.textSelected.bindTo(scopedContextKeyService);
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(scopedContextKeyService);
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
+		this._terminalHasCwdDetectionCapabilityContextKey = TerminalContextKeys.terminalHasCwdDetection.bindTo(scopedContextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
+		this._register(this.onDidFocus(() => {
+			const hasCwdCapability = this.capabilities.has(TerminalCapability.CwdDetection);
+			this._terminalHasCwdDetectionCapabilityContextKey.set(hasCwdCapability);
+		}));
+		this._register(this.capabilities.onDidAddCapabilityType(capability => {
+			if (capability === TerminalCapability.CwdDetection) {
+				this._terminalHasCwdDetectionCapabilityContextKey.set(true);
+			}
+		}));
+		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
+			if (capability === TerminalCapability.CwdDetection) {
+				this._terminalHasCwdDetectionCapabilityContextKey.set(false);
+			}
+		}));
 		this._register(this.capabilities.onDidAddCapabilityType(e => this._logService.debug('terminalInstance added capability', e)));
 		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
 

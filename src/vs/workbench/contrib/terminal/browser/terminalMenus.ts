@@ -21,9 +21,10 @@ import { ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editor
 const enum ContextMenuGroup {
 	Create = '1_create',
 	Edit = '3_edit',
-	Clear = '5_clear',
-	Kill = '7_kill',
-	Config = '9_config'
+	Navigation = '5_navigation',
+	Clear = '7_clear',
+	Kill = '9_kill',
+	Config = '11_config',
 }
 
 export const enum TerminalMenuBarGroup {
@@ -184,6 +185,39 @@ export function setupTerminalMenus(): void {
 					order: 3
 				}
 			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInFinder,
+						title: localize('workbench.action.terminal.revealInFinder', "Reveal Current Working Directory in Finder"),
+						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetection, true)
+					},
+					group: ContextMenuGroup.Navigation,
+				},
+			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInExplorer,
+						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer View"),
+						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetection, true)
+					},
+					group: ContextMenuGroup.Navigation,
+				}
+			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInExternalTerminal,
+						title: localize('workbench.action.terminal.revealInExternalTerminal', "Reveal Current Working Directory in External Terminal"),
+						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetection, true)
+					},
+					group: ContextMenuGroup.Navigation,
+				}
+			}
 		]
 	);
 
@@ -281,6 +315,36 @@ export function setupTerminalMenus(): void {
 						title: terminalStrings.toggleSizeToContentWidth
 					},
 					group: ContextMenuGroup.Config
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInFinder,
+						title: localize('workbench.action.terminal.revealInFinder', "Reveal Current Working Directory in Finder"),
+					},
+					group: ContextMenuGroup.Navigation,
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInExplorer,
+						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer View"),
+					},
+					group: ContextMenuGroup.Navigation,
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInExternalTerminal,
+						title: localize('workbench.action.terminal.revealInExternalTerminal', "Reveal Current Working Directory in External Terminal"),
+					},
+					group: ContextMenuGroup.Navigation,
 				}
 			}
 		]
@@ -613,6 +677,39 @@ export function setupTerminalMenus(): void {
 						title: terminalStrings.kill.value
 					},
 					group: ContextMenuGroup.Kill,
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInFinder,
+						title: localize('workbench.action.terminal.revealInFinder', "Reveal Current Working Directory in Finder"),
+					},
+					group: ContextMenuGroup.Navigation,
+					when: TerminalContextKeys.terminalHasCwdDetection
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInExplorer,
+						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer View"),
+					},
+					group: ContextMenuGroup.Navigation,
+					when: TerminalContextKeys.terminalHasCwdDetection
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.RevealInExternalTerminal,
+						title: localize('workbench.action.terminal.revealInExternalTerminal', "Reveal Current Working Directory in External Terminal"),
+					},
+					group: ContextMenuGroup.Navigation,
+					when: TerminalContextKeys.terminalHasCwdDetection
 				}
 			}
 		]
