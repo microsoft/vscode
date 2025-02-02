@@ -20,6 +20,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../common/languageModelToolsService.js';
+import { EditToolId } from '../common/tools/editFileTool.js';
 
 interface IToolEntry {
 	data: IToolData;
@@ -186,7 +187,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
 				const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
-				if (tool.data.id !== 'vscode_editFile') {
+				if (tool.data.id !== EditToolId) {
 					toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.pastTenseMessage, prepared?.tooltip, prepared?.confirmationMessages);
 					model.acceptResponseProgress(request, toolInvocation);
 					if (prepared?.confirmationMessages) {
