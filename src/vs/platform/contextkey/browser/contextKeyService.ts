@@ -103,7 +103,6 @@ class ConfigAwareContextValuesContainer extends Context {
 	private static readonly _keyPrefix = 'config.';
 
 	private readonly _values = TernarySearchTree.forConfigKeys<any>();
-	private readonly _missed = TernarySearchTree.forConfigKeys<boolean>();
 	private readonly _listener: IDisposable;
 
 	constructor(
@@ -118,10 +117,7 @@ class ConfigAwareContextValuesContainer extends Context {
 				// new setting, reset everything
 				const allKeys = Array.from(this._values, ([k]) => k);
 				this._values.clear();
-				emitter.fire(new CompositeContextKeyChangeEvent([
-					new ArrayContextKeyChangeEvent(allKeys),
-					new ArrayContextKeyChangeEvent(Array.from(this._missed, ([k]) => k))
-				]));
+				emitter.fire(new ArrayContextKeyChangeEvent(allKeys));
 			} else {
 				const changedKeys: string[] = [];
 				for (const configKey of event.affectedKeys) {
@@ -176,11 +172,6 @@ class ConfigAwareContextValuesContainer extends Context {
 		}
 
 		this._values.set(key, value);
-		if (value === undefined) {
-			this._missed.set(key, true);
-		} else {
-			this._missed.delete(key);
-		}
 		return value;
 	}
 
