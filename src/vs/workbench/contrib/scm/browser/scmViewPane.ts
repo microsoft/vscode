@@ -1457,7 +1457,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		this._disposables.value.add(input.repository.provider.onDidChangeResources(() => updateToolbar()));
 		this._disposables.value.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, SCMInputWidgetStorageKey.LastActionId, this._disposables.value)(() => updateToolbar()));
 
-		this.actionRunner = new SCMInputWidgetActionRunner(input, this.storageService);
+		this.actionRunner = this._disposables.value.add(new SCMInputWidgetActionRunner(input, this.storageService));
 		this._disposables.value.add(this.actionRunner.onWillRun(e => {
 			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size === 0) {
 				super.setActions([this._cancelAction], []);
