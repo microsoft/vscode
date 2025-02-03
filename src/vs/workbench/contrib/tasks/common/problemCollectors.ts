@@ -456,6 +456,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				markerChanged = undefined;
 				_markerChanged?.dispose();
 			}, 600);
+			this.modelListeners.add({
+				dispose: () => {
+					markerChanged?.dispose();
+				}
+			});
 		}));
 	}
 
