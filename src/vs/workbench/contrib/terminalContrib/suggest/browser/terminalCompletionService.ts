@@ -12,6 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
@@ -82,7 +83,7 @@ export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	readonly providers: IterableIterator<ITerminalCompletionProvider>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
@@ -101,7 +102,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 	}
 
-	constructor(@IConfigurationService private readonly _configurationService: IConfigurationService,
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
@@ -127,7 +129,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined> {
 		if (!this._providers || !this._providers.values || cursorPosition < 0) {
 			return undefined;
 		}
@@ -153,7 +155,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		if (skipExtensionCompletions) {
 			providers = providers.filter(p => p.isBuiltin);
-			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, token);
+			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, capabilities, token);
 		}
 
 		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
@@ -166,10 +168,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		}
 
-		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, token);
+		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, capabilities, token);
 	}
 
-	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
+	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, capabilities: ITerminalCapabilityStore, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
 		const completionPromises = providers.map(async provider => {
 			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 				return undefined;
@@ -193,7 +195,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return completionItems;
 			}
 			if (completions.resourceRequestConfig) {
-				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id);
+				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities);
 				if (resourceCompletions) {
 					completionItems.push(...resourceCompletions);
 				}
@@ -206,7 +208,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string): Promise<ITerminalCompletion[] | undefined> {
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore): Promise<ITerminalCompletion[] | undefined> {
 		if (resourceRequestConfig.shouldNormalizePrefix) {
 			// for tests, make sure the right path separator is used
 			promptValue = promptValue.replaceAll(/[\\/]/g, resourceRequestConfig.pathSeparator);
@@ -346,6 +348,42 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
 				});
+			}
+		}
+
+		// Support $CDPATH specially for the `cd` command only
+		if (promptValue.startsWith('cd ')) {
+			const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
+			if (config === 'absolute' || config === 'relative') {
+				const cdPath = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.get('CDPATH');
+				if (cdPath) {
+					const cdPathEntries = cdPath.split(useForwardSlash ? ';' : ':');
+					for (const cdPathEntry of cdPathEntries) {
+						try {
+							const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
+							if (fileStat?.children) {
+								for (const child of fileStat.children) {
+									if (!child.isDirectory) {
+										continue;
+									}
+									const useRelative = config === 'relative';
+									const label = useRelative ? basename(child.resource.fsPath) : getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator);
+									const detail = useRelative ? `CDPATH ${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator)}` : `CDPATH`;
+									resourceCompletions.push({
+										label,
+										provider,
+										kind: TerminalCompletionItemKind.Folder,
+										isDirectory: child.isDirectory,
+										isFile: child.isFile,
+										detail,
+										replacementIndex: cursorPosition - lastWord.length,
+										replacementLength: lastWord.length
+									});
+								}
+							}
+						} catch { /* ignore */ }
+					}
+				}
 			}
 		}
 
