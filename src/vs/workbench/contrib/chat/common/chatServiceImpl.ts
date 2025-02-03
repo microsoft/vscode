@@ -670,12 +670,12 @@ export class ChatService extends Disposable implements IChatService {
 						} satisfies IChatAgentRequest;
 					};
 
-					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && enableCommandDetection) {
+					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
 
 						// Prepare the request object that we will send to the participant detection provider
-						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, agentSlashCommandPart?.command, enableCommandDetection, undefined, false);
+						const chatAgentRequest = await prepareChatAgentRequest(defaultAgent, undefined, enableCommandDetection, undefined, false);
 
 						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
 						if (result && this.chatAgentService.getAgent(result.agent.id)?.locations?.includes(location)) {
