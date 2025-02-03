@@ -11,3 +11,10 @@ export const upstreamSpecs = [
 	'rmdir',
 	'touch',
 ];
+
+
+export const enum SettingsIds {
+	SuggestPrefix = 'terminal.integrated.suggest',
+	CachedWindowsExecutableExtensions = 'terminal.integrated.suggest.windowsExecutableExtensions',
+	CachedWindowsExecutableExtensionsSuffixOnly = 'windowsExecutableExtensions',
+}

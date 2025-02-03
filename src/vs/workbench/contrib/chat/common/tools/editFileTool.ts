@@ -5,13 +5,11 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
@@ -19,29 +17,8 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
-
-export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'chat.builtinTools';
-
-	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-
-		const editTool = instantiationService.createInstance(EditTool);
-		this._register(toolsService.registerToolData(editToolData));
-		this._register(toolsService.registerToolImplementation(editToolData.id, editTool));
-	}
-}
-
-interface EditToolParams {
-	filePath: string;
-	explanation: string;
-	code: string;
-}
+import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { IToolInputProcessor } from './tools.js';
 
 const codeInstructions = `
 The user is very smart and can understand how to apply your edits to their files, you just need to provide minimal hints.
@@ -63,8 +40,9 @@ class Person {
 }
 `;
 
-const editToolData: IToolData = {
-	id: 'vscode_editFile',
+export const EditToolId = 'vscode_editFile';
+export const EditToolData: IToolData = {
+	id: EditToolId,
 	tags: ['vscode_editing'],
 	displayName: localize('chat.tools.editFile', "Edit File"),
 	modelDescription: `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`,
@@ -88,7 +66,7 @@ const editToolData: IToolData = {
 	}
 };
 
-class EditTool implements IToolImpl {
+export class EditTool implements IToolImpl {
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
@@ -105,13 +83,13 @@ class EditTool implements IToolImpl {
 		}
 
 		const parameters = invocation.parameters as EditToolParams;
-		const uri = URI.file(parameters.filePath);
+		const uri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
 		if (!this.workspaceContextService.isInsideWorkspace(uri)) {
-			throw new Error(`File ${parameters.filePath} can't be edited because it's not inside the current workspace`);
+			throw new Error(`File ${uri.fsPath} can't be edited because it's not inside the current workspace`);
 		}
 
 		if (await this.ignoredFilesService.fileIsIgnored(uri, token)) {
-			throw new Error(`File ${parameters.filePath} can't be edited because it is configured to be ignored by Copilot`);
+			throw new Error(`File ${uri.fsPath} can't be edited because it is configured to be ignored by Copilot`);
 		}
 
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
@@ -130,7 +108,8 @@ class EditTool implements IToolImpl {
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
 
-		if (this.chatEditingService.currentEditingSession?.chatSessionId !== model.sessionId) {
+		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
+		if (!editSession) {
 			throw new Error('This tool must be called from within an editing session');
 		}
 
@@ -157,8 +136,8 @@ class EditTool implements IToolImpl {
 			let wasFileBeingModified = false;
 
 			dispose = autorun((r) => {
-				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.read(r);
-				const entries = currentEditingSession?.entries.read(r);
+
+				const entries = editSession.entries.read(r);
 				const currentFile = entries?.find((e) => e.modifiedURI.toString() === uri.toString());
 				if (currentFile) {
 					if (currentFile.isCurrentlyBeingModified.read(r)) {
@@ -179,6 +158,34 @@ class EditTool implements IToolImpl {
 
 		return {
 			content: [{ kind: 'text', value: 'The file was edited successfully' }]
+		};
+	}
+}
+
+export interface EditToolParams {
+	file: UriComponents;
+	explanation: string;
+	code: string;
+}
+
+export interface EditToolRawParams {
+	filePath: string;
+	explanation: string;
+	code: string;
+}
+
+export class EditToolInputProcessor implements IToolInputProcessor {
+	processInput(input: EditToolRawParams): EditToolParams {
+		if (!input.filePath) {
+			// Tool name collision, or input wasn't properly validated upstream
+			return input as any;
+		}
+
+		// Runs in EH, will be mapped
+		return {
+			file: URI.file(input.filePath),
+			explanation: input.explanation,
+			code: input.code,
 		};
 	}
 }

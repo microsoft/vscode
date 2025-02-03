@@ -164,14 +164,14 @@
         "title": "%command.stageAll%",
         "category": "Git",
         "icon": "$(add)",
-        "enablement": "!operationInProgress && scmResourceGroupResourceCount > 0"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stageAllTracked",
         "title": "%command.stageAllTracked%",
         "category": "Git",
         "icon": "$(add)",
-        "enablement": "!operationInProgress && scmResourceGroupResourceCount > 0"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stageAllUntracked",
@@ -244,7 +244,7 @@
         "title": "%command.unstageAll%",
         "category": "Git",
         "icon": "$(remove)",
-        "enablement": "!operationInProgress && scmResourceGroupResourceCount > 0"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.unstageSelectedRanges",
@@ -271,14 +271,14 @@
         "title": "%command.cleanAll%",
         "category": "Git",
         "icon": "$(discard)",
-        "enablement": "!operationInProgress && scmResourceGroupResourceCount > 0"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.cleanAllTracked",
         "title": "%command.cleanAllTracked%",
         "category": "Git",
         "icon": "$(discard)",
-        "enablement": "!operationInProgress && scmResourceGroupResourceCount > 0"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.cleanAllUntracked",
@@ -902,14 +902,14 @@
         "title": "%command.viewChanges%",
         "icon": "$(diff-multiple)",
         "category": "Git",
-        "enablement": "!operationInProgress && scmResourceGroupResourceCount > 0"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.viewStagedChanges",
         "title": "%command.viewStagedChanges%",
         "icon": "$(diff-multiple)",
         "category": "Git",
-        "enablement": "!operationInProgress && scmResourceGroupResourceCount > 0"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.viewUntrackedChanges",

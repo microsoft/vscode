@@ -2770,8 +2770,25 @@ export class Repository implements Disposable {
 			return this.unpublishedCommits;
 		}
 
-		if (this.HEAD && this.HEAD.name && this.HEAD.upstream && this.HEAD.ahead && this.HEAD.ahead > 0) {
-			const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+		if (!this.HEAD?.name) {
+			this.unpublishedCommits = new Set<string>();
+			return this.unpublishedCommits;
+		}
+
+		if (this.HEAD.upstream) {
+			// Upstream
+			if (this.HEAD.ahead === 0) {
+				this.unpublishedCommits = new Set<string>();
+			} else {
+				const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+				const ref2 = this.HEAD.name;
+
+				const revList = await this.repository.revList(ref1, ref2);
+				this.unpublishedCommits = new Set<string>(revList);
+			}
+		} else if (this.historyProvider.currentHistoryItemBaseRef) {
+			// Base
+			const ref1 = this.historyProvider.currentHistoryItemBaseRef.id;
 			const ref2 = this.HEAD.name;
 
 			const revList = await this.repository.revList(ref1, ref2);

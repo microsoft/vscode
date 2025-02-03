@@ -7,8 +7,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { IDynamicVariable } from '../../../common/chatVariables.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
-import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 

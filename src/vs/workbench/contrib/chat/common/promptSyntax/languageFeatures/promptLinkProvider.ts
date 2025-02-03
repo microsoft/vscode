@@ -15,7 +15,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
-import { PROMP_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
+import { PROMPT_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
@@ -24,7 +24,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
  * Prompt files language selector.
  */
 const languageSelector = {
-	pattern: `**/*${PROMP_SNIPPET_FILE_EXTENSION}`,
+	pattern: `**/*${PROMPT_SNIPPET_FILE_EXTENSION}`,
 };
 
 /**
@@ -42,7 +42,7 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 	) {
 		super();
 
-		this.languageService.linkProvider.register(languageSelector, this);
+		this._register(this.languageService.linkProvider.register(languageSelector, this));
 		this.parserProvider = this._register(new ObjectCache(this.createParser.bind(this)));
 	}
 

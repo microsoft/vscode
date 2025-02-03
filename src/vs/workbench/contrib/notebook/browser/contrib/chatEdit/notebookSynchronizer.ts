@@ -91,7 +91,7 @@ export class NotebookModelSynchronizer extends Disposable {
 		super();
 
 		const entryObs = derived((r) => {
-			const session = _chatEditingService.currentEditingSessionObs.read(r);
+			const session = _chatEditingService.globalEditingSessionObs.read(r);
 			if (!session) {
 				return;
 			}

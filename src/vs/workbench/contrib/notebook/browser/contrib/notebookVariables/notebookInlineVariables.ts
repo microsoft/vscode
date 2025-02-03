@@ -5,6 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -66,6 +67,14 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 			if (e.type === NotebookExecutionType.cell) {
 				await this.updateInlineVariables(e);
+			}
+		}));
+
+		this._register(Event.runAndSubscribe(this.configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(NotebookSetting.notebookInlineValues)) {
+				if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineValues)) {
+					this.clearNotebookInlineDecorations();
+				}
 			}
 		}));
 	}

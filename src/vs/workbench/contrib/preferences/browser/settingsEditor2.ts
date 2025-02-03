@@ -539,6 +539,7 @@ export class SettingsEditor2 extends EditorPane {
 			// Wait for editor to be removed from DOM #106303
 			setTimeout(() => {
 				this.searchWidget.onHide();
+				this.settingRenderers.cancelSuggesters();
 			}, 0);
 		}
 	}
@@ -1596,10 +1597,7 @@ export class SettingsEditor2 extends EditorPane {
 				separatorBorder: Color.transparent
 			});
 		} else {
-			this.splitView.setViewVisible(0, true);
-			this.splitView.style({
-				separatorBorder: this.theme.getColor(settingsSashBorder)!
-			});
+			this.layoutSplitView(this.dimension);
 		}
 	}
 
@@ -1658,8 +1656,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
-				// Always show the ToC when leaving search mode
-				this.splitView.setViewVisible(0, true);
+				this.layoutSplitView(this.dimension);
 			}
 		}
 		progressRunner.done();

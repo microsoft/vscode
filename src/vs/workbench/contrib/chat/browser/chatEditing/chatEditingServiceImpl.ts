@@ -5,7 +5,7 @@
 
 import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
 import { AsyncIterableSource } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -22,11 +22,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -37,8 +36,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, defaultChatEditingMaxFileLimit, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
@@ -66,28 +64,25 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return result;
 	});
 
-	private readonly _currentAutoApplyOperationObs = observableValue<CancellationTokenSource | null>(this, null);
-	get currentAutoApplyOperation(): CancellationTokenSource | null {
-		return this._currentAutoApplyOperationObs.get();
-	}
-
-	get currentEditingSession(): IChatEditingSession | null {
+	get globalEditingSession(): IChatEditingSession | null {
 		return this._currentSessionObs.get();
 	}
 
-	get currentEditingSessionObs(): IObservable<IChatEditingSession | null> {
+	get globalEditingSessionObs(): IObservable<IChatEditingSession | null> {
 		return this._currentSessionObs;
 	}
 
 	private _editingSessionFileLimitPromise: Promise<number>;
 	private _editingSessionFileLimit: number | undefined;
 	get editingSessionFileLimit() {
+		if (this._chatAgentService.toolsAgentModeEnabled) {
+			return Number.MAX_SAFE_INTEGER;
+		}
+
 		return this._editingSessionFileLimit ?? defaultChatEditingMaxFileLimit;
 	}
 
 	private _restoringEditingSession: Promise<IChatEditingSession> | undefined;
-
-	private _applyingChatEditsFailedContextKey: IContextKey<boolean | undefined>;
 
 	private _chatRelatedFilesProviders = new Map<number, IChatRelatedFilesProvider>();
 
@@ -102,60 +97,21 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IFileService private readonly _fileService: IFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IProductService productService: IProductService,
 	) {
 		super();
-		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
-		this._applyingChatEditsFailedContextKey.set(false);
 		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this._currentSessionObs)));
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider, this._currentSessionObs)));
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingSnapshotTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider, this._currentSessionObs)));
-		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
-			const currentSession = this._currentSessionObs.read(reader);
-			if (!currentSession) {
-				return;
-			}
-			const entries = currentSession.entries.read(reader);
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Modified);
-			return decidedEntries.map(entry => entry.entryId);
-		}));
-		this._register(bindContextKey(hasUndecidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 
-			for (const session of this.editingSessionsObs.read(reader)) {
-				const entries = session.entries.read(reader);
-				const decidedEntries = entries.filter(entry => entry.state.read(reader) === WorkingSetEntryState.Modified);
-				return decidedEntries.length > 0;
-			}
 
-			return false;
-		}));
-		this._register(bindContextKey(hasAppliedChatEditsContextKey, contextKeyService, (reader) => {
-			const currentSession = this._currentSessionObs.read(reader);
-			if (!currentSession) {
-				return false;
-			}
-			const entries = currentSession.entries.read(reader);
-			return entries.length > 0;
-		}));
-		this._register(bindContextKey(inChatEditingSessionContextKey, contextKeyService, (reader) => {
-			return this._currentSessionObs.read(reader) !== null;
-		}));
-		this._register(bindContextKey(applyingChatEditsContextKey, contextKeyService, (reader) => {
-			return this._currentAutoApplyOperationObs.read(reader) !== null;
-		}));
-		this._register(bindContextKey(ChatContextKeys.chatEditingCanUndo, contextKeyService, (r) => {
-			return this._currentSessionObs.read(r)?.canUndo.read(r) || false;
-		}));
-		this._register(bindContextKey(ChatContextKeys.chatEditingCanRedo, contextKeyService, (r) => {
-			return this._currentSessionObs.read(r)?.canRedo.read(r) || false;
-		}));
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared' && this._currentSessionObs.get()?.chatSessionId === e.sessionId) {
-				this._applyingChatEditsFailedContextKey.set(false);
 				void this._currentSessionObs.get()?.stop();
 			}
 		}));
@@ -187,7 +143,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const sessionIdToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
 		if (isString(sessionIdToRestore)) {
 			if (this._chatService.getOrRestoreSession(sessionIdToRestore)) {
-				this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
+				this._restoringEditingSession = this.startOrContinueGlobalEditingSession(sessionIdToRestore);
 				this._restoringEditingSession.finally(() => {
 					this._restoringEditingSession = undefined;
 				});
@@ -198,19 +154,12 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}
 	}
 
-	async getOrRestoreEditingSession(): Promise<IChatEditingSession | null> {
-		if (this._restoringEditingSession) {
-			await this._restoringEditingSession;
-		}
-		return this.currentEditingSessionObs.get();
-	}
-
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
 		super.dispose();
 	}
 
-	async startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
+	async startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
 		await this._restoringEditingSession;
 
 		const session = this._currentSessionObs.get();
@@ -259,6 +208,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return session;
 	}
 
+	getEditingSession(chatSessionId: string): IChatEditingSession | undefined {
+		return this.editingSessionsObs.get()
+			.find(candidate => candidate.chatSessionId === chatSessionId);
+	}
+
 	async createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
 		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, false, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
@@ -301,7 +255,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
 				// Roll back everything
 				session.restoreSnapshot(responseModel.requestId);
-				this._applyingChatEditsFailedContextKey.set(true);
 			}
 
 			editsSource?.resolve();
@@ -312,94 +265,98 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 
 		const handleResponseParts = async (responseModel: IChatResponseModel) => {
+
+			if (responseModel.isCanceled) {
+				return;
+			}
+
 			for (const part of responseModel.response.value) {
-				if (part.kind === 'codeblockUri' || part.kind === 'textEditGroup') {
-					// ensure editor is open asap
-					if (!editedFilesExist.get(part.uri)) {
-						const uri = part.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(part.uri)?.notebook ?? part.uri : part.uri;
-						editedFilesExist.set(part.uri, this._fileService.exists(uri).then((e) => {
-							if (e) {
-								this._editorService.openEditor({ resource: uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+				if (part.kind !== 'codeblockUri' && part.kind !== 'textEditGroup') {
+					continue;
+				}
+				// ensure editor is open asap
+				if (!editedFilesExist.get(part.uri)) {
+					const uri = part.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(part.uri)?.notebook ?? part.uri : part.uri;
+					editedFilesExist.set(part.uri, this._fileService.exists(uri).then((e) => {
+						if (e) {
+							this._editorService.openEditor({ resource: uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+						}
+						return e;
+					}));
+				}
+
+				// get new edits and start editing session
+				const first = editsSeen.size === 0;
+				let entry = editsSeen.get(part.uri);
+				if (!entry) {
+					entry = { seen: 0 };
+					editsSeen.set(part.uri, entry);
+				}
+
+				const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
+				const newEdits = allEdits.slice(entry.seen);
+				entry.seen += newEdits.length;
+
+				if (newEdits.length > 0 || entry.seen === 0) {
+					// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
+					editsSource ??= new AsyncIterableSource();
+					editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+				}
+
+				if (first) {
+
+					await editsPromise;
+
+					editsPromise = this._continueEditingSession(session, async (builder) => {
+						for await (const item of editsSource!.asyncIterable) {
+							if (responseModel.isCanceled) {
+								break;
 							}
-							return e;
-						}));
-					}
-
-					// get new edits and start editing session
-					const first = editsSeen.size === 0;
-					let entry = editsSeen.get(part.uri);
-					if (!entry) {
-						entry = { seen: 0 };
-						editsSeen.set(part.uri, entry);
-					}
-
-					const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
-					const newEdits = allEdits.slice(entry.seen);
-					entry.seen += newEdits.length;
-
-					if (newEdits.length > 0 || entry.seen === 0) {
-						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
-						editsSource ??= new AsyncIterableSource();
-						editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
-					}
-
-					if (first) {
-
-						await editsPromise;
-
-						editsPromise = this._continueEditingSession(session, async (builder, token) => {
-							for await (const item of editsSource!.asyncIterable) {
-								if (responseModel.isCanceled) {
-									break;
-								}
-								if (token.isCancellationRequested) {
-									break;
-								}
-								if (item.edits.length === 0) {
-									// EMPTY edit, just signal via empty edits that work is starting
-									builder.textEdits(item.uri, [], item.done ?? false, responseModel);
-									continue;
-								}
-								for (let i = 0; i < item.edits.length; i++) {
-									const group = item.edits[i];
-									const isLastGroup = i === item.edits.length - 1;
-									builder.textEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
-								}
+							if (item.edits.length === 0) {
+								// EMPTY edit, just signal via empty edits that work is starting
+								builder.textEdits(item.uri, [], item.done ?? false, responseModel);
+								continue;
 							}
-						}).finally(() => {
-							editsPromise = undefined;
-						});
-					}
+							for (let i = 0; i < item.edits.length; i++) {
+								const group = item.edits[i];
+								const isLastGroup = i === item.edits.length - 1;
+								builder.textEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
+							}
+						}
+					}).finally(() => {
+						editsPromise = undefined;
+					});
 				}
 			}
 		};
 
 		observerDisposables.add(chatModel.onDidChange(async e => {
-			if (e.kind === 'addRequest') {
-				session.createSnapshot(e.request.id);
-				this._applyingChatEditsFailedContextKey.set(false);
-				const responseModel = e.request.response;
-				if (responseModel) {
+			if (e.kind !== 'addRequest') {
+				return;
+			}
+			session.createSnapshot(e.request.id);
+			const responseModel = e.request.response;
+			if (!responseModel) {
+				return;
+			}
+			if (responseModel.isComplete) {
+				await handleResponseParts(responseModel);
+				onResponseComplete(responseModel);
+			} else {
+				const disposable = observerDisposables.add(responseModel.onDidChange(async () => {
+					await handleResponseParts(responseModel);
 					if (responseModel.isComplete) {
-						await handleResponseParts(responseModel);
 						onResponseComplete(responseModel);
-					} else {
-						const disposable = responseModel.onDidChange(async () => {
-							await handleResponseParts(responseModel);
-							if (responseModel.isComplete) {
-								onResponseComplete(responseModel);
-								disposable.dispose();
-							}
-						});
+						observerDisposables.delete(disposable);
 					}
-				}
+				}));
 			}
 		}));
 		observerDisposables.add(chatModel.onDidDispose(() => observerDisposables.dispose()));
 		return observerDisposables;
 	}
 
-	private async _continueEditingSession(session: ChatEditingSession, builder: (stream: IChatEditingSessionStream, token: CancellationToken) => Promise<void>): Promise<void> {
+	private async _continueEditingSession(session: ChatEditingSession, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
 		if (session.state.get() === ChatEditingSessionState.StreamingEdits) {
 			throw new BugIndicatingError('Cannot continue session that is still streaming');
 		}
@@ -410,13 +367,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			}
 		};
 		session.acceptStreamingEditsStart();
-		const cancellationTokenSource = new CancellationTokenSource();
-		this._currentAutoApplyOperationObs.set(cancellationTokenSource, undefined);
 		try {
-			await builder(stream, cancellationTokenSource.token);
+			await builder(stream);
 		} finally {
-			cancellationTokenSource.dispose();
-			this._currentAutoApplyOperationObs.set(null, undefined);
 			session.resolve();
 		}
 	}

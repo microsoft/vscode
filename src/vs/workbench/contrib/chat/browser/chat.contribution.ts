@@ -13,13 +13,13 @@ import { registerEditorFeature } from '../../../../editor/common/editorFeatures.
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
@@ -54,7 +54,7 @@ import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatW
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
-import { ChatEditingService } from './chatEditing/chatEditingService.js';
+import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { registerChatEditorActions } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
@@ -79,10 +79,15 @@ import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js'
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from './chatQuotasService.js';
-import { BuiltinToolsContribution } from './tools/tools.js';
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatEditorOverlayController } from './chatEditorOverlay.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
+import { PromptFilesConfig } from '../common/promptSyntax/config.js';
+import { BuiltinToolsContribution } from '../common/tools/tools.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -119,7 +124,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.commandCenter.enabled': {
 			type: 'boolean',
-			tags: ['preview'],
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control Copilot (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
@@ -127,6 +131,8 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `0` means disabled and `100` seconds is the maximum."),
 			default: 0,
+			minimum: 0,
+			maximum: 100
 		},
 		'chat.editing.confirmEditRequestRemoval': {
 			type: 'boolean',
@@ -150,6 +156,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: true
+		},
+		[PromptFilesConfig.CONFIG_KEY]: {
+			type: ['boolean', 'object', 'array', 'string', 'null'],
+			title: PromptFilesConfig.CONFIG_TITLE,
+			markdownDescription: PromptFilesConfig.CONFIG_DESCRIPTION,
+			default: null,
+			tags: ['experimental'],
 		},
 	}
 });
@@ -200,6 +213,61 @@ class ChatResolverContribution extends Disposable {
 				}
 			}
 		));
+	}
+}
+
+class ChatAgentSettingContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatAgentSetting';
+
+	private registeredNode: IConfigurationNode | undefined;
+
+	constructor(
+		@IWorkbenchAssignmentService experimentService: IWorkbenchAssignmentService,
+		@IProductService private readonly productService: IProductService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		if (this.productService.quality !== 'stable') {
+			this.registerSetting();
+		}
+
+		const expDisabledKey = ChatContextKeys.Editing.agentModeDisallowed.bindTo(contextKeyService);
+		experimentService.getTreatment<boolean>('chatAgentEnabled').then(value => {
+			if (value) {
+				this.registerSetting();
+			} else if (value === false) {
+				this.deregisterSetting();
+				expDisabledKey.set(true);
+			}
+		});
+	}
+
+	private registerSetting() {
+		if (this.registeredNode) {
+			return;
+		}
+
+		this.registeredNode = {
+			id: 'chatAgent',
+			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
+			type: 'object',
+			properties: {
+				'chat.agent.enabled': {
+					type: 'boolean',
+					description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, a dropdown appears in the {0} view to toggle agent mode.", 'Copilot Edits'),
+					default: this.productService.quality !== 'stable',
+					tags: ['experimental', 'onExp'],
+				},
+			}
+		};
+		configurationRegistry.registerConfiguration(this.registeredNode);
+	}
+
+	private deregisterSetting() {
+		if (this.registeredNode) {
+			configurationRegistry.deregisterConfigurations([this.registeredNode]);
+			this.registeredNode = undefined;
+		}
 	}
 }
 
@@ -320,6 +388,7 @@ registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingSta
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatQuotasStatusBarEntry.ID, ChatQuotasStatusBarEntry, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.BlockRestore);
 
 registerChatActions();
 registerChatCopyActions();

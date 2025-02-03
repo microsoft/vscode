@@ -12,6 +12,7 @@ import codeCompletionSpec from '../completions/code';
 import codeInsidersCompletionSpec from '../completions/code-insiders';
 import type { Uri } from 'vscode';
 import { basename } from 'path';
+import { getTokenType } from '../tokens';
 
 const fixtureDir = vscode.Uri.joinPath(vscode.Uri.file(__dirname), '../../testWorkspace');
 const testCwdParent = vscode.Uri.joinPath(fixtureDir, 'parent');
@@ -150,7 +151,8 @@ suite('Terminal Suggest', () => {
 					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const result = await getCompletionItemsFromSpecs(completionSpecs, { commandLine, cursorPosition }, availableCommands.map(c => { return { label: c }; }), prefix, testCwd);
+					const terminalContext = { commandLine, cursorPosition };
+					const result = await getCompletionItemsFromSpecs(completionSpecs, terminalContext, availableCommands.map(c => { return { label: c }; }), prefix, getTokenType(terminalContext, undefined), testCwd);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested);
 					strictEqual(result.foldersRequested, foldersRequested);
