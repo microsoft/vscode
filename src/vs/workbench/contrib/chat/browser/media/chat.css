@@ -968,6 +968,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context .chat-prompt-instructions-attachment .chat-implicit-hint {
 	opacity: 0.7;
 	font-size: .9em;
+	margin-top: -0.5px;
 }
 .chat-attached-context .chat-prompt-instructions-attachment.warning {
 	color: var(--vscode-notificationsWarningIcon-foreground);
@@ -979,6 +980,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-style: dashed;
 	opacity: 0.75;
 }
+.chat-attached-context .chat-prompt-instructions-attachment .monaco-button {
+	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	margin-left: 3px;
+}
+.chat-attached-context .chat-prompt-instructions-attachment.error .monaco-button,
+.chat-attached-context .chat-prompt-instructions-attachment.warning .monaco-button {
+	border-left-color: currentColor;
+}
+.chat-attached-context .chat-prompt-instructions-attachment:focus .monaco-button {
+	border-color: var(--vscode-focusBorder);
+}
+.chat-attached-context .chat-prompt-instructions-attachment .monaco-icon-label-container {
+	margin-top: -0.1em;
+}
 /*
  * This overly-specific CSS selector is needed to beat priority of some
  * styles applied on the the `.chat-attached-context-attachment` element.
@@ -986,6 +1001,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.error.implicit,
 .chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.warning.implicit {
 	border: 1px solid currentColor;
+}
+.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.implicit .monaco-button {
+	padding-left: 2px;
+	padding-right: 2px;
 }
 /*
  * If in one of the non-normal states, make sure the `main icon` of
