@@ -290,7 +290,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			// - `c:/foo/|` -> `c:/foo/`
 			if (foldersRequested) {
 				resourceCompletions.push({
-					label: lastWordFolder.length === 0 ? '.' : lastWordFolder,
+					label: lastWordFolder,
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
 					isDirectory: true,
