@@ -24,13 +24,11 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	readonly currentEditingSessionObs: IObservable<IChatEditingSession | null>;
+	readonly globalEditingSessionObs: IObservable<IChatEditingSession | null>;
 
-	readonly currentEditingSession: IChatEditingSession | null;
+	readonly globalEditingSession: IChatEditingSession | null;
 
-	readonly editingSessionFileLimit: number;
-
-	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
+	startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 
 	getEditingSession(chatSessionId: string): IChatEditingSession | undefined;
 
@@ -43,6 +41,8 @@ export interface IChatEditingService {
 	 * Creates a new short lived editing session
 	 */
 	createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable>;
+
+	readonly editingSessionFileLimit: number;
 
 	//#region related files
 

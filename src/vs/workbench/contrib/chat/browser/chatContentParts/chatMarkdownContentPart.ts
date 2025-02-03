@@ -335,7 +335,7 @@ class CollapsedCodeBlock extends Disposable {
 		this._uri = uri;
 
 		const iconText = this.labelService.getUriBasenameLabel(uri);
-		const modifiedEntry = this.chatEditingService.currentEditingSession?.getEntry(uri);
+		const modifiedEntry = this.chatEditingService.globalEditingSession?.getEntry(uri);
 		const isComplete = !modifiedEntry?.isCurrentlyBeingModified.get();
 
 		let iconClasses: string[] = [];

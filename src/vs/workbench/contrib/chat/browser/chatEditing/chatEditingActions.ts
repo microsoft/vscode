@@ -38,7 +38,7 @@ import { EditsAttachmentModel } from '../chatAttachmentModel.js';
 abstract class WorkingSetAction extends Action2 {
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
+		const currentEditingSession = chatEditingService.globalEditingSession;
 		if (!currentEditingSession) {
 			return;
 		}
@@ -282,7 +282,7 @@ export class ChatEditingAcceptAllAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
+		const currentEditingSession = chatEditingService.globalEditingSession;
 		if (!currentEditingSession) {
 			return;
 		}
@@ -331,7 +331,7 @@ registerAction2(ChatEditingDiscardAllAction);
 export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor): Promise<boolean> {
 	const chatEditingService = accessor.get(IChatEditingService);
 	const dialogService = accessor.get(IDialogService);
-	const currentEditingSession = chatEditingService.currentEditingSession;
+	const currentEditingSession = chatEditingService.globalEditingSession;
 	if (!currentEditingSession) {
 		return false;
 	}
@@ -379,7 +379,7 @@ export class ChatEditingRemoveAllFilesAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
+		const currentEditingSession = chatEditingService.globalEditingSession;
 		if (!currentEditingSession) {
 			return;
 		}
@@ -424,7 +424,7 @@ export class ChatEditingShowChangesAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
+		const currentEditingSession = chatEditingService.globalEditingSession;
 		if (!currentEditingSession) {
 			return;
 		}
@@ -472,7 +472,7 @@ registerAction2(class AddFilesToWorkingSetAction extends Action2 {
 		}
 
 		for (const file of uris) {
-			chatEditingService?.currentEditingSessionObs.get()?.addFileToWorkingSet(file);
+			chatEditingService?.globalEditingSessionObs.get()?.addFileToWorkingSet(file);
 		}
 	}
 });
@@ -527,7 +527,7 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.currentEditingSession;
+		const session = chatEditingService.globalEditingSession;
 		if (!session) {
 			return;
 		}
@@ -542,7 +542,7 @@ registerAction2(class RemoveAction extends Action2 {
 
 			const requestsToRemove = chatRequests.slice(itemIndex);
 			const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
-			const entriesModifiedInRequestsToRemove = chatEditingService.currentEditingSessionObs.get()?.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
+			const entriesModifiedInRequestsToRemove = chatEditingService.globalEditingSessionObs.get()?.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
 			const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
 
 			let message: string;
@@ -629,7 +629,7 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		}
 		const snapshotRequestId = requests[snapshotRequestIndex]?.id;
 		if (snapshotRequestId) {
-			const snapshot = chatEditingService.currentEditingSession?.getSnapshotUri(snapshotRequestId, context.uri);
+			const snapshot = chatEditingService.globalEditingSession?.getSnapshotUri(snapshotRequestId, context.uri);
 			if (snapshot) {
 				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
 				if (isCodeEditor(editor)) {

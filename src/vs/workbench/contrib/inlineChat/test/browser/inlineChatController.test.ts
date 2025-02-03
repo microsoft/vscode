@@ -163,7 +163,7 @@ suite('InlineChatController', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IChatEditingService, new class extends mock<IChatEditingService>() {
-				override currentEditingSessionObs: IObservable<IChatEditingSession | null> = observableValue(this, null);
+				override globalEditingSessionObs: IObservable<IChatEditingSession | null> = observableValue(this, null);
 				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
