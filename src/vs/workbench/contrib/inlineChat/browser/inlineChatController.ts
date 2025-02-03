@@ -1139,7 +1139,7 @@ export class InlineChatController implements IEditorContribution {
 		const uri = this._editor.getModel().uri;
 		const chatModel = this._chatService.startSession(ChatAgentLocation.Editor, token);
 
-		const editSession = await this._chatEditingService.createAdhocEditingSession(chatModel.sessionId);
+		const editSession = await this._chatEditingService.createEditingSession(chatModel.sessionId);
 
 		//
 		const store = new DisposableStore();
