@@ -192,11 +192,11 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 
 	disposeTemplate(templateData: NotebookOutlineTemplate): void {
 		templateData.iconLabel.dispose();
-		templateData.elementDisposables.clear();
+		templateData.elementDisposables.dispose();
 	}
 
 	disposeElement(element: ITreeNode<OutlineEntry, FuzzyScore>, index: number, templateData: NotebookOutlineTemplate, height: number | undefined): void {
-		templateData.elementDisposables.clear();
+		templateData.elementDisposables.dispose();
 		DOM.clearNode(templateData.actionMenu);
 	}
 
