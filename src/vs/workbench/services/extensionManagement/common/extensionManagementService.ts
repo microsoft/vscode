@@ -906,8 +906,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (verifiedPublishers.length || unverfiiedPublishers.length === 1) {
 			for (const publisher of verifiedPublishers) {
 				customMessage.appendText('\n');
-				const publisherDomainLink = URI.parse(publisher.publisherDomain!.link);
-				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of `{1}`.", getPublisherLink(publisher), `${publisherDomainLink.authority}${publisherDomainLink.path === '/' ? '' : publisherDomainLink.path}`);
+				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `[$(link-external) ${URI.parse(publisher.publisherDomain!.link).authority}](${publisher.publisherDomain!.link})`);
 				customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
 			}
 			if (unverfiiedPublishers.length) {
