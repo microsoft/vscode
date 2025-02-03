@@ -5,9 +5,6 @@
 
 declare module 'vscode' {
 
-	/**
-		 * A reference to a value that the user added to their chat request.
-		 */
 	export interface ChatPromptReference {
 		/**
 		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
