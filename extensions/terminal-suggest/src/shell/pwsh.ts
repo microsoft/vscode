@@ -76,12 +76,21 @@ async function getAliases(options: ExecOptionsWithStringEncoding, existingComman
 		if (e.ModuleName && e.Version) {
 			detailParts.push(`${e.ModuleName} v${e.Version}`);
 		}
+		let definitionCommand = undefined;
+		if (e.Definition) {
+			let definitionIndex = e.Definition.indexOf(' ');
+			if (definitionIndex === -1) {
+				definitionIndex = e.Definition.length;
+				definitionCommand = e.Definition.substring(0, definitionIndex);
+			}
+		}
 		return {
 			label: e.Name,
 			detail: detailParts.join('\n\n'),
 			kind: (isAlias
 				? vscode.TerminalCompletionItemKind.Alias
 				: vscode.TerminalCompletionItemKind.Method),
+			definitionCommand,
 		};
 	});
 }

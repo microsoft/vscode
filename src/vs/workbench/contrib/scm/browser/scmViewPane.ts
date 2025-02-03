@@ -174,7 +174,7 @@ interface ActionButtonTemplate {
 }
 
 export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton, FuzzyScore, ActionButtonTemplate> {
-	static readonly DEFAULT_HEIGHT = 30;
+	static readonly DEFAULT_HEIGHT = 28;
 
 	static readonly TEMPLATE_ID = 'actionButton';
 	get templateId(): string { return ActionButtonRenderer.TEMPLATE_ID; }
@@ -712,7 +712,7 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 		if (isSCMInput(element)) {
 			return this.inputRenderer.getHeight(element);
 		} else if (isSCMActionButton(element)) {
-			return ActionButtonRenderer.DEFAULT_HEIGHT + 10;
+			return ActionButtonRenderer.DEFAULT_HEIGHT + 8;
 		} else {
 			return 22;
 		}
@@ -1457,7 +1457,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		this._disposables.value.add(input.repository.provider.onDidChangeResources(() => updateToolbar()));
 		this._disposables.value.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, SCMInputWidgetStorageKey.LastActionId, this._disposables.value)(() => updateToolbar()));
 
-		this.actionRunner = new SCMInputWidgetActionRunner(input, this.storageService);
+		this.actionRunner = this._disposables.value.add(new SCMInputWidgetActionRunner(input, this.storageService));
 		this._disposables.value.add(this.actionRunner.onWillRun(e => {
 			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size === 0) {
 				super.setActions([this._cancelAction], []);

@@ -13,6 +13,15 @@ suite('lm', function () {
 
 	let disposables: vscode.Disposable[] = [];
 
+	const testProviderOptions: vscode.ChatResponseProviderMetadata = {
+		name: 'test-lm',
+		version: '1.0.0',
+		family: 'test',
+		vendor: 'test-lm-vendor',
+		maxInputTokens: 100,
+		maxOutputTokens: 100,
+	};
+
 	setup(function () {
 		disposables = [];
 	});
@@ -37,14 +46,7 @@ suite('lm', function () {
 			async provideTokenCount(_text, _token) {
 				return 1;
 			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-		}));
+		}, testProviderOptions));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -88,14 +90,7 @@ suite('lm', function () {
 			async provideTokenCount(_text, _token) {
 				return 1;
 			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-		}));
+		}, testProviderOptions));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -118,15 +113,8 @@ suite('lm', function () {
 			},
 			async provideTokenCount(_text, _token) {
 				return 1;
-			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-		}));
+			}
+		}, testProviderOptions));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -149,5 +137,34 @@ suite('lm', function () {
 			assert.ok(error);
 			// assert.ok(error instanceof Error); // todo@jrieken requires one more insiders
 		}
+	});
+
+	test('LanguageModelError instance is not thrown to extensions#235322', async function () {
+
+		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
+			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+				throw vscode.LanguageModelError.Blocked('You have been blocked');
+			},
+			async provideTokenCount(_text, _token) {
+				return 1;
+			}
+		}, testProviderOptions));
+
+		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
+		assert.strictEqual(models.length, 1);
+
+		let output = '';
+
+		try {
+			const response = await models[0].sendRequest([vscode.LanguageModelChatMessage.User('Hello')]);
+			assert.ok(response);
+			for await (const thing of response.text) {
+				output += thing;
+			}
+		} catch (error) {
+			assert.ok(error instanceof vscode.LanguageModelError);
+			assert.strictEqual(error.message, 'You have been blocked');
+		}
+		assert.strictEqual(output, '');
 	});
 });

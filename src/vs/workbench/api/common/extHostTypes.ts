@@ -1951,7 +1951,6 @@ export namespace TextEditorSelectionChangeKind {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api':
 			case TextEditorSelectionSource.PROGRAMMATIC:
 			case TextEditorSelectionSource.JUMP:
 			case TextEditorSelectionSource.NAVIGATION:
