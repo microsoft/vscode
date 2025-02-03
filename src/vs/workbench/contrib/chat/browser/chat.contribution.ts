@@ -242,8 +242,8 @@ class ChatAgentSettingContribution implements IWorkbenchContribution {
 				this.registerSetting();
 			} else if (value === false) {
 				this.deregisterSetting();
-				expDisabledKey.set(true);
 			}
+			expDisabledKey.set(!value);
 		});
 	}
 
