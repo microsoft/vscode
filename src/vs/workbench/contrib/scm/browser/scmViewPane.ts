@@ -710,7 +710,6 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	getHeight(element: TreeElement) {
 		if (isSCMInput(element)) {
-			console.log(this.inputRenderer.getHeight(element));
 			return this.inputRenderer.getHeight(element);
 		} else if (isSCMActionButton(element)) {
 			return ActionButtonRenderer.DEFAULT_HEIGHT + 8;
