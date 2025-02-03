@@ -174,7 +174,7 @@ interface ActionButtonTemplate {
 }
 
 export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton, FuzzyScore, ActionButtonTemplate> {
-	static readonly DEFAULT_HEIGHT = 30;
+	static readonly DEFAULT_HEIGHT = 28;
 
 	static readonly TEMPLATE_ID = 'actionButton';
 	get templateId(): string { return ActionButtonRenderer.TEMPLATE_ID; }
@@ -710,9 +710,10 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	getHeight(element: TreeElement) {
 		if (isSCMInput(element)) {
+			console.log(this.inputRenderer.getHeight(element));
 			return this.inputRenderer.getHeight(element);
 		} else if (isSCMActionButton(element)) {
-			return ActionButtonRenderer.DEFAULT_HEIGHT + 10;
+			return ActionButtonRenderer.DEFAULT_HEIGHT + 8;
 		} else {
 			return 22;
 		}
