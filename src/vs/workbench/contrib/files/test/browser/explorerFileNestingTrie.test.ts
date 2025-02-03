@@ -2,12 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { PreTrie, ExplorerFileNestingTrie, SufTrie } from 'vs/workbench/contrib/files/common/explorerFileNestingTrie';
-import * as assert from 'assert';
+import { PreTrie, ExplorerFileNestingTrie, SufTrie } from '../../common/explorerFileNestingTrie.js';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const fakeFilenameAttributes = { dirname: 'mydir', basename: '', extname: '' };
 
 suite('SufTrie', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('exactMatches', () => {
 		const t = new SufTrie();
 		t.add('.npmrc', 'MyKey');
@@ -67,6 +70,8 @@ suite('SufTrie', () => {
 });
 
 suite('PreTrie', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('exactMatches', () => {
 		const t = new PreTrie();
 		t.add('.npmrc', 'MyKey');
@@ -135,6 +140,8 @@ suite('PreTrie', () => {
 });
 
 suite('StarTrie', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const assertMapEquals = (actual: Map<string, Set<string>>, expected: Record<string, string[]>) => {
 		const actualStr = [...actual.entries()].map(e => `${e[0]} => [${[...e[1].keys()].join()}]`);
 		const expectedStr = Object.entries(expected).map(e => `${e[0]}: [${[e[1]].join()}]`);

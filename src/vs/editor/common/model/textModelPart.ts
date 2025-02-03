@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 export class TextModelPart extends Disposable {
 	private _isDisposed = false;

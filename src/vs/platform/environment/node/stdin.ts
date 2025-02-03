@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { Queue } from 'vs/base/common/async';
-import { randomPath } from 'vs/base/common/extpath';
-import { Promises } from 'vs/base/node/pfs';
-import { resolveTerminalEncoding } from 'vs/base/node/terminalEncoding';
+import { Queue } from '../../../base/common/async.js';
+import { randomPath } from '../../../base/common/extpath.js';
+import { resolveTerminalEncoding } from '../../../base/node/terminalEncoding.js';
 
 export function hasStdinWithoutTty() {
 	try {
@@ -38,31 +38,50 @@ export function getStdinFilePath(): string {
 	return randomPath(tmpdir(), 'code-stdin', 3);
 }
 
-export async function readFromStdin(targetPath: string, verbose: boolean): Promise<void> {
-	let encoding = await resolveTerminalEncoding(verbose);
+async function createStdInFile(targetPath: string) {
+	await fs.promises.appendFile(targetPath, '');
+	await fs.promises.chmod(targetPath, 0o600); // Ensure the file is only read/writable by the user: https://github.com/microsoft/vscode-remote-release/issues/9048
+}
 
-	const iconv = await import('@vscode/iconv-lite-umd');
-	if (!iconv.encodingExists(encoding)) {
+export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?: Function): Promise<void> {
+
+	let [encoding, iconv] = await Promise.all([
+		resolveTerminalEncoding(verbose),		// respect terminal encoding when piping into file
+		import('@vscode/iconv-lite-umd'),		// lazy load encoding module for usage
+		createStdInFile(targetPath) 			// make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
+	]);
+
+	if (!iconv.default.encodingExists(encoding)) {
 		console.log(`Unsupported terminal encoding: ${encoding}, falling back to UTF-8.`);
 		encoding = 'utf8';
 	}
 
-	// Pipe into tmp file using terminals encoding
 	// Use a `Queue` to be able to use `appendFile`
 	// which helps file watchers to be aware of the
 	// changes because each append closes the underlying
 	// file descriptor.
 	// (https://github.com/microsoft/vscode/issues/148952)
-	const decoder = iconv.getDecoder(encoding);
+
 	const appendFileQueue = new Queue();
+
+	const decoder = iconv.default.getDecoder(encoding);
+
 	process.stdin.on('data', chunk => {
 		const chunkStr = decoder.write(chunk);
-		appendFileQueue.queue(() => Promises.appendFile(targetPath, chunkStr));
+		appendFileQueue.queue(() => fs.promises.appendFile(targetPath, chunkStr));
 	});
+
 	process.stdin.on('end', () => {
 		const end = decoder.end();
-		if (typeof end === 'string') {
-			appendFileQueue.queue(() => Promises.appendFile(targetPath, end));
-		}
+
+		appendFileQueue.queue(async () => {
+			try {
+				if (typeof end === 'string') {
+					await fs.promises.appendFile(targetPath, end);
+				}
+			} finally {
+				onEnd?.();
+			}
+		});
 	});
 }

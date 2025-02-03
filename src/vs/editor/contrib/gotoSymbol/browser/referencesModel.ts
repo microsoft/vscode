@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMatch } from 'vs/base/common/filters';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { basename, extUri } from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Location, LocationLink } from 'vs/editor/common/languages';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IMatch } from '../../../../base/common/filters.js';
+import { defaultGenerator } from '../../../../base/common/idGenerator.js';
+import { dispose, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { basename, extUri } from '../../../../base/common/resources.js';
+import * as strings from '../../../../base/common/strings.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { Location, LocationLink } from '../../../common/languages.js';
+import { ITextEditorModel, ITextModelService } from '../../../common/services/resolverService.js';
+import { localize } from '../../../../nls.js';
 
 export class OneReference {
 
@@ -51,13 +51,13 @@ export class OneReference {
 
 		if (!preview) {
 			return localize(
-				'aria.oneReference', "symbol in {0} on line {1} at column {2}",
+				'aria.oneReference', "in {0} on line {1} at column {2}",
 				basename(this.uri), this.range.startLineNumber, this.range.startColumn
 			);
 		} else {
 			return localize(
-				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "symbol in {0} on line {1} at column {2}, {3}",
-				basename(this.uri), this.range.startLineNumber, this.range.startColumn, preview.value
+				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "{0} in {1} on line {2} at column {3}",
+				preview.value, basename(this.uri), this.range.startLineNumber, this.range.startColumn
 			);
 		}
 	}

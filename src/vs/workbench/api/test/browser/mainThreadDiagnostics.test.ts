@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { MainThreadDiagnostics } from 'vs/workbench/api/browser/mainThreadDiagnostics';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { timeout } from 'vs/base/common/async';
+import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MarkerService } from '../../../../platform/markers/common/markerService.js';
+import { IMarkerData } from '../../../../platform/markers/common/markers.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { MainThreadDiagnostics } from '../../browser/mainThreadDiagnostics.js';
+import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
+import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
+import { mock } from '../../../test/common/workbenchTestServices.js';
 
 
 suite('MainThreadDiagnostics', function () {
@@ -23,6 +24,12 @@ suite('MainThreadDiagnostics', function () {
 	setup(function () {
 		markerService = new MarkerService();
 	});
+
+	teardown(function () {
+		markerService.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('clear markers on dispose', function () {
 
@@ -111,6 +118,8 @@ suite('MainThreadDiagnostics', function () {
 			assert.strictEqual(changedData.length, 1);
 			assert.strictEqual(changedData[0].length, 1);
 			assert.strictEqual(changedData[0][0][1][0].message, 'forgein_owner');
+
+			diag.dispose();
 		});
 	});
 
@@ -158,6 +167,8 @@ suite('MainThreadDiagnostics', function () {
 			await timeout(0);
 			assert.strictEqual(markerService.read().length, 0);
 			assert.strictEqual(changedData.length, 1);
+
+			diag.dispose();
 		});
 	});
 });

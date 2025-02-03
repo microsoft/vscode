@@ -3,26 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { LogLevel } from '../../../../platform/log/common/log.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 /**
  * Mime type used by the output editor.
  */
 export const OUTPUT_MIME = 'text/x-code-output';
-
-/**
- * Output resource scheme.
- */
-export const OUTPUT_SCHEME = 'output';
 
 /**
  * Id used by the output editor.
@@ -35,11 +27,6 @@ export const OUTPUT_MODE_ID = 'Log';
 export const LOG_MIME = 'text/x-code-log-output';
 
 /**
- * Log resource scheme.
- */
-export const LOG_SCHEME = 'log';
-
-/**
  * Id used by the log output editor.
  */
 export const LOG_MODE_ID = 'log';
@@ -49,23 +36,47 @@ export const LOG_MODE_ID = 'log';
  */
 export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 
-export const OUTPUT_SERVICE_ID = 'outputService';
-
-export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
-
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
-
-export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
-
+export const CONTEXT_ACTIVE_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+export const CONTEXT_ACTIVE_LOG_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput.isLog', false);
+export const CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE = new RawContextKey<boolean>('activeLogOutput.levelSettable', false);
+export const CONTEXT_ACTIVE_OUTPUT_LEVEL = new RawContextKey<string>('activeLogOutput.level', '');
+export const CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT = new RawContextKey<boolean>('activeLogOutput.levelIsDefault', false);
 export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
+export const ACTIVE_OUTPUT_CHANNEL_CONTEXT = new RawContextKey<string>('activeOutputChannel', '');
+export const SHOW_TRACE_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.trace', true);
+export const SHOW_DEBUG_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.debug', true);
+export const SHOW_INFO_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.info', true);
+export const SHOW_WARNING_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.warning', true);
+export const SHOW_ERROR_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.error', true);
+export const OUTPUT_FILTER_FOCUS_CONTEXT = new RawContextKey<boolean>('outputFilterFocus', false);
+export const HIDE_CATEGORY_FILTER_CONTEXT = new RawContextKey<string>('output.filter.categories', '');
 
-export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
+export interface IOutputViewFilters {
+	readonly onDidChange: Event<void>;
+	text: string;
+	trace: boolean;
+	debug: boolean;
+	info: boolean;
+	warning: boolean;
+	error: boolean;
+	categories: string;
+	toggleCategory(category: string): void;
+	hasCategory(category: string): boolean;
+}
+
+export const IOutputService = createDecorator<IOutputService>('outputService');
 
 /**
  * The output service to manage output from the various processes running.
  */
 export interface IOutputService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 *  Output view filters.
+	 */
+	readonly filters: IOutputViewFilters;
 
 	/**
 	 * Given the channel id returns the output channel instance.
@@ -98,6 +109,35 @@ export interface IOutputService {
 	 * Allows to register on active output channel change.
 	 */
 	onActiveOutputChannel: Event<string>;
+
+	/**
+	 * Register a compound log channel with the given channels.
+	 */
+	registerCompoundLogChannel(channels: IOutputChannelDescriptor[]): string;
+
+	/**
+	 * Save the logs to a file.
+	 */
+	saveOutputAs(...channels: IOutputChannelDescriptor[]): Promise<void>;
+
+	/**
+	 * Checks if the log level can be set for the given channel.
+	 * @param channel
+	 */
+	canSetLogLevel(channel: IOutputChannelDescriptor): boolean;
+
+	/**
+	 * Returns the log level for the given channel.
+	 * @param channel
+	 */
+	getLogLevel(channel: IOutputChannelDescriptor): LogLevel | undefined;
+
+	/**
+	 * Sets the log level for the given channel.
+	 * @param channel
+	 * @param logLevel
+	 */
+	setLogLevel(channel: IOutputChannelDescriptor, logLevel: LogLevel): void;
 }
 
 export enum OutputChannelUpdateMode {
@@ -106,22 +146,36 @@ export enum OutputChannelUpdateMode {
 	Clear
 }
 
+export interface ILogEntry {
+	readonly range: Range;
+	readonly timestamp: number;
+	readonly timestampRange: Range;
+	readonly logLevel: LogLevel;
+	readonly logLevelRange: Range;
+	readonly category: string | undefined;
+}
+
 export interface IOutputChannel {
 
 	/**
 	 * Identifier of the output channel.
 	 */
-	id: string;
+	readonly id: string;
 
 	/**
 	 * Label of the output channel to be displayed to the user.
 	 */
-	label: string;
+	readonly label: string;
 
 	/**
 	 * URI of the output channel.
 	 */
-	uri: URI;
+	readonly uri: URI;
+
+	/**
+	 * Log entries of the output channel.
+	 */
+	getLogEntries(): readonly ILogEntry[];
 
 	/**
 	 * Appends output to the channel.
@@ -159,22 +213,47 @@ export interface IOutputChannelDescriptor {
 	label: string;
 	log: boolean;
 	languageId?: string;
-	file?: URI;
+	source?: IOutputContentSource | ReadonlyArray<IOutputContentSource>;
+	extensionId?: string;
+	user?: boolean;
 }
 
-export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {
-	file: URI;
+export interface ISingleSourceOutputChannelDescriptor extends IOutputChannelDescriptor {
+	source: IOutputContentSource;
+}
+
+export interface IMultiSourceOutputChannelDescriptor extends IOutputChannelDescriptor {
+	source: ReadonlyArray<IOutputContentSource>;
+}
+
+export function isSingleSourceOutputChannelDescriptor(descriptor: IOutputChannelDescriptor): descriptor is ISingleSourceOutputChannelDescriptor {
+	return !!descriptor.source && !Array.isArray(descriptor.source);
+}
+
+export function isMultiSourceOutputChannelDescriptor(descriptor: IOutputChannelDescriptor): descriptor is IMultiSourceOutputChannelDescriptor {
+	return Array.isArray(descriptor.source);
+}
+
+export interface IOutputContentSource {
+	readonly name?: string;
+	readonly resource: URI;
 }
 
 export interface IOutputChannelRegistry {
 
 	readonly onDidRegisterChannel: Event<string>;
-	readonly onDidRemoveChannel: Event<string>;
+	readonly onDidRemoveChannel: Event<IOutputChannelDescriptor>;
+	readonly onDidUpdateChannelSources: Event<IMultiSourceOutputChannelDescriptor>;
 
 	/**
 	 * Make an output channel known to the output world.
 	 */
 	registerChannel(descriptor: IOutputChannelDescriptor): void;
+
+	/**
+	 * Update the files for the given output channel.
+	 */
+	updateChannelSources(id: string, sources: IOutputContentSource[]): void;
 
 	/**
 	 * Returns the list of channels known to the output world.
@@ -196,10 +275,13 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 	private channels = new Map<string, IOutputChannelDescriptor>();
 
 	private readonly _onDidRegisterChannel = new Emitter<string>();
-	readonly onDidRegisterChannel: Event<string> = this._onDidRegisterChannel.event;
+	readonly onDidRegisterChannel = this._onDidRegisterChannel.event;
 
-	private readonly _onDidRemoveChannel = new Emitter<string>();
-	readonly onDidRemoveChannel: Event<string> = this._onDidRemoveChannel.event;
+	private readonly _onDidRemoveChannel = new Emitter<IOutputChannelDescriptor>();
+	readonly onDidRemoveChannel = this._onDidRemoveChannel.event;
+
+	private readonly _onDidUpdateChannelFiles = new Emitter<IMultiSourceOutputChannelDescriptor>();
+	readonly onDidUpdateChannelSources = this._onDidUpdateChannelFiles.event;
 
 	public registerChannel(descriptor: IOutputChannelDescriptor): void {
 		if (!this.channels.has(descriptor.id)) {
@@ -218,41 +300,21 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 		return this.channels.get(id);
 	}
 
+	public updateChannelSources(id: string, sources: IOutputContentSource[]): void {
+		const channel = this.channels.get(id);
+		if (channel && isMultiSourceOutputChannelDescriptor(channel)) {
+			channel.source = sources;
+			this._onDidUpdateChannelFiles.fire(channel);
+		}
+	}
+
 	public removeChannel(id: string): void {
-		this.channels.delete(id);
-		this._onDidRemoveChannel.fire(id);
+		const channel = this.channels.get(id);
+		if (channel) {
+			this.channels.delete(id);
+			this._onDidRemoveChannel.fire(channel);
+		}
 	}
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
-
-export function registerLogChannel(id: string, label: string, file: URI, fileService: IFileService, logService: ILogService): CancelablePromise<void> {
-	return createCancelablePromise(async token => {
-		await whenProviderRegistered(file, fileService);
-		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		try {
-			await whenFileExists(file, 1, fileService, logService, token);
-			outputChannelRegistry.registerChannel({ id, label, file, log: true });
-		} catch (error) {
-			if (!isCancellationError(error)) {
-				logService.error('Error while registering log channel', file.toString(), getErrorMessage(error));
-			}
-		}
-	});
-}
-
-async function whenFileExists(file: URI, trial: number, fileService: IFileService, logService: ILogService, token: CancellationToken): Promise<void> {
-	const exists = await fileService.exists(file);
-	if (exists) {
-		return;
-	}
-	if (token.isCancellationRequested) {
-		throw new CancellationError();
-	}
-	if (trial > 10) {
-		throw new Error(`Timed out while waiting for file to be created`);
-	}
-	logService.debug(`[Registering Log Channel] File does not exist. Waiting for 1s to retry.`, file.toString());
-	await timeout(1000, token);
-	await whenFileExists(file, trial + 1, fileService, logService, token);
-}

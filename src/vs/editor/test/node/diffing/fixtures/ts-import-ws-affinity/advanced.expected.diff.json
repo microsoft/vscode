@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';\nimport { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';\nimport { CodeEditorView } from './codeEditorView';\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';\nimport { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';\nimport { CodeEditorView, TitleMenu } from './codeEditorView';\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[3,4)",
+			"modifiedRange": "[3,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[3,24 -> 3,24]",
+					"modifiedRange": "[3,24 -> 3,35]"
+				}
+			]
+		}
+	]
+}

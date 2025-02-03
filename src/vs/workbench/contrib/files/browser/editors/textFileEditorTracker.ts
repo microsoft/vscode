@@ -3,24 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { URI } from 'vs/base/common/uri';
-import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { distinct, coalesce } from 'vs/base/common/arrays';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RunOnceWorker } from 'vs/base/common/async';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
-import { Schemas } from 'vs/base/common/network';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITextFileService, TextFileEditorModelState } from '../../../../services/textfile/common/textfiles.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { distinct, coalesce } from '../../../../../base/common/arrays.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { RunOnceWorker } from '../../../../../base/common/async.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { FILE_EDITOR_INPUT_ID } from '../../common/files.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
+import { IWorkingCopyEditorService } from '../../../../services/workingCopy/common/workingCopyEditorService.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.textFileEditorTracker';
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -47,7 +49,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 		this._register(this.hostService.onDidChangeFocus(hasFocus => hasFocus ? this.reloadVisibleTextFileEditors() : undefined));
 
 		// Lifecycle
-		this.lifecycleService.onDidShutdown(() => this.dispose());
+		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
 	}
 
 	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
@@ -69,9 +71,10 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false; // resource must not be pending to save
 			}
 
-			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY && !fileModel?.hasState(TextFileEditorModelState.ERROR)) {
+			if (resource.scheme !== Schemas.untitled && !fileModel?.hasState(TextFileEditorModelState.ERROR) && this.filesConfigurationService.hasShortAutoSaveDelay(resource)) {
 				// leave models auto saved after short delay unless
-				// the save resulted in an error
+				// the save resulted in an error and not for untitled
+				// that are not auto-saved anyway
 				return false;
 			}
 

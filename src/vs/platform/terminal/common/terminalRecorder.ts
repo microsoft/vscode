@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPtyHostProcessReplayEvent, ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessReplayEvent } from './capabilities/capabilities.js';
+import { ReplayEntry } from './terminalProcess.js';
 
-const MAX_RECORDER_DATA_SIZE = 1024 * 1024; // 1MB
+const enum Constants {
+	MaxRecorderDataSize = 10 * 1024 * 1024 // 10MB
+}
 
 interface RecorderEntry {
 	cols: number;
@@ -57,9 +60,9 @@ export class TerminalRecorder {
 		lastEntry.data.push(data);
 
 		this._totalDataLength += data.length;
-		while (this._totalDataLength > MAX_RECORDER_DATA_SIZE) {
+		while (this._totalDataLength > Constants.MaxRecorderDataSize) {
 			const firstEntry = this._entries[0];
-			const remainingToDelete = this._totalDataLength - MAX_RECORDER_DATA_SIZE;
+			const remainingToDelete = this._totalDataLength - Constants.MaxRecorderDataSize;
 			if (remainingToDelete >= firstEntry.data[0].length) {
 				// the first data piece must be deleted
 				this._totalDataLength -= firstEntry.data[0].length;
@@ -88,7 +91,8 @@ export class TerminalRecorder {
 			// No command restoration is needed when relaunching terminals
 			commands: {
 				isWindowsPty: false,
-				commands: []
+				commands: [],
+				promptInputModel: undefined,
 			}
 		};
 	}

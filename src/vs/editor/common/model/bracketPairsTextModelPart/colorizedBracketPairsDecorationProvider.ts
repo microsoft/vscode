@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { BracketPairColorizationOptions, IModelDecoration } from 'vs/editor/common/model';
-import { BracketInfo } from 'vs/editor/common/textModelBracketPairs';
-import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { Color } from '../../../../base/common/color.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Range } from '../../core/range.js';
+import { BracketPairColorizationOptions, IModelDecoration } from '../../model.js';
+import { BracketInfo } from '../../textModelBracketPairs.js';
+import { DecorationProvider } from '../decorationProvider.js';
+import { TextModel } from '../textModel.js';
 import {
 	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
-} from 'vs/editor/common/core/editorColorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
+} from '../../core/editorColorRegistry.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { IModelOptionsChangedEvent } from '../../textModelEvents.js';
 
 export class ColorizedBracketPairsDecorationProvider extends Disposable implements DecorationProvider {
 	private colorizationOptions: BracketPairColorizationOptions;
@@ -42,7 +42,11 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 
 	//#endregion
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
+	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+		if (onlyMinimapDecorations) {
+			// Bracket pair colorization decorations are not rendered in the minimap
+			return [];
+		}
 		if (ownerId === undefined) {
 			return [];
 		}
@@ -50,22 +54,19 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 			return [];
 		}
 
-		const result = new Array<IModelDecoration>();
-		const bracketsInRange = this.textModel.bracketPairs.getBracketsInRange(range);
-		for (const bracket of bracketsInRange) {
-			result.push({
-				id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
-				options: {
-					description: 'BracketPairColorization',
-					inlineClassName: this.colorProvider.getInlineClassName(
-						bracket,
-						this.colorizationOptions.independentColorPoolPerBracketType
-					),
-				},
-				ownerId: 0,
-				range: bracket.range,
-			});
-		}
+		const result = this.textModel.bracketPairs.getBracketsInRange(range, true).map<IModelDecoration>(bracket => ({
+			id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
+			options: {
+				description: 'BracketPairColorization',
+				inlineClassName: this.colorProvider.getInlineClassName(
+					bracket,
+					this.colorizationOptions.independentColorPoolPerBracketType
+				),
+			},
+			ownerId: 0,
+			range: bracket.range,
+		})).toArray();
+
 		return result;
 	}
 

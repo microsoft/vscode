@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Objects from 'vs/base/common/objects';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import * as nls from '../../../../nls.js';
+import * as Objects from '../../../../base/common/objects.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 
-import commonSchema from './jsonSchemaCommon';
+import commonSchema from './jsonSchemaCommon.js';
 
-import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
-import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
-import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
-import { Codicon } from 'vs/base/common/codicons';
+import { ProblemMatcherRegistry } from './problemMatcher.js';
+import { TaskDefinitionRegistry } from './taskDefinitionRegistry.js';
+import * as ConfigurationResolverUtils from '../../../services/configurationResolver/common/configurationResolverUtils.js';
+import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
+import { getAllCodicons } from '../../../../base/common/codicons.js';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
@@ -109,8 +109,8 @@ const icon: IJSONSchema = {
 		id: {
 			description: nls.localize('JsonSchema.tasks.icon.id', 'An optional codicon ID to use'),
 			type: ['string', 'null'],
-			enum: Array.from(Codicon.getAll(), icon => icon.id),
-			markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
+			enum: Array.from(getAllCodicons(), icon => icon.id),
+			markdownEnumDescriptions: Array.from(getAllCodicons(), icon => `$(${icon.id})`),
 		},
 		color: {
 			description: nls.localize('JsonSchema.tasks.icon.color', 'An optional color of the icon'),
@@ -544,7 +544,7 @@ taskDefinitions.push(processTask);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
-} as IJSONSchema);
+});
 
 const definitionsTaskRunnerConfigurationProperties = definitions.taskRunnerConfiguration.properties!;
 const tasks = definitionsTaskRunnerConfigurationProperties.tasks;

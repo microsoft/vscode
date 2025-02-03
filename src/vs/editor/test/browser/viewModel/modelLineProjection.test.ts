@@ -3,26 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import * as languages from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
-import { ViewLineData } from 'vs/editor/common/viewModel';
-import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ISimpleModel, IModelLineProjection, createModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
-import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import assert from 'assert';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import * as languages from '../../../common/languages.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { EndOfLinePreference } from '../../../common/model.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
+import { ViewLineData } from '../../../common/viewModel.js';
+import { IModelLineProjection, ISimpleModel, createModelLineProjection } from '../../../common/viewModel/modelLineProjection.js';
+import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
+import { ViewModelLinesFromProjectedModel } from '../../../common/viewModel/viewModelLines.js';
+import { TestConfiguration } from '../config/testConfiguration.js';
+import { createTextModel } from '../../common/testTextModel.js';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('SplitLine', () => {
 		let model1 = createModel('My First LineMy Second LineAnd another one');
 		let line1 = createSplitLine([13, 14, 15], [13, 13 + 14, 13 + 14 + 15], 0);
@@ -96,7 +100,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
-
+		const wordBreak = config.options.get(EditorOption.wordBreak);
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const model = createTextModel([
@@ -117,7 +121,8 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			model.getOptions().tabSize,
 			'simple',
 			wrappingInfo.wrappingColumn,
-			wrappingIndent
+			wrappingIndent,
+			wordBreak
 		);
 
 		callback(model, linesCollection);
@@ -361,6 +366,7 @@ suite('SplitLinesCollection', () => {
 		languageRegistration.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface ITestViewLineToken {
 		endIndex: number;
@@ -920,7 +926,7 @@ suite('SplitLinesCollection', () => {
 				})),
 				[
 					{ inlineDecorations: [{ startOffset: 8, endOffset: 23 }] },
-					{ inlineDecorations: [{ startOffset: 4, endOffset: 42 }] },
+					{ inlineDecorations: [{ startOffset: 4, endOffset: 30 }] },
 					{ inlineDecorations: [{ startOffset: 4, endOffset: 16 }] },
 					{ inlineDecorations: undefined },
 					{ inlineDecorations: undefined },
@@ -949,6 +955,7 @@ suite('SplitLinesCollection', () => {
 		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
+		const wordBreak = configuration.options.get(EditorOption.wordBreak);
 
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
@@ -961,7 +968,8 @@ suite('SplitLinesCollection', () => {
 			model.getOptions().tabSize,
 			'simple',
 			wrappingInfo.wrappingColumn,
-			wrappingIndent
+			wrappingIndent,
+			wordBreak
 		);
 
 		callback(linesCollection);

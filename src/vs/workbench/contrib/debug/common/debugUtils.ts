@@ -3,14 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IDebuggerContribution, IDebugSession, IConfigPresentation } from 'vs/workbench/contrib/debug/common/debug';
-import { URI as uri } from 'vs/base/common/uri';
-import { isAbsolute } from 'vs/base/common/path';
-import { deepClone } from 'vs/base/common/objects';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
+import { IDebuggerContribution, IDebugSession, IConfigPresentation } from './debug.js';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { isAbsolute } from '../../../../base/common/path.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -96,7 +102,7 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	// If there are non-word characters after the cursor, we want to truncate the expression then.
 	// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 	if (matchingExpression) {
-		const subExpression: RegExp = /\w+/g;
+		const subExpression: RegExp = /(\w|\p{L})+/gu;
 		let subExpressionResult: RegExpExecArray | null = null;
 		while (subExpressionResult = subExpression.exec(matchingExpression)) {
 			const subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
@@ -113,6 +119,44 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	return matchingExpression ?
 		{ start: startOffset, end: startOffset + matchingExpression.length - 1 } :
 		{ start: 0, end: 0 };
+}
+
+export async function getEvaluatableExpressionAtPosition(languageFeaturesService: ILanguageFeaturesService, model: ITextModel, position: Position, token?: CancellationToken): Promise<{ range: IRange; matchingExpression: string } | null> {
+	if (languageFeaturesService.evaluatableExpressionProvider.has(model)) {
+		const supports = languageFeaturesService.evaluatableExpressionProvider.ordered(model);
+
+		const results = coalesce(await Promise.all(supports.map(async support => {
+			try {
+				return await support.provideEvaluatableExpression(model, position, token ?? CancellationToken.None);
+			} catch (err) {
+				return undefined;
+			}
+		})));
+
+		if (results.length > 0) {
+			let matchingExpression = results[0].expression;
+			const range = results[0].range;
+
+			if (!matchingExpression) {
+				const lineContent = model.getLineContent(position.lineNumber);
+				matchingExpression = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
+			}
+
+			return { range, matchingExpression };
+		}
+	} else { // old one-size-fits-all strategy
+		const lineContent = model.getLineContent(position.lineNumber);
+		const { start, end } = getExactExpressionStartAndEnd(lineContent, position.column, position.column);
+
+		// use regex to extract the sub-expression #9821
+		const matchingExpression = lineContent.substring(start - 1, end);
+		return {
+			matchingExpression,
+			range: new Range(position.lineNumber, start, position.lineNumber, start + matchingExpression.length)
+		};
+	}
+
+	return null;
 }
 
 // RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
@@ -263,6 +307,9 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 							di.body?.instructions.forEach(di => fixSourcePath(false, di.location));
 						}
 						break;
+					case 'locations':
+						fixSourcePath(false, (<DebugProtocol.LocationsResponse>response).body?.source);
+						break;
 					default:
 						break;
 				}
@@ -329,3 +376,6 @@ export async function saveAllBeforeDebugStart(configurationService: IConfigurati
 	}
 	await configurationService.reloadConfiguration();
 }
+
+export const sourcesEqual = (a: DebugProtocol.Source | undefined, b: DebugProtocol.Source | undefined): boolean =>
+	!a || !b ? a === b : a.name === b.name && a.path === b.path && a.sourceReference === b.sourceReference;

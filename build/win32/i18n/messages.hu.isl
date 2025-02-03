@@ -7,3 +7,4 @@ RunAfter=%1 indítása a telepítés után
 Other=Egyéb:
 SourceFile=%1 forrásfájl
 OpenWithCodeContextMenu=Megnyitás a következõvel: %1
+UpdatingVisualStudioCode=A Visual Studio Code frissítése...

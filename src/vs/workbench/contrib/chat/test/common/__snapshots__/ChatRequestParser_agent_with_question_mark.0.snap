@@ -1,0 +1,52 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 6
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 7
+      },
+      agent: {
+        id: "agent",
+        name: "agent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        extensionPublisherId: "",
+        locations: [ "panel" ],
+        metadata: {  },
+        slashCommands: [
+          {
+            name: "subCommand",
+            description: ""
+          }
+        ],
+        disambiguation: [  ]
+      },
+      kind: "agent"
+    },
+    {
+      range: {
+        start: 6,
+        endExclusive: 21
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 7,
+        endLineNumber: 1,
+        endColumn: 22
+      },
+      text: "? Are you there",
+      kind: "text"
+    }
+  ],
+  text: "@agent? Are you there"
+}

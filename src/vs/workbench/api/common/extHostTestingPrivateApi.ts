@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostTestItemEvent, InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
+import { ExtHostTestItemEvent, InvalidTestItemError } from '../../contrib/testing/common/testItemCollection.js';
 import * as vscode from 'vscode';
 
 export interface IExtHostTestItemApi {

@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as _ from 'underscore';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as fs from 'fs';
-import * as path from 'path';
+import es from 'event-stream';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import fs from 'fs';
+import path from 'path';
 
 class ErrorLog {
 	constructor(public id: string) {
@@ -35,7 +34,7 @@ class ErrorLog {
 	}
 
 	log(): void {
-		const errors = _.flatten(this.allErrors);
+		const errors = this.allErrors.flat();
 		const seen = new Set<string>();
 
 		errors.map(err => {

@@ -3,14 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-
-/**
- * @returns whether the provided parameter is a JavaScript Array or not.
- */
-export function isArray(array: any): array is any[] {
-	return Array.isArray(array);
-}
+import { assert } from './assert.js';
 
 /**
  * @returns whether the provided parameter is a JavaScript String or not.
@@ -27,7 +20,6 @@ export function isStringArray(value: unknown): value is string[] {
 }
 
 /**
- *
  * @returns whether the provided parameter is of type `object` but **not**
  *	`null`, an `array`, a `regexp`, nor a `date`.
  */
@@ -43,7 +35,6 @@ export function isObject(obj: unknown): obj is Object {
 }
 
 /**
- *
  * @returns whether the provided parameter is of type `Buffer` or Uint8Array dervived type
  */
 export function isTypedArray(obj: unknown): obj is Object {
@@ -104,13 +95,50 @@ export function assertType(condition: unknown, type?: string): asserts condition
 
 /**
  * Asserts that the argument passed in is neither undefined nor null.
+ *
+ * @see {@link assertDefined} for a similar utility that leverages TS assertion functions to narrow down the type of `arg` to be non-nullable.
  */
-export function assertIsDefined<T>(arg: T | null | undefined): T {
-	if (isUndefinedOrNull(arg)) {
-		throw new Error('Assertion Failed: argument is undefined or null');
-	}
+export function assertIsDefined<T>(arg: T | null | undefined): NonNullable<T> {
+	assert(
+		arg !== null && arg !== undefined,
+		'Argument is `undefined` or `null`.',
+	);
 
 	return arg;
+}
+
+/**
+ * Asserts that a provided `value` is `defined` - not `null` or `undefined`,
+ * throwing an error with the provided error or error message, while also
+ * narrowing down the type of the `value` to be `NonNullable` using TS
+ * assertion functions.
+ *
+ * @throws if the provided `value` is `null` or `undefined`.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * // an assert with an error message
+ * assertDefined('some value', 'String constant is not defined o_O.');
+ *
+ * // `throws!` the provided error
+ * assertDefined(null, new Error('Should throw this error.'));
+ *
+ * // narrows down the type of `someValue` to be non-nullable
+ * const someValue: string | undefined | null = blackbox();
+ * assertDefined(someValue, 'Some value must be defined.');
+ * console.log(someValue.length); // now type of `someValue` is `string`
+ * ```
+ *
+ * @see {@link assertIsDefined} for a similar utility but without assertion.
+ * @see {@link https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-7.html#assertion-functions typescript-3-7.html#assertion-functions}
+ */
+export function assertDefined<T>(value: T, error: string | NonNullable<Error>): asserts value is NonNullable<T> {
+	if (value === null || value === undefined) {
+		const errorToThrow = typeof error === 'string' ? new Error(error) : error;
+
+		throw errorToThrow;
+	}
 }
 
 /**
@@ -201,53 +229,14 @@ export function validateConstraint(arg: unknown, constraint: TypeConstraint | un
 	}
 }
 
-export function getAllPropertyNames(obj: object): string[] {
-	let res: string[] = [];
-	let proto = Object.getPrototypeOf(obj);
-	while (Object.prototype !== proto) {
-		res = res.concat(Object.getOwnPropertyNames(proto));
-		proto = Object.getPrototypeOf(proto);
-	}
-	return res;
-}
-
-export function getAllMethodNames(obj: object): string[] {
-	const methods: string[] = [];
-	for (const prop of getAllPropertyNames(obj)) {
-		if (typeof (obj as any)[prop] === 'function') {
-			methods.push(prop);
-		}
-	}
-	return methods;
-}
-
-export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: unknown[]) => unknown): T {
-	const createProxyMethod = (method: string): () => unknown => {
-		return function () {
-			const args = Array.prototype.slice.call(arguments, 0);
-			return invoke(method, args);
-		};
-	};
-
-	const result = {} as T;
-	for (const methodName of methodNames) {
-		(<any>result)[methodName] = createProxyMethod(methodName);
-	}
-	return result;
-}
-
 /**
- * Converts null to undefined, passes all other values through.
+ * Helper type assertion that safely upcasts a type to a supertype.
+ *
+ * This can be used to make sure the argument correctly conforms to the subtype while still being able to pass it
+ * to contexts that expects the supertype.
  */
-export function withNullAsUndefined<T>(x: T | null): T | undefined {
-	return x === null ? undefined : x;
-}
-
-/**
- * Converts undefined to null, passes all other values through.
- */
-export function withUndefinedAsNull<T>(x: T | undefined): T | null {
-	return typeof x === 'undefined' ? null : x;
+export function upcast<Base, Sub extends Base = Base>(x: Sub): Base {
+	return x;
 }
 
 type AddFirstParameterToFunction<T, TargetFunctionsReturnType, FirstParameter> = T extends (...args: any[]) => TargetFunctionsReturnType ?
@@ -266,12 +255,45 @@ export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, Firs
 };
 
 /**
- * Mapped-type that replaces all occurrences of URI with UriComponents
+ * Given an object with all optional properties, requires at least one to be defined.
+ * i.e. AtLeastOne<MyObject>;
  */
-export type UriDto<T> = { [K in keyof T]: T[K] extends URI
-	? UriComponents
-	: UriDto<T[K]> };
+export type AtLeastOne<T, U = { [K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U];
 
-export function assertNever(value: never, message = 'Unreachable'): never {
-	throw new Error(message);
-}
+/**
+ * Only picks the non-optional properties of a type.
+ */
+export type OmitOptional<T> = { [K in keyof T as T[K] extends Required<T>[K] ? K : never]: T[K] };
+
+/**
+ * A type that removed readonly-less from all properties of `T`
+ */
+export type Mutable<T> = {
+	-readonly [P in keyof T]: T[P]
+};
+
+/**
+ * A single object or an array of the objects.
+ */
+export type SingleOrMany<T> = T | T[];
+
+
+/**
+ * A type that recursively makes all properties of `T` required
+ */
+export type DeepRequiredNonNullable<T> = {
+	[P in keyof T]-?: T[P] extends object ? DeepRequiredNonNullable<T[P]> : Required<NonNullable<T[P]>>;
+};
+
+
+/**
+ * Represents a type that is a partial version of a given type `T`, where all properties are optional and can be deeply nested.
+ */
+export type DeepPartial<T> = {
+	[P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : Partial<T[P]>;
+};
+
+/**
+ * Represents a type that is a partial version of a given type `T`, except a subset.
+ */
+export type PartialExcept<T, K extends keyof T> = Partial<Omit<T, K>> & Pick<T, K>;

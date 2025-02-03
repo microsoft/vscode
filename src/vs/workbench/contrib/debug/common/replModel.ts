@@ -3,20 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import severity from 'vs/base/common/severity';
-import { isObject, isString } from 'vs/base/common/types';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugConfiguration, IDebugSession, IExpression, IReplElement, IReplElementSource, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import severity from '../../../../base/common/severity.js';
+import { isObject, isString } from '../../../../base/common/types.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDebugConfiguration, IDebugSession, IExpression, INestingReplElement, IReplElement, IReplElementSource, IStackFrame } from './debug.js';
+import { ExpressionContainer } from './debugModel.js';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
 const getUniqueId = () => `topReplElement:${topReplElementCounter++}`;
 
-export class SimpleReplElement implements IReplElement {
+/**
+ * General case of data from DAP the `output` event. {@link ReplVariableElement}
+ * is used instead only if there is a `variablesReference` with no `output` text.
+ */
+export class ReplOutputElement implements INestingReplElement {
 
 	private _count = 1;
 	private _onDidChangeCount = new Emitter<void>();
@@ -27,7 +31,9 @@ export class SimpleReplElement implements IReplElement {
 		public value: string,
 		public severity: severity,
 		public sourceData?: IReplElementSource,
-	) { }
+		public readonly expression?: IExpression,
+	) {
+	}
 
 	toString(includeSource = false): string {
 		let valueRespectCount = this.value;
@@ -42,6 +48,10 @@ export class SimpleReplElement implements IReplElement {
 		return this.id;
 	}
 
+	getChildren(): Promise<IReplElement[]> {
+		return this.expression?.getChildren() || Promise.resolve([]);
+	}
+
 	set count(value: number) {
 		this._count = value;
 		this._onDidChangeCount.fire();
@@ -54,9 +64,44 @@ export class SimpleReplElement implements IReplElement {
 	get onDidChangeCount(): Event<void> {
 		return this._onDidChangeCount.event;
 	}
+
+	get hasChildren() {
+		return !!this.expression?.hasChildren;
+	}
 }
 
-export class RawObjectReplElement implements IExpression {
+/** Top-level variable logged via DAP output when there's no `output` string */
+export class ReplVariableElement implements INestingReplElement {
+	public readonly hasChildren: boolean;
+	private readonly id = generateUuid();
+
+	constructor(
+		private readonly session: IDebugSession,
+		public readonly expression: IExpression,
+		public readonly severity: severity,
+		public readonly sourceData?: IReplElementSource,
+	) {
+		this.hasChildren = expression.hasChildren;
+	}
+
+	getSession() {
+		return this.session;
+	}
+
+	getChildren(): IReplElement[] | Promise<IReplElement[]> {
+		return this.expression.getChildren();
+	}
+
+	toString(): string {
+		return this.expression.toString();
+	}
+
+	getId(): string {
+		return this.id;
+	}
+}
+
+export class RawObjectReplElement implements IExpression, INestingReplElement {
 
 	private static readonly MAX_CHILDREN = 1000; // upper bound of children per value
 
@@ -64,6 +109,10 @@ export class RawObjectReplElement implements IExpression {
 
 	getId(): string {
 		return this.id;
+	}
+
+	getSession(): IDebugSession | undefined {
+		return undefined;
 	}
 
 	get value(): string {
@@ -129,7 +178,7 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 		return this._available;
 	}
 
-	constructor() {
+	constructor(public readonly originalExpression: string) {
 		super(undefined, undefined, 0, generateUuid());
 	}
 
@@ -145,7 +194,7 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 	}
 }
 
-export class ReplGroup implements IReplElement {
+export class ReplGroup implements INestingReplElement {
 
 	private children: IReplElement[] = [];
 	private id: string;
@@ -153,6 +202,7 @@ export class ReplGroup implements IReplElement {
 	static COUNTER = 0;
 
 	constructor(
+		public readonly session: IDebugSession,
 		public name: string,
 		public autoExpand: boolean,
 		public sourceData?: IReplElementSource
@@ -211,9 +261,16 @@ function areSourcesEqual(first: IReplElementSource | undefined, second: IReplEle
 	return false;
 }
 
+export interface INewReplElementData {
+	output: string;
+	expression?: IExpression;
+	sev: severity;
+	source?: IReplElementSource;
+}
+
 export class ReplModel {
 	private replElements: IReplElement[] = [];
-	private readonly _onDidChangeElements = new Emitter<void>();
+	private readonly _onDidChangeElements = new Emitter<IReplElement | undefined>();
 	readonly onDidChangeElements = this._onDidChangeElements.event;
 
 	constructor(private readonly configurationService: IConfigurationService) { }
@@ -222,51 +279,54 @@ export class ReplModel {
 		return this.replElements;
 	}
 
-	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		this.addReplElement(new ReplEvaluationInput(name));
-		const result = new ReplEvaluationResult();
-		await result.evaluateExpression(name, session, stackFrame, 'repl');
+	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, expression: string): Promise<void> {
+		this.addReplElement(new ReplEvaluationInput(expression));
+		const result = new ReplEvaluationResult(expression);
+		await result.evaluateExpression(expression, session, stackFrame, 'repl');
 		this.addReplElement(result);
 	}
 
-	appendToRepl(session: IDebugSession, data: string | IExpression, sev: severity, source?: IReplElementSource): void {
+	appendToRepl(session: IDebugSession, { output, expression, sev, source }: INewReplElementData): void {
 		const clearAnsiSequence = '\u001b[2J';
-		if (typeof data === 'string' && data.indexOf(clearAnsiSequence) >= 0) {
+		const clearAnsiIndex = output.lastIndexOf(clearAnsiSequence);
+		if (clearAnsiIndex !== -1) {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
 			this.removeReplExpressions();
-			this.appendToRepl(session, nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
-			data = data.substring(data.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
+			this.appendToRepl(session, { output: nls.localize('consoleCleared', "Console was cleared"), sev: severity.Ignore });
+			output = output.substring(clearAnsiIndex + clearAnsiSequence.length);
 		}
 
-		if (typeof data === 'string') {
-			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev) {
-				const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-				if (previousElement.value === data && areSourcesEqual(previousElement.sourceData, source) && config.console.collapseIdenticalLines) {
-					previousElement.count++;
-					// No need to fire an event, just the count updates and badge will adjust automatically
-					return;
-				}
-				if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
-					this.replElements[this.replElements.length - 1] = new SimpleReplElement(
-						session, getUniqueId(), previousElement.value + data, sev, source);
-					this._onDidChangeElements.fire();
-					return;
-				}
+		if (expression) {
+			// if there is an output string, prefer to show that, since the DA could
+			// have formatted it nicely e.g. with ANSI color codes.
+			this.addReplElement(output
+				? new ReplOutputElement(session, getUniqueId(), output, sev, source, expression)
+				: new ReplVariableElement(session, expression, sev, source));
+			return;
+		}
+
+		const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
+		if (previousElement instanceof ReplOutputElement && previousElement.severity === sev) {
+			const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+			if (previousElement.value === output && areSourcesEqual(previousElement.sourceData, source) && config.console.collapseIdenticalLines) {
+				previousElement.count++;
+				// No need to fire an event, just the count updates and badge will adjust automatically
+				return;
 			}
-
-			const element = new SimpleReplElement(session, getUniqueId(), data, sev, source);
-			this.addReplElement(element);
-		} else {
-			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
-			(<any>data).severity = sev;
-			(<any>data).sourceData = source;
-			this.addReplElement(data);
+			if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
+				this.replElements[this.replElements.length - 1] = new ReplOutputElement(
+					session, getUniqueId(), previousElement.value + output, sev, source);
+				this._onDidChangeElements.fire(undefined);
+				return;
+			}
 		}
+
+		const element = new ReplOutputElement(session, getUniqueId(), output, sev, source);
+		this.addReplElement(element);
 	}
 
-	startGroup(name: string, autoExpand: boolean, sourceData?: IReplElementSource): void {
-		const group = new ReplGroup(name, autoExpand, sourceData);
+	startGroup(session: IDebugSession, name: string, autoExpand: boolean, sourceData?: IReplElementSource): void {
+		const group = new ReplGroup(session, name, autoExpand, sourceData);
 		this.addReplElement(group);
 	}
 
@@ -287,14 +347,20 @@ export class ReplModel {
 				this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 			}
 		}
-
-		this._onDidChangeElements.fire();
+		this._onDidChangeElements.fire(newElement);
 	}
 
 	removeReplExpressions(): void {
 		if (this.replElements.length > 0) {
 			this.replElements = [];
-			this._onDidChangeElements.fire();
+			this._onDidChangeElements.fire(undefined);
 		}
+	}
+
+	/** Returns a new REPL model that's a copy of this one. */
+	clone() {
+		const newRepl = new ReplModel(this.configurationService);
+		newRepl.replElements = this.replElements.slice();
+		return newRepl;
 	}
 }

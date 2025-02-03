@@ -3,55 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from 'vs/base/browser/dom';
-import { Color } from 'vs/base/common/color';
-import { mixin } from 'vs/base/common/objects';
-import { format } from 'vs/base/common/strings';
-import { IThemable } from 'vs/base/common/styler';
-import 'vs/css!./countBadge';
+import { $, append } from '../../dom.js';
+import { format } from '../../../common/strings.js';
+import './countBadge.css';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
-export interface ICountBadgeOptions extends ICountBadgetyles {
-	count?: number;
-	countFormat?: string;
-	titleFormat?: string;
+export interface ICountBadgeOptions {
+	readonly count?: number;
+	readonly countFormat?: string;
+	readonly titleFormat?: string;
 }
 
-export interface ICountBadgetyles {
-	badgeBackground?: Color;
-	badgeForeground?: Color;
-	badgeBorder?: Color;
+export interface ICountBadgeStyles {
+	readonly badgeBackground: string | undefined;
+	readonly badgeForeground: string | undefined;
+	readonly badgeBorder: string | undefined;
 }
 
-const defaultOpts = {
-	badgeBackground: Color.fromHex('#4D4D4D'),
-	badgeForeground: Color.fromHex('#FFFFFF')
+export const unthemedCountStyles: ICountBadgeStyles = {
+	badgeBackground: '#4D4D4D',
+	badgeForeground: '#FFFFFF',
+	badgeBorder: undefined
 };
 
-export class CountBadge implements IThemable {
+export class CountBadge extends Disposable {
 
 	private element: HTMLElement;
 	private count: number = 0;
 	private countFormat: string;
 	private titleFormat: string;
+	private readonly hover = this._register(new MutableDisposable<IDisposable>());
 
-	private badgeBackground: Color | undefined;
-	private badgeForeground: Color | undefined;
-	private badgeBorder: Color | undefined;
+	constructor(container: HTMLElement, private readonly options: ICountBadgeOptions, private readonly styles: ICountBadgeStyles) {
 
-	private options: ICountBadgeOptions;
-
-	constructor(container: HTMLElement, options?: ICountBadgeOptions) {
-		this.options = options || Object.create(null);
-		mixin(this.options, defaultOpts, false);
-
-		this.badgeBackground = this.options.badgeBackground;
-		this.badgeForeground = this.options.badgeForeground;
-		this.badgeBorder = this.options.badgeBorder;
-
+		super();
 		this.element = append(container, $('.monaco-count-badge'));
+		this._register(toDisposable(() => container.removeChild(this.element)));
 		this.countFormat = this.options.countFormat || '{0}';
 		this.titleFormat = this.options.titleFormat || '';
 		this.setCount(this.options.count || 0);
+		this.updateHover();
 	}
 
 	setCount(count: number) {
@@ -66,36 +58,26 @@ export class CountBadge implements IThemable {
 
 	setTitleFormat(titleFormat: string) {
 		this.titleFormat = titleFormat;
+		this.updateHover();
 		this.render();
+	}
+
+	private updateHover(): void {
+		if (this.titleFormat !== '' && !this.hover.value) {
+			this.hover.value = getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.element, () => ({ content: format(this.titleFormat, this.count), appearance: { compact: true } }));
+		} else if (this.titleFormat === '' && this.hover.value) {
+			this.hover.value = undefined;
+		}
 	}
 
 	private render() {
 		this.element.textContent = format(this.countFormat, this.count);
-		this.element.title = format(this.titleFormat, this.count);
 
-		this.applyStyles();
-	}
+		this.element.style.backgroundColor = this.styles.badgeBackground ?? '';
+		this.element.style.color = this.styles.badgeForeground ?? '';
 
-	style(styles: ICountBadgetyles): void {
-		this.badgeBackground = styles.badgeBackground;
-		this.badgeForeground = styles.badgeForeground;
-		this.badgeBorder = styles.badgeBorder;
-
-		this.applyStyles();
-	}
-
-	private applyStyles(): void {
-		if (this.element) {
-			const background = this.badgeBackground ? this.badgeBackground.toString() : '';
-			const foreground = this.badgeForeground ? this.badgeForeground.toString() : '';
-			const border = this.badgeBorder ? this.badgeBorder.toString() : '';
-
-			this.element.style.backgroundColor = background;
-			this.element.style.color = foreground;
-
-			this.element.style.borderWidth = border ? '1px' : '';
-			this.element.style.borderStyle = border ? 'solid' : '';
-			this.element.style.borderColor = border;
+		if (this.styles.badgeBorder) {
+			this.element.style.border = `1px solid ${this.styles.badgeBorder}`;
 		}
 	}
 }

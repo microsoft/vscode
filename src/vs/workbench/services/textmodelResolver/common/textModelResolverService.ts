@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from 'vs/base/common/lifecycle';
-import { IModelService } from 'vs/editor/common/services/model';
-import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
-import { ITextFileService, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { Schemas } from 'vs/base/common/network';
-import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel, isResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from '../../../../base/common/lifecycle.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { TextResourceEditorModel } from '../../../common/editor/textResourceEditorModel.js';
+import { ITextFileService, TextFileResolveReason } from '../../textfile/common/textfiles.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel, isResolvedTextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import { TextFileEditorModel } from '../../textfile/common/textFileEditorModel.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { ModelUndoRedoParticipant } from '../../../../editor/common/services/modelUndoRedoParticipant.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { UntitledTextEditorModel } from '../../untitled/common/untitledTextEditorModel.js';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextEditorModel>> {
 
@@ -33,7 +34,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		super();
 	}
 
-	createReferencedObject(key: string): Promise<IResolvedTextEditorModel> {
+	protected createReferencedObject(key: string): Promise<IResolvedTextEditorModel> {
 		return this.doCreateReferencedObject(key);
 	}
 
@@ -100,11 +101,11 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		throw new Error(`Unable to resolve resource ${key}`);
 	}
 
-	destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
+	protected destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 
-		// untitled and inMemory are bound to a different lifecycle
+		// inMemory is bound to a different lifecycle
 		const resource = URI.parse(key);
-		if (resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
+		if (resource.scheme === Schemas.inMemory) {
 			return;
 		}
 
@@ -125,6 +126,10 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 					// text file models have conditions that prevent them
 					// from dispose, so we have to wait until we can dispose
 					await this.textFileService.files.canDispose(model);
+				} else if (model instanceof UntitledTextEditorModel) {
+					// untitled file models have conditions that prevent them
+					// from dispose, so we have to wait until we can dispose
+					await this.textFileService.untitled.canDispose(model);
 				}
 
 				if (!this.modelsToDispose.has(key)) {
@@ -193,8 +198,23 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly resourceModelCollection: ResourceModelCollection & ReferenceCollection<Promise<IResolvedTextEditorModel>> /* TS Fail */ = this.instantiationService.createInstance(ResourceModelCollection);
-	private readonly asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
+	private _resourceModelCollection: ResourceModelCollection & ReferenceCollection<Promise<IResolvedTextEditorModel>> /* TS Fail */ | undefined = undefined;
+	private get resourceModelCollection() {
+		if (!this._resourceModelCollection) {
+			this._resourceModelCollection = this.instantiationService.createInstance(ResourceModelCollection);
+		}
+
+		return this._resourceModelCollection;
+	}
+
+	private _asyncModelCollection: AsyncReferenceCollection<IResolvedTextEditorModel> | undefined = undefined;
+	private get asyncModelCollection() {
+		if (!this._asyncModelCollection) {
+			this._asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
+		}
+
+		return this._asyncModelCollection;
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -231,4 +251,4 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 	}
 }
 
-registerSingleton(ITextModelService, TextModelResolverService, true);
+registerSingleton(ITextModelService, TextModelResolverService, InstantiationType.Delayed);

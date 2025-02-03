@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
-	return (target: any, key: string, descriptor: any) => {
-		let fnKey: string | null = null;
+function createDecorator(mapFn: (fn: Function, key: string) => Function): MethodDecorator {
+	return (_target: Object, key: string | symbol, descriptor: TypedPropertyDescriptor<any>) => {
+		let fnKey: 'value' | 'get' | null = null;
 		let fn: Function | null = null;
 
 		if (typeof descriptor.value === 'function') {
@@ -16,7 +16,7 @@ export function createDecorator(mapFn: (fn: Function, key: string) => Function):
 			fn = descriptor.get;
 		}
 
-		if (!fn) {
+		if (!fn || typeof key === 'symbol') {
 			throw new Error('not supported');
 		}
 
@@ -24,8 +24,8 @@ export function createDecorator(mapFn: (fn: Function, key: string) => Function):
 	};
 }
 
-export function memoize(_target: any, key: string, descriptor: any) {
-	let fnKey: string | null = null;
+export function memoize(_target: Object, key: string, descriptor: PropertyDescriptor) {
+	let fnKey: 'value' | 'get' | null = null;
 	let fn: Function | null = null;
 
 	if (typeof descriptor.value === 'function') {
@@ -51,11 +51,10 @@ export function memoize(_target: any, key: string, descriptor: any) {
 				configurable: false,
 				enumerable: false,
 				writable: false,
-				value: fn!.apply(this, args)
+				value: fn.apply(this, args)
 			});
 		}
-
-		return this[memoizeKey];
+		return (this as any)[memoizeKey];
 	};
 }
 
@@ -63,7 +62,7 @@ export interface IDebounceReducer<T> {
 	(previousValue: T, ...args: any[]): T;
 }
 
-export function debounce<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T): Function {
+export function debounce<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T) {
 	return createDecorator((fn, key) => {
 		const timerKey = `$debounce$${key}`;
 		const resultKey = `$debounce$result$${key}`;
@@ -88,7 +87,7 @@ export function debounce<T>(delay: number, reducer?: IDebounceReducer<T>, initia
 	});
 }
 
-export function throttle<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T): Function {
+export function throttle<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T) {
 	return createDecorator((fn, key) => {
 		const timerKey = `$throttle$timer$${key}`;
 		const resultKey = `$throttle$result$${key}`;
@@ -128,3 +127,5 @@ export function throttle<T>(delay: number, reducer?: IDebounceReducer<T>, initia
 		};
 	});
 }
+
+export { cancelPreviousCalls } from './decorators/cancelPreviousCalls.js';

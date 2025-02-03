@@ -2,22 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { createKeybinding, createSimpleKeybinding, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContext, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { INotification, INotificationService, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import assert from 'assert';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { createSimpleKeybinding, ResolvedKeybinding, KeyCodeChord, Keybinding } from '../../../../base/common/keybindings.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { OS } from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ICommandService } from '../../../commands/common/commands.js';
+import { ContextKeyExpr, ContextKeyExpression, IContext, IContextKeyService, IContextKeyServiceTarget } from '../../../contextkey/common/contextkey.js';
+import { AbstractKeybindingService } from '../../common/abstractKeybindingService.js';
+import { IKeyboardEvent } from '../../common/keybinding.js';
+import { KeybindingResolver } from '../../common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../common/usLayoutResolvedKeybinding.js';
+import { createUSLayoutResolvedKeybinding } from './keybindingsTestUtils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { INotification, INotificationService, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from '../../../notification/common/notification.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
 function createContext(ctx: any) {
 	return {
@@ -51,18 +53,18 @@ suite('AbstractKeybindingService', () => {
 		}
 
 		public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
-			return [new USLayoutResolvedKeybinding(kb, OS)];
+			return USLayoutResolvedKeybinding.resolveKeybinding(kb, OS);
 		}
 
 		public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-			const keybinding = new SimpleKeybinding(
+			const chord = new KeyCodeChord(
 				keyboardEvent.ctrlKey,
 				keyboardEvent.shiftKey,
 				keyboardEvent.altKey,
 				keyboardEvent.metaKey,
 				keyboardEvent.keyCode
-			).toChord();
-			return this.resolveKeybinding(keybinding)[0];
+			).toKeybinding();
+			return this.resolveKeybinding(chord)[0];
 		}
 
 		public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
@@ -77,6 +79,7 @@ suite('AbstractKeybindingService', () => {
 				shiftKey: keybinding.shiftKey,
 				altKey: keybinding.altKey,
 				metaKey: keybinding.metaKey,
+				altGraphKey: false,
 				keyCode: keybinding.keyCode,
 				code: null!
 			}, null!);
@@ -93,6 +96,10 @@ suite('AbstractKeybindingService', () => {
 		public registerSchemaContribution() {
 			// noop
 		}
+
+		public enableKeybindingHoldMode() {
+			return undefined;
+		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
@@ -101,6 +108,18 @@ suite('AbstractKeybindingService', () => {
 	let showMessageCalls: { sev: Severity; message: any }[] = null!;
 	let statusMessageCalls: string[] | null = null;
 	let statusMessageCallsDisposed: string[] | null = null;
+
+
+	teardown(() => {
+		currentContextValue = null;
+		executeCommandCalls = null!;
+		showMessageCalls = null!;
+		createTestKeybindingService = null!;
+		statusMessageCalls = null;
+		statusMessageCallsDisposed = null;
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		executeCommandCalls = [];
@@ -112,7 +131,6 @@ suite('AbstractKeybindingService', () => {
 
 			const contextKeyService: IContextKeyService = {
 				_serviceBrand: undefined,
-				dispose: undefined!,
 				onDidChangeContext: undefined!,
 				bufferChangeEvents() { },
 				createKey: undefined!,
@@ -141,10 +159,9 @@ suite('AbstractKeybindingService', () => {
 
 			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				doNotDisturbMode: false,
 				onDidAddNotification: undefined!,
 				onDidRemoveNotification: undefined!,
-				onDidChangeDoNotDisturbMode: undefined!,
+				onDidChangeFilter: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();
@@ -171,6 +188,18 @@ suite('AbstractKeybindingService', () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
+				},
+				setFilter() {
+					throw new Error('not implemented');
+				},
+				getFilter() {
+					throw new Error('not implemented');
+				},
+				getFilters() {
+					throw new Error('not implemented');
+				},
+				removeFilter() {
+					throw new Error('not implemented');
 				}
 			};
 
@@ -180,19 +209,9 @@ suite('AbstractKeybindingService', () => {
 		};
 	});
 
-	teardown(() => {
-		currentContextValue = null;
-		executeCommandCalls = null!;
-		showMessageCalls = null!;
-		createTestKeybindingService = null!;
-		statusMessageCalls = null;
-		statusMessageCallsDisposed = null;
-	});
-
-	function kbItem(keybinding: number, command: string, when?: ContextKeyExpression): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS) : undefined);
+	function kbItem(keybinding: number | number[], command: string | null, when?: ContextKeyExpression): ResolvedKeybindingItem {
 		return new ResolvedKeybindingItem(
-			resolvedKeybinding,
+			createUSLayoutResolvedKeybinding(keybinding, OS),
 			command,
 			null,
 			when,
@@ -203,9 +222,157 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	function toUsLabel(keybinding: number): string {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-		return usResolvedKeybinding.getLabel()!;
+		return createUSLayoutResolvedKeybinding(keybinding, OS)!.getLabel()!;
 	}
+
+	suite('simple tests: single- and multi-chord keybindings are dispatched', () => {
+
+		test('a single-chord keybinding is dispatched correctly; this test makes sure the dispatch in general works before we test empty-string/null command ID', () => {
+
+			const key = KeyMod.CtrlCmd | KeyCode.KeyK;
+			const kbService = createTestKeybindingService([
+				kbItem(key, 'myCommand'),
+			]);
+
+			currentContextValue = createContext({});
+			const shouldPreventDefault = kbService.testDispatch(key);
+			assert.deepStrictEqual(shouldPreventDefault, true);
+			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: "myCommand", args: [null] }]));
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCallsDisposed, []);
+
+			kbService.dispose();
+		});
+
+		test('a multi-chord keybinding is dispatched correctly', () => {
+
+			const chord0 = KeyMod.CtrlCmd | KeyCode.KeyK;
+			const chord1 = KeyMod.CtrlCmd | KeyCode.KeyI;
+			const key = [chord0, chord1];
+			const kbService = createTestKeybindingService([
+				kbItem(key, 'myCommand'),
+			]);
+
+			currentContextValue = createContext({});
+
+			let shouldPreventDefault = kbService.testDispatch(chord0);
+			assert.deepStrictEqual(shouldPreventDefault, true);
+			assert.deepStrictEqual(executeCommandCalls, []);
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
+			assert.deepStrictEqual(statusMessageCallsDisposed, []);
+
+			shouldPreventDefault = kbService.testDispatch(chord1);
+			assert.deepStrictEqual(shouldPreventDefault, true);
+			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: "myCommand", args: [null] }]));
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
+			assert.deepStrictEqual(statusMessageCallsDisposed, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
+
+			kbService.dispose();
+		});
+	});
+
+	suite('keybindings with empty-string/null command ID', () => {
+
+		test('a single-chord keybinding with an empty string command ID unbinds the keybinding (shouldPreventDefault = false)', () => {
+
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, ''),
+			]);
+
+			// send Ctrl/Cmd + K
+			currentContextValue = createContext({});
+			const shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.deepStrictEqual(shouldPreventDefault, false);
+			assert.deepStrictEqual(executeCommandCalls, []);
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCallsDisposed, []);
+
+			kbService.dispose();
+		});
+
+		test('a single-chord keybinding with a null command ID unbinds the keybinding (shouldPreventDefault = false)', () => {
+
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, null),
+			]);
+
+			// send Ctrl/Cmd + K
+			currentContextValue = createContext({});
+			const shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.deepStrictEqual(shouldPreventDefault, false);
+			assert.deepStrictEqual(executeCommandCalls, []);
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCallsDisposed, []);
+
+			kbService.dispose();
+		});
+
+		test('a multi-chord keybinding with an empty-string command ID keeps the keybinding (shouldPreventDefault = true)', () => {
+
+			const chord0 = KeyMod.CtrlCmd | KeyCode.KeyK;
+			const chord1 = KeyMod.CtrlCmd | KeyCode.KeyI;
+			const key = [chord0, chord1];
+			const kbService = createTestKeybindingService([
+				kbItem(key, 'myCommand'),
+				kbItem(key, ''),
+			]);
+
+			currentContextValue = createContext({});
+
+			let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.deepStrictEqual(shouldPreventDefault, true);
+			assert.deepStrictEqual(executeCommandCalls, []);
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
+			assert.deepStrictEqual(statusMessageCallsDisposed, []);
+
+			shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyI);
+			assert.deepStrictEqual(shouldPreventDefault, true);
+			assert.deepStrictEqual(executeCommandCalls, []);
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`, `The key combination (${toUsLabel(chord0)}, ${toUsLabel(chord1)}) is not a command.`]));
+			assert.deepStrictEqual(statusMessageCallsDisposed, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
+
+			kbService.dispose();
+		});
+
+		test('a multi-chord keybinding with a null command ID keeps the keybinding (shouldPreventDefault = true)', () => {
+
+			const chord0 = KeyMod.CtrlCmd | KeyCode.KeyK;
+			const chord1 = KeyMod.CtrlCmd | KeyCode.KeyI;
+			const key = [chord0, chord1];
+			const kbService = createTestKeybindingService([
+				kbItem(key, 'myCommand'),
+				kbItem(key, null),
+			]);
+
+			currentContextValue = createContext({});
+
+			let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.deepStrictEqual(shouldPreventDefault, true);
+			assert.deepStrictEqual(executeCommandCalls, []);
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
+			assert.deepStrictEqual(statusMessageCallsDisposed, []);
+
+			shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyI);
+			assert.deepStrictEqual(shouldPreventDefault, true);
+			assert.deepStrictEqual(executeCommandCalls, []);
+			assert.deepStrictEqual(showMessageCalls, []);
+			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`, `The key combination (${toUsLabel(chord0)}, ${toUsLabel(chord1)}) is not a command.`]));
+			assert.deepStrictEqual(statusMessageCallsDisposed, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
+
+			kbService.dispose();
+		});
+
+	});
 
 	test('issue #16498: chord mode is quit for invalid chords', () => {
 

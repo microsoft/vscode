@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
-import { SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
+import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
+import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
+import { ILanguageSelection } from '../languages/language.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from '../languages.js';
 
 export const IModelService = createDecorator<IModelService>('modelService');
 
@@ -22,8 +21,6 @@ export interface IModelService {
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
-	setMode(model: ITextModel, languageSelection: ILanguageSelection): void;
-
 	destroyModel(resource: URI): void;
 
 	getModels(): ITextModel[];
@@ -32,11 +29,9 @@ export interface IModelService {
 
 	getModel(resource: URI): ITextModel | null;
 
-	getSemanticTokensProviderStyling(provider: DocumentTokensProvider): SemanticTokensProviderStyling;
+	readonly onModelAdded: Event<ITextModel>;
 
-	onModelAdded: Event<ITextModel>;
+	readonly onModelRemoved: Event<ITextModel>;
 
-	onModelRemoved: Event<ITextModel>;
-
-	onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string }>;
+	readonly onModelLanguageChanged: Event<{ readonly model: ITextModel; readonly oldLanguageId: string }>;
 }

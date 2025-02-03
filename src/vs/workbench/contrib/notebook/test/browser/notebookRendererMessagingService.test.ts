@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { NullExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { stub } from 'sinon';
-import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/notebookRendererMessagingServiceImpl';
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
+import { NotebookRendererMessagingService } from '../../browser/services/notebookRendererMessagingServiceImpl.js';
+import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('NotebookRendererMessaging', () => {
 	let extService: NullExtensionService;
 	let m: NotebookRendererMessagingService;
 	let sent: unknown[] = [];
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		sent = [];
 		extService = new NullExtensionService();
-		m = new NotebookRendererMessagingService(extService);
-		m.onShouldPostMessage(e => sent.push(e));
+		m = ds.add(new NotebookRendererMessagingService(extService));
+		ds.add(m.onShouldPostMessage(e => sent.push(e)));
 	});
 
 	test('activates on prepare', () => {

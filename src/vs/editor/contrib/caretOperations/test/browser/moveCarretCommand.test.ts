@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Selection } from 'vs/editor/common/core/selection';
-import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/browser/moveCaretCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { MoveCaretCommand } from '../../browser/moveCaretCommand.js';
+import { testCommand } from '../../../../test/browser/testCommand.js';
 
 
 function testMoveCaretLeftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
@@ -17,6 +18,8 @@ function testMoveCaretRightCommand(lines: string[], selection: Selection, expect
 }
 
 suite('Editor Contrib - Move Caret Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('move selection to left', function () {
 		testMoveCaretLeftCommand(

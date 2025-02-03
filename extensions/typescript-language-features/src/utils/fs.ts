@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 
-export const exists = async (resource: vscode.Uri): Promise<boolean> => {
+export async function exists(resource: vscode.Uri): Promise<boolean> {
 	try {
 		const stat = await vscode.workspace.fs.stat(resource);
 		// stat.type is an enum flag
@@ -13,4 +13,8 @@ export const exists = async (resource: vscode.Uri): Promise<boolean> => {
 	} catch {
 		return false;
 	}
-};
+}
+
+export function looksLikeAbsoluteWindowsPath(path: string): boolean {
+	return /^[a-zA-Z]:[\/\\]/.test(path);
+}

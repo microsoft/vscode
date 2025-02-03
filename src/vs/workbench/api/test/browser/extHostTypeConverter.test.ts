@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as assert from 'assert';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector } from 'vs/workbench/api/common/extHostTypeConverters';
-import { isEmptyObject } from 'vs/base/common/types';
-import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
+import assert from 'assert';
+import * as extHostTypes from '../../common/extHostTypes.js';
+import { MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from '../../common/extHostTypeConverters.js';
+import { isEmptyObject } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostTypeConverter', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function size<T>(from: Record<any, any>): number {
 		let count = 0;
 		for (const key in from) {
@@ -86,7 +90,7 @@ suite('ExtHostTypeConverter', function () {
 
 		const d = new extHostTypes.NotebookData([]);
 		d.cells.push(new extHostTypes.NotebookCellData(extHostTypes.NotebookCellKind.Code, 'hello', 'fooLang'));
-		d.metadata = { custom: { foo: 'bar', bar: 123 } };
+		d.metadata = { foo: 'bar', bar: 123 };
 
 		const dto = NotebookData.from(d);
 
@@ -121,5 +125,21 @@ suite('ExtHostTypeConverter', function () {
 			pattern: undefined,
 			exclusive: undefined,
 		});
+	});
+
+	test('JS/TS Surround With Code Actions provide bad Workspace Edits when obtained by VSCode Command API #178654', function () {
+
+		const uri = URI.parse('file:///foo/bar');
+		const ws = new extHostTypes.WorkspaceEdit();
+		ws.set(uri, [extHostTypes.SnippetTextEdit.insert(new extHostTypes.Position(1, 1), new extHostTypes.SnippetString('foo$0bar'))]);
+
+		const dto = WorkspaceEdit.from(ws);
+		const first = <IWorkspaceTextEditDto>dto.edits[0];
+		assert.strictEqual(first.textEdit.insertAsSnippet, true);
+
+		const ws2 = WorkspaceEdit.to(dto);
+		const dto2 = WorkspaceEdit.from(ws2);
+		const first2 = <IWorkspaceTextEditDto>dto2.edits[0];
+		assert.strictEqual(first2.textEdit.insertAsSnippet, true);
 	});
 });

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarshalledObject } from 'vs/base/common/marshalling';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { VSBuffer } from './buffer.js';
+import { MarshalledObject } from './marshalling.js';
+import { MarshalledId } from './marshallingIds.js';
+import { URI, UriComponents } from './uri.js';
 
 export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;
@@ -123,6 +124,10 @@ function _transformIncomingURIs(obj: any, transformer: IURITransformer, revive: 
 
 		if ((<MarshalledObject>obj).$mid === MarshalledId.Uri) {
 			return revive ? URI.revive(transformer.transformIncoming(obj)) : transformer.transformIncoming(obj);
+		}
+
+		if (obj instanceof VSBuffer) {
+			return null;
 		}
 
 		// walk object (or array)

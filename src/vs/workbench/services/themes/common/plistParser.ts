@@ -23,11 +23,6 @@ const enum State {
 	DICT_STATE = 1,
 	ARR_STATE = 2
 }
-
-export function parseWithLocation(content: string, filename: string, locationKeyName: string): any {
-	return _parse(content, filename, locationKeyName);
-}
-
 /**
  * A very fast plist parser
  */
@@ -331,9 +326,9 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 
 	function escapeVal(str: string): string {
 		return str.replace(/&#([0-9]+);/g, function (_: string, m0: string) {
-			return (<any>String).fromCodePoint(parseInt(m0, 10));
+			return String.fromCodePoint(parseInt(m0, 10));
 		}).replace(/&#x([0-9a-f]+);/g, function (_: string, m0: string) {
-			return (<any>String).fromCodePoint(parseInt(m0, 16));
+			return String.fromCodePoint(parseInt(m0, 16));
 		}).replace(/&amp;|&lt;|&gt;|&quot;|&apos;/g, function (_: string) {
 			switch (_) {
 				case '&amp;': return '&';

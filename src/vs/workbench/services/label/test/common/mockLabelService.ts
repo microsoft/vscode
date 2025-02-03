@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { basename, normalize } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { IWorkspace, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { basename, normalize } from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
+import { IWorkspace, IWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
 
 export class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
@@ -22,7 +22,7 @@ export class MockLabelService implements ILabelService {
 	getUriBasenameLabel(resource: URI): string {
 		return basename(resource.fsPath);
 	}
-	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: Verbosity }): string {
 		return '';
 	}
 	getHostLabel(scheme: string, authority?: string): string {

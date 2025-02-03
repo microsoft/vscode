@@ -2,12 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from 'vs/editor/common/languages';
-import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ITextModel } from '../../../../common/model.js';
+import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from '../../../../common/languages.js';
+import { SyntaxRangeProvider } from '../../browser/syntaxRangeProvider.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { FoldingLimitReporter } from '../../browser/folding.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 interface IndentRange {
 	start: number;
@@ -27,6 +29,8 @@ class TestFoldingRangeProvider implements FoldingRangeProvider {
 }
 
 suite('Syntax folding', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function r(start: number, end: number): IndentRange {
 		return { start, end };
 	}
@@ -74,14 +78,23 @@ suite('Syntax folding', () => {
 		const providers = [new TestFoldingRangeProvider(model, ranges)];
 
 		async function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
-			const indentRanges = await new SyntaxRangeProvider(model, providers, () => { }, maxEntries).compute(CancellationToken.None);
-			const actual: IndentRange[] = [];
-			if (indentRanges) {
-				for (let i = 0; i < indentRanges.length; i++) {
-					actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
+			let reported: number | false = false;
+			const foldingRangesLimit: FoldingLimitReporter = { limit: maxEntries, update: (computed, limited) => reported = limited };
+			const syntaxRangeProvider = new SyntaxRangeProvider(model, providers, () => { }, foldingRangesLimit, undefined);
+			try {
+				const indentRanges = await syntaxRangeProvider.compute(CancellationToken.None);
+				const actual: IndentRange[] = [];
+				if (indentRanges) {
+					for (let i = 0; i < indentRanges.length; i++) {
+						actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
+					}
+					assert.equal(reported, 9 <= maxEntries ? false : maxEntries, 'limited');
 				}
+				assert.deepStrictEqual(actual, expectedRanges, message);
+			} finally {
+				syntaxRangeProvider.dispose();
 			}
-			assert.deepStrictEqual(actual, expectedRanges, message);
+
 		}
 
 		await assertLimit(1000, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '1000');
@@ -98,5 +111,4 @@ suite('Syntax folding', () => {
 
 		model.dispose();
 	});
-
 });

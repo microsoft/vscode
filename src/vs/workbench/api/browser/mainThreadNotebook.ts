@@ -3,22 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData as NotebookData, NotebookExtensionDescription, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookContentProvider, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
-import { ILogService } from 'vs/platform/log/common/log';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter } from '../../../base/common/event.js';
+import { DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { assertType } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
+import { INotebookCellStatusBarService } from '../../contrib/notebook/common/notebookCellStatusBarService.js';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, INotebookExclusiveDocumentFilter, NotebookData, NotebookExtensionDescription, TransientOptions } from '../../contrib/notebook/common/notebookCommon.js';
+import { INotebookService, SimpleNotebookProviderInfo } from '../../contrib/notebook/common/notebookService.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol.js';
+import { IRelativePattern } from '../../../base/common/glob.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { INotebookFileMatchNoModel } from '../../contrib/search/common/searchNotebookHelpers.js';
+import { NotebookPriorityInfo } from '../../contrib/search/common/search.js';
+import { coalesce } from '../../../base/common/arrays.js';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -26,7 +31,6 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider; disposable: IDisposable }>();
 	private readonly _notebookSerializer = new Map<number, IDisposable>();
 	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
 
@@ -41,96 +45,95 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 
 	dispose(): void {
 		this._disposables.dispose();
-		// remove all notebook providers
-		for (const item of this._notebookProviders.values()) {
-			item.disposable.dispose();
-		}
 		dispose(this._notebookSerializer.values());
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): Promise<void> {
-		const contentOptions = { ...options };
-
-		const controller: INotebookContentProvider = {
-			get options() {
-				return contentOptions;
-			},
-			set options(newOptions) {
-				contentOptions.transientCellMetadata = newOptions.transientCellMetadata;
-				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
-				contentOptions.transientOutputs = newOptions.transientOutputs;
-			},
-			open: async (uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken) => {
-				const data = await this._proxy.$openNotebook(viewType, uri, backupId, untitledDocumentData, token);
-				return {
-					data: NotebookDto.fromNotebookDataDto(data.value),
-					transientOptions: contentOptions
-				};
-			},
-			save: async (uri: URI, token: CancellationToken) => {
-				return this._proxy.$saveNotebook(viewType, uri, token);
-			},
-			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
-				return this._proxy.$saveNotebookAs(viewType, uri, target, token);
-			},
-			backup: async (uri: URI, token: CancellationToken) => {
-				return this._proxy.$backupNotebook(viewType, uri, token);
-			}
-		};
-
-		const disposable = new DisposableStore();
-		disposable.add(this._notebookService.registerNotebookController(viewType, extension, controller));
-		if (data) {
-			disposable.add(this._notebookService.registerContributedNotebookType(viewType, data));
-		}
-		this._notebookProviders.set(viewType, { controller, disposable });
-	}
-
-	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata }): Promise<void> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider && options) {
-			provider.controller.options = options;
-			this._notebookService.listNotebookDocuments().forEach(document => {
-				if (document.viewType === viewType) {
-					document.transientOptions = provider.controller.options;
-				}
-			});
-		}
-	}
-
-	async $unregisterNotebookProvider(viewType: string): Promise<void> {
-		const entry = this._notebookProviders.get(viewType);
-		if (entry) {
-			entry.disposable.dispose();
-			this._notebookProviders.delete(viewType);
-		}
-	}
-
-
 	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): void {
-		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {
+		const disposables = new DisposableStore();
+
+		disposables.add(this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
 			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
-				const sw = new StopWatch(true);
-				const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
-				const result = NotebookDto.fromNotebookDataDto(dto.value);
-				this._logService.trace('[NotebookSerializer] dataToNotebook DONE', extension.id, sw.elapsed());
+				const sw = new StopWatch();
+				let result: NotebookData;
+				if (data.byteLength === 0 && viewType === 'interactive') {
+					// we don't want any starting cells for an empty interactive window.
+					result = NotebookDto.fromNotebookDataDto({ cells: [], metadata: {} });
+				} else {
+					const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
+					result = NotebookDto.fromNotebookDataDto(dto.value);
+				}
+				this._logService.trace(`[NotebookSerializer] dataToNotebook DONE after ${sw.elapsed()}ms`, {
+					viewType,
+					extensionId: extension.id.value,
+				});
 				return result;
 			},
 			notebookToData: (data: NotebookData): Promise<VSBuffer> => {
-				const sw = new StopWatch(true);
+				const sw = new StopWatch();
 				const result = this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), CancellationToken.None);
-				this._logService.trace('[NotebookSerializer] notebookToData DONE', extension.id, sw.elapsed());
+				this._logService.trace(`[NotebookSerializer] notebookToData DONE after ${sw.elapsed()}`, {
+					viewType,
+					extensionId: extension.id.value,
+				});
 				return result;
+			},
+			save: async (uri, versionId, options, token) => {
+				const stat = await this._proxy.$saveNotebook(handle, uri, versionId, options, token);
+				return {
+					...stat,
+					children: undefined,
+					resource: uri
+				};
+			},
+			searchInNotebooks: async (textQuery, token, allPriorityInfo): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
+				const contributedType = this._notebookService.getContributedNotebookType(viewType);
+				if (!contributedType) {
+					return { results: [], limitHit: false };
+				}
+				const fileNames = contributedType.selectors;
+
+				const includes = fileNames.map((selector) => {
+					const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as IRelativePattern | string;
+					return globPattern.toString();
+				});
+
+				if (!includes.length) {
+					return {
+						results: [], limitHit: false
+					};
+				}
+
+				const thisPriorityInfo = coalesce<NotebookPriorityInfo>([{ isFromSettings: false, filenamePatterns: includes }, ...allPriorityInfo.get(viewType) ?? []]);
+				const otherEditorsPriorityInfo = Array.from(allPriorityInfo.keys())
+					.flatMap(key => {
+						if (key !== viewType) {
+							return allPriorityInfo.get(key) ?? [];
+						}
+						return [];
+					});
+
+				const searchComplete = await this._proxy.$searchInNotebooks(handle, textQuery, thisPriorityInfo, otherEditorsPriorityInfo, token);
+				const revivedResults: INotebookFileMatchNoModel<URI>[] = searchComplete.results.map(result => {
+					const resource = URI.revive(result.resource);
+					return {
+						resource,
+						cellResults: result.cellResults.map(e => revive(e))
+					};
+				});
+				return { results: revivedResults, limitHit: searchComplete.limitHit };
 			}
-		});
-		const disposables = new DisposableStore();
-		disposables.add(registration);
+		}));
+
 		if (data) {
 			disposables.add(this._notebookService.registerContributedNotebookType(viewType, data));
 		}
 		this._notebookSerializer.set(handle, disposables);
+
+		this._logService.trace('[NotebookSerializer] registered notebook serializer', {
+			viewType,
+			extensionId: extension.id.value,
+		});
 	}
 
 	$unregisterNotebookSerializer(handle: number): void {

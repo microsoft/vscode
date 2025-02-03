@@ -19,11 +19,14 @@
 	height: 100%;
 	pointer-events: none; /* very important to not take events away from the parent */
 	opacity: 0; /* hidden initially */
-	transition: opacity 150ms ease-out;
 
 	display: flex;
 	align-items: center;
 	justify-content: center;
+}
+
+.monaco-workbench:not(.reduce-motion) #monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator {
+	transition: opacity 150ms ease-out;
 }
 
 #monaco-workbench-editor-drop-overlay .editor-group-overlay-drop-into-prompt {
@@ -32,6 +35,9 @@
 	margin: 0.2em;
 	line-height: normal;
 	opacity: 0; /* hidden initially */
+}
+
+.monaco-workbench:not(.reduce-motion) #monaco-workbench-editor-drop-overlay .editor-group-overlay-drop-into-prompt {
 	transition: opacity 150ms ease-out;
 }
 
@@ -44,6 +50,6 @@
 	font-style: normal;
 }
 
-#monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-move-transition {
+.monaco-workbench:not(.reduce-motion) #monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-move-transition {
 	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
 }

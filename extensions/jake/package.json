@@ -16,11 +16,9 @@
     "compile": "gulp compile-extension:jake",
     "watch": "gulp watch-extension:jake"
   },
-  "dependencies": {
-    "vscode-nls": "^4.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "20.x"
   },
   "main": "./out/main",
   "activationEvents": [

@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { diffMaps, diffSets } from 'vs/base/common/collections';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
-import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostContext, ExtHostNotebookShape, INotebookDocumentsAndEditorsDelta, INotebookEditorAddData, INotebookModelAddedData, MainContext } from '../common/extHost.protocol';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { diffMaps, diffSets } from '../../../base/common/collections.js';
+import { combinedDisposable, DisposableStore, DisposableMap } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { MainThreadNotebookDocuments } from './mainThreadNotebookDocuments.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
+import { MainThreadNotebookEditors } from './mainThreadNotebookEditors.js';
+import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from '../../contrib/notebook/browser/notebookBrowser.js';
+import { INotebookEditorService } from '../../contrib/notebook/browser/services/notebookEditorService.js';
+import { NotebookTextModel } from '../../contrib/notebook/common/model/notebookTextModel.js';
+import { INotebookService } from '../../contrib/notebook/common/notebookService.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { ExtHostContext, ExtHostNotebookShape, INotebookDocumentsAndEditorsDelta, INotebookEditorAddData, INotebookModelAddedData, MainContext } from '../common/extHost.protocol.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 
 interface INotebookAndEditorDelta {
 	removedDocuments: URI[];
@@ -85,7 +86,7 @@ export class MainThreadNotebooksAndEditors {
 	private readonly _proxy: Pick<ExtHostNotebookShape, '$acceptDocumentAndEditorsDelta'>;
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _editorListeners = new Map<string, IDisposable>();
+	private readonly _editorListeners = new DisposableMap<string>();
 
 	private _currentState?: NotebookAndEditorState;
 
@@ -99,6 +100,7 @@ export class MainThreadNotebooksAndEditors {
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 
@@ -121,6 +123,7 @@ export class MainThreadNotebooksAndEditors {
 		this._mainThreadNotebooks.dispose();
 		this._mainThreadEditors.dispose();
 		this._disposables.dispose();
+		this._editorListeners.dispose();
 	}
 
 	private _handleEditorAdd(editor: INotebookEditor): void {
@@ -132,8 +135,7 @@ export class MainThreadNotebooksAndEditors {
 	}
 
 	private _handleEditorRemove(editor: INotebookEditor): void {
-		this._editorListeners.get(editor.getId())?.dispose();
-		this._editorListeners.delete(editor.getId());
+		this._editorListeners.deleteAndDispose(editor.getId());
 		this._updateState();
 	}
 
@@ -156,6 +158,7 @@ export class MainThreadNotebooksAndEditors {
 			activeEditor = focusedEditor.getId();
 		}
 		if (activeEditor && !editors.has(activeEditor)) {
+			this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is not in editors list', activeEditor, editors.keys());
 			activeEditor = null;
 		}
 
@@ -236,7 +239,8 @@ export class MainThreadNotebooksAndEditors {
 			documentUri: add.textModel.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
-			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group)
+			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group),
+			viewType: add.getViewModel().viewType
 		};
 	}
 }

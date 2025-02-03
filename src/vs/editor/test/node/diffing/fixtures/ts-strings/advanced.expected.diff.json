@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "interface Test {\n    /**\n     * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.\n     * Defaults to 'mouseover'.\n     */\n    showFoldingControls?: 'always' | 'mouseover';\n}\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "interface Test {\n    /**\n     * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.\n     * Defaults to 'mouseover'.\n     */\n    showFoldingControls?: 'always' | 'never' | 'mouseover';\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[6,7)",
+			"modifiedRange": "[6,7)",
+			"innerChanges": [
+				{
+					"originalRange": "[6,35 -> 6,35]",
+					"modifiedRange": "[6,35 -> 6,45]"
+				}
+			]
+		}
+	]
+}

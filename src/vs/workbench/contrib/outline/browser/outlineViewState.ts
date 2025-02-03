@@ -3,17 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Emitter } from '../../../../base/common/event.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IOutlineViewState, OutlineSortOrder } from './outline.js';
 
-
-export const enum OutlineSortOrder {
-	ByPosition,
-	ByName,
-	ByKind
-}
-
-export class OutlineViewState {
+export class OutlineViewState implements IOutlineViewState {
 
 	private _followCursor = false;
 	private _filterOnType = true;
@@ -64,7 +58,7 @@ export class OutlineViewState {
 			followCursor: this.followCursor,
 			sortBy: this.sortBy,
 			filterOnType: this.filterOnType,
-		}), StorageScope.WORKSPACE, StorageTarget.USER);
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	restore(storageService: IStorageService): void {

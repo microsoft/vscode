@@ -2,45 +2,55 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import './output.css';
+import * as nls from '../../../../nls.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOpenContext } from '../../../common/editor.js';
+import { AbstractTextResourceEditor } from '../../../browser/parts/editor/textResourceEditor.js';
+import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputService, IOutputViewFilters, OUTPUT_FILTER_FOCUS_CONTEXT, ILogEntry, HIDE_CATEGORY_FILTER_CONTEXT } from '../../../services/output/common/output.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
+import { IViewPaneOptions, FilterViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { CancelablePromise, createCancelablePromise } from '../../../../base/common/async.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.js';
+import { computeEditorAriaLabel } from '../../../browser/editor.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { localize } from '../../../../nls.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { LogLevel } from '../../../../platform/log/common/log.js';
+import { IEditorContributionDescription, EditorExtensionsRegistry, EditorContributionInstantiation, EditorContributionCtor } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { FindDecorations } from '../../../../editor/contrib/find/browser/findDecorations.js';
+import { Memento, MementoObject } from '../../../common/memento.js';
+import { Markers } from '../../markers/common/markers.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 
-import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { groupBy } from 'vs/base/common/arrays';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Dimension } from 'vs/base/browser/dom';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
-
-export class OutputViewPane extends ViewPane {
+export class OutputViewPane extends FilterViewPane {
 
 	private readonly editor: OutputEditor;
 	private channelId: string | undefined;
@@ -50,6 +60,9 @@ export class OutputViewPane extends ViewPane {
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
 	set scrollLock(scrollLock: boolean) { this.scrollLockContextKey.set(scrollLock); }
 
+	private readonly memento: Memento;
+	private readonly panelState: MementoObject;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -58,19 +71,49 @@ export class OutputViewPane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IOutputService private readonly outputService: IOutputService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IStorageService storageService: IStorageService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		const memento = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
+		const viewState = memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		super({
+			...options,
+			filterOptions: {
+				placeholder: localize('outputView.filter.placeholder', "Filter"),
+				focusContextKey: OUTPUT_FILTER_FOCUS_CONTEXT.key,
+				text: viewState['filter'] || '',
+				history: []
+			}
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		this.memento = memento;
+		this.panelState = viewState;
+
+		const filters = outputService.filters;
+		filters.text = this.panelState['filter'] || '';
+		filters.trace = this.panelState['showTrace'] ?? true;
+		filters.debug = this.panelState['showDebug'] ?? true;
+		filters.info = this.panelState['showInfo'] ?? true;
+		filters.warning = this.panelState['showWarning'] ?? true;
+		filters.error = this.panelState['showError'] ?? true;
+		filters.categories = this.panelState['categories'] ?? '';
+
 		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
-		this.editor = instantiationService.createInstance(OutputEditor);
+
+		const editorInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		this.editor = this._register(editorInstantiationService.createInstance(OutputEditor));
 		this._register(this.editor.onTitleAreaUpdate(() => {
 			this.updateTitle(this.editor.getTitle());
 			this.updateActions();
 		}));
 		this._register(this.onDidChangeBodyVisibility(() => this.onDidChangeVisibility(this.isBodyVisible())));
+		this._register(this.filterWidget.onDidChangeFilterText(text => outputService.filters.text = text));
+
+		this.checkMoreFilters();
+		this._register(outputService.filters.onDidChange(() => this.checkMoreFilters()));
 	}
 
 	showChannel(channel: IOutputChannel, preserveFocus: boolean): void {
@@ -87,15 +130,18 @@ export class OutputViewPane extends ViewPane {
 		this.editorPromise?.then(() => this.editor.focus());
 	}
 
-	override renderBody(container: HTMLElement): void {
+	public clearFilterText(): void {
+		this.filterWidget.setFilterText('');
+	}
+
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.editor.create(container);
 		container.classList.add('output-view');
 		const codeEditor = <ICodeEditor>this.editor.getControl();
 		codeEditor.setAriaOptions({ role: 'document', activeDescendant: undefined });
 		this._register(codeEditor.onDidChangeModelContent(() => {
-			const activeChannel = this.outputService.getActiveChannel();
-			if (activeChannel && !this.scrollLock) {
+			if (!this.scrollLock) {
 				this.editor.revealLastLine();
 			}
 		}));
@@ -117,49 +163,37 @@ export class OutputViewPane extends ViewPane {
 		}));
 	}
 
-	override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
+	protected layoutBodyContent(height: number, width: number): void {
 		this.editor.layout(new Dimension(width, height));
-	}
-
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === 'workbench.output.action.switchBetweenOutputs') {
-			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
-		}
-		return super.getActionViewItem(action);
 	}
 
 	private onDidChangeVisibility(visible: boolean): void {
 		this.editor.setVisible(visible);
-		let channel: IOutputChannel | undefined = undefined;
-		if (visible) {
-			channel = this.channelId ? this.outputService.getChannel(this.channelId) : this.outputService.getActiveChannel();
-		}
-		if (channel) {
-			this.setInput(channel);
-		} else {
+		if (!visible) {
 			this.clearInput();
 		}
 	}
 
 	private setInput(channel: IOutputChannel): void {
 		this.channelId = channel.id;
-		const descriptor = this.outputService.getChannelDescriptor(channel.id);
-		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
+		this.checkMoreFilters();
 
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
-			if (this.editorPromise) {
-				this.editorPromise.cancel();
-			}
+			this.editorPromise?.cancel();
 			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token)
 				.then(() => this.editor));
 		}
 
 	}
 
+	private checkMoreFilters(): void {
+		const filters = this.outputService.filters;
+		this.filterWidget.checkMoreFilters(!filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error || (!!this.channelId && filters.categories.includes(`,${this.channelId}:`)));
+	}
+
 	private clearInput(): void {
-		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(false);
+		this.channelId = undefined;
 		this.editor.clearInput();
 		this.editorPromise = null;
 	}
@@ -168,9 +202,24 @@ export class OutputViewPane extends ViewPane {
 		return this.instantiationService.createInstance(TextResourceEditorInput, channel.uri, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), undefined, undefined);
 	}
 
+	override saveState(): void {
+		const filters = this.outputService.filters;
+		this.panelState['filter'] = filters.text;
+		this.panelState['showTrace'] = filters.trace;
+		this.panelState['showDebug'] = filters.debug;
+		this.panelState['showInfo'] = filters.info;
+		this.panelState['showWarning'] = filters.warning;
+		this.panelState['showError'] = filters.error;
+		this.panelState['categories'] = filters.categories;
+
+		this.memento.saveMemento();
+		super.saveState();
+	}
+
 }
 
 export class OutputEditor extends AbstractTextResourceEditor {
+	private readonly resourceContext: ResourceContextKey;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -179,12 +228,13 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IOutputService private readonly outputService: IOutputService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService
 	) {
-		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
+		super(OUTPUT_VIEW_ID, editorGroupService.activeGroup /* this is not correct but pragmatic */, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
+
+		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 	}
 
 	override getId(): string {
@@ -195,8 +245,8 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		return nls.localize('output', "Output");
 	}
 
-	protected override getConfigurationOverrides(): ICodeEditorOptions {
-		const options = super.getConfigurationOverrides();
+	protected override getConfigurationOverrides(configuration: IEditorConfiguration): ICodeEditorOptions {
+		const options = super.getConfigurationOverrides(configuration);
 		options.wordWrap = 'on';				// all output editors wrap
 		options.lineNumbers = 'off';			// all output editors hide line numbers
 		options.glyphMargin = false;
@@ -230,9 +280,11 @@ export class OutputEditor extends AbstractTextResourceEditor {
 	}
 
 	protected getAriaLabel(): string {
-		const channel = this.outputService.getActiveChannel();
+		return this.input ? this.input.getAriaLabel() : nls.localize('outputViewAriaLabel', "Output panel");
+	}
 
-		return channel ? nls.localize('outputViewWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputViewAriaLabel', "Output panel");
+	protected override computeAriaLabel(): string {
+		return this.input ? computeEditorAriaLabel(this.input, undefined, undefined, this.editorGroupService.count) : this.getAriaLabel();
 	}
 
 	override async setInput(input: TextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -246,6 +298,9 @@ export class OutputEditor extends AbstractTextResourceEditor {
 			this.input.dispose();
 		}
 		await super.setInput(input, options, context, token);
+
+		this.resourceContext.set(input.resource);
+
 		if (focus) {
 			this.focus();
 		}
@@ -258,6 +313,8 @@ export class OutputEditor extends AbstractTextResourceEditor {
 			this.input.dispose();
 		}
 		super.clearInput();
+
+		this.resourceContext.reset();
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -271,83 +328,195 @@ export class OutputEditor extends AbstractTextResourceEditor {
 			CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
 		}
 	}
-}
 
-class SwitchOutputActionViewItem extends SelectActionViewItem {
-
-	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
-
-	private outputChannels: IOutputChannelDescriptor[] = [];
-	private logChannels: IOutputChannelDescriptor[] = [];
-
-	constructor(
-		action: IAction,
-		@IOutputService private readonly outputService: IOutputService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService
-	) {
-		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', "Output Channels"), optionsAsChildren: true });
-
-		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOptions()));
-		this._register(outputChannelRegistry.onDidRemoveChannel(() => this.updateOptions()));
-		this._register(this.outputService.onActiveOutputChannel(() => this.updateOptions()));
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
-
-		this.updateOptions();
+	private _getContributions(): IEditorContributionDescription[] {
+		return [
+			...EditorExtensionsRegistry.getEditorContributions(),
+			{
+				id: FilterController.ID,
+				ctor: FilterController as EditorContributionCtor,
+				instantiation: EditorContributionInstantiation.Eager
+			}
+		];
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('switch-output');
-		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
+	protected override getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+		return { contributions: this._getContributions() };
+	}
+
+}
+
+export class FilterController extends Disposable implements IEditorContribution {
+
+	public static readonly ID = 'output.editor.contrib.filterController';
+
+	private readonly modelDisposables: DisposableStore = this._register(new DisposableStore());
+	private hiddenAreas: Range[] = [];
+	private readonly categories = new Map<string, string>();
+	private readonly decorationsCollection: IEditorDecorationsCollection;
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IOutputService private readonly outputService: IOutputService,
+	) {
+		super();
+		this.decorationsCollection = editor.createDecorationsCollection();
+		this._register(editor.onDidChangeModel(() => this.onDidChangeModel()));
+		this._register(this.outputService.filters.onDidChange(() => editor.hasModel() && this.filter(editor.getModel())));
+	}
+
+	private onDidChangeModel(): void {
+		this.modelDisposables.clear();
+		this.hiddenAreas = [];
+		this.categories.clear();
+
+		if (!this.editor.hasModel()) {
+			return;
+		}
+
+		const model = this.editor.getModel();
+		this.filter(model);
+
+		const computeEndLineNumber = () => {
+			const endLineNumber = model.getLineCount();
+			return endLineNumber > 1 && model.getLineMaxColumn(endLineNumber) === 1 ? endLineNumber - 1 : endLineNumber;
+		};
+
+		let endLineNumber = computeEndLineNumber();
+
+		this.modelDisposables.add(model.onDidChangeContent(e => {
+			if (e.changes.every(e => e.range.startLineNumber > endLineNumber)) {
+				this.filterIncremental(model, endLineNumber + 1);
+			} else {
+				this.filter(model);
+			}
+			endLineNumber = computeEndLineNumber();
 		}));
 	}
 
-	protected override getActionContext(option: string, index: number): string {
-		const channel = index < this.outputChannels.length ? this.outputChannels[index] : this.logChannels[index - this.outputChannels.length - 1];
-		return channel ? channel.id : option;
+	private filter(model: ITextModel): void {
+		this.hiddenAreas = [];
+		this.decorationsCollection.clear();
+		this.filterIncremental(model, 1);
 	}
 
-	private updateOptions(): void {
-		const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
-			if (!c1.log && c2.log) {
-				return -1;
-			}
-			if (c1.log && !c2.log) {
-				return 1;
-			}
-			return 0;
-		});
-		this.outputChannels = groups[0] || [];
-		this.logChannels = groups[1] || [];
-		const showSeparator = this.outputChannels.length && this.logChannels.length;
-		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
-		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionViewItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
-		let selected = 0;
-		const activeChannel = this.outputService.getActiveChannel();
-		if (activeChannel) {
-			selected = this.outputChannels.map(c => c.id).indexOf(activeChannel.id);
-			if (selected === -1) {
-				const logChannelIndex = this.logChannels.map(c => c.id).indexOf(activeChannel.id);
-				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
+	private filterIncremental(model: ITextModel, fromLineNumber: number): void {
+		const { findMatches, hiddenAreas, categories: sources } = this.compute(model, fromLineNumber);
+		this.hiddenAreas.push(...hiddenAreas);
+		this.editor.setHiddenAreas(this.hiddenAreas, this);
+		if (findMatches.length) {
+			this.decorationsCollection.append(findMatches);
+		}
+		if (sources.size) {
+			const that = this;
+			for (const [categoryFilter, categoryName] of sources) {
+				if (this.categories.has(categoryFilter)) {
+					continue;
+				}
+				this.categories.set(categoryFilter, categoryName);
+				this.modelDisposables.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: `workbench.actions.${OUTPUT_VIEW_ID}.toggle.${categoryFilter}`,
+							title: categoryName,
+							toggled: ContextKeyExpr.regex(HIDE_CATEGORY_FILTER_CONTEXT.key, new RegExp(`.*,${escapeRegExpCharacters(categoryFilter)},.*`)).negate(),
+							menu: {
+								id: viewFilterSubmenu,
+								group: '1_category_filter',
+								when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID)),
+							}
+						});
+					}
+					async run(): Promise<void> {
+						that.outputService.filters.toggleCategory(categoryFilter);
+					}
+				}));
 			}
 		}
-		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : false) }), Math.max(0, selected));
+	}
+
+	private compute(model: ITextModel, fromLineNumber: number): { findMatches: IModelDeltaDecoration[]; hiddenAreas: Range[]; categories: Map<string, string> } {
+		const filters = this.outputService.filters;
+		const activeChannel = this.outputService.getActiveChannel();
+		const findMatches: IModelDeltaDecoration[] = [];
+		const hiddenAreas: Range[] = [];
+		const categories = new Map<string, string>();
+
+		const logEntries = activeChannel?.getLogEntries();
+		if (activeChannel && logEntries?.length) {
+			const hasLogLevelFilter = !filters.trace || !filters.debug || !filters.info || !filters.warning || !filters.error;
+
+			const fromLogLevelEntryIndex = logEntries.findIndex(entry => fromLineNumber >= entry.range.startLineNumber && fromLineNumber <= entry.range.endLineNumber);
+			if (fromLogLevelEntryIndex === -1) {
+				return { findMatches, hiddenAreas, categories };
+			}
+
+			for (let i = fromLogLevelEntryIndex; i < logEntries.length; i++) {
+				const entry = logEntries[i];
+				if (entry.category) {
+					categories.set(`${activeChannel.id}:${entry.category}`, entry.category);
+				}
+				if (hasLogLevelFilter && !this.shouldShowLogLevel(entry, filters)) {
+					hiddenAreas.push(entry.range);
+					continue;
+				}
+				if (!this.shouldShowCategory(activeChannel.id, entry, filters)) {
+					hiddenAreas.push(entry.range);
+					continue;
+				}
+				if (filters.text) {
+					const matches = model.findMatches(filters.text, entry.range, false, false, null, false);
+					if (matches.length) {
+						for (const match of matches) {
+							findMatches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
+						}
+					} else {
+						hiddenAreas.push(entry.range);
+					}
+				}
+			}
+			return { findMatches, hiddenAreas, categories };
+		}
+
+		if (!filters.text) {
+			return { findMatches, hiddenAreas, categories };
+		}
+
+		const lineCount = model.getLineCount();
+		for (let lineNumber = fromLineNumber; lineNumber <= lineCount; lineNumber++) {
+			const lineRange = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
+			const matches = model.findMatches(filters.text, lineRange, false, false, null, false);
+			if (matches.length) {
+				for (const match of matches) {
+					findMatches.push({ range: match.range, options: FindDecorations._FIND_MATCH_DECORATION });
+				}
+			} else {
+				hiddenAreas.push(lineRange);
+			}
+		}
+		return { findMatches, hiddenAreas, categories };
+	}
+
+	private shouldShowLogLevel(entry: ILogEntry, filters: IOutputViewFilters): boolean {
+		switch (entry.logLevel) {
+			case LogLevel.Trace:
+				return filters.trace;
+			case LogLevel.Debug:
+				return filters.debug;
+			case LogLevel.Info:
+				return filters.info;
+			case LogLevel.Warning:
+				return filters.warning;
+			case LogLevel.Error:
+				return filters.error;
+		}
+		return true;
+	}
+
+	private shouldShowCategory(activeChannelId: string, entry: ILogEntry, filters: IOutputViewFilters): boolean {
+		if (!entry.category) {
+			return true;
+		}
+		return !filters.hasCategory(`${activeChannelId}:${entry.category}`);
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	// Sidebar background for the output view
-	const sidebarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-	if (sidebarBackground && sidebarBackground !== theme.getColor(editorBackground)) {
-		collector.addRule(`
-			.monaco-workbench .part.sidebar .output-view .monaco-editor,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .margin,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .monaco-editor-background {
-				background-color: ${sidebarBackground};
-			}
-		`);
-	}
-});

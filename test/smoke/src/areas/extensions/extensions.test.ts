@@ -10,12 +10,14 @@ export function setup(logger: Logger) {
 	describe('Extensions', () => {
 
 		// Shared before/after handling
-		installAllHandlers(logger);
+		installAllHandlers(logger, opts => {
+			opts.snapshots = true; // enable network tab in devtools for tracing since we install an extension
+			return opts;
+		});
 
 		it('install and enable vscode-smoketest-check extension', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.extensions.openExtensionsViewlet();
 			await app.workbench.extensions.installExtension('ms-vscode.vscode-smoketest-check', true);
 
 			// Close extension editor because keybindings dispatch is not working when web views are opened and focused

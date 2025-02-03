@@ -54,13 +54,13 @@ export class ShowPreviewCommand implements Command {
 	public readonly id = 'markdown.showPreview';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly telemetryReporter: TelemetryReporter
+		private readonly _webviewManager: MarkdownPreviewManager,
+		private readonly _telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[], previewSettings?: DynamicPreviewSettings) {
 		for (const uri of Array.isArray(allUris) ? allUris : [mainUri]) {
-			showPreview(this.webviewManager, this.telemetryReporter, uri, {
+			showPreview(this._webviewManager, this._telemetryReporter, uri, {
 				sideBySide: false,
 				locked: previewSettings && previewSettings.locked
 			});
@@ -72,12 +72,12 @@ export class ShowPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showPreviewToSide';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly telemetryReporter: TelemetryReporter
+		private readonly _webviewManager: MarkdownPreviewManager,
+		private readonly _telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(uri?: vscode.Uri, previewSettings?: DynamicPreviewSettings) {
-		showPreview(this.webviewManager, this.telemetryReporter, uri, {
+		showPreview(this._webviewManager, this._telemetryReporter, uri, {
 			sideBySide: true,
 			locked: previewSettings && previewSettings.locked
 		});
@@ -89,12 +89,12 @@ export class ShowLockedPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showLockedPreviewToSide';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly telemetryReporter: TelemetryReporter
+		private readonly _webviewManager: MarkdownPreviewManager,
+		private readonly _telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(uri?: vscode.Uri) {
-		showPreview(this.webviewManager, this.telemetryReporter, uri, {
+		showPreview(this._webviewManager, this._telemetryReporter, uri, {
 			sideBySide: true,
 			locked: true
 		});

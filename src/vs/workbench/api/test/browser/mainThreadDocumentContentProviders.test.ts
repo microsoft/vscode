@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { mock } from 'vs/base/test/common/mock';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TextEdit } from 'vs/editor/common/languages';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { MainThreadDocumentContentProviders } from '../../browser/mainThreadDocumentContentProviders.js';
+import { createTextModel } from '../../../../editor/test/common/testTextModel.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { TextEdit } from '../../../../editor/common/languages.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('MainThreadDocumentContentProviders', function () {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('events are processed properly', function () {
 
@@ -35,9 +38,12 @@ suite('MainThreadDocumentContentProviders', function () {
 			},
 		);
 
+		store.add(model);
+		store.add(providers);
+
 		return new Promise<void>((resolve, reject) => {
 			let expectedEvents = 1;
-			model.onDidChangeContent(e => {
+			store.add(model.onDidChangeContent(e => {
 				expectedEvents -= 1;
 				try {
 					assert.ok(expectedEvents >= 0);
@@ -48,7 +54,7 @@ suite('MainThreadDocumentContentProviders', function () {
 					model.dispose();
 					resolve();
 				}
-			});
+			}));
 			providers.$onVirtualDocumentChange(uri, '1\n2');
 			providers.$onVirtualDocumentChange(uri, '1\n2\n3');
 		});

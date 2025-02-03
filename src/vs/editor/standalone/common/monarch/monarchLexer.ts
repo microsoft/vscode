@@ -8,15 +8,15 @@
  * using regular expressions.
  */
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as languages from 'vs/editor/common/languages';
-import { NullState, nullTokenizeEncoded, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
-import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import * as languages from '../../../common/languages.js';
+import { NullState, nullTokenizeEncoded, nullTokenize } from '../../../common/languages/nullTokenize.js';
+import { TokenTheme } from '../../../common/languages/supports/tokenization.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import * as monarchCommon from './monarchCommon.js';
+import { IStandaloneThemeService } from '../standaloneTheme.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { LanguageId, MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 
 const CACHE_STACK_DEPTH = 5;
 
@@ -315,7 +315,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 
 	public emit(startOffset: number, type: string): void {
-		const metadata = this._theme.match(this._currentLanguageId, type);
+		const metadata = this._theme.match(this._currentLanguageId, type) | MetadataConsts.BALANCED_BRACKETS_MASK;
 		if (this._lastTokenMetadata === metadata) {
 			return;
 		}
@@ -387,7 +387,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 
 export type ILoadStatus = { loaded: true } | { loaded: false; promise: Promise<void> };
 
-export class MonarchTokenizer implements languages.ITokenizationSupport {
+export class MonarchTokenizer extends Disposable implements languages.ITokenizationSupport, IDisposable {
 
 	private readonly _languageService: ILanguageService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
@@ -395,10 +395,10 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 	private readonly _lexer: monarchCommon.ILexer;
 	private readonly _embeddedLanguages: { [languageId: string]: boolean };
 	public embeddedLoaded: Promise<void>;
-	private readonly _tokenizationRegistryListener: IDisposable;
 	private _maxTokenizationLineLength: number;
 
 	constructor(languageService: ILanguageService, standaloneThemeService: IStandaloneThemeService, languageId: string, lexer: monarchCommon.ILexer, @IConfigurationService private readonly _configurationService: IConfigurationService) {
+		super();
 		this._languageService = languageService;
 		this._standaloneThemeService = standaloneThemeService;
 		this._languageId = languageId;
@@ -408,7 +408,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 
 		// Set up listening for embedded modes
 		let emitting = false;
-		this._tokenizationRegistryListener = languages.TokenizationRegistry.onDidChange((e) => {
+		this._register(languages.TokenizationRegistry.onDidChange((e) => {
 			if (emitting) {
 				return;
 			}
@@ -422,24 +422,20 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 			}
 			if (isOneOfMyEmbeddedModes) {
 				emitting = true;
-				languages.TokenizationRegistry.fire([this._languageId]);
+				languages.TokenizationRegistry.handleChange([this._languageId]);
 				emitting = false;
 			}
-		});
+		}));
 		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
 			overrideIdentifier: this._languageId
 		});
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
 				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
 					overrideIdentifier: this._languageId
 				});
 			}
-		});
-	}
-
-	public dispose(): void {
-		this._tokenizationRegistryListener.dispose();
+		}));
 	}
 
 	public getLoadStatus(): ILoadStatus {
@@ -523,8 +519,8 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 			}
 			hasEmbeddedPopRule = true;
 
-			let regex = rule.regex;
-			const regexSource = rule.regex.source;
+			let regex = rule.resolveRegex(state.stack.state);
+			const regexSource = regex.source;
 			if (regexSource.substr(0, 4) === '^(?:' && regexSource.substr(regexSource.length - 1, 1) === ')') {
 				const flags = (regex.ignoreCase ? 'i' : '') + (regex.unicode ? 'u' : '');
 				regex = new RegExp(regexSource.substr(4, regexSource.length - 5), flags);
@@ -647,7 +643,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 				const restOfLine = line.substr(pos);
 				for (const rule of rules) {
 					if (pos === 0 || !rule.matchOnlyAtLineStart) {
-						matches = restOfLine.match(rule.regex);
+						matches = restOfLine.match(rule.resolveRegex(state));
 						if (matches) {
 							matched = matches[0];
 							action = rule.action;
@@ -883,6 +879,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 
 		if (languageId !== this._languageId) {
 			// Fire language loading event
+			this._languageService.requestBasicLanguageFeatures(languageId);
 			languages.TokenizationRegistry.getOrCreate(languageId);
 			this._embeddedLanguages[languageId] = true;
 		}

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { merge } from 'vs/platform/userDataSync/common/snippetsMerge';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { merge } from '../../common/snippetsMerge.js';
 
 const tsSnippet1 = `{
 
@@ -109,6 +110,7 @@ const cSnippet = `{
 }`;
 
 suite('SnippetsMerge', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge when local and remote are same with one snippet', async () => {
 		const local = { 'html.json': htmlSnippet1 };

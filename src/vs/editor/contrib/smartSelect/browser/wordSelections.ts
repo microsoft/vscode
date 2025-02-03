@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { isLowerAsciiLetter, isUpperAsciiLetter } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/languages';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { isLowerAsciiLetter, isUpperAsciiLetter } from '../../../../base/common/strings.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { ITextModel } from '../../../common/model.js';
+import { SelectionRange, SelectionRangeProvider } from '../../../common/languages.js';
 
 export class WordSelectionRangeProvider implements SelectionRangeProvider {
+
+	constructor(private readonly selectSubwords = true) { }
 
 	provideSelectionRanges(model: ITextModel, positions: Position[]): SelectionRange[][] {
 		const result: SelectionRange[][] = [];
 		for (const position of positions) {
 			const bucket: SelectionRange[] = [];
 			result.push(bucket);
-			this._addInWordRanges(bucket, model, position);
+			if (this.selectSubwords) {
+				this._addInWordRanges(bucket, model, position);
+			}
 			this._addWordRanges(bucket, model, position);
 			this._addWhitespaceLine(bucket, model, position);
 			bucket.push({ range: model.getFullModelRange() });

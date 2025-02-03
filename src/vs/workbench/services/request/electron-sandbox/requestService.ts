@@ -3,26 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { RequestService } from 'vs/platform/request/browser/requestService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { request } from '../../../../base/parts/request/common/requestImpl.js';
+import { ILoggerService } from '../../../../platform/log/common/log.js';
+import { localize } from '../../../../nls.js';
+import { windowLogGroup } from '../../log/common/logConstants.js';
+import { LogService } from '../../../../platform/log/common/logService.js';
 
-export class NativeRequestService extends RequestService {
+export class NativeRequestService extends AbstractRequestService implements IRequestService {
+
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILogService logService: ILogService,
-		@INativeHostService private nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILoggerService loggerService: ILoggerService,
 	) {
-		super(configurationService, logService);
+		const logger = loggerService.createLogger(`network`, { name: localize('network', "Network"), group: windowLogGroup });
+		const logService = new LogService(logger);
+		super(logService);
+		this._register(logger);
+		this._register(logService);
 	}
 
-	override async resolveProxy(url: string): Promise<string | undefined> {
+	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		if (!options.proxyAuthorization) {
+			options.proxyAuthorization = this.configurationService.inspect<string>('http.proxyAuthorization').userLocalValue;
+		}
+		return this.logAndRequest(options, () => request(options, token, () => navigator.onLine));
+	}
+
+	async resolveProxy(url: string): Promise<string | undefined> {
 		return this.nativeHostService.resolveProxy(url);
+	}
+
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return this.nativeHostService.lookupAuthorization(authInfo);
+	}
+
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return this.nativeHostService.lookupKerberosAuthorization(url);
+	}
+
+	async loadCertificates(): Promise<string[]> {
+		return this.nativeHostService.loadCertificates();
 	}
 }
 
-registerSingleton(IRequestService, NativeRequestService, true);
+registerSingleton(IRequestService, NativeRequestService, InstantiationType.Delayed);

@@ -6,8 +6,8 @@
 import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue, TerminalCommandId } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
-export function setup() {
-	describe('Terminal Shell Integration', () => {
+export function setup(options?: { skipSuite: boolean }) {
+	(options?.skipSuite ? describe.skip : describe)('Terminal Shell Integration', () => {
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
 		let app: Application;
@@ -49,18 +49,6 @@ export function setup() {
 						await createShellIntegrationProfile();
 						await terminal.runCommandInTerminal(`false`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
-					});
-				});
-				describe('Custom configuration', function () {
-					it('Should update and show custom icons', async () => {
-						await createShellIntegrationProfile();
-						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-						await terminal.runCommandInTerminal(`echo "foo"`);
-						await terminal.runCommandInTerminal(`bar`);
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
-						await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
 					});
 				});
 				describe('terminal.integrated.shellIntegration.decorationsEnabled should determine gutter and overview ruler decoration visibility', function () {

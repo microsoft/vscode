@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IProductConfiguration } from 'vs/base/common/product';
+import { IProcessEnvironment } from '../../../common/platform.js';
+import { IProductConfiguration } from '../../../common/product.js';
 
 
 // #######################################################################
@@ -26,7 +26,11 @@ export interface ISandboxConfiguration {
 	windowId: number;
 
 	/**
-	 * Absolute installation path.
+	 * Root path of the JavaScript sources.
+	 *
+	 * Note: This is NOT the installation root
+	 * directory itself but contained in it at
+	 * a level that is platform dependent.
 	 */
 	appRoot: string;
 
@@ -49,4 +53,26 @@ export interface ISandboxConfiguration {
 	 * Location of V8 code cache.
 	 */
 	codeCachePath?: string;
+
+	/**
+	 * NLS support
+	 */
+	nls: {
+
+		/**
+		 * All NLS messages produced by `localize` and `localize2` calls
+		 * under `src/vs`.
+		 */
+		messages: string[];
+
+		/**
+		 * The actual language of the NLS messages (e.g. 'en', de' or 'pt-br').
+		 */
+		language: string | undefined;
+	};
+
+	/**
+	 * DEV time only: All CSS-modules that we have.
+	 */
+	cssModules?: string[];
 }

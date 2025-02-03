@@ -12,11 +12,10 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onAuthenticationRequest:microsoft"
-  ],
+  "activationEvents": [],
   "enabledApiProposals": [
-    "idToken"
+    "idToken",
+    "nativeWindowHandle"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -33,6 +32,108 @@
       {
         "label": "Microsoft",
         "id": "microsoft"
+      },
+      {
+        "label": "Microsoft Sovereign Cloud",
+        "id": "microsoft-sovereign-cloud"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Microsoft Sovereign Cloud",
+        "properties": {
+          "microsoft-sovereign-cloud.environment": {
+            "type": "string",
+            "markdownDescription": "%microsoft-sovereign-cloud.environment.description%",
+            "enum": [
+              "ChinaCloud",
+              "USGovernment",
+              "custom"
+            ],
+            "enumDescriptions": [
+              "%microsoft-sovereign-cloud.environment.enumDescriptions.AzureChinaCloud%",
+              "%microsoft-sovereign-cloud.environment.enumDescriptions.AzureUSGovernment%",
+              "%microsoft-sovereign-cloud.environment.enumDescriptions.custom%"
+            ]
+          },
+          "microsoft-sovereign-cloud.customEnvironment": {
+            "type": "object",
+            "additionalProperties": true,
+            "markdownDescription": "%microsoft-sovereign-cloud.customEnvironment.description%",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.name.description%"
+              },
+              "portalUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.portalUrl.description%"
+              },
+              "managementEndpointUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.managementEndpointUrl.description%"
+              },
+              "resourceManagerEndpointUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.resourceManagerEndpointUrl.description%"
+              },
+              "activeDirectoryEndpointUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.activeDirectoryEndpointUrl.description%"
+              },
+              "activeDirectoryResourceId": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.activeDirectoryResourceId.description%"
+              }
+            },
+            "required": [
+              "name",
+              "portalUrl",
+              "managementEndpointUrl",
+              "resourceManagerEndpointUrl",
+              "activeDirectoryEndpointUrl",
+              "activeDirectoryResourceId"
+            ]
+          }
+        }
+      },
+      {
+        "title": "Microsoft",
+        "properties": {
+          "microsoft-authentication.implementation": {
+            "type": "string",
+            "default": "msal",
+            "enum": [
+              "msal",
+              "classic"
+            ],
+            "enumDescriptions": [
+              "%microsoft-authentication.implementation.enumDescriptions.msal%",
+              "%microsoft-authentication.implementation.enumDescriptions.classic%"
+            ],
+            "markdownDescription": "%microsoft-authentication.implementation.description%",
+            "tags": [
+              "onExP"
+            ]
+          },
+          "microsoft-authentication.clientIdVersion": {
+            "type": "string",
+            "default": "v1",
+            "enum": [
+              "v2",
+              "v1"
+            ],
+            "enumDescriptions": [
+              "%microsoft-authentication.clientIdVersion.enumDescriptions.v2%",
+              "%microsoft-authentication.clientIdVersion.enumDescriptions.v1%"
+            ],
+            "markdownDescription": "%microsoft-authentication.clientIdVersion.description%",
+            "tags": [
+              "onExP",
+              "experimental"
+            ]
+          }
+        }
       }
     ]
   },
@@ -47,21 +148,19 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/node": "20.x",
     "@types/node-fetch": "^2.5.7",
     "@types/randombytes": "^2.0.0",
     "@types/sha.js": "^2.4.0",
     "@types/uuid": "8.0.0"
   },
   "dependencies": {
-    "buffer": "^5.6.0",
-    "node-fetch": "2.6.7",
-    "randombytes": "~2.1.0",
-    "sha.js": "2.4.11",
-    "stream": "0.0.2",
-    "uuid": "^8.2.0",
-    "@vscode/extension-telemetry": "0.6.2",
-    "vscode-nls": "^5.0.0"
+    "@azure/ms-rest-azure-env": "^2.0.0",
+    "@azure/msal-node": "^2.16.2",
+    "@azure/msal-node-extensions": "^1.5.0",
+    "@vscode/extension-telemetry": "^0.9.8",
+    "keytar": "file:./packageMocks/keytar",
+    "vscode-tas-client": "^0.1.84"
   },
   "repository": {
     "type": "git",

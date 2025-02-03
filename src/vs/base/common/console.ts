@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI } from './uri.js';
 
 export interface IRemoteConsoleLog {
 	type: string;
@@ -125,7 +125,7 @@ export function log(entry: IRemoteConsoleLog, label: string): void {
 		consoleArgs = [`%c[${label}]%`, color('blue'), ...args];
 	}
 
-	// Stack: add to args unless already aded
+	// Stack: add to args unless already added
 	if (topFrame && !isOneStringArg) {
 		consoleArgs.push(topFrame);
 	}

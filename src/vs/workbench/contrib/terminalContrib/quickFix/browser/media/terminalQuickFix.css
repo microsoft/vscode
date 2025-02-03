@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.xterm-screen .xterm-decoration-container .xterm-decoration.quick-fix {
+	z-index: 7;
+}
+
+.monaco-workbench .terminal .terminal-command-decoration.quick-fix {
+	color: var(--vscode-editorLightBulb-foreground) !important;
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
+}
+
+.monaco-workbench .editor-instance .terminal .terminal-command-decoration.quick-fix {
+	background-color: var(--vscode-terminal-background, var(--vscode-editor-background));
+}
+
+.monaco-workbench .terminal .terminal-command-decoration.quick-fix.explainOnly {
+	color: var(--vscode-editorLightBulbAutoFix-foreground) !important;
+}

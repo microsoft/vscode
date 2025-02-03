@@ -28,11 +28,16 @@ exports.initialize = function (loaderConfig) {
 		} catch (err) {
 			// missing source map...
 		}
-		return instrumenter.instrumentSync(contents, source, map);
+		try {
+			return instrumenter.instrumentSync(contents, source, map);
+		} catch (e) {
+			console.error(`Error instrumenting ${source}: ${e}`);
+			throw e;
+		}
 	};
 };
 
-exports.createReport = function (isSingle) {
+exports.createReport = function (isSingle, coveragePath, formats) {
 	const mapStore = iLibSourceMaps.createSourceMapStore();
 	const coverageMap = iLibCoverage.createCoverageMap(global.__coverage__);
 	return mapStore.transformCoverage(coverageMap).then((transformed) => {
@@ -47,13 +52,20 @@ exports.createReport = function (isSingle) {
 		transformed.data = newData;
 
 		const context = iLibReport.createContext({
-			dir: path.join(REPO_PATH, `.build/coverage${isSingle ? '-single' : ''}`),
+			dir: coveragePath || path.join(REPO_PATH, `.build/coverage${isSingle ? '-single' : ''}`),
 			coverageMap: transformed
 		});
 		const tree = context.getTree('flat');
 
 		const reports = [];
-		if (isSingle) {
+		if (formats) {
+			if (typeof formats === 'string') {
+				formats = [formats];
+			}
+			formats.forEach(format => {
+				reports.push(iReports.create(format));
+			});
+		} else if (isSingle) {
 			reports.push(iReports.create('lcovonly'));
 		} else {
 			reports.push(iReports.create('json'));

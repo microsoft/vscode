@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import * as nls from 'vs/nls';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { DiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { ICellOutputViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import * as DOM from '../../../../../base/browser/dom.js';
+import * as nls from '../../../../../nls.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from './diffElementViewModel.js';
+import { DiffSide, INotebookTextDiffEditor } from './notebookDiffEditorBrowser.js';
+import { ICellOutputViewModel, IInsetRenderOutput, RenderOutputType } from '../notebookBrowser.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { NotebookCellOutputsSplice } from '../../common/notebookCommon.js';
+import { INotebookService } from '../../common/notebookService.js';
+import { DiffNestedCellViewModel } from './diffNestedCellViewModel.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { mimetypeIcon } from '../notebookIcons.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -34,7 +33,7 @@ export class OutputElement extends Disposable {
 		private _notebookTextModel: NotebookTextModel,
 		private _notebookService: INotebookService,
 		private _quickInputService: IQuickInputService,
-		private _diffElementViewModel: DiffElementViewModelBase,
+		private _diffElementViewModel: DiffElementCellViewModelBase,
 		private _diffSide: DiffSide,
 		private _nestedCell: DiffNestedCellViewModel,
 		private _outputContainer: HTMLElement,
@@ -48,7 +47,7 @@ export class OutputElement extends Disposable {
 		let result: IInsetRenderOutput | undefined = undefined;
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel, undefined);
-		const pickedMimeTypeRenderer = mimeTypes[pick];
+		const pickedMimeTypeRenderer = this.output.pickedMimeType || mimeTypes[pick];
 		if (mimeTypes.length > 1) {
 			outputItemDiv.style.position = 'relative';
 			const mimeTypePicker = DOM.$('.multi-mimetype-output');
@@ -128,16 +127,20 @@ export class OutputElement extends Disposable {
 
 	private _renderSearchForMimetype(viewModel: ICellOutputViewModel, mimeType: string): IInsetRenderOutput {
 		const query = `@tag:notebookRenderer ${mimeType}`;
+
+		const p = DOM.$('p', undefined, `No renderer could be found for mimetype "${mimeType}", but one might be available on the Marketplace.`);
+		const a = DOM.$('a', { href: `command:workbench.extensions.search?%22${query}%22`, class: 'monaco-button monaco-text-button', tabindex: 0, role: 'button', style: 'padding: 8px; text-decoration: none; color: rgb(255, 255, 255); background-color: rgb(14, 99, 156); max-width: 200px;' }, `Search Marketplace`);
+
 		return {
 			type: RenderOutputType.Html,
 			source: viewModel,
-			htmlContent: `<p>No renderer could be found for mimetype "${mimeType}", but one might be available on the Marketplace.</p>
-			<a href="command:workbench.extensions.search?%22${query}%22" class="monaco-button monaco-text-button" tabindex="0" role="button" style="padding: 8px; text-decoration: none; color: rgb(255, 255, 255); background-color: rgb(14, 99, 156); max-width: 200px;">Search Marketplace</a>`
+			htmlContent: p.outerHTML + a.outerHTML,
 		};
 	}
 
 	private _renderMessage(viewModel: ICellOutputViewModel, message: string): IInsetRenderOutput {
-		return { type: RenderOutputType.Html, source: viewModel, htmlContent: `<p>${message}</p>` };
+		const el = DOM.$('p', undefined, message);
+		return { type: RenderOutputType.Html, source: viewModel, htmlContent: el.outerHTML };
 	}
 
 	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: ICellOutputViewModel) {
@@ -152,7 +155,8 @@ export class OutputElement extends Disposable {
 			description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
 		}));
 
-		const picker = this._quickInputService.createQuickPick();
+		const disposables = new DisposableStore();
+		const picker = disposables.add(this._quickInputService.createQuickPick());
 		picker.items = items;
 		picker.activeItems = items.filter(item => !!item.picked);
 		picker.placeholder = items.length !== mimeTypes.length
@@ -160,10 +164,10 @@ export class OutputElement extends Disposable {
 			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
 		const pick = await new Promise<number | undefined>(resolve => {
-			picker.onDidAccept(() => {
+			disposables.add(picker.onDidAccept(() => {
 				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer).index : undefined);
-				picker.dispose();
-			});
+				disposables.dispose();
+			}));
 			picker.show();
 		});
 
@@ -178,7 +182,7 @@ export class OutputElement extends Disposable {
 			this.resizeListener.clear();
 			const element = this.domNode;
 			if (element) {
-				element.parentElement?.removeChild(element);
+				element.remove();
 				this._notebookEditor.removeInset(
 					this._diffElementViewModel,
 					this._nestedCell,
@@ -225,13 +229,12 @@ export class OutputContainer extends Disposable {
 	constructor(
 		private _editor: INotebookTextDiffEditor,
 		private _notebookTextModel: NotebookTextModel,
-		private _diffElementViewModel: DiffElementViewModelBase,
+		private _diffElementViewModel: DiffElementCellViewModelBase,
 		private _nestedCellViewModel: DiffNestedCellViewModel,
 		private _diffSide: DiffSide,
 		private _outputContainer: HTMLElement,
 		@INotebookService private _notebookService: INotebookService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IOpenerService readonly _openerService: IOpenerService
 	) {
 		super();
 		this._register(this._diffElementViewModel.onDidLayoutChange(() => {
@@ -257,7 +260,7 @@ export class OutputContainer extends Disposable {
 				// already removed
 				removedKeys.push(key);
 				// remove element from DOM
-				this._outputContainer.removeChild(value.domNode);
+				value.domNode.remove();
 				this._editor.removeInset(this._diffElementViewModel, this._nestedCellViewModel, key, this._diffSide);
 			}
 		});

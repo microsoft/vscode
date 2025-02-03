@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
-import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
+import { StandardAutoClosingPairConditional } from '../../../../common/languages/languageConfiguration.js';
+import { CharacterPairSupport } from '../../../../common/languages/supports/characterPair.js';
+import { TokenText, createFakeScopedLineTokens } from '../../modesTestUtils.js';
 
 suite('CharacterPairSupport', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('only autoClosingPairs', () => {
 		const characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [{ open: 'a', close: 'b' }] });

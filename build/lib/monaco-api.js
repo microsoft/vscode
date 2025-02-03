@@ -3,19 +3,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.execute = exports.run3 = exports.DeclarationResolver = exports.FSProvider = exports.RECIPE_PATH = void 0;
-const fs = require("fs");
-const path = require("path");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
+exports.DeclarationResolver = exports.FSProvider = exports.RECIPE_PATH = void 0;
+exports.run3 = run3;
+exports.execute = execute;
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const fancy_log_1 = __importDefault(require("fancy-log"));
+const ansi_colors_1 = __importDefault(require("ansi-colors"));
 const dtsv = '3';
 const tsfmt = require('../../tsfmt.json');
-const SRC = path.join(__dirname, '../../src');
-exports.RECIPE_PATH = path.join(__dirname, '../monaco/monaco.d.ts.recipe');
-const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
+const SRC = path_1.default.join(__dirname, '../../src');
+exports.RECIPE_PATH = path_1.default.join(__dirname, '../monaco/monaco.d.ts.recipe');
+const DECLARATION_PATH = path_1.default.join(__dirname, '../../src/vs/monaco.d.ts');
 function logErr(message, ...rest) {
-    fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
+    (0, fancy_log_1.default)(ansi_colors_1.default.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 function isDeclaration(ts, a) {
     return (a.kind === ts.SyntaxKind.InterfaceDeclaration
@@ -104,7 +109,10 @@ function hasModifier(modifiers, kind) {
     return false;
 }
 function isStatic(ts, member) {
-    return hasModifier(member.modifiers, ts.SyntaxKind.StaticKeyword);
+    if (ts.canHaveModifiers(member)) {
+        return hasModifier(ts.getModifiers(member), ts.SyntaxKind.StaticKeyword);
+    }
+    return false;
 }
 function isDefaultExport(ts, declaration) {
     return (hasModifier(declaration.modifiers, ts.SyntaxKind.DefaultKeyword)
@@ -459,7 +467,7 @@ function generateDeclarationFile(ts, recipe, sourceFileGetter) {
     };
 }
 function _run(ts, sourceFileGetter) {
-    const recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
+    const recipe = fs_1.default.readFileSync(exports.RECIPE_PATH).toString();
     const t = generateDeclarationFile(ts, recipe, sourceFileGetter);
     if (!t) {
         return null;
@@ -467,7 +475,7 @@ function _run(ts, sourceFileGetter) {
     const result = t.result;
     const usageContent = t.usageContent;
     const enums = t.enums;
-    const currentContent = fs.readFileSync(DECLARATION_PATH).toString();
+    const currentContent = fs_1.default.readFileSync(DECLARATION_PATH).toString();
     const one = currentContent.replace(/\r\n/gm, '\n');
     const other = result.replace(/\r\n/gm, '\n');
     const isTheSame = (one === other);
@@ -481,23 +489,28 @@ function _run(ts, sourceFileGetter) {
 }
 class FSProvider {
     existsSync(filePath) {
-        return fs.existsSync(filePath);
+        return fs_1.default.existsSync(filePath);
     }
     statSync(filePath) {
-        return fs.statSync(filePath);
+        return fs_1.default.statSync(filePath);
     }
     readFileSync(_moduleId, filePath) {
-        return fs.readFileSync(filePath);
+        return fs_1.default.readFileSync(filePath);
     }
 }
 exports.FSProvider = FSProvider;
 class CacheEntry {
+    sourceFile;
+    mtime;
     constructor(sourceFile, mtime) {
         this.sourceFile = sourceFile;
         this.mtime = mtime;
     }
 }
 class DeclarationResolver {
+    _fsProvider;
+    ts;
+    _sourceFileCache;
     constructor(_fsProvider) {
         this._fsProvider = _fsProvider;
         this.ts = require('typescript');
@@ -522,9 +535,9 @@ class DeclarationResolver {
     }
     _getFileName(moduleId) {
         if (/\.d\.ts$/.test(moduleId)) {
-            return path.join(SRC, moduleId);
+            return path_1.default.join(SRC, moduleId);
         }
-        return path.join(SRC, `${moduleId}.ts`);
+        return path_1.default.join(SRC, `${moduleId}.ts`);
     }
     _getDeclarationSourceFile(moduleId) {
         const fileName = this._getFileName(moduleId);
@@ -551,8 +564,11 @@ function run3(resolver) {
     const sourceFileGetter = (moduleId) => resolver.getDeclarationSourceFile(moduleId);
     return _run(resolver.ts, sourceFileGetter);
 }
-exports.run3 = run3;
 class TypeScriptLanguageServiceHost {
+    _ts;
+    _libs;
+    _files;
+    _compilerOptions;
     constructor(ts, libs, files, compilerOptions) {
         this._ts = ts;
         this._libs = libs;
@@ -611,4 +627,4 @@ function execute() {
     }
     return r;
 }
-exports.execute = execute;
+//# sourceMappingURL=monaco-api.js.map

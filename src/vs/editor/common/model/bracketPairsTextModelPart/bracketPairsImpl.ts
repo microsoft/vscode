@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { BracketPairsTree } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree';
-import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ignoreBracketsInToken } from 'vs/editor/common/languages/supports';
-import { RichEditBrackets, BracketsUtils, RichEditBracket } from 'vs/editor/common/languages/supports/richEditBrackets';
-import { compareBy, findLast, findLastMaxBy } from 'vs/base/common/arrays';
-import { LanguageBracketsConfiguration } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
+import { CallbackIterable, compareBy } from '../../../../base/common/arrays.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IPosition, Position } from '../../core/position.js';
+import { Range } from '../../core/range.js';
+import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent } from '../../languages/languageConfigurationRegistry.js';
+import { ignoreBracketsInToken } from '../../languages/supports.js';
+import { LanguageBracketsConfiguration } from '../../languages/supports/languageBracketsConfiguration.js';
+import { BracketsUtils, RichEditBracket, RichEditBrackets } from '../../languages/supports/richEditBrackets.js';
+import { BracketPairsTree } from './bracketPairsTree/bracketPairsTree.js';
+import { TextModel } from '../textModel.js';
+import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from '../../textModelBracketPairs.js';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
+import { LineTokens } from '../../tokens/lineTokens.js';
 
 export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
 	private readonly bracketPairsTree = this._register(new MutableDisposable<IReference<BracketPairsTree>>());
@@ -36,18 +36,16 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		private readonly languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
-
-		this._register(
-			this.languageConfigurationService.onDidChange(e => {
-				if (!e.languageId || this.bracketPairsTree.value?.object.didLanguageChange(e.languageId)) {
-					this.bracketPairsTree.clear();
-					this.updateBracketPairsTree();
-				}
-			})
-		);
 	}
 
 	//#region TextModel events
+
+	public handleLanguageConfigurationServiceChange(e: LanguageConfigurationServiceChangeEvent): void {
+		if (!e.languageId || this.bracketPairsTree.value?.object.didLanguageChange(e.languageId)) {
+			this.bracketPairsTree.clear();
+			this.updateBracketPairsTree();
+		}
+	}
 
 	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void {
 		this.bracketPairsTree.clear();
@@ -102,22 +100,22 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 	 * Returns all bracket pairs that intersect the given range.
 	 * The result is sorted by the start position.
 	*/
-	public getBracketPairsInRange(range: Range): BracketPairInfo[] {
+	public getBracketPairsInRange(range: Range): CallbackIterable<BracketPairInfo> {
 		this.bracketsRequested = true;
 		this.updateBracketPairsTree();
-		return this.bracketPairsTree.value?.object.getBracketPairsInRange(range, false) || [];
+		return this.bracketPairsTree.value?.object.getBracketPairsInRange(range, false) || CallbackIterable.empty;
 	}
 
-	public getBracketPairsInRangeWithMinIndentation(range: Range): BracketPairWithMinIndentationInfo[] {
+	public getBracketPairsInRangeWithMinIndentation(range: Range): CallbackIterable<BracketPairWithMinIndentationInfo> {
 		this.bracketsRequested = true;
 		this.updateBracketPairsTree();
-		return this.bracketPairsTree.value?.object.getBracketPairsInRange(range, true) || [];
+		return this.bracketPairsTree.value?.object.getBracketPairsInRange(range, true) || CallbackIterable.empty;
 	}
 
-	public getBracketsInRange(range: Range): BracketInfo[] {
+	public getBracketsInRange(range: Range, onlyColorizedBrackets: boolean = false): CallbackIterable<BracketInfo> {
 		this.bracketsRequested = true;
 		this.updateBracketPairsTree();
-		return this.bracketPairsTree.value?.object.getBracketsInRange(range) || [];
+		return this.bracketPairsTree.value?.object.getBracketsInRange(range, onlyColorizedBrackets) || CallbackIterable.empty;
 	}
 
 	public findMatchingBracketUp(_bracket: string, _position: IPosition, maxDuration?: number): Range | null {
@@ -133,7 +131,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 				return null;
 			}
 
-			const bracketPair = findLast(this.getBracketPairsInRange(Range.fromPositions(_position, _position)) || [], (b) =>
+			const bracketPair = this.getBracketPairsInRange(Range.fromPositions(_position, _position)).findLast((b) =>
 				closingBracketInfo.closes(b.openingBracketInfo)
 			);
 
@@ -163,7 +161,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 
 	public matchBracket(position: IPosition, maxDuration?: number): [Range, Range] | null {
 		if (this.canBuildAST) {
-			const bracketPair = findLastMaxBy(
+			const bracketPair =
 				this.getBracketPairsInRange(
 					Range.fromPositions(position, position)
 				).filter(
@@ -171,15 +169,15 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 						item.closingBracketRange !== undefined &&
 						(item.openingBracketRange.containsPosition(position) ||
 							item.closingBracketRange.containsPosition(position))
-				),
-				compareBy(
-					(item) =>
-						item.openingBracketRange.containsPosition(position)
-							? item.openingBracketRange
-							: item.closingBracketRange,
-					Range.compareRangesUsingStarts
-				)
-			);
+				).findLastMaxBy(
+					compareBy(
+						(item) =>
+							item.openingBracketRange.containsPosition(position)
+								? item.openingBracketRange
+								: item.closingBracketRange,
+						Range.compareRangesUsingStarts
+					)
+				);
 			if (bracketPair) {
 				return [bracketPair.openingBracketRange, bracketPair.closingBracketRange!];
 			}
@@ -674,10 +672,10 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 
 		if (this.canBuildAST) {
 			const range = Range.fromPositions(position);
-			const bracketPair = findLast(
-				this.getBracketPairsInRange(Range.fromPositions(position, position)),
-				(item) => item.closingBracketRange !== undefined && item.range.strictContainsRange(range)
-			);
+			const bracketPair =
+				this.getBracketPairsInRange(Range.fromPositions(position, position)).findLast(
+					(item) => item.closingBracketRange !== undefined && item.range.strictContainsRange(range)
+				);
 			if (bracketPair) {
 				return [bracketPair.openingBracketRange, bracketPair.closingBracketRange!];
 			}

@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "configurationDefaults": {
       "[javascript]": {
@@ -18,6 +19,7 @@
       {
         "id": "javascriptreact",
         "aliases": [
+          "JavaScript JSX",
           "JavaScript React",
           "jsx"
         ],

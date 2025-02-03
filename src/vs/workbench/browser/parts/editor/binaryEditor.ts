@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorPlaceholder, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { localize } from '../../../../nls.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { BinaryEditorModel } from '../../../common/editor/binaryEditorModel.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ByteSize } from '../../../../platform/files/common/files.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { EditorPlaceholder, IEditorPlaceholderContents } from './editorPlaceholder.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
@@ -34,13 +34,13 @@ export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		private readonly callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService, storageService, instantiationService);
+		super(id, group, telemetryService, themeService, storageService);
 	}
 
 	override getTitle(): string {
@@ -61,7 +61,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 
 		return {
 			icon: '$(warning)',
-			label: localize('binaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding."),
+			label: localize('binaryError', "The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding."),
 			actions: [
 				{
 					label: localize('openAnyway', "Open Anyway"),

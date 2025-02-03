@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextMateThemingRule, IColorMap } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { Color } from 'vs/base/common/color';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
+import { ITextMateThemingRule, IColorMap } from './workbenchThemeService.js';
+import { Color } from '../../../../base/common/color.js';
+import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
 
-import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry';
+import * as editorColorRegistry from '../../../../editor/common/core/editorColorRegistry.js';
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
 function addSettingMapping(settingId: string, colorId: string) {
@@ -64,8 +64,8 @@ addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
 addSettingMapping('caret', editorColorRegistry.editorCursorForeground);
 addSettingMapping('invisibles', editorColorRegistry.editorWhitespaces);
-addSettingMapping('guide', editorColorRegistry.editorIndentGuides);
-addSettingMapping('activeGuide', editorColorRegistry.editorActiveIndentGuides);
+addSettingMapping('guide', editorColorRegistry.editorIndentGuide1);
+addSettingMapping('activeGuide', editorColorRegistry.editorActiveIndentGuide1);
 
 const ansiColorMap = ['ansiBlack', 'ansiRed', 'ansiGreen', 'ansiYellow', 'ansiBlue', 'ansiMagenta', 'ansiCyan', 'ansiWhite',
 	'ansiBrightBlack', 'ansiBrightRed', 'ansiBrightGreen', 'ansiBrightYellow', 'ansiBrightBlue', 'ansiBrightMagenta', 'ansiBrightCyan', 'ansiBrightWhite'

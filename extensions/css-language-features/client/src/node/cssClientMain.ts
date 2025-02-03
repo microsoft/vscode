@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getNodeFSRequestService } from './nodeFs';
-import { ExtensionContext, extensions } from 'vscode';
-import { startClient, LanguageClientConstructor } from '../cssClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
 import { TextDecoder } from 'util';
-
+import { ExtensionContext, extensions, l10n } from 'vscode';
+import { BaseLanguageClient, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { LanguageClientConstructor, startClient } from '../cssClient';
+import { getNodeFSRequestService } from './nodeFs';
+import { registerDropOrPasteResourceSupport } from '../dropOrPaste/dropOrPasteResource';
 
 let client: BaseLanguageClient | undefined;
 
@@ -33,7 +33,12 @@ export async function activate(context: ExtensionContext) {
 		return new LanguageClient(id, name, serverOptions, clientOptions);
 	};
 
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
+
 	client = await startClient(context, newLanguageClient, { fs: getNodeFSRequestService(), TextDecoder });
+
+	context.subscriptions.push(registerDropOrPasteResourceSupport({ language: 'css', scheme: '*' }));
 }
 
 export async function deactivate(): Promise<void> {
@@ -42,3 +47,4 @@ export async function deactivate(): Promise<void> {
 		client = undefined;
 	}
 }
+

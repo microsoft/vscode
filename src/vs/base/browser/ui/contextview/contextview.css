@@ -5,7 +5,6 @@
 
 .context-view {
 	position: absolute;
-	z-index: 2500;
 }
 
 .context-view.fixed {
@@ -13,6 +12,5 @@
 	font-family: inherit;
 	font-size: 13px;
 	position: fixed;
-	z-index: 2500;
 	color: inherit;
 }

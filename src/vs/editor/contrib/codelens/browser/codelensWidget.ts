@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Constants } from 'vs/base/common/uint';
-import 'vs/css!./codelensWidget';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidget, IContentWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { CodeLens, Command } from 'vs/editor/common/languages';
-import { CodeLensItem } from 'vs/editor/contrib/codelens/browser/codelens';
+import * as dom from '../../../../base/browser/dom.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Constants } from '../../../../base/common/uint.js';
+import './codelensWidget.css';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidget, IContentWidgetPosition, IViewZone, IViewZoneChangeAccessor } from '../../../browser/editorBrowser.js';
+import { Range } from '../../../common/core/range.js';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { CodeLens, Command } from '../../../common/languages.js';
+import { CodeLensItem } from './codelens.js';
 
 class CodeLensViewZone implements IViewZone {
 
@@ -72,7 +72,6 @@ class CodeLensContentWidget implements IContentWidget {
 
 	constructor(
 		editor: IActiveCodeEditor,
-		className: string,
 		line: number,
 	) {
 		this._editor = editor;
@@ -81,7 +80,7 @@ class CodeLensContentWidget implements IContentWidget {
 		this.updatePosition(line);
 
 		this._domNode = document.createElement('span');
-		this._domNode.className = `codelens-decoration ${className}`;
+		this._domNode.className = `codelens-decoration`;
 	}
 
 	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
@@ -98,8 +97,9 @@ class CodeLensContentWidget implements IContentWidget {
 			if (lens.command) {
 				const title = renderLabelWithIcons(lens.command.title.trim());
 				if (lens.command.id) {
-					children.push(dom.$('a', { id: String(i), title: lens.command.tooltip, role: 'button' }, ...title));
-					this._commands.set(String(i), lens.command);
+					const id = `c${(CodeLensContentWidget._idPool++)}`;
+					children.push(dom.$('a', { id, title: lens.command.tooltip, role: 'button' }, ...title));
+					this._commands.set(id, lens.command);
 				} else {
 					children.push(dom.$('span', { title: lens.command.tooltip }, ...title));
 				}
@@ -183,10 +183,14 @@ export class CodeLensHelper {
 	}
 }
 
+const codeLensDecorationOptions = ModelDecorationOptions.register({
+	collapseOnReplaceEdit: true,
+	description: 'codelens'
+});
+
 export class CodeLensWidget {
 
 	private readonly _editor: IActiveCodeEditor;
-	private readonly _className: string;
 	private readonly _viewZone: CodeLensViewZone;
 	private readonly _viewZoneId: string;
 
@@ -198,14 +202,12 @@ export class CodeLensWidget {
 	constructor(
 		data: CodeLensItem[],
 		editor: IActiveCodeEditor,
-		className: string,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: IViewZoneChangeAccessor,
 		heightInPx: number,
 		updateCallback: () => void
 	) {
 		this._editor = editor;
-		this._className = className;
 		this._data = data;
 
 		// create combined range, track all ranges with decorations,
@@ -222,7 +224,7 @@ export class CodeLensWidget {
 
 			helper.addDecoration({
 				range: codeLensData.symbol.range,
-				options: ModelDecorationOptions.EMPTY
+				options: codeLensDecorationOptions
 			}, id => this._decorationIds[i] = id);
 
 			// the range contains all lenses on this line
@@ -244,7 +246,7 @@ export class CodeLensWidget {
 
 	private _createContentWidgetIfNecessary(): void {
 		if (!this._contentWidget) {
-			this._contentWidget = new CodeLensContentWidget(this._editor, this._className, this._viewZone.afterLineNumber + 1);
+			this._contentWidget = new CodeLensContentWidget(this._editor, this._viewZone.afterLineNumber + 1);
 			this._editor.addContentWidget(this._contentWidget);
 		} else {
 			this._editor.layoutContentWidget(this._contentWidget);
@@ -281,7 +283,7 @@ export class CodeLensWidget {
 		this._data.forEach((codeLensData, i) => {
 			helper.addDecoration({
 				range: codeLensData.symbol.range,
-				options: ModelDecorationOptions.EMPTY
+				options: codeLensDecorationOptions
 			}, id => this._decorationIds[i] = id);
 		});
 	}

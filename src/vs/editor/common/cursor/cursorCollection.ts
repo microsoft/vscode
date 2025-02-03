@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, findLastMaxBy, findMinBy } from 'vs/base/common/arrays';
-import { CursorState, PartialCursorState } from 'vs/editor/common/cursorCommon';
-import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
-import { Cursor } from 'vs/editor/common/cursor/oneCursor';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { compareBy } from '../../../base/common/arrays.js';
+import { findLastMax, findFirstMin } from '../../../base/common/arraysFind.js';
+import { CursorState, PartialCursorState } from '../cursorCommon.js';
+import { CursorContext } from './cursorContext.js';
+import { Cursor } from './oneCursor.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { ISelection, Selection } from '../core/selection.js';
 
 export class CursorCollection {
 
@@ -72,14 +73,14 @@ export class CursorCollection {
 	}
 
 	public getTopMostViewPosition(): Position {
-		return findMinBy(
+		return findFirstMin(
 			this.cursors,
 			compareBy(c => c.viewState.position, Position.compare)
 		)!.viewState.position;
 	}
 
 	public getBottomMostViewPosition(): Position {
-		return findLastMaxBy(
+		return findLastMax(
 			this.cursors,
 			compareBy(c => c.viewState.position, Position.compare)
 		)!.viewState.position;

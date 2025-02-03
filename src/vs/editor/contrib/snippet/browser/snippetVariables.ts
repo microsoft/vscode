@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import * as path from 'vs/base/common/path';
-import { dirname } from 'vs/base/common/resources';
-import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from 'vs/base/common/strings';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { Text, Variable, VariableResolver } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
-import * as nls from 'vs/nls';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
+import * as path from '../../../../base/common/path.js';
+import { dirname } from '../../../../base/common/resources.js';
+import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from '../../../../base/common/strings.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { Text, Variable, VariableResolver } from './snippetParser.js';
+import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer.js';
+import * as nls from '../../../../nls.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isEmptyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 
 export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>({
 	'CURRENT_YEAR': true,
@@ -30,6 +30,7 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'CURRENT_MONTH_NAME': true,
 	'CURRENT_MONTH_NAME_SHORT': true,
 	'CURRENT_SECONDS_UNIX': true,
+	'CURRENT_TIMEZONE_OFFSET': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
@@ -292,6 +293,14 @@ export class TimeBasedVariableResolver implements VariableResolver {
 			return TimeBasedVariableResolver.monthNamesShort[this._date.getMonth()];
 		} else if (name === 'CURRENT_SECONDS_UNIX') {
 			return String(Math.floor(this._date.getTime() / 1000));
+		} else if (name === 'CURRENT_TIMEZONE_OFFSET') {
+			const rawTimeOffset = this._date.getTimezoneOffset();
+			const sign = rawTimeOffset > 0 ? '-' : '+';
+			const hours = Math.trunc(Math.abs(rawTimeOffset / 60));
+			const hoursString = (hours < 10 ? '0' + hours : hours);
+			const minutes = Math.abs(rawTimeOffset) - hours * 60;
+			const minutesString = (minutes < 10 ? '0' + minutes : minutes);
+			return sign + hoursString + ':' + minutesString;
 		}
 
 		return undefined;
@@ -311,7 +320,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		}
 
 		const workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
-		if (!workspaceIdentifier) {
+		if (isEmptyWorkspaceIdentifier(workspaceIdentifier)) {
 			return undefined;
 		}
 

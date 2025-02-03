@@ -6,9 +6,10 @@
 import * as vscode from 'vscode';
 
 /**
- * This interface describes the shape for the references viewlet API. It consists
- * of a single `setInput` function which must be called with a full implementation
- * of the `SymbolTreeInput`-interface. To acquire this API use the default mechanics, e.g:
+ * This interface describes the shape for the references viewlet API. It includes
+ * a single `setInput` function which must be called with a full implementation
+ * of the `SymbolTreeInput`-interface. You can also use `getInput` function to
+ * get the current `SymbolTreeInput`. To acquire this API use the default mechanics, e.g:
  *
  * ```ts
  * // get references viewlet API
@@ -16,7 +17,8 @@ import * as vscode from 'vscode';
  *
  * // instantiate and set input which updates the view
  * const myInput: SymbolTreeInput<MyItems> = ...
- * api.setInput(myInput)
+ * api.setInput(myInput);
+ * const currentInput = api.getInput();
  * ```
  */
 export interface SymbolTree {
@@ -27,6 +29,13 @@ export interface SymbolTree {
 	 * @param input A symbol tree input object
 	 */
 	setInput(input: SymbolTreeInput<unknown>): void;
+
+	/**
+	 * Get the contents of the references viewlet.
+	 *
+	 * @returns The current symbol tree input object
+	 */
+	getInput(): SymbolTreeInput<unknown> | undefined;
 }
 
 /**

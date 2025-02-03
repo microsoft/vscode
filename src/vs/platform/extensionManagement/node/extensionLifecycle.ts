@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork } from 'child_process';
-import { Limiter } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Limiter } from '../../../base/common/async.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
+import { Promises } from '../../../base/node/pfs.js';
+import { ILocalExtension } from '../common/extensionManagement.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 export class ExtensionsLifecycle extends Disposable {
 
@@ -30,11 +30,22 @@ export class ExtensionsLifecycle extends Disposable {
 		const script = this.parseScript(extension, 'uninstall');
 		if (script) {
 			this.logService.info(extension.identifier.id, extension.manifest.version, `Running post uninstall script`);
-			await this.processesLimiter.queue(() =>
-				this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension)
-					.then(() => this.logService.info(extension.identifier.id, extension.manifest.version, `Finished running post uninstall script`), err => this.logService.error(extension.identifier.id, extension.manifest.version, `Failed to run post uninstall script: ${err}`)));
+			await this.processesLimiter.queue(async () => {
+				try {
+					await this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension);
+					this.logService.info(`Finished running post uninstall script`, extension.identifier.id, extension.manifest.version);
+				} catch (error) {
+					this.logService.error('Failed to run post uninstall script', extension.identifier.id, extension.manifest.version);
+					this.logService.error(error);
+				}
+			});
 		}
-		return Promises.rm(this.getExtensionStoragePath(extension)).then(undefined, e => this.logService.error('Error while removing extension storage path', e));
+		try {
+			await Promises.rm(this.getExtensionStoragePath(extension));
+		} catch (error) {
+			this.logService.error('Error while removing extension storage path', extension.identifier.id);
+			this.logService.error(error);
+		}
 	}
 
 	private parseScript(extension: ILocalExtension, type: string): { script: string; args: string[] } | null {
@@ -105,19 +116,19 @@ export class ExtensionsLifecycle extends Disposable {
 		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr!, 'data');
 
 		// Log output
-		onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
-		onStderr(data => this.logService.error(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
+		this._register(onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data)));
+		this._register(onStderr(data => this.logService.error(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data)));
 
 		const onOutput = Event.any(
-			Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-			Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+			Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] }), this._store),
+			Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }), this._store)
 		);
 		// Debounce all output, so we can render it in the Chrome console as a group
 		const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
 			return r
 				? { data: r.data + o.data, format: [...r.format, ...o.format] }
 				: { data: o.data, format: o.format };
-		}, 100);
+		}, 100, undefined, undefined, undefined, this._store);
 
 		// Print out output
 		onDebouncedOutput(data => {

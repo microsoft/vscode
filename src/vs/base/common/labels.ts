@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { hasDriveLetter, toSlashes } from 'vs/base/common/extpath';
-import { posix, sep, win32 } from 'vs/base/common/path';
-import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import { hasDriveLetter, toSlashes } from './extpath.js';
+import { posix, sep, win32 } from './path.js';
+import { isMacintosh, isWindows, OperatingSystem, OS } from './platform.js';
+import { extUri, extUriIgnorePathCase } from './resources.js';
+import { rtrim, startsWithIgnoreCase } from './strings.js';
+import { URI } from './uri.js';
 
 export interface IPathLabelFormatting {
 
@@ -80,10 +79,10 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 		// to a user home resource. We cannot assume that the resource is
 		// already a user home resource.
 		let userHomeCandidate: string;
-		if (resource.scheme !== tildifier.userHome.scheme && resource.path.startsWith(posix.sep)) {
+		if (resource.scheme !== tildifier.userHome.scheme && resource.path[0] === posix.sep && resource.path[1] !== posix.sep) {
 			userHomeCandidate = tildifier.userHome.with({ path: resource.path }).fsPath;
 		} else {
-			userHomeCandidate = resource.fsPath;
+			userHomeCandidate = absolutePath;
 		}
 
 		absolutePath = tildify(userHomeCandidate, userHome, os);
@@ -99,7 +98,7 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 	const extUriLib = os === OperatingSystem.Linux ? extUri : extUriIgnorePathCase;
 
 	const workspace = relativePathProvider.getWorkspace();
-	const firstFolder = firstOrDefault(workspace.folders);
+	const firstFolder = workspace.folders.at(0);
 	if (!firstFolder) {
 		return undefined;
 	}
@@ -108,7 +107,7 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 	// the resource belongs to, we need to make sure to convert it
 	// to a workspace resource. We cannot assume that the resource is
 	// already matching the workspace.
-	if (resource.scheme !== firstFolder.uri.scheme && resource.path.startsWith(posix.sep)) {
+	if (resource.scheme !== firstFolder.uri.scheme && resource.path[0] === posix.sep && resource.path[1] !== posix.sep) {
 		resource = firstFolder.uri.with({ path: resource.path });
 	}
 
@@ -436,9 +435,23 @@ export function unmnemonicLabel(label: string): string {
 }
 
 /**
- * Splits a path in name and parent path, supporting both '/' and '\'
+ * Splits a recent label in name and parent path, supporting both '/' and '\' and workspace suffixes.
+ * If the location is remote, the remote name is included in the name part.
  */
-export function splitName(fullPath: string): { name: string; parentPath: string } {
+export function splitRecentLabel(recentLabel: string): { name: string; parentPath: string } {
+	if (recentLabel.endsWith(']')) {
+		// label with workspace suffix
+		const lastIndexOfSquareBracket = recentLabel.lastIndexOf(' [', recentLabel.length - 2);
+		if (lastIndexOfSquareBracket !== -1) {
+			const split = splitName(recentLabel.substring(0, lastIndexOfSquareBracket));
+			const remoteNameWithSpace = recentLabel.substring(lastIndexOfSquareBracket);
+			return { name: split.name + remoteNameWithSpace, parentPath: split.parentPath };
+		}
+	}
+	return splitName(recentLabel);
+}
+
+function splitName(fullPath: string): { name: string; parentPath: string } {
 	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
 	const name = p.basename(fullPath);
 	const parentPath = p.dirname(fullPath);

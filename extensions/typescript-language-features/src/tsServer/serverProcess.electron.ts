@@ -8,16 +8,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { Readable } from 'stream';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../protocol';
-import API from '../utils/api';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { Disposable } from '../utils/dispose';
-import { TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
+import { API } from './api';
+import type * as Proto from './protocol/protocol';
+import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
+import { NodeVersionManager } from './nodeManager';
 
-const localize = nls.loadMessageBundle();
 
 const defaultSize: number = 8192;
 const contentLength: string = 'Content-Length: ';
@@ -136,10 +135,12 @@ class Reader<T> extends Disposable {
 	}
 }
 
-function generatePatchedEnv(env: any, modulePath: string): any {
+function generatePatchedEnv(env: any, modulePath: string, hasExecPath: boolean): any {
 	const newEnv = Object.assign({}, env);
 
-	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+	if (!hasExecPath) {
+		newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+	}
 	newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
 
 	// Ensure we always have a PATH set
@@ -255,29 +256,40 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
+		nodeVersionManager: NodeVersionManager,
+		_tsserverLog: TsServerLog | undefined,
 	): TsServerProcess {
 		let tsServerPath = version.tsServerPath;
 
 		if (!fs.existsSync(tsServerPath)) {
-			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', tsServerPath));
+			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.", tsServerPath));
 			versionManager.reset();
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}
 
-		const useIpc = version.apiVersion?.gte(API.v460);
+		const execPath = nodeVersionManager.currentVersion;
 
+		const env = generatePatchedEnv(process.env, tsServerPath, !!execPath);
 		const runtimeArgs = [...args];
+		const execArgv = getExecArgv(kind, configuration);
+		const useIpc = !execPath && version.apiVersion?.gte(API.v460);
 		if (useIpc) {
 			runtimeArgs.push('--useNodeIpc');
 		}
 
-		const childProcess = child_process.fork(tsServerPath, runtimeArgs, {
-			silent: true,
-			cwd: undefined,
-			env: generatePatchedEnv(process.env, tsServerPath),
-			execArgv: getExecArgv(kind, configuration),
-			stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
-		});
+		const childProcess = execPath ?
+			child_process.spawn(execPath, [...execArgv, tsServerPath, ...runtimeArgs], {
+				windowsHide: true,
+				cwd: undefined,
+				env,
+			}) :
+			child_process.fork(tsServerPath, runtimeArgs, {
+				silent: true,
+				cwd: undefined,
+				env,
+				execArgv,
+				stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
+			});
 
 		return useIpc ? new IpcChildServerProcess(childProcess) : new StdioChildServerProcess(childProcess);
 	}

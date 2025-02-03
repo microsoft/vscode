@@ -37,9 +37,10 @@ export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTM
 export { TextDocument } from 'vscode-languageserver-textdocument';
 
 export interface Settings {
-	css?: any;
-	html?: any;
-	javascript?: any;
+	readonly css?: any;
+	readonly html?: any;
+	readonly javascript?: any;
+	readonly 'js/ts'?: any;
 }
 
 export interface Workspace {
@@ -137,8 +138,8 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 			return undefined;
 		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
-			return documentRegions.get(document).getLanguageRanges(range).map(r => {
-				return <LanguageModeRange>{
+			return documentRegions.get(document).getLanguageRanges(range).map((r): LanguageModeRange => {
+				return {
 					start: r.start,
 					end: r.end,
 					mode: r.languageId && modes[r.languageId],

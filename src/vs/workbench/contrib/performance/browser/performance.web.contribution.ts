@@ -3,32 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { BrowserResourcePerformanceMarks, BrowserStartupTimings } from './startupTimings.js';
 
-class ResourcePerformanceMarks {
-
-	constructor(@ITelemetryService telemetryService: ITelemetryService) {
-
-		type Entry = { name: string; duration: number };
-		type EntryClassifify = {
-			owner: 'jrieken';
-			comment: 'Resource performance numbers';
-			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Resource name' };
-			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Resource duration' };
-		};
-		for (const item of performance.getEntriesByType('resource')) {
-			telemetryService.publicLog2<Entry, EntryClassifify>('startup.resource.perf', {
-				name: item.name,
-				duration: item.duration
-			});
-		}
-	}
-}
+// -- startup timings
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	ResourcePerformanceMarks,
+	BrowserResourcePerformanceMarks,
+	LifecyclePhase.Eventually
+);
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	BrowserStartupTimings,
 	LifecyclePhase.Eventually
 );

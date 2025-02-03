@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Color } from '../../../../base/common/color.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { activityErrorBadgeBackground, activityErrorBadgeForeground, activityWarningBadgeBackground, activityWarningBadgeForeground } from '../../../../platform/theme/common/colors/miscColors.js';
+import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
+import { ViewContainer } from '../../../common/views.js';
 
 export interface IActivity {
 	readonly badge: IBadge;
-	readonly clazz?: string;
-	readonly priority?: number;
 }
 
 export const IActivityService = createDecorator<IActivityService>('activityService');
@@ -20,9 +24,19 @@ export interface IActivityService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Emitted when activity changes for a view container or when the activity of the global actions change.
+	 */
+	readonly onDidChangeActivity: Event<string | ViewContainer>;
+
+	/**
 	 * Show activity for the given view container
 	 */
 	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
+
+	/**
+	 * Returns the activity for the given view container
+	 */
+	getViewContainerActivities(viewContainerId: string): IActivity[];
 
 	/**
 	 * Show activity for the given view
@@ -38,27 +52,45 @@ export interface IActivityService {
 	 * Show global activity
 	 */
 	showGlobalActivity(activity: IActivity): IDisposable;
+
+	/**
+	 * Return the activity for the given action
+	 */
+	getActivity(id: string): IActivity[];
 }
 
 export interface IBadge {
 	getDescription(): string;
+	getColors(theme: IColorTheme): IBadgeStyles | undefined;
+}
+
+export interface IBadgeStyles {
+	readonly badgeBackground: Color | undefined;
+	readonly badgeForeground: Color | undefined;
+	readonly badgeBorder: Color | undefined;
 }
 
 class BaseBadge implements IBadge {
 
-	constructor(readonly descriptorFn: (arg: any) => string) {
-		this.descriptorFn = descriptorFn;
+	constructor(
+		protected readonly descriptorFn: (arg: any) => string,
+		private readonly stylesFn: ((theme: IColorTheme) => IBadgeStyles | undefined) | undefined,
+	) {
 	}
 
 	getDescription(): string {
 		return this.descriptorFn(null);
+	}
+
+	getColors(theme: IColorTheme): IBadgeStyles | undefined {
+		return this.stylesFn?.(theme);
 	}
 }
 
 export class NumberBadge extends BaseBadge {
 
 	constructor(readonly number: number, descriptorFn: (num: number) => string) {
-		super(descriptorFn);
+		super(descriptorFn, undefined);
 
 		this.number = number;
 	}
@@ -68,17 +100,38 @@ export class NumberBadge extends BaseBadge {
 	}
 }
 
-export class TextBadge extends BaseBadge {
-
-	constructor(readonly text: string, descriptorFn: () => string) {
-		super(descriptorFn);
-	}
-}
-
 export class IconBadge extends BaseBadge {
-	constructor(readonly icon: ThemeIcon, descriptorFn: () => string) {
-		super(descriptorFn);
+	constructor(
+		readonly icon: ThemeIcon,
+		descriptorFn: () => string,
+		stylesFn?: (theme: IColorTheme) => IBadgeStyles | undefined,
+	) {
+		super(descriptorFn, stylesFn);
 	}
 }
 
-export class ProgressBadge extends BaseBadge { }
+export class ProgressBadge extends BaseBadge {
+	constructor(descriptorFn: () => string) {
+		super(descriptorFn, undefined);
+	}
+}
+
+export class WarningBadge extends IconBadge {
+	constructor(descriptorFn: () => string) {
+		super(Codicon.warning, descriptorFn, (theme: IColorTheme) => ({
+			badgeBackground: theme.getColor(activityWarningBadgeBackground),
+			badgeForeground: theme.getColor(activityWarningBadgeForeground),
+			badgeBorder: undefined,
+		}));
+	}
+}
+
+export class ErrorBadge extends IconBadge {
+	constructor(descriptorFn: () => string) {
+		super(Codicon.error, descriptorFn, (theme: IColorTheme) => ({
+			badgeBackground: theme.getColor(activityErrorBadgeBackground),
+			badgeForeground: theme.getColor(activityErrorBadgeForeground),
+			badgeBorder: undefined,
+		}));
+	}
+}

@@ -31,10 +31,14 @@
 	text-align: right;
 }
 
-.runtime-extensions-editor .extension .desc>.msg>span:not(:last-child)::after {
+.runtime-extensions-editor .extension .desc > .msg > span:not(:last-child)::after {
 	content: '\2022';
 	padding: 0 4px;
 	opacity: .8;
+}
+
+.runtime-extensions-editor .monaco-action-bar  {
+	height: unset;
 }
 
 .runtime-extensions-editor .monaco-action-bar .actions-container {
@@ -83,5 +87,4 @@
 	font-size: 80%;
 	padding-left: 6px;
 	min-width: fit-content;
-	min-width: -moz-fit-content;
 }

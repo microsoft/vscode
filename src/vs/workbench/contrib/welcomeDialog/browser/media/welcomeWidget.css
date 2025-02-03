@@ -1,0 +1,23 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+.monaco-dialog-box {
+	border-radius: 6px;
+}
+
+.dialog-message-detail-title > div > p > .codicon[class*='codicon-']::before{
+	position: relative;
+	color: var(--vscode-textLink-foreground);
+	padding-right: 10px;
+	font-size: larger;
+}
+
+.dialog-message-detail-title {
+	height: 22px;
+	font-size: large;
+}
+
+.monaco-dialog-box .monaco-action-bar .actions-container {
+	justify-content: flex-end;
+}

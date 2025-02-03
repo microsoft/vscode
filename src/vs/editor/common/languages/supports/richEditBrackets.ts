@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import * as stringBuilder from 'vs/editor/common/core/stringBuilder';
-import { Range } from 'vs/editor/common/core/range';
-import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
+import * as strings from '../../../../base/common/strings.js';
+import * as stringBuilder from '../../core/stringBuilder.js';
+import { Range } from '../../core/range.js';
+import { CharacterPair } from '../languageConfiguration.js';
 
 interface InternalBracket {
 	open: string[];
@@ -408,30 +408,21 @@ function prepareBracketForRegExp(str: string): string {
 	return (insertWordBoundaries ? `\\b${str}\\b` : str);
 }
 
-function createBracketOrRegExp(pieces: string[]): RegExp {
+export function createBracketOrRegExp(pieces: string[], options?: strings.RegExpOptions): RegExp {
 	const regexStr = `(${pieces.map(prepareBracketForRegExp).join(')|(')})`;
-	return strings.createRegExp(regexStr, true);
+	return strings.createRegExp(regexStr, true, options);
 }
 
 const toReversedString = (function () {
 
 	function reverse(str: string): string {
-		if (stringBuilder.hasTextDecoder) {
-			// create a Uint16Array and then use a TextDecoder to create a string
-			const arr = new Uint16Array(str.length);
-			let offset = 0;
-			for (let i = str.length - 1; i >= 0; i--) {
-				arr[offset++] = str.charCodeAt(i);
-			}
-			return stringBuilder.getPlatformTextDecoder().decode(arr);
-		} else {
-			const result: string[] = [];
-			let resultLen = 0;
-			for (let i = str.length - 1; i >= 0; i--) {
-				result[resultLen++] = str.charAt(i);
-			}
-			return result.join('');
+		// create a Uint16Array and then use a TextDecoder to create a string
+		const arr = new Uint16Array(str.length);
+		let offset = 0;
+		for (let i = str.length - 1; i >= 0; i--) {
+			arr[offset++] = str.charCodeAt(i);
 		}
+		return stringBuilder.getPlatformTextDecoder().decode(arr);
 	}
 
 	let lastInput: string | null = null;

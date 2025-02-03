@@ -3,16 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import assert from 'assert';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
+import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
+import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+
+function getRowsTextContent(container: HTMLElement): string[] {
+	const rows = [...container.querySelectorAll('.monaco-list-row')];
+	rows.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!));
+	return rows.map(row => row.querySelector('.monaco-tl-contents')!.textContent!);
+}
 
 suite('ObjectTree', function () {
+
 	suite('TreeNavigator', function () {
 		let tree: ObjectTree<number>;
 		let filter = (_: number) => true;
+
+		teardown(() => {
+			tree.dispose();
+			filter = (_: number) => true;
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
 
 		setup(() => {
 			const container = document.createElement('div');
@@ -37,11 +52,6 @@ suite('ObjectTree', function () {
 
 			tree = new ObjectTree<number>('test', container, delegate, [renderer], { filter: { filter: (el) => filter(el) } });
 			tree.layout(200);
-		});
-
-		teardown(() => {
-			tree.dispose();
-			filter = (_: number) => true;
 		});
 
 		test('should be able to navigate', () => {
@@ -180,32 +190,36 @@ suite('ObjectTree', function () {
 		});
 	});
 
+	class Delegate implements IListVirtualDelegate<number> {
+		getHeight() { return 20; }
+		getTemplateId(): string { return 'default'; }
+	}
+
+	class Renderer implements ITreeRenderer<number, void, HTMLElement> {
+		readonly templateId = 'default';
+		renderTemplate(container: HTMLElement): HTMLElement {
+			return container;
+		}
+		renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
+			templateData.textContent = `${element.element}`;
+		}
+		disposeTemplate(): void { }
+	}
+
+	class IdentityProvider implements IIdentityProvider<number> {
+		getId(element: number): { toString(): string } {
+			return `${element % 100}`;
+		}
+	}
+
 	test('traits are preserved according to string identity', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const delegate = new class implements IListVirtualDelegate<number> {
-			getHeight() { return 20; }
-			getTemplateId(): string { return 'default'; }
-		};
-
-		const renderer = new class implements ITreeRenderer<number, void, HTMLElement> {
-			readonly templateId = 'default';
-			renderTemplate(container: HTMLElement): HTMLElement {
-				return container;
-			}
-			renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
-				templateData.textContent = `${element.element}`;
-			}
-			disposeTemplate(): void { }
-		};
-
-		const identityProvider = new class implements IIdentityProvider<number> {
-			getId(element: number): { toString(): string } {
-				return `${element % 100}`;
-			}
-		};
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+		const identityProvider = new IdentityProvider();
 
 		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
 		tree.layout(200);
@@ -218,12 +232,6 @@ suite('ObjectTree', function () {
 		assert.deepStrictEqual(tree.getFocus(), [101]);
 	});
 });
-
-function getRowsTextContent(container: HTMLElement): string[] {
-	const rows = [...container.querySelectorAll('.monaco-list-row')];
-	rows.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!));
-	return rows.map(row => row.querySelector('.monaco-tl-contents')!.textContent!);
-}
 
 suite('CompressibleObjectTree', function () {
 
@@ -246,12 +254,14 @@ suite('CompressibleObjectTree', function () {
 		disposeTemplate(): void { }
 	}
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('empty', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
 		tree.layout(200);
 
 		assert.strictEqual(getRowsTextContent(container).length, 0);
@@ -262,7 +272,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
 		tree.layout(200);
 
 		tree.setChildren(null, [
@@ -285,7 +295,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
 		tree.layout(200);
 
 		tree.setChildren(null, [
@@ -337,7 +347,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
 		tree.layout(200);
 
 		tree.setChildren(null, [

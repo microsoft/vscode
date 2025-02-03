@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IActivityService, IActivity } from '../common/activity.js';
+import { IDisposable, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IViewDescriptorService, ViewContainer } from '../../../common/views.js';
+import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from '../../../common/activity.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 class ViewContainerActivityByView extends Disposable {
 
@@ -47,6 +46,7 @@ class ViewContainerActivityByView extends Disposable {
 
 	override dispose() {
 		this.activityDisposable.dispose();
+		super.dispose();
 	}
 }
 
@@ -55,27 +55,57 @@ interface IViewActivity {
 	readonly activity: ViewContainerActivityByView;
 }
 
-export class ActivityService implements IActivityService {
+export class ActivityService extends Disposable implements IActivityService {
 
 	public _serviceBrand: undefined;
 
-	private viewActivities = new Map<string, IViewActivity>();
+	private readonly viewActivities = new Map<string, IViewActivity>();
+
+	private readonly _onDidChangeActivity = this._register(new Emitter<string | ViewContainer>());
+	readonly onDidChangeActivity = this._onDidChangeActivity.event;
+
+	private readonly viewContainerActivities = new Map<string, IActivity[]>();
+	private readonly globalActivities = new Map<string, IActivity[]>();
 
 	constructor(
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) { }
+	) {
+		super();
+	}
 
-	showViewContainerActivity(viewContainerId: string, { badge, clazz, priority }: IActivity): IDisposable {
+	showViewContainerActivity(viewContainerId: string, activity: IActivity): IDisposable {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
+		if (!viewContainer) {
+			return Disposable.None;
+		}
+
+		let activities = this.viewContainerActivities.get(viewContainerId);
+		if (!activities) {
+			activities = [];
+			this.viewContainerActivities.set(viewContainerId, activities);
+		}
+
+		// add activity
+		activities.push(activity);
+
+		this._onDidChangeActivity.fire(viewContainer);
+
+		return toDisposable(() => {
+			activities.splice(activities.indexOf(activity), 1);
+			if (activities.length === 0) {
+				this.viewContainerActivities.delete(viewContainerId);
+			}
+			this._onDidChangeActivity.fire(viewContainer);
+		});
+	}
+
+	getViewContainerActivities(viewContainerId: string): IActivity[] {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
 		if (viewContainer) {
-			const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			if (location !== null) {
-				return this.paneCompositeService.showActivity(viewContainer.id, location, badge, clazz, priority);
-			}
+			return this.viewContainerActivities.get(viewContainerId) ?? [];
 		}
-		return Disposable.None;
+		return [];
 	}
 
 	showViewActivity(viewId: string, activity: IActivity): IDisposable {
@@ -104,13 +134,34 @@ export class ActivityService implements IActivityService {
 		});
 	}
 
-	showAccountsActivity({ badge, clazz, priority }: IActivity): IDisposable {
-		return this.paneCompositeService.showActivity(ACCOUNTS_ACTIVITY_ID, ViewContainerLocation.Sidebar, badge, clazz, priority);
+	showAccountsActivity(activity: IActivity): IDisposable {
+		return this.showActivity(ACCOUNTS_ACTIVITY_ID, activity);
 	}
 
-	showGlobalActivity({ badge, clazz, priority }: IActivity): IDisposable {
-		return this.paneCompositeService.showActivity(GLOBAL_ACTIVITY_ID, ViewContainerLocation.Sidebar, badge, clazz, priority);
+	showGlobalActivity(activity: IActivity): IDisposable {
+		return this.showActivity(GLOBAL_ACTIVITY_ID, activity);
+	}
+
+	getActivity(id: string): IActivity[] {
+		return this.globalActivities.get(id) ?? [];
+	}
+
+	private showActivity(id: string, activity: IActivity): IDisposable {
+		let activities = this.globalActivities.get(id);
+		if (!activities) {
+			activities = [];
+			this.globalActivities.set(id, activities);
+		}
+		activities.push(activity);
+		this._onDidChangeActivity.fire(id);
+		return toDisposable(() => {
+			activities.splice(activities.indexOf(activity), 1);
+			if (activities.length === 0) {
+				this.globalActivities.delete(id);
+			}
+			this._onDidChangeActivity.fire(id);
+		});
 	}
 }
 
-registerSingleton(IActivityService, ActivityService, true);
+registerSingleton(IActivityService, ActivityService, InstantiationType.Delayed);

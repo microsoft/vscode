@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from './event.js';
+import { Disposable, IDisposable } from './lifecycle.js';
 
 export const enum ScrollbarVisibility {
 	Auto = 1,
@@ -348,6 +348,10 @@ export class Scrollable extends Disposable {
 		});
 	}
 
+	public hasPendingScrollAnimation(): boolean {
+		return Boolean(this._smoothScrolling);
+	}
+
 	private _performSmoothScrolling(): void {
 		if (!this._smoothScrolling) {
 			return;
@@ -404,7 +408,7 @@ export class SmoothScrollingUpdate {
 
 }
 
-export interface IAnimation {
+interface IAnimation {
 	(completion: number): number;
 }
 

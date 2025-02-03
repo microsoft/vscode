@@ -2,13 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { EditorOptions, InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import * as languages from 'vs/editor/common/languages';
-import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from 'vs/editor/contrib/suggest/browser/suggest';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorOptions, InternalSuggestOptions } from '../../../../common/config/editorOptions.js';
+import { IPosition } from '../../../../common/core/position.js';
+import * as languages from '../../../../common/languages.js';
+import { CompletionModel } from '../../browser/completionModel.js';
+import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from '../../browser/suggest.js';
+import { WordDistance } from '../../browser/wordDistance.js';
 
 export function createSuggestItem(label: string | languages.CompletionItemLabel, overwriteBefore: number, kind = languages.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
 	const suggestion: languages.CompletionItem = {
@@ -24,6 +25,7 @@ export function createSuggestItem(label: string | languages.CompletionItemLabel,
 		suggestions: [suggestion]
 	};
 	const provider: languages.CompletionItemProvider = {
+		_debugDisplayName: 'test',
 		provideCompletionItems(): any {
 			return;
 		}
@@ -82,6 +84,8 @@ suite('CompletionModel', function () {
 		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('filtering - cached', function () {
 
 		const itemsNow = model.items;
@@ -102,7 +106,7 @@ suite('CompletionModel', function () {
 
 	test('complete/incomplete', () => {
 
-		assert.strictEqual(model.incomplete.size, 0);
+		assert.strictEqual(model.getIncompleteProvider().size, 0);
 
 		const incompleteModel = new CompletionModel([
 			createSuggestItem('foo', 3, undefined, true),
@@ -111,25 +115,7 @@ suite('CompletionModel', function () {
 			leadingLineContent: 'foo',
 			characterCountDelta: 0
 		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
-		assert.strictEqual(incompleteModel.incomplete.size, 1);
-	});
-
-	test('replaceIncomplete', () => {
-
-		const completeItem = createSuggestItem('foobar', 1, undefined, false, { lineNumber: 1, column: 2 });
-		const incompleteItem = createSuggestItem('foofoo', 1, undefined, true, { lineNumber: 1, column: 2 });
-
-		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
-		assert.strictEqual(model.incomplete.size, 1);
-		assert.strictEqual(model.items.length, 2);
-
-		const { incomplete } = model;
-		const complete = model.adopt(incomplete);
-
-		assert.strictEqual(incomplete.size, 1);
-		assert.ok(incomplete.has(incompleteItem.provider));
-		assert.strictEqual(complete.length, 1);
-		assert.ok(complete[0] === completeItem);
+		assert.strictEqual(incompleteModel.getIncompleteProvider().size, 1);
 	});
 
 	test('Fuzzy matching of snippets stopped working with inline snippet suggestions #49895', function () {
@@ -150,15 +136,8 @@ suite('CompletionModel', function () {
 				incompleteItem1,
 			], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined
 		);
-		assert.strictEqual(model.incomplete.size, 1);
+		assert.strictEqual(model.getIncompleteProvider().size, 1);
 		assert.strictEqual(model.items.length, 6);
-
-		const { incomplete } = model;
-		const complete = model.adopt(incomplete);
-
-		assert.strictEqual(incomplete.size, 1);
-		assert.ok(incomplete.has(incompleteItem1.provider));
-		assert.strictEqual(complete.length, 5);
 	});
 
 	test('proper current word when length=0, #16380', function () {

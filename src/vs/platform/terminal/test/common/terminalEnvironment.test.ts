@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { collapseTildePath, sanitizeCwd } from '../../common/terminalEnvironment.js';
 
 suite('terminalEnvironment', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('collapseTildePath', () => {
 		test('should return empty string for a falsy path', () => {
 			strictEqual(collapseTildePath('', '/foo', '/'), '');
@@ -35,6 +39,17 @@ suite('terminalEnvironment', () => {
 			strictEqual(collapseTildePath('/foo/bar', '/foo/', '/'), '~/bar');
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo', '/'), '~/bar/baz');
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo/', '/'), '~/bar/baz');
+		});
+	});
+	suite('sanitizeCwd', () => {
+		if (OS === OperatingSystem.Windows) {
+			test('should make the Windows drive letter uppercase', () => {
+				strictEqual(sanitizeCwd('c:\\foo\\bar'), 'C:\\foo\\bar');
+			});
+		}
+		test('should remove any wrapping quotes', () => {
+			strictEqual(sanitizeCwd('\'/foo/bar\''), '/foo/bar');
+			strictEqual(sanitizeCwd('"/foo/bar"'), '/foo/bar');
 		});
 	});
 });

@@ -2,13 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Emitter, Event } from 'vs/base/common/event';
-import { splitGlobAware } from 'vs/base/common/glob';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { splitGlobAware } from '../../../../base/common/glob.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IObservableValue, MutableObservableValue } from './observableValue.js';
+import { StoredValue } from './storedValue.js';
+import { namespaceTestTag } from './testTypes.js';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
@@ -17,7 +19,10 @@ export interface ITestExplorerFilterState {
 	readonly text: IObservableValue<string>;
 
 	/** Test ID the user wants to reveal in the explorer */
-	readonly reveal: MutableObservableValue<string | undefined>;
+	readonly reveal: ISettableObservable<string | undefined>;
+
+	/** A test was selected in the explorer. */
+	readonly onDidSelectTestInExplorer: Event<string | undefined>;
 
 	/** Event that fires when {@link focusInput} is invoked. */
 	readonly onDidRequestInputFocus: Event<void>;
@@ -61,6 +66,11 @@ export interface ITestExplorerFilterState {
 	 * Sets whether the {@link text} includes a special filter term.
 	 */
 	toggleFilteringFor(term: TestFilterTerm, shouldFilter?: boolean): void;
+
+	/**
+	 * Called when a test in the test explorer is selected.
+	 */
+	didSelectTestInExplorer(testId: string): void;
 }
 
 export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState>('testingFilterState');
@@ -68,7 +78,7 @@ export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState
 const tagRe = /!?@([^ ,:]+)/g;
 const trimExtraWhitespace = (str: string) => str.replace(/\s\s+/g, ' ').trim();
 
-export class TestExplorerFilterState implements ITestExplorerFilterState {
+export class TestExplorerFilterState extends Disposable implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
 	private readonly focusEmitter = new Emitter<void>();
 	/**
@@ -86,20 +96,32 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 	public excludeTags = new Set<string>();
 
 	/** @inheritdoc */
-	public readonly text = new MutableObservableValue('');
+	public readonly text = this._register(new MutableObservableValue(''));
 
 	/** @inheritdoc */
-	public readonly fuzzy = MutableObservableValue.stored(new StoredValue<boolean>({
+	public readonly fuzzy = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'testHistoryFuzzy',
 		scope: StorageScope.PROFILE,
 		target: StorageTarget.USER,
-	}, this.storageService), false);
+	}, this.storageService), false));
 
-	public readonly reveal = new MutableObservableValue</* test ID */string | undefined>(undefined);
+	public readonly reveal: ISettableObservable<string | undefined> = observableValue('TestExplorerFilterState.reveal', undefined);
 
 	public readonly onDidRequestInputFocus = this.focusEmitter.event;
 
-	constructor(@IStorageService private readonly storageService: IStorageService) { }
+	private selectTestInExplorerEmitter = this._register(new Emitter<string | undefined>());
+	public readonly onDidSelectTestInExplorer = this.selectTestInExplorerEmitter.event;
+
+	constructor(
+		@IStorageService private readonly storageService: IStorageService,
+	) {
+		super();
+	}
+
+	/** @inheritdoc */
+	public didSelectTestInExplorer(testId: string) {
+		this.selectTestInExplorerEmitter.fire(testId);
+	}
 
 	/** @inheritdoc */
 	public focusInput() {
@@ -120,7 +142,7 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 		let globText = '';
 		let lastIndex = 0;
 		for (const match of text.matchAll(tagRe)) {
-			let nextIndex = match.index! + match[0].length;
+			let nextIndex = match.index + match[0].length;
 
 			const tag = match[0];
 			if (allTestFilterTerms.includes(tag as TestFilterTerm)) {
@@ -196,12 +218,14 @@ export const enum TestFilterTerm {
 	Failed = '@failed',
 	Executed = '@executed',
 	CurrentDoc = '@doc',
+	OpenedFiles = '@openedFiles',
 	Hidden = '@hidden',
 }
 
-export const allTestFilterTerms: readonly TestFilterTerm[] = [
+const allTestFilterTerms: readonly TestFilterTerm[] = [
 	TestFilterTerm.Failed,
 	TestFilterTerm.Executed,
 	TestFilterTerm.CurrentDoc,
+	TestFilterTerm.OpenedFiles,
 	TestFilterTerm.Hidden,
 ];

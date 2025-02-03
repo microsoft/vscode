@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookRange } from 'vs/workbench/api/common/extHostTypes';
-import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import * as extHostProtocol from './extHost.protocol.js';
+import { ExtHostDocuments } from './extHostDocuments.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import * as extHostTypeConverters from './extHostTypeConverters.js';
+import { NotebookRange } from './extHostTypes.js';
+import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
 import * as vscode from 'vscode';
 
 class RawContentChangeEvent {
@@ -33,15 +33,14 @@ class RawContentChangeEvent {
 
 export class ExtHostCell {
 
-	static asModelAddData(notebook: vscode.NotebookDocument, cell: extHostProtocol.NotebookCellDto): IExtHostModelAddedData {
+	static asModelAddData(cell: extHostProtocol.NotebookCellDto): extHostProtocol.IModelAddedData {
 		return {
 			EOL: cell.eol,
 			lines: cell.source,
 			languageId: cell.language,
 			uri: cell.uri,
 			isDirty: false,
-			versionId: 1,
-			notebook
+			versionId: 1
 		};
 	}
 
@@ -110,6 +109,32 @@ export class ExtHostCell {
 				output.items.length = 0;
 			}
 			output.items.push(...newItems);
+
+			if (output.items.length > 1 && output.items.every(item => notebookCommon.isTextStreamMime(item.mime))) {
+				// Look for the mimes in the items, and keep track of their order.
+				// Merge the streams into one output item, per mime type.
+				const mimeOutputs = new Map<string, Uint8Array[]>();
+				const mimeTypes: string[] = [];
+				output.items.forEach(item => {
+					let items: Uint8Array[];
+					if (mimeOutputs.has(item.mime)) {
+						items = mimeOutputs.get(item.mime)!;
+					} else {
+						items = [];
+						mimeOutputs.set(item.mime, items);
+						mimeTypes.push(item.mime);
+					}
+					items.push(item.data);
+				});
+				output.items.length = 0;
+				mimeTypes.forEach(mime => {
+					const compressed = notebookCommon.compressOutputItemStreams(mimeOutputs.get(mime)!);
+					output.items.push({
+						mime,
+						data: compressed.data.buffer
+					});
+				});
+			}
 		}
 	}
 
@@ -141,7 +166,6 @@ export class ExtHostNotebookDocument {
 	private _metadata: Record<string, any>;
 	private _versionId: number = 0;
 	private _isDirty: boolean = false;
-	private _backup?: vscode.NotebookDocumentBackup;
 	private _disposed: boolean = false;
 
 	constructor(
@@ -159,6 +183,10 @@ export class ExtHostNotebookDocument {
 
 	dispose() {
 		this._disposed = true;
+	}
+
+	get versionId(): number {
+		return this._versionId;
 	}
 
 	get apiNotebook(): vscode.NotebookDocument {
@@ -183,21 +211,14 @@ export class ExtHostNotebookDocument {
 				},
 				save() {
 					return that._save();
+				},
+				[Symbol.for('debug.description')]() {
+					return `NotebookDocument(${this.uri.toString()})`;
 				}
 			};
 			this._notebook = Object.freeze(apiObject);
 		}
 		return this._notebook;
-	}
-
-	updateBackup(backup: vscode.NotebookDocumentBackup): void {
-		this._backup?.delete();
-		this._backup = backup;
-	}
-
-	disposeBackup(): void {
-		this._backup?.delete();
-		this._backup = undefined;
 	}
 
 	acceptDocumentPropertiesChanged(data: extHostProtocol.INotebookDocumentPropertiesChangeData) {
@@ -232,7 +253,7 @@ export class ExtHostNotebookDocument {
 				this._spliceNotebookCells(rawEvent.changes, false, result.contentChanges);
 
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.Move) {
-				this._moveCell(rawEvent.index, rawEvent.newIdx, result.contentChanges);
+				this._moveCells(rawEvent.index, rawEvent.length, rawEvent.newIdx, result.contentChanges);
 
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.Output) {
 				this._setCellOutputs(rawEvent.index, rawEvent.outputs);
@@ -337,7 +358,7 @@ export class ExtHostNotebookDocument {
 		}
 
 		const contentChangeEvents: RawContentChangeEvent[] = [];
-		const addedCellDocuments: IExtHostModelAddedData[] = [];
+		const addedCellDocuments: extHostProtocol.IModelAddedData[] = [];
 		const removedCellDocuments: URI[] = [];
 
 		splices.reverse().forEach(splice => {
@@ -346,7 +367,7 @@ export class ExtHostNotebookDocument {
 
 				const extCell = new ExtHostCell(this, this._textDocumentsAndEditors, cell);
 				if (!initialization) {
-					addedCellDocuments.push(ExtHostCell.asModelAddData(this.apiNotebook, cell));
+					addedCellDocuments.push(ExtHostCell.asModelAddData(cell));
 				}
 				return extCell;
 			});
@@ -372,11 +393,11 @@ export class ExtHostNotebookDocument {
 		}
 	}
 
-	private _moveCell(index: number, newIdx: number, bucket: vscode.NotebookDocumentContentChange[]): void {
-		const cells = this._cells.splice(index, 1);
+	private _moveCells(index: number, length: number, newIdx: number, bucket: vscode.NotebookDocumentContentChange[]): void {
+		const cells = this._cells.splice(index, length);
 		this._cells.splice(newIdx, 0, ...cells);
 		const changes = [
-			new RawContentChangeEvent(index, 1, cells.map(c => c.apiCell), []),
+			new RawContentChangeEvent(index, length, cells.map(c => c.apiCell), []),
 			new RawContentChangeEvent(newIdx, 0, [], cells)
 		];
 		for (const change of changes) {

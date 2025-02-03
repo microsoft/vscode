@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IgnoreFile } from '../../common/ignoreFile.js';
 
 function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string, shouldMatch: boolean, traverse: boolean) {
 	return (prefix: string) => {
@@ -62,6 +63,7 @@ function assertNoIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, inp
 }
 
 suite('Parsing .gitignore files', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('paths with trailing slashes do not match files', () => {
 		const i = 'node_modules/\n';

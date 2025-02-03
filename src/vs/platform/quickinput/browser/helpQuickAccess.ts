@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Extensions, IQuickAccessProvider, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { localize } from '../../../nls.js';
+import { Registry } from '../../registry/common/platform.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../common/quickAccess.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from '../common/quickInput.js';
 
 interface IHelpQuickAccessPickItem extends IQuickPickItem {
-	prefix: string;
+	readonly prefix: string;
 }
 
 export class HelpQuickAccessProvider implements IQuickAccessProvider {
@@ -25,7 +25,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) { }
 
-	provide(picker: IQuickPick<IHelpQuickAccessPickItem>): IDisposable {
+	provide(picker: IQuickPick<IHelpQuickAccessPickItem, { useSeparators: true }>): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Open a picker with the selected value if picked
@@ -46,34 +46,32 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		}));
 
 		// Fill in all providers
-		picker.items = this.getQuickAccessProviders();
+		picker.items = this.getQuickAccessProviders().filter(p => p.prefix !== HelpQuickAccessProvider.PREFIX);
 
 		return disposables;
 	}
 
-	private getQuickAccessProviders(): IHelpQuickAccessPickItem[] {
-		const providers: IHelpQuickAccessPickItem[] = [];
-
-		for (const provider of this.registry.getQuickAccessProviders().sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))) {
-			if (provider.prefix === HelpQuickAccessProvider.PREFIX) {
-				continue; // exclude help which is already active
-			}
-
-			for (const helpEntry of provider.helpEntries) {
-				const prefix = helpEntry.prefix || provider.prefix;
-				const label = prefix || '\u2026' /* ... */;
-
-				providers.push({
-					prefix,
-					label,
-					keybinding: helpEntry.commandId ? this.keybindingService.lookupKeybinding(helpEntry.commandId) : undefined,
-					ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
-					description: helpEntry.description
-				});
-			}
-		}
+	getQuickAccessProviders(): IHelpQuickAccessPickItem[] {
+		const providers: IHelpQuickAccessPickItem[] = this.registry
+			.getQuickAccessProviders()
+			.sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))
+			.flatMap(provider => this.createPicks(provider));
 
 		return providers;
 	}
-}
 
+	private createPicks(provider: IQuickAccessProviderDescriptor): IHelpQuickAccessPickItem[] {
+		return provider.helpEntries.map(helpEntry => {
+			const prefix = helpEntry.prefix || provider.prefix;
+			const label = prefix || '\u2026' /* ... */;
+
+			return {
+				prefix,
+				label,
+				keybinding: helpEntry.commandId ? this.keybindingService.lookupKeybinding(helpEntry.commandId) : undefined,
+				ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
+				description: helpEntry.description
+			};
+		});
+	}
+}

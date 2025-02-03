@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { ICwdDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ICwdDetectionCapability, TerminalCapability } from './capabilities.js';
 
-export class CwdDetectionCapability implements ICwdDetectionCapability {
+export class CwdDetectionCapability extends Disposable implements ICwdDetectionCapability {
 	readonly type = TerminalCapability.CwdDetection;
 	private _cwd = '';
 	private _cwds = new Map</*cwd*/string, /*frequency*/number>();
@@ -18,7 +19,7 @@ export class CwdDetectionCapability implements ICwdDetectionCapability {
 		return Array.from(this._cwds.keys());
 	}
 
-	private readonly _onDidChangeCwd = new Emitter<string>();
+	private readonly _onDidChangeCwd = this._register(new Emitter<string>());
 	readonly onDidChangeCwd = this._onDidChangeCwd.event;
 
 	getCwd(): string {

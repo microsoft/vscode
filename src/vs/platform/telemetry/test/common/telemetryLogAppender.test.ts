@@ -2,11 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
-import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
+import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, NullLogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { TelemetryLogAppender } from '../../common/telemetryLogAppender.js';
 
 class TestTelemetryLogger extends AbstractLogger implements ILogger {
 
@@ -18,46 +21,38 @@ class TestTelemetryLogger extends AbstractLogger implements ILogger {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
+		if (this.canLog(LogLevel.Trace)) {
 			this.logs.push(message + JSON.stringify(args));
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
+		if (this.canLog(LogLevel.Debug)) {
 			this.logs.push(message);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
+		if (this.canLog(LogLevel.Info)) {
 			this.logs.push(message);
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
+		if (this.canLog(LogLevel.Warning)) {
 			this.logs.push(message.toString());
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
+		if (this.canLog(LogLevel.Error)) {
 			this.logs.push(message);
 		}
 	}
-
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this.logs.push(message);
-		}
-	}
-
-	override dispose(): void { }
 	flush(): void { }
 }
 
-class TestTelemetryLoggerService implements ILoggerService {
+export class TestTelemetryLoggerService implements ILoggerService {
 	_serviceBrand: undefined;
 
 	logger?: TestTelemetryLogger;
@@ -75,22 +70,40 @@ class TestTelemetryLoggerService implements ILoggerService {
 
 		return this.logger;
 	}
+
+	onDidChangeVisibility = Event.None;
+	onDidChangeLogLevel = Event.None;
+	onDidChangeLoggers = Event.None;
+	setLogLevel(): void { }
+	getLogLevel() { return LogLevel.Info; }
+	setVisibility(): void { }
+	getDefaultLogLevel() { return this.logLevel; }
+	registerLogger() { }
+	deregisterLogger(): void { }
+	getRegisteredLoggers() { return []; }
+	getRegisteredLogger() { return undefined; }
 }
 
 suite('TelemetryLogAdapter', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Do not Log Telemetry if log level is not trace', async () => {
 		const testLoggerService = new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL);
-		const testObject = new TelemetryLogAppender(testLoggerService, new TestInstantiationService().stub(IEnvironmentService, {}));
+		const testInstantiationService = new TestInstantiationService();
+		const testObject = new TelemetryLogAppender(new NullLogService(), testLoggerService, testInstantiationService.stub(IEnvironmentService, {}), testInstantiationService.stub(IProductService, {}));
 		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.strictEqual(testLoggerService.createLogger().logs.length, 2);
+		assert.strictEqual(testLoggerService.createLogger().logs.length, 0);
+		testObject.dispose();
+		testInstantiationService.dispose();
 	});
 
 	test('Log Telemetry if log level is trace', async () => {
 		const testLoggerService = new TestTelemetryLoggerService(LogLevel.Trace);
-		const testObject = new TelemetryLogAppender(testLoggerService, new TestInstantiationService().stub(IEnvironmentService, {}));
+		const testInstantiationService = new TestInstantiationService();
+		const testObject = new TelemetryLogAppender(new NullLogService(), testLoggerService, testInstantiationService.stub(IEnvironmentService, {}), testInstantiationService.stub(IProductService, {}));
 		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.strictEqual(testLoggerService.createLogger().logs[2], 'telemetry/testEvent' + JSON.stringify([{
+		assert.strictEqual(testLoggerService.createLogger().logs[0], 'telemetry/testEvent' + JSON.stringify([{
 			properties: {
 				hello: 'world',
 			},
@@ -98,5 +111,7 @@ suite('TelemetryLogAdapter', () => {
 				isTrue: 1, numberBetween1And3: 2
 			}
 		}]));
+		testObject.dispose();
+		testInstantiationService.dispose();
 	});
 });

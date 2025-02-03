@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { localize, localize2 } from '../../../nls.js';
+import { MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputService, ItemActivation } from '../../../platform/quickinput/common/quickInput.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from '../quickaccess.js';
+import { ILocalizedString } from '../../../platform/action/common/action.js';
+import { AnythingQuickAccessProviderRunOptions } from '../../../platform/quickinput/common/quickAccess.js';
+import { Codicon } from '../../../base/common/codicons.js';
 
 //#region Quick access management commands and keys
 
@@ -120,11 +122,8 @@ registerAction2(class QuickAccessAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpen',
-			title: {
-				value: localize('quickOpen', "Go to File..."),
-				original: 'Go to File...'
-			},
-			description: {
+			title: localize2('quickOpen', "Go to File..."),
+			metadata: {
 				description: `Quick access`,
 				args: [{
 					name: 'prefix',
@@ -139,17 +138,39 @@ registerAction2(class QuickAccessAction extends Action2 {
 				secondary: globalQuickAccessKeybinding.secondary,
 				mac: globalQuickAccessKeybinding.mac
 			},
-			f1: true,
-			menu: {
-				id: MenuId.CommandCenter,
-				order: 100
-			}
+			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor, prefix: undefined): void {
 		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
+	}
+});
+
+registerAction2(class QuickAccessAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenWithModes',
+			title: localize('quickOpenWithModes', "Quick Open"),
+			icon: Codicon.search,
+			menu: {
+				id: MenuId.CommandCenterCenter,
+				order: 100
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		const providerOptions: AnythingQuickAccessProviderRunOptions = {
+			includeHelp: true,
+			from: 'commandCenter',
+		};
+		quickInputService.quickAccess.show(undefined, {
+			preserveValue: true,
+			providerOptions
+		});
 	}
 });
 
@@ -189,14 +210,14 @@ class BaseQuickAccessNavigateAction extends Action2 {
 class QuickAccessNavigateNextAction extends BaseQuickAccessNavigateAction {
 
 	constructor() {
-		super('workbench.action.quickOpenNavigateNext', { value: localize('quickNavigateNext', "Navigate Next in Quick Open"), original: 'Navigate Next in Quick Open' }, true, true);
+		super('workbench.action.quickOpenNavigateNext', localize2('quickNavigateNext', 'Navigate Next in Quick Open'), true, true);
 	}
 }
 
 class QuickAccessNavigatePreviousAction extends BaseQuickAccessNavigateAction {
 
 	constructor() {
-		super('workbench.action.quickOpenNavigatePrevious', { value: localize('quickNavigatePrevious', "Navigate Previous in Quick Open"), original: 'Navigate Previous in Quick Open' }, false, true);
+		super('workbench.action.quickOpenNavigatePrevious', localize2('quickNavigatePrevious', 'Navigate Previous in Quick Open'), false, true);
 	}
 }
 
@@ -205,7 +226,7 @@ class QuickAccessSelectNextAction extends BaseQuickAccessNavigateAction {
 	constructor() {
 		super(
 			'workbench.action.quickOpenSelectNext',
-			{ value: localize('quickSelectNext', "Select Next in Quick Open"), original: 'Select Next in Quick Open' },
+			localize2('quickSelectNext', 'Select Next in Quick Open'),
 			true,
 			false,
 			{
@@ -223,7 +244,7 @@ class QuickAccessSelectPreviousAction extends BaseQuickAccessNavigateAction {
 	constructor() {
 		super(
 			'workbench.action.quickOpenSelectPrevious',
-			{ value: localize('quickSelectPrevious', "Select Previous in Quick Open"), original: 'Select Previous in Quick Open' },
+			localize2('quickSelectPrevious', 'Select Previous in Quick Open'),
 			false,
 			false,
 			{
