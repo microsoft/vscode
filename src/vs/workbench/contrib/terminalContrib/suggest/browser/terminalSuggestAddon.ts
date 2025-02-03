@@ -26,11 +26,13 @@ import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpl
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
-import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
+import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -78,6 +80,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
+	private readonly _onDidFontConfigurationChange = this._register(new Emitter<void>());
+	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	private _kindToIconMap = new Map<number, ThemeIcon>([
 		[TerminalCompletionItemKind.File, Codicon.file],
@@ -97,7 +101,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super();
 
@@ -369,6 +374,32 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 	}
 
+	private _getFontInfo(): ISimpleSuggestWidgetFontInfo {
+		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
+		let lineHeight: number = font.lineHeight;
+		const fontSize: number = font.fontSize;
+		const fontFamily: string = font.fontFamily;
+		const letterSpacing: number = font.letterSpacing;
+		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
+
+		if (lineHeight <= 1) {
+			// Scale so icon shows by default
+			lineHeight = fontSize < 16 ? Math.ceil(fontSize * 1.5) : fontSize;
+		} else if (lineHeight <= 8) {
+			lineHeight = fontSize * lineHeight;
+		}
+
+		const fontInfo = {
+			fontSize,
+			lineHeight,
+			fontWeight: fontWeight.toString(),
+			letterSpacing,
+			fontFamily
+		};
+
+		return fontInfo;
+	}
+
 	private _showCompletions(model: SimpleCompletionModel, explicitlyInvoked?: boolean): void {
 		if (!this._terminal?.element) {
 			return;
@@ -404,6 +435,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
 					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
 				},
+				this._getFontInfo.bind(this),
+				this._onDidFontConfigurationChange.event.bind(this)
 			));
 			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
@@ -412,7 +445,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
-
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily')) {
+					this._onDidFontConfigurationChange.fire();
+				}
+			}
+			));
 			const element = this._terminal?.element?.querySelector('.xterm-helper-textarea');
 			if (element) {
 				this._register(dom.addDisposableListener(dom.getActiveDocument(), 'click', (event) => {
