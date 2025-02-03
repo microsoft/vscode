@@ -372,7 +372,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				let kind: TerminalCompletionItemKind | undefined;
 				if (foldersRequested && stat.isDirectory) {
 					kind = TerminalCompletionItemKind.Folder;
-				} else if (filesRequested) {
+				} else if (filesRequested && stat.isFile) {
 					kind = TerminalCompletionItemKind.File;
 				}
 				if (kind === undefined) {
