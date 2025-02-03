@@ -22,7 +22,6 @@ import { ObservableDisposable } from '../../../../../../base/common/observableDi
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 import { PROMPT_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
 
@@ -145,7 +144,6 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		private readonly promptContentsProvider: T,
 		seenReferences: string[] = [],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IConfigurationService protected readonly configService: IConfigurationService,
 		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
@@ -173,7 +171,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 
 		this._register(
 			this.promptContentsProvider.onContentChanged((streamOrError) => {
-				// process the the received message
+				// process the received message
 				this.onContentsChanged(streamOrError, seenReferences);
 
 				// indicate that we've received at least one `onContentChanged` event
@@ -559,13 +557,12 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 		dirname: URI,
 		seenReferences: string[] = [],
 		@IInstantiationService initService: IInstantiationService,
-		@IConfigurationService configService: IConfigurationService,
 		@ILogService logService: ILogService,
 	) {
 		const fileUri = extUri.resolvePath(dirname, token.path);
 		const provider = initService.createInstance(FilePromptContentProvider, fileUri);
 
-		super(provider, seenReferences, initService, configService, logService);
+		super(provider, seenReferences, initService, logService);
 	}
 
 	/**
