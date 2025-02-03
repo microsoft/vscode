@@ -815,7 +815,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (this.location === ChatAgentLocation.Panel || this.location === ChatAgentLocation.Editor) {
 					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID) && action instanceof MenuItemAction) {
 						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
-						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, options);
+						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, { ...options, menuAsChild: false });
 					}
 				}
 

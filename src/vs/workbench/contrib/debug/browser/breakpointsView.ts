@@ -160,7 +160,7 @@ export class BreakpointsView extends ViewPane {
 
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
-		this.list.onMouseMiddleClick(async ({ element }) => {
+		this._register(this.list.onMouseMiddleClick(async ({ element }) => {
 			if (element instanceof Breakpoint) {
 				await this.debugService.removeBreakpoints(element.getId());
 			} else if (element instanceof FunctionBreakpoint) {
@@ -170,7 +170,7 @@ export class BreakpointsView extends ViewPane {
 			} else if (element instanceof InstructionBreakpoint) {
 				await this.debugService.removeInstructionBreakpoints(element.instructionReference, element.offset);
 			}
-		});
+		}));
 
 		this._register(this.list.onDidOpen(async e => {
 			if (!e.element) {

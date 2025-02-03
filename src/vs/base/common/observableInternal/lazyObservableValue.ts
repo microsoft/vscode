@@ -6,7 +6,7 @@
 import { EqualityComparer } from './commonFacade/deps.js';
 import { BaseObservable, IObserver, ISettableObservable, ITransaction, TransactionImpl } from './base.js';
 import { DebugNameData } from './debugName.js';
-import { getLogger } from './logging.js';
+import { getLogger } from './logging/logging.js';
 
 /**
  * Holds off updating observers until the value is actually read.
@@ -44,14 +44,14 @@ export class LazyObservableValue<T, TChange = void>
 
 		if (this._deltas.length > 0) {
 			for (const change of this._deltas) {
-				getLogger()?.handleObservableChanged(this, { change, didChange: true, oldValue: '(unknown)', newValue: this._value, hadValue: true });
+				getLogger()?.handleObservableUpdated(this, { change, didChange: true, oldValue: '(unknown)', newValue: this._value, hadValue: true });
 				for (const observer of this.observers) {
 					observer.handleChange(this, change);
 				}
 			}
 			this._deltas.length = 0;
 		} else {
-			getLogger()?.handleObservableChanged(this, { change: undefined, didChange: true, oldValue: '(unknown)', newValue: this._value, hadValue: true });
+			getLogger()?.handleObservableUpdated(this, { change: undefined, didChange: true, oldValue: '(unknown)', newValue: this._value, hadValue: true });
 			for (const observer of this.observers) {
 				observer.handleChange(this, undefined);
 			}

@@ -28,7 +28,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 
 		this._register(autorun(r => {
 			this.chatEditingSessionDisposables.clear();
-			const session = this.chatEditingService.currentEditingSessionObs.read(r);
+			const session = this.chatEditingService.globalEditingSessionObs.read(r);
 			if (session) {
 				this._handleNewEditingSession(session);
 			}
@@ -40,7 +40,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 			return;
 		}
 
-		const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
+		const currentEditingSession = this.chatEditingService.globalEditingSessionObs.get();
 		if (!currentEditingSession) {
 			return;
 		}
@@ -61,7 +61,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 					return;
 				}
 
-				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
+				const currentEditingSession = this.chatEditingService.globalEditingSessionObs.get();
 				if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get().length) {
 					return; // Might have disposed while we were calculating
 				}
