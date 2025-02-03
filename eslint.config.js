@@ -9,8 +9,8 @@ import tseslint from 'typescript-eslint';
 import { fileURLToPath } from 'url';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
-import pluginJsdoc from 'eslint-plugin-jsdoc';
 import pluginLocal from 'eslint-plugin-local';
+import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
 pluginHeader.rules.header.meta.schema = false;
