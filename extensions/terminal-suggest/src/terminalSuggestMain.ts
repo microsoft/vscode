@@ -274,7 +274,7 @@ export async function getCompletionItemsFromSpecs(
 				items.push(...argsCompletionResult.items);
 				filesRequested ||= argsCompletionResult.filesRequested;
 				foldersRequested ||= argsCompletionResult.foldersRequested;
-				specificItemsProvided ||= true;
+				specificItemsProvided ||= argsCompletionResult.items.length > 0;
 			}
 			if (!argsCompletionResult?.items.length) {
 				// Arg completions are more specific, only get options if those are not provided.
@@ -283,7 +283,7 @@ export async function getCompletionItemsFromSpecs(
 					items.push(...optionsCompletionResult.items);
 					filesRequested ||= optionsCompletionResult.filesRequested;
 					foldersRequested ||= optionsCompletionResult.foldersRequested;
-					specificItemsProvided ||= true;
+					specificItemsProvided ||= optionsCompletionResult.items.length > 0;
 				}
 			}
 		}
