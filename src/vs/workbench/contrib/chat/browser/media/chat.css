@@ -992,7 +992,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: var(--vscode-focusBorder);
 }
 .chat-attached-context .chat-prompt-instructions-attachment .monaco-icon-label-container {
-	margin-top: -1px;
+	margin-top: -0.1em;
 }
 /*
  * This overly-specific CSS selector is needed to beat priority of some
@@ -1003,7 +1003,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid currentColor;
 }
 .chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.implicit .monaco-button {
-	margin-top: -1.5px;
 	padding-left: 2px;
 	padding-right: 2px;
 }
