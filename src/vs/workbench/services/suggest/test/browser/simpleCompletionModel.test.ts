@@ -92,8 +92,7 @@ suite('SimpleCompletionModel', function () {
 			assertItems(createFolderItemsModel(...initial), expected);
 		});
 
-		// #239532 Failing on CI not locally?
-		test.skip('should handle many files and folders correctly', function () {
+		test('should handle many files and folders correctly', function () {
 			// This is VS Code's root directory with some python items added that have special
 			// sorting
 			const items = [
