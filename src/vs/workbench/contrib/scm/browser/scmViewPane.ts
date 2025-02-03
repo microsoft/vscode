@@ -102,9 +102,12 @@ import { OpenScmGroupAction } from '../../multiDiffEditor/browser/scmMultiDiffSo
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, runOnChange } from '../../../../base/common/observable.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
 
@@ -900,6 +903,9 @@ class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 export class SCMAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
 	constructor(
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILabelService private readonly labelService: ILabelService
 	) { }
 
@@ -913,7 +919,16 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		} else if (isSCMRepository(element)) {
 			return `${element.provider.name} ${element.provider.label}`;
 		} else if (isSCMInput(element)) {
-			return localize('input', "Source Control Input");
+			const verbosity = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.SourceControl) === true;
+
+			if (!verbosity || !this.accessibilityService.isScreenReaderOptimized()) {
+				return localize('scmInput', "Source Control Input");
+			}
+
+			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			return kbLabel
+				? localize('scmInputRow.accessibilityHelp', "Source Control Input, Use {0} to open Source Control Accessibility Help.", kbLabel)
+				: localize('scmInputRow.accessibilityHelpNoKb', "Source Control Input, Run the Open Accessibility Help command for more information.");
 		} else if (isSCMActionButton(element)) {
 			return element.button?.command.title ?? '';
 		} else if (isSCMResourceGroup(element)) {
@@ -1671,16 +1686,46 @@ class SCMInputWidget {
 			triggerValidation();
 		}));
 
-		// Update placeholder text
-		const updatePlaceholderText = () => {
+		// Aria label & placeholder text
+		const accessibilityVerbosityConfig = observableConfigValue(
+			AccessibilityVerbositySettingId.SourceControl, true, this.configurationService);
+
+		const getAriaLabel = (placeholder: string, verbosity?: boolean) => {
+			verbosity = verbosity ?? accessibilityVerbosityConfig.get();
+
+			if (!verbosity || !this.accessibilityService.isScreenReaderOptimized()) {
+				return placeholder;
+			}
+
+			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			return kbLabel
+				? localize('scmInput.accessibilityHelp', "{0}, Use {1} to open Source Control Accessibility Help.", placeholder, kbLabel)
+				: localize('scmInput.accessibilityHelpNoKb', "{0}, Run the Open Accessibility Help command for more information.", placeholder);
+		};
+
+		const getPlaceholderText = (): string => {
 			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
 			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
-			const placeholderText = format(input.placeholder, label);
-
-			this.inputEditor.updateOptions({ placeholder: placeholderText });
+			return format(input.placeholder, label);
 		};
+
+		const updatePlaceholderText = () => {
+			const placeholder = getPlaceholderText();
+			const ariaLabel = getAriaLabel(placeholder);
+
+			this.inputEditor.updateOptions({ ariaLabel, placeholder });
+		};
+
 		this.repositoryDisposables.add(input.onDidChangePlaceholder(updatePlaceholderText));
 		this.repositoryDisposables.add(this.keybindingService.onDidUpdateKeybindings(updatePlaceholderText));
+
+		this.repositoryDisposables.add(runOnChange(accessibilityVerbosityConfig, verbosity => {
+			const placeholder = getPlaceholderText();
+			const ariaLabel = getAriaLabel(placeholder, verbosity);
+
+			this.inputEditor.updateOptions({ ariaLabel });
+		}));
+
 		updatePlaceholderText();
 
 		// Update input template
@@ -1754,6 +1799,7 @@ class SCMInputWidget {
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));

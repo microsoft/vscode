@@ -1814,7 +1814,7 @@ export interface IWorkspaceFileEdit {
 
 export interface IWorkspaceTextEdit {
 	resource: URI;
-	textEdit: TextEdit & { insertAsSnippet?: boolean };
+	textEdit: TextEdit & { insertAsSnippet?: boolean; keepWhitespace?: boolean };
 	versionId: number | undefined;
 	metadata?: WorkspaceEditMetadata;
 }
