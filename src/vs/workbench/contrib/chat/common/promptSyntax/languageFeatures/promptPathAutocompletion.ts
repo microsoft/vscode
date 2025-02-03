@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPromptFileReference } from '../parsers/types.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -27,6 +28,10 @@ import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemPr
 /**
  * TODO: @legomushroom - auto re-trigger on folder selection
  * TODO: @legomushroom - test absolute paths more
+ *
+ * TODO: @legomushroom - Windows support
+ *   - the current normalization `./` prefix won't work
+ *   - handle the absolute paths
  */
 
 /**
@@ -58,7 +63,8 @@ const findFileReference = (
 };
 
 /**
- * TODO: @legomushroom
+ * Type for a filesystem completion item - the one that has its {@link CompletionItem.kind kind} set
+ * to either {@link CompletionItemKind.File} or {@link CompletionItemKind.Folder}.
  */
 type TFilesystemCompletionItem = CompletionItem & { kind: CompletionItemKind.File | CompletionItemKind.Folder };
 
@@ -76,160 +82,6 @@ const getReplacementRange = (
 };
 
 type TFolderSuggestion = Omit<TFilesystemCompletionItem, 'insertText'> & { label: string };
-
-/**
- * TODO: @legomushroom
- */
-const getFolderSuggestions = async (
-	uri: URI,
-	fileReference: IPromptFileReference,
-	fileService: IFileService,
-): Promise<TFolderSuggestion[]> => {
-	// TODO: @legomushroom - the range does not really belong to this function
-	const range = getReplacementRange(fileReference);
-
-	const { children } = await fileService.resolve(uri);
-	const suggestions: TFolderSuggestion[] = [];
-
-	// no `children` - no suggestions
-	if (!children) {
-		return suggestions;
-	}
-
-	for (const child of children) {
-		const kind = child.isDirectory
-			? CompletionItemKind.Folder
-			: CompletionItemKind.File;
-
-		const sortText = child.isDirectory
-			? '1'
-			: '2';
-
-		suggestions.push({
-			label: child.name,
-			range,
-			kind,
-			sortText,
-		});
-	}
-
-	return suggestions;
-};
-
-/**
- * TODO: @legomushroom
- */
-const getFirstFolderSuggestions = async (
-	character: ':' | '.',
-	fileFolderUri: URI,
-	fileReference: IPromptFileReference,
-	fileService: IFileService,
-): Promise<TFilesystemCompletionItem[]> => {
-	const { linkRange } = fileReference;
-
-	// when character is `:`, there must be no link present yet
-	// otherwise the `:` was used in the middle of the link hence
-	// we don't want to provide suggestions for that
-	if (character === ':' && linkRange !== undefined) {
-		return [];
-	}
-
-	if (character === '.' && linkRange === undefined) {
-		return [];
-	}
-
-	const suggestions = await getFolderSuggestions(fileFolderUri, fileReference, fileService);
-	const range = getReplacementRange(fileReference);
-
-	// when character is `.` we want to also replace it, because
-	// all the `insertText`s already have the dot at the start
-	const replacementRange = (character !== '.')
-		? range
-		: {
-			...range,
-			startColumn: range.endColumn - 1,
-		};
-
-	return [
-		{
-			label: '..',
-			kind: CompletionItemKind.Folder,
-			insertText: '..',
-			range: replacementRange,
-			sortText: '0',
-		},
-		...suggestions
-			.map((suggestion) => {
-				// add space at the end of file names since no completions
-				// that follow the file name are expected anymore
-				const suffix = (suggestion.kind === CompletionItemKind.File)
-					? ' '
-					: '';
-
-				return {
-					...suggestion,
-					range: replacementRange,
-					label: `./${suggestion.label}${suffix}`,
-					// we use the `./` prefix for consistency
-					insertText: `./${suggestion.label}${suffix}`, // TODO: @legomushroom - this won't work on windows?
-				};
-			}),
-	];
-};
-
-/**
- * TODO: @legomushroom
- */
-const getNonFirstFolderSuggestions = async (
-	fileFolderUri: URI,
-	fileReference: IPromptFileReference,
-	fileService: IFileService,
-): Promise<TFilesystemCompletionItem[]> => {
-	const { linkRange, uri } = fileReference;
-
-	if (linkRange === undefined) {
-		return [];
-	}
-
-	const currenFolder = extUri.resolvePath(fileFolderUri, uri.path);
-	const suggestions = await getFolderSuggestions(currenFolder, fileReference, fileService);
-	return suggestions
-		.map((suggestion) => {
-			// add space at the end of file names since no completions
-			// that follow the file name are expected anymore
-			const suffix = (suggestion.kind === CompletionItemKind.File)
-				? ' '
-				: '';
-
-			return {
-				...suggestion,
-				insertText: `${suggestion.label}${suffix}`,
-			};
-		});
-};
-
-/**
- * TODO: @legomushroom
- */
-const getSuggestions = async (
-	character: TTriggerCharacter,
-	fileFolderUri: URI,
-	fileReference: IPromptFileReference,
-	fileService: IFileService,
-): Promise<TFilesystemCompletionItem[]> => {
-	if (character === ':' || character === '.') {
-		return getFirstFolderSuggestions(character, fileFolderUri, fileReference, fileService);
-	}
-
-	if (character === '/') {
-		return getNonFirstFolderSuggestions(fileFolderUri, fileReference, fileService);
-	}
-
-	assertNever(
-		character,
-		`Unexpected trigger character '${character}'.`,
-	);
-};
 
 /**
  * Prompt files language selector.
@@ -336,11 +188,10 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return undefined;
 		}
 
-		const suggestions = await getSuggestions(
+		const suggestions = await this.getSuggestions(
 			triggerCharacter,
 			dirname(model.uri),
 			fileReference,
-			this.fileService,
 		);
 
 		return {
@@ -348,6 +199,163 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			incomplete: false,
 		};
 	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private async getSuggestions(
+		character: TTriggerCharacter,
+		fileFolderUri: URI,
+		fileReference: IPromptFileReference,
+	): Promise<TFilesystemCompletionItem[]> {
+		if (character === ':' || character === '.') {
+			return this.getFirstFolderSuggestions(character, fileFolderUri, fileReference);
+		}
+
+		if (character === '/') {
+			return this.getNonFirstFolderSuggestions(fileFolderUri, fileReference);
+		}
+
+		assertNever(
+			character,
+			`Unexpected trigger character '${character}'.`,
+		);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private async getFolderSuggestions(
+		uri: URI,
+		fileReference: IPromptFileReference,
+	): Promise<TFolderSuggestion[]> {
+		// TODO: @legomushroom - the range does not really belong to this function
+		const range = getReplacementRange(fileReference);
+
+		const { children } = await this.fileService.resolve(uri);
+		const suggestions: TFolderSuggestion[] = [];
+
+		// no `children` - no suggestions
+		if (!children) {
+			return suggestions;
+		}
+
+		for (const child of children) {
+			const kind = child.isDirectory
+				? CompletionItemKind.Folder
+				: CompletionItemKind.File;
+
+			const sortText = child.isDirectory
+				? '1'
+				: '2';
+
+			suggestions.push({
+				label: child.name,
+				range,
+				kind,
+				sortText,
+			});
+		}
+
+		return suggestions;
+	}
+
+
+	/**
+	 * Gets suggestions for a first folder/file name in the path. E.g., the one
+	 * that follows immediately after the `:` character of the `#file:` variable.
+	 *
+	 * The main difference between this and "subsequent" folder cases is that in
+	 * the beginning of the path the suggestions also contain the `..` item and
+	 * the `./` normalization prefix for relative paths.
+	 */
+	private async getFirstFolderSuggestions(
+		character: ':' | '.',
+		fileFolderUri: URI,
+		fileReference: IPromptFileReference,
+	): Promise<TFilesystemCompletionItem[]> {
+		const { linkRange } = fileReference;
+
+		// when character is `:`, there must be no link present yet
+		// otherwise the `:` was used in the middle of the link hence
+		// we don't want to provide suggestions for that
+		if (character === ':' && linkRange !== undefined) {
+			return [];
+		}
+
+		// otherwise when the `.` character is present, it is inside the link part
+		// of the reference, hence we always expect the link range to be present
+		if (character === '.' && linkRange === undefined) {
+			return [];
+		}
+
+		const suggestions = await this.getFolderSuggestions(fileFolderUri, fileReference);
+		const range = getReplacementRange(fileReference);
+
+		// when character is `.` we want to also replace it, because we add
+		// the `./` at the beginning of all the relative paths
+		const replacementRange = (character !== '.')
+			? range
+			: {
+				...range,
+				startColumn: range.endColumn - 1,
+			};
+
+		return [
+			{
+				label: '..',
+				kind: CompletionItemKind.Folder,
+				insertText: '..',
+				range: replacementRange,
+				sortText: '0',
+			},
+			...suggestions
+				.map((suggestion) => {
+					// add space at the end of file names since no completions
+					// that follow the file name are expected anymore
+					const suffix = (suggestion.kind === CompletionItemKind.File)
+						? ' '
+						: '';
+
+					return {
+						...suggestion,
+						range: replacementRange,
+						label: `./${suggestion.label}${suffix}`,
+						// we use the `./` prefix for consistency
+						insertText: `./${suggestion.label}${suffix}`,
+					};
+				}),
+		];
+	}
+
+
+	private async getNonFirstFolderSuggestions(
+		fileFolderUri: URI,
+		fileReference: IPromptFileReference,
+	): Promise<TFilesystemCompletionItem[]> {
+		const { linkRange, uri } = fileReference;
+
+		if (linkRange === undefined) {
+			return [];
+		}
+
+		const currenFolder = extUri.resolvePath(fileFolderUri, uri.path);
+		const suggestions = await this.getFolderSuggestions(currenFolder, fileReference);
+		return suggestions
+			.map((suggestion) => {
+				// add space at the end of file names since no completions
+				// that follow the file name are expected anymore
+				const suffix = (suggestion.kind === CompletionItemKind.File)
+					? ' '
+					: '';
+
+				return {
+					...suggestion,
+					insertText: `${suggestion.label}${suffix}`,
+				};
+			});
+	}
+
 
 	// TODO: @legomushroom - this should be a part of a common global singleton
 	private createParser(
@@ -367,6 +375,10 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 	}
 }
 
-// register the provider as a workbench contribution
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(PromptPathAutocompletion, LifecyclePhase.Eventually);
+// we restrict this provider to `Unix` machines for now because the filesystem
+// paths differences on `Windows`
+if (!isWindows) {
+	// register the provider as a workbench contribution
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+		.registerWorkbenchContribution(PromptPathAutocompletion, LifecyclePhase.Eventually);
+}
