@@ -5,20 +5,19 @@
 
 import assert from 'assert';
 import { promiseWithResolvers } from '../../../../../base/common/async.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
 import * as languages from '../../../../common/languages.js';
 import { TextModel } from '../../../../common/model/textModel.js';
-import { CodeActionModel, CodeActionsState } from '../../browser/codeActionModel.js';
 import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CodeActionModel, CodeActionsState } from '../../browser/codeActionModel.js';
 
 const testProvider = {
 	provideCodeActions(): languages.CodeActionList {
