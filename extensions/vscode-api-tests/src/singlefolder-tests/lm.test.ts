@@ -13,6 +13,15 @@ suite('lm', function () {
 
 	let disposables: vscode.Disposable[] = [];
 
+	const testProviderOptions: vscode.ChatResponseProviderMetadata = {
+		name: 'test-lm',
+		version: '1.0.0',
+		family: 'test',
+		vendor: 'test-lm-vendor',
+		maxInputTokens: 100,
+		maxOutputTokens: 100,
+	};
+
 	setup(function () {
 		disposables = [];
 	});
@@ -37,14 +46,7 @@ suite('lm', function () {
 			async provideTokenCount(_text, _token) {
 				return 1;
 			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-		}));
+		}, testProviderOptions));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -88,14 +90,7 @@ suite('lm', function () {
 			async provideTokenCount(_text, _token) {
 				return 1;
 			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-		}));
+		}, testProviderOptions));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -118,15 +113,8 @@ suite('lm', function () {
 			},
 			async provideTokenCount(_text, _token) {
 				return 1;
-			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-		}));
+			}
+		}, testProviderOptions));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
@@ -159,15 +147,8 @@ suite('lm', function () {
 			},
 			async provideTokenCount(_text, _token) {
 				return 1;
-			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-		}));
+			}
+		}, testProviderOptions));
 
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
