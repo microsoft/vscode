@@ -6,7 +6,7 @@
 import './media/chatEditorController.css';
 import { addStandardDisposableListener, getTotalWidth } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
@@ -127,8 +127,24 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			return undefined;
 		});
 
+		const lastRequest = derived(r => {
+			const entry = entryForEditor.read(r);
+			if (!entry) {
+				return undefined;
+			}
+			return observableFromEventOpts(
+				{ equalsFn: (a, b) => a?.id === b?.id },
+				entry.chatModel.onDidChange, () => entry.chatModel.getRequests().at(-1)
+			).read(r);
+		});
 
 		let scrollState: StableEditorScrollState | undefined = undefined;
+		let didReveal = false;
+		this._register(autorun(r => {
+			const value = lastRequest.read(r);
+			scrollState = value ? StableEditorScrollState.capture(_editor) : undefined;
+			didReveal = false;
+		}));
 
 		this._register(autorunWithStore((r, store) => {
 
@@ -137,7 +153,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			if (!currentEditorEntry) {
 				this._ctxIsGlobalEditsSession.reset();
 				this._clear();
-				scrollState = undefined;
 				return;
 			}
 
@@ -146,13 +161,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				return;
 			}
 
-			const { session, chatModel, entries, idx, entry } = currentEditorEntry;
-
-			const lastRequestSignal = observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1));
-			store.add(autorun(r => {
-				lastRequestSignal.read(r);
-				scrollState ??= StableEditorScrollState.capture(this._editor);
-			}));
+			const { session, entries, idx, entry } = currentEditorEntry;
 
 			this._ctxIsGlobalEditsSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModelEnabled.set(entry.reviewMode.read(r));
@@ -206,12 +215,13 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					this._clearDiffRendering();
 				}
 
-				if (lastRequestSignal.read(r)?.response?.isComplete) {
-					if (!diff.identical) {
-						this._reveal(true, false, ScrollType.Immediate);
-					} else {
+				if (lastRequest.read(r)?.response?.isComplete) {
+					if (diff.identical) {
 						scrollState?.restore(_editor);
 						scrollState = undefined;
+					} else if (!didReveal) {
+						this._reveal(true, false, ScrollType.Immediate);
+						didReveal = true;
 					}
 				}
 			}

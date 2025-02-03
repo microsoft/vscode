@@ -5,16 +5,35 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec, ExecOptionsWithStringEncoding, execSync } from 'child_process';
+import { ExecOptionsWithStringEncoding } from 'child_process';
 import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
 import codeInsidersCompletionSpec from './completions/code-insiders';
 import { osIsWindows } from './helpers/os';
 import { isExecutable } from './helpers/executable';
+import type { ICompletionResource } from './types';
+import { getBashGlobals } from './shell/bash';
+import { getZshGlobals } from './shell/zsh';
+import { getFishGlobals } from './shell/fish';
+import { getPwshGlobals } from './shell/pwsh';
+import { getTokenType, TokenType } from './tokens';
 
-const enum PwshCommandType {
-	Alias = 1
+// TODO: remove once API is finalized
+export const enum TerminalShellType {
+	Sh = 1,
+	Bash = 2,
+	Fish = 3,
+	Csh = 4,
+	Ksh = 5,
+	Zsh = 6,
+	CommandPrompt = 7,
+	GitBash = 8,
+	PowerShell = 9,
+	Python = 10,
+	Julia = 11,
+	NuShell = 12,
+	Node = 13
 }
 
 const isWindows = osIsWindows();
@@ -33,80 +52,29 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
-async function getBuiltinCommands(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
+const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
+	[TerminalShellType.Bash, getBashGlobals],
+	[TerminalShellType.Zsh, getZshGlobals],
+	// TODO: Ghost text in the command line prevents completions from working ATM for fish
+	[TerminalShellType.Fish, getFishGlobals],
+	[TerminalShellType.PowerShell, getPwshGlobals],
+]);
+
+async function getShellGlobals(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
 		const cachedCommands = cachedBuiltinCommands.get(shellType);
 		if (cachedCommands) {
 			return cachedCommands;
 		}
-		const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
 		const shell = getShell(shellType);
 		if (!shell) {
 			return;
 		}
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
-		let commands: string[] | undefined;
-		switch (shellType) {
-			case TerminalShellType.Bash: {
-				const bashOutput = execSync('compgen -b', options);
-				commands = bashOutput.split('\n').filter(filter);
-				break;
-			}
-			case TerminalShellType.Zsh: {
-				const zshOutput = execSync('printf "%s\\n" ${(k)builtins}', options);
-				commands = zshOutput.split('\n').filter(filter);
-				break;
-			}
-			case TerminalShellType.Fish: {
-				// TODO: Ghost text in the command line prevents completions from working ATM for fish
-				const fishOutput = execSync('functions -n', options);
-				commands = fishOutput.split(', ').filter(filter);
-				break;
-			}
-			case TerminalShellType.PowerShell: {
-				const output = await new Promise<string>((resolve, reject) => {
-					exec('Get-Command -All | Select-Object Name, CommandType, DisplayName, Definition | ConvertTo-Json', {
-						...options,
-						maxBuffer: 1024 * 1024 * 100 // This is a lot of content, increase buffer size
-					}, (error, stdout) => {
-						if (error) {
-							reject(error);
-							return;
-						}
-						resolve(stdout);
-					});
-				});
-				let json: any;
-				try {
-					json = JSON.parse(output);
-				} catch (e) {
-					console.error('Error parsing pwsh output:', e);
-					return [];
-				}
-				const commandResources = (json as any[]).map(e => {
-					switch (e.CommandType) {
-						case PwshCommandType.Alias: {
-							return {
-								label: e.Name,
-								detail: e.DisplayName,
-							};
-						}
-						default: {
-							return {
-								label: e.Name,
-								detail: e.Definition,
-							};
-						}
-					}
-				});
-				cachedBuiltinCommands.set(shellType, commandResources);
-				return commandResources;
-			}
-		}
-
-		const commandResources = commands?.map(command => ({ label: command }));
-		cachedBuiltinCommands.set(shellType, commandResources);
-		return commandResources;
+		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
+		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
+		cachedBuiltinCommands.set(shellType, normalizedCommands);
+		return normalizedCommands;
 
 	} catch (error) {
 		console.error('Error fetching builtin commands:', error);
@@ -128,15 +96,16 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const commandsInPath = await getCommandsInPath(terminal.shellIntegration?.env);
-			const builtinCommands = await getBuiltinCommands(shellType, commandsInPath?.labels) ?? [];
+			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				return;
 			}
-			const commands = [...commandsInPath.completionResources, ...builtinCommands];
+			const commands = [...commandsInPath.completionResources, ...shellGlobals];
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
-			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, terminal.shellIntegration?.cwd, token);
+			const tokenType = getTokenType(terminalContext, shellType);
+			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, token);
 			if (terminal.shellIntegration?.env) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
 				if (homeDirCompletion && terminal.shellIntegration.env.HOME) {
@@ -236,14 +205,11 @@ function createCompletionItem(cursorPosition: number, prefix: string, commandRes
 		documentation,
 		replacementIndex: cursorPosition - lastWord.length,
 		replacementLength: lastWord.length,
-		kind: kind ?? vscode.TerminalCompletionItemKind.Method
+		kind: kind ?? commandResource.kind ?? vscode.TerminalCompletionItemKind.Method
 	};
 }
 
-interface ICompletionResource {
-	label: string;
-	detail?: string;
-}
+
 async function getCommandsInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 	const labels: Set<string> = new Set<string>();
 	let pathValue: string | undefined;
@@ -324,6 +290,7 @@ export async function getCompletionItemsFromSpecs(
 	terminalContext: { commandLine: string; cursorPosition: number },
 	availableCommands: ICompletionResource[],
 	prefix: string,
+	tokenType: TokenType,
 	shellIntegrationCwd?: vscode.Uri,
 	token?: vscode.CancellationToken
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; cwd?: vscode.Uri }> {
@@ -331,7 +298,6 @@ export async function getCompletionItemsFromSpecs(
 	let filesRequested = false;
 	let foldersRequested = false;
 
-	const firstCommand = getFirstCommand(terminalContext.commandLine);
 	const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 
 	for (const spec of specs) {
@@ -347,17 +313,13 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			if (
-				// If the prompt is empty
-				!terminalContext.commandLine
-				// or the first command matches the command
-				|| !!firstCommand && specLabel.startsWith(firstCommand)
-			) {
-				// push it to the completion items
+			// push it to the completion items
+			if (tokenType === TokenType.Command) {
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, getDescription(spec), availableCommand.detail));
+				continue;
 			}
 
-			if (!terminalContext.commandLine.startsWith(specLabel)) {
+			if (!terminalContext.commandLine.startsWith(`${specLabel} `)) {
 				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
 			}
@@ -385,9 +347,7 @@ export async function getCompletionItemsFromSpecs(
 		!filesRequested &&
 		!foldersRequested;
 
-	const shouldShowCommands = !terminalContext.commandLine.substring(0, terminalContext.cursorPosition).trimStart().includes(' ');
-
-	if (shouldShowCommands && !filesRequested && !foldersRequested) {
+	if (tokenType === TokenType.Command) {
 		// Include builitin/available commands in the results
 		const labels = new Set(items.map((i) => i.label));
 		for (const command of availableCommands) {
@@ -536,19 +496,6 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 	return { items, filesRequested, foldersRequested };
 }
 
-
-
-function getFirstCommand(commandLine: string): string | undefined {
-	const wordsOnLine = commandLine.split(' ');
-	let firstCommand: string | undefined = wordsOnLine[0];
-	if (wordsOnLine.length > 1) {
-		firstCommand = undefined;
-	} else if (wordsOnLine.length === 0) {
-		firstCommand = commandLine;
-	}
-	return firstCommand;
-}
-
 function getFriendlyResourcePath(uri: vscode.Uri, pathSeparator: string, kind?: vscode.TerminalCompletionItemKind): string {
 	let path = uri.fsPath;
 	// Ensure drive is capitalized on Windows
@@ -562,24 +509,6 @@ function getFriendlyResourcePath(uri: vscode.Uri, pathSeparator: string, kind?: 
 	}
 	return path;
 }
-
-// TODO: remove once API is finalized
-export enum TerminalShellType {
-	Sh = 1,
-	Bash = 2,
-	Fish = 3,
-	Csh = 4,
-	Ksh = 5,
-	Zsh = 6,
-	CommandPrompt = 7,
-	GitBash = 8,
-	PowerShell = 9,
-	Python = 10,
-	Julia = 11,
-	NuShell = 12,
-	Node = 13
-}
-
 
 function getShell(shellType: TerminalShellType): string | undefined {
 	switch (shellType) {

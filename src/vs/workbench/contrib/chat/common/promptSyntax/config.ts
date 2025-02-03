@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from '../../../../../nls.js';
+import { PROMPT_SNIPPET_FILE_EXTENSION } from './contentProviders/promptContentsProviderBase.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
@@ -21,21 +23,21 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * (see {@link DEFAULT_LOCATION}):
  * ```json
  * {
- *   "chat.experimental.promptSnippets": true,
+ *   "chat.promptFiles": true,
  * }
  * ```
  *
  * Enable the feature, specifying a single prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.promptSnippets": '.github/prompts',
+ *   "chat.promptFiles": '.github/prompts',
  * }
  * ```
  *
  * Enable the feature, specifying multiple prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.promptSnippets": {
+ *   "chat.promptFiles": {
  *     ".github/prompts" : true,
  *     ".copilot/prompts" : false,
  *     "/Users/legomushroom/repos/prompts" : true,
@@ -46,7 +48,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * Enable the feature, specifying multiple prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.promptSnippets": [
+ *   "chat.promptFiles": [
  *     ".github/prompts",
  *     ".copilot/prompts",
  *     "/Users/legomushroom/repos/prompts",
@@ -64,7 +66,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * (see {@link DEFAULT_LOCATION}):
  * ```json
  * {
- *   "chat.experimental.promptSnippets": {},
+ *   "chat.promptFiles": {},
  * }
  * ```
  *
@@ -213,6 +215,39 @@ export namespace PromptFilesConfig {
 
 		return DEFAULT_LOCATION;
 	};
+
+	const usageExample1 = nls.localize(
+		`chat.promptFiles.config.description.example1`,
+		"Enable with the default location of the prompt files (`{0}`):\n{1}",
+		DEFAULT_LOCATION[0],
+		`\`\`\`json\n{\n  "${CONFIG_KEY}": true,\n}\n\`\`\``,
+	);
+	const usageExample2 = nls.localize(
+		`chat.promptFiles.config.description.example2`,
+		"Specify custom location(s) of the prompt files:\n{0}",
+		`\`\`\`json\n{\n  "${CONFIG_KEY}": {\n    ".github/prompts": true,\n    "/Users/vscode/prompts": true,\n}\n\`\`\``,
+	);
+
+	/**
+	 * Configuration setting description to use in the settings UI.
+	 */
+	export const CONFIG_DESCRIPTION = nls.localize(
+		'chat.promptFiles.config.description',
+		"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nSet to `true` or use the `{ \"/path/to/folder\": boolean }` notation to specify a different path (or a couple of them). Relative paths are resolved from the root folder(s) of your workspace, and the default value of `{2}` is used if no other paths provided.\n#### Examples\n{3}\n{4}",
+		PROMPT_SNIPPET_FILE_EXTENSION,
+		DOCUMENTATION_URL,
+		DEFAULT_LOCATION[0],
+		usageExample1,
+		usageExample2,
+	);
+
+	/**
+	 * Configuration setting title to use in the settings UI.
+	 */
+	export const CONFIG_TITLE = nls.localize(
+		`chat.promptFiles.config.title`,
+		"Prompt Files",
+	);
 }
 
 /**

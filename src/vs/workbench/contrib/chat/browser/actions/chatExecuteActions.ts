@@ -16,7 +16,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -218,7 +218,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
-			applyingChatEditsContextKey.toNegated(),
+			ChatContextKeys.requestInProgress.negate(),
 			ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 		);
 
@@ -238,13 +238,13 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()),
+					when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
 					order: 1
 				},
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
-					when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()),
+					when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
 					group: 'navigation',
 				},
 			]
@@ -517,10 +517,7 @@ export class CancelAction extends Action2 {
 			icon: Codicon.stopCircle,
 			menu: {
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
-					ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey)
-				),
+				when: ContextKeyExpr.and(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.requestInProgress),
 				order: 4,
 				group: 'navigation',
 			},
@@ -544,12 +541,6 @@ export class CancelAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		if (widget.viewModel) {
 			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionId);
-		}
-
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
-		if (currentEditingSession && currentEditingSession?.chatSessionId === widget.viewModel?.sessionId) {
-			chatEditingService.currentAutoApplyOperation?.cancel();
 		}
 	}
 }

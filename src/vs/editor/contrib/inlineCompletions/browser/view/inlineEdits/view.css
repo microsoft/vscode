@@ -263,10 +263,6 @@
 	}
 }
 
-.inline-edits-view-gutter-indicator .codicon {
-	margin-top: 1px; /* TODO: Move into gutter DOM initialization */
-}
-
 @keyframes wiggle {
 	0% {
 		transform: rotate(0) scale(1);
