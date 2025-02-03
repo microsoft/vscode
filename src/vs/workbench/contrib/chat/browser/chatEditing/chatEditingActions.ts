@@ -17,7 +17,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -35,18 +35,40 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditsAttachmentModel } from '../chatAttachmentModel.js';
 
-abstract class WorkingSetAction extends Action2 {
+export abstract class EditingSessionAction extends Action2 {
+
+	constructor(opts: Readonly<IAction2Options>) {
+		super({
+			category: CHAT_CATEGORY,
+			...opts
+		});
+	}
+
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.globalEditingSession;
-		if (!currentEditingSession) {
+		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+
+		if (chatWidget?.location !== ChatAgentLocation.EditingSession || !chatWidget.viewModel) {
 			return;
 		}
 
-		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
-		if (chatWidget?.location !== ChatAgentLocation.EditingSession) {
+		const chatSessionId = chatWidget.viewModel.model.sessionId;
+		const editingSession = chatEditingService.getEditingSession(chatSessionId);
+
+		if (!editingSession) {
 			return;
 		}
+
+		return this.runEditingSessionAction(accessor, editingSession, chatWidget, ...args);
+	}
+
+	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): any;
+}
+
+
+abstract class WorkingSetAction extends EditingSessionAction {
+
+	runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
 
 		const uris: URI[] = [];
 		if (URI.isUri(args[0])) {
@@ -58,10 +80,10 @@ abstract class WorkingSetAction extends Action2 {
 			return;
 		}
 
-		return this.runWorkingSetAction(accessor, currentEditingSession, chatWidget, ...uris);
+		return this.runWorkingSetAction(accessor, editingSession, chatWidget, ...uris);
 	}
 
-	abstract runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
+	abstract runWorkingSetAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
 
 registerAction2(class MarkFileAsReadonly extends WorkingSetAction {
@@ -249,7 +271,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 	}
 });
 
-export class ChatEditingAcceptAllAction extends Action2 {
+export class ChatEditingAcceptAllAction extends EditingSessionAction {
 
 	constructor() {
 		super({
@@ -280,13 +302,8 @@ export class ChatEditingAcceptAllAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.globalEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
-		await currentEditingSession.accept();
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+		await editingSession.accept();
 	}
 }
 registerAction2(ChatEditingAcceptAllAction);
@@ -356,7 +373,7 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 	return true;
 }
 
-export class ChatEditingRemoveAllFilesAction extends Action2 {
+export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 	static readonly ID = 'chatEditing.clearWorkingSet';
 
 	constructor() {
@@ -377,29 +394,20 @@ export class ChatEditingRemoveAllFilesAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.globalEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
-
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
 		// Remove all files from working set
-		const chatWidget = accessor.get(IChatWidgetService).getWidgetBySessionId(currentEditingSession.chatSessionId);
-		const uris = [...currentEditingSession.workingSet.keys()];
-		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
+		const uris = [...editingSession.workingSet.keys()];
+		editingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove all file attachments
-		const attachmentModel = chatWidget?.attachmentModel as EditsAttachmentModel | undefined;
-		const fileAttachments = attachmentModel ? [...attachmentModel.excludedFileAttachments, ...attachmentModel.fileAttachments] : [];
-
+		const fileAttachments = chatWidget.attachmentModel ? [...(chatWidget.attachmentModel as EditsAttachmentModel).excludedFileAttachments, ...(chatWidget.attachmentModel as EditsAttachmentModel).fileAttachments] : [];
 		const attachmentIdsToRemove = fileAttachments.map(attachment => (attachment.value as URI).toString());
-		chatWidget?.attachmentModel.delete(...attachmentIdsToRemove);
+		chatWidget.attachmentModel.delete(...attachmentIdsToRemove);
 	}
 }
 registerAction2(ChatEditingRemoveAllFilesAction);
 
-export class ChatEditingShowChangesAction extends Action2 {
+export class ChatEditingShowChangesAction extends EditingSessionAction {
 	static readonly ID = 'chatEditing.viewChanges';
 	static readonly LABEL = localize('chatEditing.viewChanges', 'View All Edits');
 
@@ -422,32 +430,25 @@ export class ChatEditingShowChangesAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.globalEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
-		await currentEditingSession.show();
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+		await editingSession.show();
 	}
 }
 registerAction2(ChatEditingShowChangesAction);
 
-registerAction2(class AddFilesToWorkingSetAction extends Action2 {
+registerAction2(class AddFilesToWorkingSetAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.addSelectedFilesToWorkingSet',
 			title: localize2('workbench.action.chat.addSelectedFilesToWorkingSet.label', "Add Selected Files to Working Set"),
 			icon: Codicon.attach,
-			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 			f1: true
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
 		const listService = accessor.get(IListService);
-		const chatEditingService = accessor.get(IChatEditingService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const uris: URI[] = [];
@@ -472,7 +473,7 @@ registerAction2(class AddFilesToWorkingSetAction extends Action2 {
 		}
 
 		for (const file of uris) {
-			chatEditingService?.globalEditingSessionObs.get()?.addFileToWorkingSet(file);
+			editingSession.addFileToWorkingSet(file);
 		}
 	}
 });
@@ -640,7 +641,7 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 	}
 });
 
-registerAction2(class ResolveSymbolsContextAction extends Action2 {
+registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: 'workbench.action.edits.addFilesFromReferences',
@@ -656,15 +657,13 @@ registerAction2(class ResolveSymbolsContextAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const widgetService = accessor.get(IChatWidgetService);
-		const textModelService = accessor.get(ITextModelService);
-		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-		const [widget] = widgetService.getWidgetsByLocations(ChatAgentLocation.EditingSession);
-		if (!widget || args.length === 0 || !isLocation(args[0])) {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+		if (args.length === 0 || !isLocation(args[0])) {
 			return;
 		}
 
+		const textModelService = accessor.get(ITextModelService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const symbol = args[0] as Location;
 
 		const modelReference = await textModelService.createModelReference(symbol.uri);
@@ -685,10 +684,10 @@ registerAction2(class ResolveSymbolsContextAction extends Action2 {
 		// how important it is that they make it into the working set as it has limited size
 		const attachments = [];
 		for (const reference of [...definitions, ...implementations, ...references]) {
-			attachments.push(widget.attachmentModel.asVariableEntry(reference.uri));
+			attachments.push(chatWidget.attachmentModel.asVariableEntry(reference.uri));
 		}
 
-		widget.attachmentModel.addContext(...attachments);
+		chatWidget.attachmentModel.addContext(...attachments);
 	}
 
 	private async getReferences(position: Position, textModel: ITextModel, languageFeaturesService: ILanguageFeaturesService): Promise<Location[]> {
