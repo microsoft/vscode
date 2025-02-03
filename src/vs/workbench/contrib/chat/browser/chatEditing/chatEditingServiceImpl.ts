@@ -64,11 +64,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return result;
 	});
 
-	get currentEditingSession(): IChatEditingSession | null {
+	get globalEditingSession(): IChatEditingSession | null {
 		return this._currentSessionObs.get();
 	}
 
-	get currentEditingSessionObs(): IObservable<IChatEditingSession | null> {
+	get globalEditingSessionObs(): IObservable<IChatEditingSession | null> {
 		return this._currentSessionObs;
 	}
 
@@ -143,7 +143,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const sessionIdToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
 		if (isString(sessionIdToRestore)) {
 			if (this._chatService.getOrRestoreSession(sessionIdToRestore)) {
-				this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
+				this._restoringEditingSession = this.startOrContinueGlobalEditingSession(sessionIdToRestore);
 				this._restoringEditingSession.finally(() => {
 					this._restoringEditingSession = undefined;
 				});
@@ -154,19 +154,12 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}
 	}
 
-	async getOrRestoreEditingSession(): Promise<IChatEditingSession | null> {
-		if (this._restoringEditingSession) {
-			await this._restoringEditingSession;
-		}
-		return this.currentEditingSessionObs.get();
-	}
-
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
 		super.dispose();
 	}
 
-	async startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
+	async startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
 		await this._restoringEditingSession;
 
 		const session = this._currentSessionObs.get();
@@ -213,6 +206,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		this._currentSessionObs.set(session, undefined);
 		return session;
+	}
+
+	getEditingSession(chatSessionId: string): IChatEditingSession | undefined {
+		return this.editingSessionsObs.get()
+			.find(candidate => candidate.chatSessionId === chatSessionId);
 	}
 
 	async createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {

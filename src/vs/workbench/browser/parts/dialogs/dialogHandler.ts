@@ -17,9 +17,10 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer, openLinkFromMarkdown } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 export class BrowserDialogHandler extends AbstractDialogHandler {
 
@@ -40,7 +41,8 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 	}
@@ -111,7 +113,12 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		const renderBody = customOptions ? (parent: HTMLElement) => {
 			parent.classList.add(...(customOptions.classes || []));
 			customOptions.markdownDetails?.forEach(markdownDetail => {
-				const result = this.markdownRenderer.render(markdownDetail.markdown);
+				const result = this.markdownRenderer.render(markdownDetail.markdown, {
+					actionHandler: {
+						callback: link => openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */),
+						disposables: dialogDisposables
+					}
+				});
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));
 				dialogDisposables.add(result);
