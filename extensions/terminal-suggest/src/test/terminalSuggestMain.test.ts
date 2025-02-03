@@ -86,6 +86,9 @@ const testSpecs2: ISuiteSpec[] = [
 		completionSpecs: [],
 		availableCommands: [],
 		testSpecs: [
+			{ input: '|', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: '|.', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: '|./', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 			{ input: 'fakecommand |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 		]
 	},
@@ -94,6 +97,10 @@ const testSpecs2: ISuiteSpec[] = [
 		completionSpecs: cdSpec,
 		availableCommands: 'cd',
 		testSpecs: [
+			// Typing a path
+			{ input: '.|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: './|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: './.|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 			// Typing the command
 			{ input: 'c|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 			{ input: 'cd|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
