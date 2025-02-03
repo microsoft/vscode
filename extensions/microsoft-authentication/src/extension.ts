@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, env, ExtensionContext, l10n, window, workspace } from 'vscode';
+import { commands, env, ExtensionContext, l10n, UIKind, Uri, window, workspace } from 'vscode';
 import * as extensionV1 from './extensionV1';
 import * as extensionV2 from './extensionV2';
 import { createExperimentationService } from './common/experimentation';
@@ -34,9 +34,22 @@ function shouldUseMsal(expService: IExperimentationService): boolean {
 		return expValue;
 	}
 
-	Logger.info('Acquired MSAL enablement value from default. Value: false');
+	Logger.info('Acquired MSAL enablement value from default. Value: true');
 	// If no setting or experiment value is found, default to true
 	return true;
+}
+
+function isSupportedWebClient(uri: Uri): boolean {
+	return (
+		// vscode.dev & insiders.vscode.dev
+		/(?:^|\.)vscode\.dev$/.test(uri.authority) ||
+		// github.dev & codespaces
+		/(?:^|\.)github\.dev$/.test(uri.authority) ||
+		// localhost
+		/^localhost:\d+$/.test(uri.authority) ||
+		// 127.0.0.1
+		/^127\.0\.0\.1:\d+$/.test(uri.authority)
+	);
 }
 
 let useMsal: boolean | undefined;
@@ -47,6 +60,16 @@ export async function activate(context: ExtensionContext) {
 		mainTelemetryReporter,
 		env.uriScheme !== 'vscode', // isPreRelease
 	);
+
+	if (env.uiKind === UIKind.Web) {
+		const callbackUri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://vscode.microsoft-authentication`));
+		if (!isSupportedWebClient(callbackUri)) {
+			Logger.info('Unsupported web client. Falling back to classic auth.');
+			await extensionV1.activate(context, mainTelemetryReporter.telemetryReporter);
+			return;
+		}
+	}
+
 	useMsal = shouldUseMsal(expService);
 	const clientIdVersion = workspace.getConfiguration('microsoft-authentication').get<'v1' | 'v2'>('clientIdVersion', 'v1');
 
