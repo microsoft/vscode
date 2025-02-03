@@ -1956,6 +1956,7 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 class TrustedPublishersInitializer implements IWorkbenchContribution {
 	constructor(
 		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IProductService productService: IProductService,
 		@IStorageService storageService: IStorageService,
@@ -1979,6 +1980,7 @@ class TrustedPublishersInitializer implements IWorkbenchContribution {
 						}
 						if (trustedPublishers.size) {
 							extensionManagementService.trustPublishers(...trustedPublishers.values());
+							extensionsWorkbenchService.showAutoTrustedPublishersNotification();
 						}
 						storageService.store(trustedPublishersInitStatusKey, 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
 					});

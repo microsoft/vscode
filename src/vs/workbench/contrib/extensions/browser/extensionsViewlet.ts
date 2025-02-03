@@ -720,20 +720,22 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			const messageContainer = append(this.notificationContainer, $('.message-container'));
 			append(messageContainer, $('span')).className = SeverityIcon.className(status.severity);
 			append(messageContainer, $('span.message', undefined, status.message));
-			const showAction = append(messageContainer,
-				$('span.message-text-action', {
-					'tabindex': '0',
-					'role': 'button',
-					'aria-label': `${status.message}. ${localize('click show', "Click to Show")}`
-				}, localize('show', "Show")));
-			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '')));
-			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				const standardKeyboardEvent = new StandardKeyboardEvent(e);
-				if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
-					this.search(query ?? '');
-				}
-				standardKeyboardEvent.stopPropagation();
-			}));
+			if (query) {
+				const showAction = append(messageContainer,
+					$('span.message-text-action', {
+						'tabindex': '0',
+						'role': 'button',
+						'aria-label': `${status.message}. ${localize('click show', "Click to Show")}`
+					}, localize('show', "Show")));
+				this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '')));
+				this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					const standardKeyboardEvent = new StandardKeyboardEvent(e);
+					if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
+						this.search(query ?? '');
+					}
+					standardKeyboardEvent.stopPropagation();
+				}));
+			}
 			const dismissAction = append(this.notificationContainer,
 				$(`span.message-action${ThemeIcon.asCSSSelector(Codicon.close)}`, {
 					'tabindex': '0',

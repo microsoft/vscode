@@ -162,6 +162,7 @@ export interface IExtensionsWorkbenchService {
 
 	readonly onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
 	getExtensionsNotification(): IExtensionsNotification | undefined;
+	showAutoTrustedPublishersNotification(): void;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
