@@ -423,5 +423,49 @@ suite('TerminalCompletionService', () => {
 				{ label: '../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 0 });
 		});
+
+		test('cd | should support pulling from multiple paths in $CDPATH', async () => {
+			configurationService.setUserConfiguration('terminal.integrated.suggest.cdPath', 'relative');
+			const pathPrefix = isWindows ? 'c:\\' : '/';
+			const delimeter = isWindows ? ';' : ':';
+			const separator = isWindows ? '\\' : '/';
+			shellEnvDetection.setEnvironment({ CDPATH: `${pathPrefix}cdpath1_value${delimeter}${pathPrefix}cdpath2_value${separator}inner_dir` }, true);
+
+			const uriPathPrefix = isWindows ? 'file:///c:/' : 'file:///';
+			validResources = [
+				URI.parse(`${uriPathPrefix}test`),
+				URI.parse(`${uriPathPrefix}cdpath1_value`),
+				URI.parse(`${uriPathPrefix}cdpath2_value`),
+				URI.parse(`${uriPathPrefix}cdpath2_value/inner_dir`)
+			];
+			childResources = [
+				{ resource: URI.parse(`${uriPathPrefix}cdpath1_value/folder1/`), isDirectory: true },
+				{ resource: URI.parse(`${uriPathPrefix}cdpath1_value/folder2/`), isDirectory: true },
+				{ resource: URI.parse(`${uriPathPrefix}cdpath1_value/file1.txt`), isFile: true },
+				{ resource: URI.parse(`${uriPathPrefix}cdpath2_value/inner_dir/folder1/`), isDirectory: true },
+				{ resource: URI.parse(`${uriPathPrefix}cdpath2_value/inner_dir/folder2/`), isDirectory: true },
+				{ resource: URI.parse(`${uriPathPrefix}cdpath2_value/inner_dir/file1.txt`), isFile: true },
+			];
+
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse(`${uriPathPrefix}test`),
+				foldersRequested: true,
+				filesRequested: true,
+				pathSeparator,
+				// TODO: This is a hack to make the test pass, clean up when https://github.com/microsoft/vscode/issues/239411 is done
+				shouldNormalizePrefix: !isWindows
+			};
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
+
+			const finalPrefix = isWindows ? 'C:\\' : '/';
+			assertCompletions(result, [
+				{ label: '.', detail: `${finalPrefix}test/` },
+				{ label: 'folder1', detail: `CDPATH ${finalPrefix}cdpath1_value/folder1/` },
+				{ label: 'folder2', detail: `CDPATH ${finalPrefix}cdpath1_value/folder2/` },
+				{ label: 'folder1', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder1/` },
+				{ label: 'folder2', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder2/` },
+				{ label: '../', detail: finalPrefix },
+			], { replacementIndex: 3, replacementLength: 0 });
+		});
 	});
 });
