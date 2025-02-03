@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptSyntaxService } from './types.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ObjectCache } from '../../../../../base/common/objectCache.js';
-import { TextModelPromptParser } from './parsers/textModelPromptParser.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ObjectCache } from '../../../../../../base/common/objectCache.js';
+import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Provides prompt syntax services.

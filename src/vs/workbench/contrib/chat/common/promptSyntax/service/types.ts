@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { TextModelPromptParser } from './parsers/textModelPromptParser.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Provides prompt syntax services.

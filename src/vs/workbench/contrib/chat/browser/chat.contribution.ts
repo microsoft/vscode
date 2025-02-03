@@ -88,8 +88,8 @@ import { IWorkbenchAssignmentService } from '../../../services/assignment/common
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IPromptSyntaxService } from '../common/promptSyntax/types.js';
-import { PromptSyntaxService } from '../common/promptSyntax/service.js';
+import { IPromptSyntaxService } from '../common/promptSyntax/service/types.js';
+import { PromptSyntaxService } from '../common/promptSyntax/service/promptSyntaxService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
