@@ -5,6 +5,7 @@
 
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { basename } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
@@ -74,6 +75,11 @@ export class SimpleCompletionItem {
 	readonly labelLowNormalizedPath: string;
 
 	/**
+	 * A penalty that applies to files or folders starting with the underscore character.
+	 */
+	readonly underscorePenalty: 0 | 1 = 0;
+
+	/**
 	 * The file extension part from {@link labelLow}.
 	 */
 	readonly fileExtLow: string = '';
@@ -109,6 +115,7 @@ export class SimpleCompletionItem {
 			if (completion.isDirectory) {
 				this.labelLowNormalizedPath = this.labelLowNormalizedPath.replace(/\/$/, '');
 			}
+			this.underscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
 		}
 	}
 }
