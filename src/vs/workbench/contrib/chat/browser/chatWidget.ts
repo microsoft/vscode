@@ -344,7 +344,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const sessionId = this._viewModel?.sessionId;
 				if (sessionId) {
 					if (sessionId !== currentEditSession?.chatSessionId) {
-						currentEditSession = await chatEditingService.startOrContinueEditingSession(sessionId);
+						currentEditSession = await chatEditingService.startOrContinueGlobalEditingSession(sessionId);
 					}
 				} else {
 					if (currentEditSession) {
@@ -630,7 +630,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const welcomePart = this._register(this.instantiationService.createInstance(
 				ChatViewWelcomePart,
 				{ ...welcomeContent, tips, },
-				{ location: this.location }
+				{
+					location: this.location,
+					isWidgetWelcomeViewContent: true
+				}
 			));
 			dom.append(this.welcomeMessageContainer, welcomePart.element);
 		}

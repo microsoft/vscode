@@ -1951,7 +1951,6 @@ export namespace TextEditorSelectionChangeKind {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api':
 			case TextEditorSelectionSource.PROGRAMMATIC:
 			case TextEditorSelectionSource.JUMP:
 			case TextEditorSelectionSource.NAVIGATION:
@@ -2143,7 +2142,8 @@ export enum TerminalCompletionItemKind {
 	Folder = 1,
 	Flag = 2,
 	Method = 3,
-	Argument = 4
+	Argument = 4,
+	Alias = 5
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {

@@ -42,7 +42,7 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 	) {
 		super();
 
-		this.languageService.linkProvider.register(languageSelector, this);
+		this._register(this.languageService.linkProvider.register(languageSelector, this));
 		this.parserProvider = this._register(new ObjectCache(this.createParser.bind(this)));
 	}
 
