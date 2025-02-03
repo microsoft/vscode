@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
@@ -279,6 +280,14 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		)(this._updatePerEditorChange, this));
 
 		this._registerNotebookActionsToolbar();
+
+		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.CONTEXT_MENU, e => {
+			const event = new StandardMouseEvent(DOM.getWindow(this.domNode), e);
+			this.contextMenuService.showContextMenu({
+				menuId: MenuId.NotebookToolbarContext,
+				getAnchor: () => event,
+			});
+		}));
 	}
 
 	private _buildBody() {

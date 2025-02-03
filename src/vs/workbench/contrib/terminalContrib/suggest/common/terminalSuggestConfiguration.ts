@@ -17,6 +17,7 @@ export const enum TerminalSuggestSettingId {
 	WindowsExecutableExtensions = 'terminal.integrated.suggest.windowsExecutableExtensions',
 	Providers = 'terminal.integrated.suggest.providers',
 	ShowStatusBar = 'terminal.integrated.suggest.showStatusBar',
+	CdPath = 'terminal.integrated.suggest.cdPath',
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
@@ -132,6 +133,18 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.showStatusBar', "Controls whether the terminal suggestions status bar should be shown."),
 		type: 'boolean',
 		default: true,
+		tags: ['experimental'],
+	},
+	[TerminalSuggestSettingId.CdPath]: {
+		restricted: true,
+		markdownDescription: localize('suggest.cdPath', "Controls whether to enable $CDPATH support which exposes children of the folders in the $CDPATH variable regardless of the current working directory. $CDPATH is expected to be semi colon-separated on Windows and colon-separated on other platforms."),
+		enum: ['off', 'relative', 'absolute'],
+		markdownEnumDescriptions: [
+			localize('suggest.cdPath.off', "Disable the feature."),
+			localize('suggest.cdPath.relative', "Enable the feature and use relative paths."),
+			localize('suggest.cdPath.absolute', "Enable the feature and use absolute paths. This is useful when the shell doesn't natively support `$CDPATH`."),
+		],
+		default: 'absolute',
 		tags: ['experimental'],
 	},
 };

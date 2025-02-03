@@ -138,7 +138,7 @@ export class ToggleAgentModeAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
+		const currentEditingSession = chatEditingService.globalEditingSession;
 		if (!currentEditingSession) {
 			return;
 		}
@@ -427,7 +427,7 @@ class SendToChatEditingAction extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const chatEditingService = accessor.get(IChatEditingService);
 
-		const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
+		const currentEditingSession = chatEditingService.globalEditingSessionObs.get();
 		const currentEditCount = currentEditingSession?.entries.get().length;
 		if (currentEditCount) {
 			const result = await dialogService.confirm({
@@ -449,7 +449,7 @@ class SendToChatEditingAction extends Action2 {
 		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
 		for (const attachment of widget.attachmentModel.attachments) {
 			if (attachment.isFile && URI.isUri(attachment.value)) {
-				chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(attachment.value);
+				chatEditingService.globalEditingSessionObs.get()?.addFileToWorkingSet(attachment.value);
 			} else {
 				editingWidget.attachmentModel.addContext(attachment);
 			}
