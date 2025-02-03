@@ -244,10 +244,12 @@ const baseHeaders = {
     'User-Agent': userAgent,
     'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
-function fromMarketplace(serviceUrl, { name: extensionName, version, sha256, metadata }) {
+function fromMarketplace(serviceUrl, { name: extensionName, version, sha256, metadata, platforms }) {
     const json = require('gulp-json-editor');
     const [publisher, name] = extensionName.split('.');
-    const url = `${serviceUrl}/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
+    const url = platforms && !platforms.includes(process.platform)
+        ? `${serviceUrl}/publishers/${publisher}/vsextensions/${name}/${version}/vspackage?targetPlatform=${process.platform}`
+        : `${serviceUrl}/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
     (0, fancy_log_1.default)('Downloading extension:', ansi_colors_1.default.yellow(`${extensionName}@${version}`), '...');
     const packageJsonFilter = (0, gulp_filter_1.default)('package.json', { restore: true });
     return (0, fetch_1.fetchUrls)('', {
