@@ -241,6 +241,7 @@ export async function getCompletionItemsFromSpecs(
 
 	const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 
+	let specificItemsProvided = false;
 	for (const spec of specs) {
 		const specLabels = getLabel(spec);
 
@@ -273,6 +274,7 @@ export async function getCompletionItemsFromSpecs(
 				items.push(...argsCompletionResult.items);
 				filesRequested ||= argsCompletionResult.filesRequested;
 				foldersRequested ||= argsCompletionResult.foldersRequested;
+				specificItemsProvided ||= argsCompletionResult.items.length > 0;
 			}
 			if (!argsCompletionResult?.items.length) {
 				// Arg completions are more specific, only get options if those are not provided.
@@ -281,15 +283,13 @@ export async function getCompletionItemsFromSpecs(
 					items.push(...optionsCompletionResult.items);
 					filesRequested ||= optionsCompletionResult.filesRequested;
 					foldersRequested ||= optionsCompletionResult.foldersRequested;
+					specificItemsProvided ||= optionsCompletionResult.items.length > 0;
 				}
 			}
 		}
 	}
 
-	const shouldShowResourceCompletions =
-		(!terminalContext.commandLine.trim() || !items.length) &&
-		!filesRequested &&
-		!foldersRequested;
+
 
 	if (tokenType === TokenType.Command) {
 		// Include builitin/available commands in the results
@@ -299,11 +299,17 @@ export async function getCompletionItemsFromSpecs(
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
 			}
 		}
-	}
-
-	if (shouldShowResourceCompletions) {
 		filesRequested = true;
 		foldersRequested = true;
+	} else {
+		const shouldShowResourceCompletions =
+			!specificItemsProvided &&
+			!filesRequested &&
+			!foldersRequested;
+		if (shouldShowResourceCompletions) {
+			filesRequested = true;
+			foldersRequested = true;
+		}
 	}
 
 	let cwd: vscode.Uri | undefined;
