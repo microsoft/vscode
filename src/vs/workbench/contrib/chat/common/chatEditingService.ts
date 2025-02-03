@@ -31,12 +31,8 @@ export interface IChatEditingService {
 	readonly editingSessionFileLimit: number;
 
 	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
-	getOrRestoreEditingSession(): Promise<IChatEditingSession | null>;
 
-
-	hasRelatedFilesProviders(): boolean;
-	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
-	getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
+	getEditingSession(chatSessionId: string): IChatEditingSession | undefined;
 
 	/**
 	 * All editing sessions, sorted by recency, e.g the last created session comes first.
@@ -47,6 +43,14 @@ export interface IChatEditingService {
 	 * Creates a new short lived editing session
 	 */
 	createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable>;
+
+	//#region related files
+
+	hasRelatedFilesProviders(): boolean;
+	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
+	getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
+
+	//#endregion
 }
 
 export interface IChatRequestDraft {

@@ -108,7 +108,8 @@ export class EditTool implements IToolImpl {
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
 
-		if (this.chatEditingService.currentEditingSession?.chatSessionId !== model.sessionId) {
+		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
+		if (!editSession) {
 			throw new Error('This tool must be called from within an editing session');
 		}
 
@@ -135,8 +136,8 @@ export class EditTool implements IToolImpl {
 			let wasFileBeingModified = false;
 
 			dispose = autorun((r) => {
-				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.read(r);
-				const entries = currentEditingSession?.entries.read(r);
+
+				const entries = editSession.entries.read(r);
 				const currentFile = entries?.find((e) => e.modifiedURI.toString() === uri.toString());
 				if (currentFile) {
 					if (currentFile.isCurrentlyBeingModified.read(r)) {

@@ -305,7 +305,7 @@ export function registerNewChatActions() {
 			if (!currentEditingSession) {
 				return;
 			}
-			await chatEditingService.currentEditingSession?.redoInteraction();
+			await currentEditingSession.redoInteraction();
 		}
 	});
 

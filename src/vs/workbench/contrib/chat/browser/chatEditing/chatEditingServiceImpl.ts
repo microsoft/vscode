@@ -154,13 +154,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}
 	}
 
-	async getOrRestoreEditingSession(): Promise<IChatEditingSession | null> {
-		if (this._restoringEditingSession) {
-			await this._restoringEditingSession;
-		}
-		return this.currentEditingSessionObs.get();
-	}
-
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
 		super.dispose();
@@ -213,6 +206,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		this._currentSessionObs.set(session, undefined);
 		return session;
+	}
+
+	getEditingSession(chatSessionId: string): IChatEditingSession | undefined {
+		return this.editingSessionsObs.get()
+			.find(candidate => candidate.chatSessionId === chatSessionId);
 	}
 
 	async createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
