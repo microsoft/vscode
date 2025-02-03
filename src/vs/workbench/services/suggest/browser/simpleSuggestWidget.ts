@@ -178,7 +178,7 @@ export class SimpleSuggestWidget extends Disposable {
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !_configurationService.getValue('editor.suggest.showIcons'));
 		applyIconStyle();
 
-		const renderer = new SimpleSuggestWidgetItemRenderer(this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this), this._configurationService);
+		const renderer = new SimpleSuggestWidgetItemRenderer(this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this));
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = this._register(new List('SuggestWidget', this._listElement, {
