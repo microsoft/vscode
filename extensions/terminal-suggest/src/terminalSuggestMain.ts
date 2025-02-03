@@ -96,7 +96,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const commandsInPath = await pathExecutableCache.getCommandsInPath(terminal.shellIntegration?.env);
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env);
 			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				return;
@@ -249,18 +249,21 @@ export async function getCompletionItemsFromSpecs(
 		}
 
 		for (const specLabel of specLabels) {
-			const availableCommand = availableCommands.find(command => command.label === specLabel);
+			const availableCommand = availableCommands.find(command => specLabel === command.label);
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
 
 			// push it to the completion items
 			if (tokenType === TokenType.Command) {
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, getDescription(spec), availableCommand.detail));
+				if (availableCommand.kind !== vscode.TerminalCompletionItemKind.Alias) {
+					items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, getDescription(spec), availableCommand.detail));
+				}
 				continue;
 			}
 
-			if (!terminalContext.commandLine.startsWith(`${specLabel} `)) {
+			const commandAndAliases = availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label));
+			if (!commandAndAliases.some(e => terminalContext.commandLine.startsWith(`${e.label} `))) {
 				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
 			}
