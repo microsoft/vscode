@@ -232,7 +232,7 @@ export function registerChatTitleActions() {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
 				const chatEditingService = accessor.get(IChatEditingService);
-				const currentEditingSession = chatEditingService.globalEditingSession;
+				const currentEditingSession = chatEditingService.getEditingSession(chatModel.sessionId);
 				if (!currentEditingSession) {
 					return;
 				}
