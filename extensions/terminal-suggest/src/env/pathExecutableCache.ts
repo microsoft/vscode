@@ -85,7 +85,7 @@ export class PathExecutableCache implements vscode.Disposable {
 
 	private async _getFilesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
 		try {
-			const dirExists = await vscode.workspace.fs.stat(vscode.Uri.file(path)).then(stat => stat.type === vscode.FileType.Directory, () => false);
+			const dirExists = path && await vscode.workspace.fs.stat(vscode.Uri.file(path)).then(stat => stat.type === vscode.FileType.Directory, () => false);
 			if (!dirExists) {
 				return undefined;
 			}
