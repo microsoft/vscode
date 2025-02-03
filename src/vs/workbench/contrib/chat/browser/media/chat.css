@@ -989,7 +989,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-left-color: currentColor;
 }
 .chat-attached-context .chat-prompt-instructions-attachment:focus .monaco-button {
-	outline: none;
 	border-color: var(--vscode-focusBorder);
 }
 .chat-attached-context .chat-prompt-instructions-attachment .monaco-icon-label-container {
