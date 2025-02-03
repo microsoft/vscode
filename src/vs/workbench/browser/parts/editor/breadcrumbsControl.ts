@@ -303,14 +303,9 @@ export class BreadcrumbsControl {
 
 		this._disposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
 			const event = new StandardMouseEvent(dom.getWindow(this.domNode), e);
-			event.preventDefault();
-			event.stopPropagation();
-
 			this.contextMenuService.showContextMenu({
 				menuId: MenuId.EditorBreadcrumbsContext,
 				getAnchor: () => event,
-				contextKeyService: this._contextKeyService,
-				actionRunner: undefined
 			});
 		}));
 	}
