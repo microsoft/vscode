@@ -200,6 +200,8 @@ extends:
         image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
+    featureFlags:
+      EnableDefenderForLinux: true
     stages:
       - stage: Compile
         jobs:
