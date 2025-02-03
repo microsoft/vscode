@@ -26,7 +26,7 @@ import { InlineEditsSideBySideDiff } from './sideBySideDiff.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils.js';
 import './view.css';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
-import { LineReplacementView, WordReplacementView } from './wordReplacementView.js';
+import { LineReplacementView, WordReplacementView } from './replacementViews.js';
 
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -34,6 +34,7 @@ export class InlineEditsView extends Disposable {
 	private readonly _useMixedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useMixedLinesDiff);
 	private readonly _useInterleavedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useInterleavedLinesDiff);
 	private readonly _useCodeShifting = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.codeShifting);
+	private readonly _renderSideBySide = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
 	private readonly _useMultiLineGhostText = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
 
 	private _previousView: {
@@ -167,9 +168,15 @@ export class InlineEditsView extends Disposable {
 		return store.add(this._instantiationService.createInstance(WordReplacementView, this._editorObs, e, [e]));
 	}).recomputeInitiallyAndOnChange(this._store);
 
-	protected readonly _lineReplacementView = mapObservableArrayCached(this, this._uiState.map(s => s?.state?.kind === 'lineReplacement' ? [s.state] : []), (e, store) => { // TODO: no need for map here, how can this be done with observables
-		return store.add(this._instantiationService.createInstance(LineReplacementView, this._editorObs, e.originalRange, e.modifiedRange, e.modifiedLines, e.replacements));
-	}).recomputeInitiallyAndOnChange(this._store);
+	protected readonly _lineReplacementView = this._register(this._instantiationService.createInstance(LineReplacementView,
+		this._editorObs,
+		this._uiState.map(s => s?.state?.kind === 'lineReplacement' ? ({
+			originalRange: s.state.originalRange,
+			modifiedRange: s.state.modifiedRange,
+			modifiedLines: s.state.modifiedLines,
+			replacements: s.state.replacements,
+		}) : undefined),
+	));
 
 	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useGutterIndicator);
 
@@ -178,7 +185,7 @@ export class InlineEditsView extends Disposable {
 			|| this._wordReplacementViews.read(reader).some(v => v.isHovered.read(reader))
 			|| this._deletion.isHovered.read(reader)
 			|| this._inlineDiffView.isHovered.read(reader)
-			|| this._lineReplacementView.read(reader).some(v => v.isHovered.read(reader));
+			|| this._lineReplacementView.isHovered.read(reader);
 	});
 
 	private readonly _gutterIndicatorOffset = derived<number>(this, reader => {
@@ -231,7 +238,7 @@ export class InlineEditsView extends Disposable {
 				(this._useMixedLinesDiff.read(reader) === 'afterJumpWhenPossible' && this._previousView?.view !== 'mixedLines') ||
 				(this._useInterleavedLinesDiff.read(reader) === 'afterJump' && this._previousView?.view !== 'interleavedLines')
 			);
-		const reconsiderViewEditorWidthChange = this._previousView?.editorWidth !== this._editor.getLayoutInfo().width &&
+		const reconsiderViewEditorWidthChange = this._previousView?.editorWidth !== this._editorObs.layoutInfoWidth.read(reader) &&
 			(
 				this._previousView?.view === 'sideBySide' ||
 				this._previousView?.view === 'lineReplacement'
@@ -282,7 +289,11 @@ export class InlineEditsView extends Disposable {
 			}
 		}
 
-		if (numOriginalLines > 0 && numModifiedLines > 0 && !InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
+		if (numOriginalLines > 0 && numModifiedLines > 0) {
+			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
+				return 'sideBySide';
+			}
+
 			return 'lineReplacement';
 		}
 

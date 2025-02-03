@@ -282,9 +282,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 						}
 					}),
 					transition: 'rotate 0.2s ease-in-out',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
 				}
 			}, [
-				renderIcon(Codicon.arrowRight) // TODO: allow setting css here, is this already supported?
+				this._tabAction.map(v => v === 'accept' ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
 			])
 		]),
 	])).keepUpdated(this._store);

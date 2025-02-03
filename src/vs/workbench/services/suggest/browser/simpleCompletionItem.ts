@@ -5,6 +5,7 @@
 
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { basename } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
@@ -57,9 +58,30 @@ export interface ISimpleCompletion {
 }
 
 export class SimpleCompletionItem {
-	// perf
+	/**
+	 * The lowercase label, normalized to `\` path separators on Windows.
+	 */
 	readonly labelLow: string;
+
+	/**
+	 * {@link labelLow} without the file extension.
+	 */
 	readonly labelLowExcludeFileExt: string;
+
+	/**
+	 * The lowercase label, when the completion is a file or directory this has  normalized path
+	 * separators (/) on Windows and no trailing separator for directories.
+	 */
+	readonly labelLowNormalizedPath: string;
+
+	/**
+	 * A penalty that applies to files or folders starting with the underscore character.
+	 */
+	readonly underscorePenalty: 0 | 1 = 0;
+
+	/**
+	 * The file extension part from {@link labelLow}.
+	 */
 	readonly fileExtLow: string = '';
 
 	// sorting, filtering
@@ -73,6 +95,8 @@ export class SimpleCompletionItem {
 		// ensure lower-variants (perf)
 		this.labelLow = this.completion.label.toLowerCase();
 		this.labelLowExcludeFileExt = this.labelLow;
+		this.labelLowNormalizedPath = this.labelLow;
+
 		if (completion.isFile) {
 			if (isWindows) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
@@ -82,6 +106,16 @@ export class SimpleCompletionItem {
 				this.labelLowExcludeFileExt = this.labelLow.substring(0, extIndex);
 				this.fileExtLow = this.labelLow.substring(extIndex + 1);
 			}
+		}
+
+		if (completion.isFile || completion.isDirectory) {
+			if (isWindows) {
+				this.labelLowNormalizedPath = this.labelLow.replaceAll('\\', '/');
+			}
+			if (completion.isDirectory) {
+				this.labelLowNormalizedPath = this.labelLowNormalizedPath.replace(/\/$/, '');
+			}
+			this.underscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
 		}
 	}
 }

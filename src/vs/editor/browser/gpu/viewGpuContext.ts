@@ -33,7 +33,6 @@ export class ViewGpuContext extends Disposable {
 	readonly maxGpuCols = ViewportRenderStrategy.maxSupportedColumns;
 
 	readonly canvas: FastDomNode<HTMLCanvasElement>;
-	readonly scrollWidthElement: FastDomNode<HTMLElement>;
 	readonly ctx: GPUCanvasContext;
 
 	static device: Promise<GPUDevice>;
@@ -88,7 +87,6 @@ export class ViewGpuContext extends Disposable {
 
 		this.canvas = createFastDomNode(document.createElement('canvas'));
 		this.canvas.setClassName('editorCanvas');
-		this.scrollWidthElement = createFastDomNode(document.createElement('div'));
 
 		// Adjust the canvas size to avoid drawing under the scroll bar
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {

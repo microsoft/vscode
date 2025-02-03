@@ -1873,7 +1873,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.manageTrustedPublishers',
-			title: localize2('workbench.extensions.action.manageTrustedPublishers', "Manage Trusted Extensions Publishers"),
+			title: localize2('workbench.extensions.action.manageTrustedPublishers', "Manage Trusted Extension Publishers"),
 			category: EXTENSIONS_CATEGORY,
 			f1: true,
 			run: async (accessor: ServicesAccessor) => {
@@ -1888,7 +1888,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				})).sort((a, b) => a.label.localeCompare(b.label));
 				const result = await quickInputService.pick(trustedPublisherItems, {
 					canPickMany: true,
-					title: localize('trustedPublishers', "Manage Trusted Extensions Publishers"),
+					title: localize('trustedPublishers', "Manage Trusted Extension Publishers"),
 					placeHolder: localize('trustedPublishersPlaceholder', "Choose which publishers to trust"),
 				});
 				if (result) {

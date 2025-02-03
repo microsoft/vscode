@@ -137,7 +137,7 @@ export function registerNewChatActions() {
 		 * @returns false if the user had edits and did not action the dialog to take action on them, true otherwise
 		 */
 		private async _handleCurrentEditingSession(chatEditingService: IChatEditingService, dialogService: IDialogService): Promise<boolean> {
-			const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
+			const currentEditingSession = chatEditingService.globalEditingSessionObs.get();
 			const currentEdits = currentEditingSession?.entries.get();
 			const currentEditCount = currentEdits?.length;
 
@@ -189,7 +189,7 @@ export function registerNewChatActions() {
 				announceChatCleared(accessibilitySignalService);
 				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				if (widget) {
-					await chatEditingService.currentEditingSessionObs.get()?.stop(true);
+					await chatEditingService.globalEditingSessionObs.get()?.stop(true);
 					widget.clear();
 					widget.attachmentModel.clear();
 					widget.focusInput();
@@ -200,7 +200,7 @@ export function registerNewChatActions() {
 				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
-				await chatEditingService.currentEditingSessionObs.get()?.stop(true);
+				await chatEditingService.globalEditingSessionObs.get()?.stop(true);
 				widget.clear();
 				widget.attachmentModel.clear();
 				widget.focusInput();
@@ -273,7 +273,7 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const currentEditingSession = chatEditingService.currentEditingSession;
+			const currentEditingSession = chatEditingService.globalEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
@@ -301,11 +301,11 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const currentEditingSession = chatEditingService.currentEditingSession;
+			const currentEditingSession = chatEditingService.globalEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
-			await chatEditingService.currentEditingSession?.redoInteraction();
+			await currentEditingSession.redoInteraction();
 		}
 	});
 
