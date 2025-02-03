@@ -5,6 +5,9 @@
 
 declare module 'vscode' {
 
+	/**
+		 * A reference to a value that the user added to their chat request.
+		 */
 	export interface ChatPromptReference {
 		/**
 		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
@@ -19,13 +22,13 @@ declare module 'vscode' {
 		readonly mimeType: string;
 
 		/**
-		 * Retrieves the binary data of the reference.
+		 * Retrieves the binary data of the reference. This is primarily used to receive image attachments from the chat.
 		 * @returns A promise that resolves to the binary data as a Uint8Array.
 		 */
 		data(): Thenable<Uint8Array>;
 
 		/**
-		 *
+		 * Retrieves a URI reference to the binary data, if available.
 		 */
 		readonly reference?: Uri;
 
