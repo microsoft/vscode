@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs/promises';
 import * as vscode from 'vscode';
 import { isExecutable } from '../helpers/executable';
 import { osIsWindows } from '../helpers/os';
@@ -86,7 +85,7 @@ export class PathExecutableCache implements vscode.Disposable {
 
 	private async _getFilesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
 		try {
-			const dirExists = await fs.stat(path).then(stat => stat.isDirectory()).catch(() => false);
+			const dirExists = await vscode.workspace.fs.stat(vscode.Uri.file(path)).then(stat => stat.type === vscode.FileType.Directory, () => false);
 			if (!dirExists) {
 				return undefined;
 			}

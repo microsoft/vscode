@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ExecOptionsWithStringEncoding } from 'child_process';
 import { upstreamSpecs } from './constants';
@@ -153,10 +152,10 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 		// Resolve the absolute path of the prefix
 		const resolvedPath = path.resolve(currentCwd?.fsPath, relativeFolder);
 
-		const stat = await fs.stat(resolvedPath);
+		const stat = await vscode.workspace.fs.stat(vscode.Uri.file(resolvedPath));
 
 		// Check if the resolved path exists and is a directory
-		if (stat.isDirectory()) {
+		if (stat.type === vscode.FileType.Directory) {
 			return currentCwd.with({ path: resolvedPath });
 		}
 	} catch {
