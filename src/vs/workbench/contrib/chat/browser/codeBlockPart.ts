@@ -761,7 +761,7 @@ export class CodeCompareBlockPart extends Disposable {
 		if (isEditApplied) {
 			assertType(data.edit.state?.applied);
 
-			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
+			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true, appendCellNumber: true });
 
 			let template: string;
 			if (data.edit.state.applied === 1) {

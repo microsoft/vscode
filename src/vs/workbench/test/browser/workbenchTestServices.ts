@@ -183,6 +183,7 @@ import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { INotebookDocument, INotebookDocumentService } from '../../services/notebook/common/notebookDocumentService.js';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -2309,4 +2310,21 @@ export async function workbenchTeardown(instantiationService: IInstantiationServ
 			editorGroupService.removeGroup(group);
 		}
 	});
+}
+
+export class TestNotebookDocumentService implements INotebookDocumentService {
+	constructor(private readonly notebooks: INotebookDocument[]) { }
+	_serviceBrand: undefined;
+	getNotebook(uri: URI): INotebookDocument | undefined {
+		return this.notebooks.find(nb => (nb.getCellIndex(uri) ?? -1) >= 0);
+	}
+	addNotebookDocument(_document: INotebookDocument): void {
+		this.notebooks.push(_document);
+	}
+	removeNotebookDocument(_document: INotebookDocument): void {
+		const index = this.notebooks.indexOf(_document);
+		if (index >= 0) {
+			this.notebooks.splice(index, 1);
+		}
+	}
 }

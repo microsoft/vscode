@@ -26,6 +26,7 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
+import { INotebookDocumentService } from '../../notebook/common/notebookDocumentService.js';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -149,6 +150,7 @@ export class LabelService extends Disposable implements ILabelService {
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IStorageService storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService
 	) {
 		super();
 
@@ -208,7 +210,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return bestResult ? bestResult.formatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean } = {}): string {
+	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean; appendCellNumber?: boolean } = {}): string {
 		let formatting = this.findFormatting(resource);
 		if (formatting && options.separator) {
 			// mixin separator if defined from the outside
@@ -227,6 +229,22 @@ export class LabelService extends Disposable implements ILabelService {
 			label = this.appendWorkspaceSuffix(label, resource);
 		}
 
+		if (options.appendCellNumber) {
+			label = this.appendCellNumber(label, resource);
+		}
+
+		return label;
+	}
+
+	private appendCellNumber(label: string, resource: URI): string {
+		if (resource.scheme !== Schemas.vscodeNotebookCell) {
+			return label;
+		}
+		const notebookDocument = this.notebookDocumentService.getNotebook(resource);
+		const cellIndex = notebookDocument?.getCellIndex(resource);
+		if (notebookDocument && cellIndex !== undefined) {
+			return localize('notebookCellLabel', "{0} • Cell {1}", label, `${cellIndex + 1}`);
+		}
 		return label;
 	}
 
