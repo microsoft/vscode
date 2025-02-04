@@ -263,15 +263,8 @@ export class UpToDateInlineCompletions implements IDisposable {
 		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _invalidationDelay: IObservable<number>,
 	) {
-		const ids = _textModel.deltaDecorations([], inlineCompletionProviderResult.completions.map(i => ({
-			range: i.range,
-			options: {
-				description: 'inline-completion-tracking-range'
-			},
-		})));
-
 		this._inlineCompletions = inlineCompletionProviderResult.completions.map(
-			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._textModel, this._versionId, this._invalidationDelay, this.request)
+			completion => new InlineCompletionWithUpdatedRange(completion, this._textModel, this._versionId, this._invalidationDelay, this.request)
 		);
 	}
 
@@ -283,13 +276,6 @@ export class UpToDateInlineCompletions implements IDisposable {
 	public dispose(): void {
 		this._refCount--;
 		if (this._refCount === 0) {
-			setTimeout(() => {
-				// To fix https://github.com/microsoft/vscode/issues/188348
-				if (!this._textModel.isDisposed()) {
-					// This is just cleanup. It's ok if it happens with a delay.
-					this._textModel.deltaDecorations(this._inlineCompletions.map(i => i.decorationId), []);
-				}
-			}, 0);
 			this.inlineCompletionProviderResult.dispose();
 			for (const i of this._prependedInlineCompletionItems) {
 				i.source.removeRef();
@@ -304,13 +290,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 			inlineCompletion.source.addRef();
 		}
 
-		const id = this._textModel.deltaDecorations([], [{
-			range,
-			options: {
-				description: 'inline-completion-tracking-range'
-			},
-		}])[0];
-		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this._textModel, this._versionId, this._invalidationDelay, this.request));
+		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, this._textModel, this._versionId, this._invalidationDelay, this.request));
 		this._prependedInlineCompletionItems.push(inlineCompletion);
 	}
 }
@@ -371,7 +351,6 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
-		public readonly decorationId: string,
 		private readonly _textModel: ITextModel,
 		private readonly _modelVersion: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _invalidationDelay: IObservable<number>,
