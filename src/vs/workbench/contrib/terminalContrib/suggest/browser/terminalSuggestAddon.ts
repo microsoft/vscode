@@ -169,7 +169,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, token, doNotRequestExtensionCompletions);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
 
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
@@ -322,12 +322,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		// Hide the widget if the cursor moves to the left of the initial position as the
-		// completions are no longer valid
-		// to do: get replacement length to be correct, readd this?
-		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex <= this._leadingLineContent.length) {
-			this.hideSuggestWidget();
-			return;
+		// Hide the widget if the cursor moves to the left and invalidates the completions.
+		// Originally this was to the left of the initial position that the completions were
+		// requested, but since extensions are expected to allow the client-side to filter, they are
+		// only invalidated when whitespace is encountered.
+		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
+			if (this._currentPromptInputState.cursorIndex === 0 || this._leadingLineContent[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
+				this.hideSuggestWidget();
+				return;
+			}
 		}
 
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {

@@ -148,7 +148,15 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		// create the `remove` button
-		const removeButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: localize('remove', "Remove") }));
+		const removeButton = this.renderDisposables.add(
+			new Button(
+				this.domNode,
+				{
+					supportIcons: true,
+					title: localize('remove', "Remove"),
+				},
+			),
+		);
 		removeButton.icon = Codicon.x;
 		this.renderDisposables.add(removeButton.onDidClick((e) => {
 			e.stopPropagation();

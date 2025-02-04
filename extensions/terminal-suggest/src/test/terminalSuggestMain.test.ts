@@ -46,7 +46,8 @@ function createCodeTestSpecs(executable: string): ITestSpec2[] {
 
 	const typingTests: ITestSpec2[] = [];
 	for (let i = 1; i < executable.length; i++) {
-		typingTests.push({ input: `${executable.slice(0, i)}|`, expectedCompletions: [executable] });
+		const input = `${executable.slice(0, i)}|`;
+		typingTests.push({ input, expectedCompletions: [executable], expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testCwd } });
 	}
 
 	return [
@@ -85,6 +86,9 @@ const testSpecs2: ISuiteSpec[] = [
 		completionSpecs: [],
 		availableCommands: [],
 		testSpecs: [
+			{ input: '|', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: '|.', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: '|./', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 			{ input: 'fakecommand |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 		]
 	},
@@ -93,11 +97,13 @@ const testSpecs2: ISuiteSpec[] = [
 		completionSpecs: cdSpec,
 		availableCommands: 'cd',
 		testSpecs: [
+			// Typing a path
+			{ input: '.|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: './|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: './.|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 			// Typing the command
-			// TODO: Shouldn't this also request file resources that contain "c" as you can run a file as a command?
-			{ input: 'c|', expectedCompletions: ['cd'] },
-			// TODO: Shouldn't this also request file resources that contain "cd" as you can run a file as a command?
-			{ input: 'cd|', expectedCompletions: ['cd'] },
+			{ input: 'c|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: 'cd|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 
 			// Basic arguments
 			{ input: 'cd |', expectedCompletions: ['~', '-'], expectedResourceRequests: { type: 'folders', cwd: testCwd } },
