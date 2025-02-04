@@ -6,8 +6,8 @@
 			"node"
 		],
 		"target": "es2020",
-		"module": "CommonJS",
-		"moduleResolution": "node",
+		"module": "ES2020",
+		"moduleResolution": "bundler",
 		"strict": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
