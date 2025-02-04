@@ -1,9 +1,0 @@
----
-foo: 1
----
-
-This is highlighted as a YAML string
-
-# This is highlighted as a YAML comment
-
-This is highlighted as a YAML error
