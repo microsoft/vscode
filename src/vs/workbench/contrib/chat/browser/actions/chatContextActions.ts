@@ -677,7 +677,7 @@ export class AttachContextAction extends Action2 {
 		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
 		if (!context || !context.showFilesOnly) {
-			for (const variable of chatVariablesService.getVariables(widget.location)) {
+			for (const variable of chatVariablesService.getVariables()) {
 				if (variable.fullName && (!variable.isSlow || slowSupported)) {
 					quickPickItems.push({
 						kind: 'variable',
