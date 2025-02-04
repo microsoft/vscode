@@ -1342,12 +1342,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
-		} else if (progress.kind === 'agentDetection') {
-			const agent = this.chatAgentService.getAgent(progress.agentId);
-			if (agent) {
-				request.response.setAgent(agent, progress.command);
-				this._onDidChange.fire({ kind: 'setAgent', agent, command: progress.command });
-			}
 		} else if (progress.kind === 'codeCitation') {
 			request.response.applyCodeCitation(progress);
 		} else if (progress.kind === 'move') {
