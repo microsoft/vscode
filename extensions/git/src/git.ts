@@ -1127,8 +1127,9 @@ function parseGitBlame(data: string): BlameInformation[] {
 }
 
 export interface PullOptions {
-	unshallow?: boolean;
-	tags?: boolean;
+	readonly unshallow?: boolean;
+	readonly tags?: boolean;
+	readonly autoStash?: boolean;
 	readonly cancellationToken?: CancellationToken;
 }
 
@@ -1367,14 +1368,17 @@ export class Repository {
 	}
 
 	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number }> {
-		if (!treeish) { // index
+		if (!treeish || treeish === ':1' || treeish === ':2' || treeish === ':3') { // index
 			const elements = await this.lsfiles(path);
 
 			if (elements.length === 0) {
 				throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 			}
 
-			const { mode, object } = elements[0];
+			const { mode, object } = treeish !== ''
+				? elements.find(e => e.stage === treeish.substring(1)) ?? elements[0]
+				: elements[0];
+
 			const catFile = await this.exec(['cat-file', '-s', object]);
 			const size = parseInt(catFile.stdout);
 
@@ -2084,6 +2088,11 @@ export class Repository {
 			args.push('--unshallow');
 		}
 
+		// --auto-stash option is only available `git pull --merge` starting with git 2.27.0
+		if (options.autoStash && this._git.compareGitVersionTo('2.27.0') !== -1) {
+			args.push('--autostash');
+		}
+
 		if (rebase) {
 			args.push('-r');
 		}
@@ -2451,7 +2460,9 @@ export class Repository {
 
 				// Upstream commit
 				if (HEAD && HEAD.upstream) {
-					const ref = `refs/remotes/${HEAD.upstream.remote}/${HEAD.upstream.name}`;
+					const ref = HEAD.upstream.remote !== '.'
+						? `refs/remotes/${HEAD.upstream.remote}/${HEAD.upstream.name}`
+						: `refs/heads/${HEAD.upstream.name}`;
 					const commit = await this.revParse(ref);
 					HEAD = { ...HEAD, upstream: { ...HEAD.upstream, commit } };
 				}

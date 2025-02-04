@@ -232,7 +232,7 @@ export function registerChatTitleActions() {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
 				const chatEditingService = accessor.get(IChatEditingService);
-				const currentEditingSession = chatEditingService.currentEditingSession;
+				const currentEditingSession = chatEditingService.getEditingSession(chatModel.sessionId);
 				if (!currentEditingSession) {
 					return;
 				}
@@ -463,9 +463,9 @@ export function registerChatTitleActions() {
 
 			await viewsService.openView(EditsViewId);
 
-			let editingSession = chatEditingService.currentEditingSessionObs.get();
+			let editingSession = chatEditingService.globalEditingSessionObs.get();
 			if (!editingSession) {
-				editingSession = await waitForState(chatEditingService.currentEditingSessionObs);
+				editingSession = await waitForState(chatEditingService.globalEditingSessionObs);
 			}
 
 			if (!editingSession) {

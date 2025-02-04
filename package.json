@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.97.0",
-  "distro": "03bcc2befd4c31b21f1b2fb56c56d767e3db462b",
+  "version": "1.98.0",
+  "distro": "4e8c47ac95d95aa744f78305db0f163dcd407126",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -70,12 +70,12 @@
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
-    "@parcel/watcher": "2.5.0",
+    "@parcel/watcher": "2.5.1",
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.8",
-    "@vscode/proxy-agent": "^0.30.0",
+    "@vscode/proxy-agent": "^0.31.0",
     "@vscode/ripgrep": "^1.15.10",
     "@vscode/spdlog": "^0.15.0",
     "@vscode/sqlite3": "5.1.8-vscode",
@@ -109,12 +109,12 @@
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-textmate": "9.1.0",
+    "vscode-textmate": "9.2.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.46.1",
+    "@playwright/test": "^1.50.0",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
@@ -212,7 +212,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^5.8.0-dev.20250114",
+    "typescript": "^5.8.0-dev.20250121",
     "typescript-eslint": "^8.8.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",

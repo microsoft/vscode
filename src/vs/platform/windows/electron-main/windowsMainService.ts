@@ -1164,13 +1164,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]);
 
 			// assume this is a file that does not yet exist
-			if (options.ignoreFileNotFound) {
+			if (options.ignoreFileNotFound && error.code === 'ENOENT') {
 				return {
 					fileUri,
 					type: FileType.File,
 					exists: false
 				};
 			}
+
+			this.logService.error(`Invalid path provided: ${path}, ${error.message}`);
 		}
 
 		return undefined;

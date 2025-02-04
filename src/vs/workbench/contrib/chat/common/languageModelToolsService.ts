@@ -34,6 +34,7 @@ export interface IToolInvocation {
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
+	chatRequestId?: string;
 }
 
 export interface IToolInvocationContext {
@@ -65,6 +66,8 @@ export interface IToolConfirmationMessages {
 
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
+	pastTenseMessage?: string | IMarkdownString;
+	tooltip?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 }
 

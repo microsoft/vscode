@@ -169,6 +169,7 @@ export interface IMenuEntryActionViewItemOptions {
 	draggable?: boolean;
 	keybinding?: string;
 	hoverDelegate?: IHoverDelegate;
+	keybindingNotRenderedWithLabel?: boolean;
 }
 
 export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions = IMenuEntryActionViewItemOptions> extends ActionViewItem {
@@ -187,7 +188,7 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: _options?.draggable, keybinding: _options?.keybinding, hoverDelegate: _options?.hoverDelegate });
+		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: _options?.draggable, keybinding: _options?.keybinding, hoverDelegate: _options?.hoverDelegate, keybindingNotRenderedWithLabel: _options?.keybindingNotRenderedWithLabel });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 

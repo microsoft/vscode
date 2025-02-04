@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import _debounce = require('debounce');
-import * as _filter from 'gulp-filter';
-import * as rename from 'gulp-rename';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as _rimraf from 'rimraf';
-import * as VinylFile from 'vinyl';
+import es from 'event-stream';
+import _debounce from 'debounce';
+import _filter from 'gulp-filter';
+import rename from 'gulp-rename';
+import path from 'path';
+import fs from 'fs';
+import _rimraf from 'rimraf';
+import VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
-import * as sm from 'source-map';
+import sm from 'source-map';
 import { pathToFileURL } from 'url';
-import * as ternaryStream from 'ternary-stream';
+import ternaryStream from 'ternary-stream';
 
 const root = path.dirname(path.dirname(__dirname));
 

@@ -67,7 +67,7 @@ function holdForSpeech(accessor: ServicesAccessor, ctrl: InlineChatController, a
 	holdMode.finally(() => {
 		if (listening) {
 			commandService.executeCommand(StopListeningAction.ID).finally(() => {
-				ctrl.acceptInput();
+				ctrl.chatWidget.acceptInput();
 			});
 		}
 		handle.dispose();
