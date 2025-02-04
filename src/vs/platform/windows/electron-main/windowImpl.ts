@@ -342,11 +342,16 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// macOS: traffic lights
 		else if (isMacintosh && options.height !== undefined) {
-			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
-			if (!verticalOffset) {
+			// The traffic lights have a height of 12px. There's an invisible margin
+			// of 2px at the top and bottom, and 1px on the left and right. Therefore,
+			// the height for centering is 12px + 2 * 2px = 16px. When the position
+			// is set, the horizontal margin is offset to ensure the distance between
+			// the traffic lights and the window frame is equal in both directions.
+			const offset = Math.floor((options.height - 16) / 2);
+			if (!offset) {
 				win.setWindowButtonPosition(null);
 			} else {
-				win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
+				win.setWindowButtonPosition({ x: offset + 1, y: offset });
 			}
 		}
 	}
