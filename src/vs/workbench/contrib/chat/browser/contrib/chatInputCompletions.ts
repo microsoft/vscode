@@ -11,6 +11,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
@@ -27,6 +28,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
@@ -452,6 +454,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutlineModelService private readonly outlineService: IOutlineModelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -484,6 +487,62 @@ class BuiltinDynamicCompletions extends Disposable {
 				const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 				if (range2) {
 					await this.addFileEntries(widget, result, range2, token);
+				}
+
+				return result;
+			}
+		}));
+
+		// Selection completion
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'chatDynamicSelectionCompletions',
+			triggerCharacters: [chatVariableLeader],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget || !widget.supportsFileReferences) {
+					return null;
+				}
+
+				if (widget.location === ChatAgentLocation.Editor) {
+					return;
+				}
+
+				const result: CompletionList = { suggestions: [] };
+				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef, true);
+				if (range) {
+					const active = this.editorService.activeTextEditorControl;
+					if (!isCodeEditor(active)) {
+						return result;
+					}
+
+					const currentResource = active.getModel()?.uri;
+					const currentSelection = active.getSelection();
+					if (!currentSelection || !currentResource || currentSelection.isEmpty()) {
+						return result;
+					}
+
+					const basename = this.labelService.getUriBasenameLabel(currentResource);
+					const text = `${chatVariableLeader}file:${basename}:${currentSelection.startLineNumber}-${currentSelection.endLineNumber}`;
+					const fullRangeText = `:${currentSelection.startLineNumber}:${currentSelection.startColumn}-${currentSelection.endLineNumber}:${currentSelection.endColumn}`;
+					const description = this.labelService.getUriLabel(currentResource, { relative: true }) + fullRangeText;
+
+					result.suggestions.push({
+						label: { label: `${chatVariableLeader}selection`, description },
+						filterText: `${chatVariableLeader}selection`,
+						insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
+						range,
+						kind: CompletionItemKind.Text,
+						sortText: 'z',
+						command: {
+							id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
+								id: 'vscode.file',
+								prefix: 'file',
+								isFile: true,
+								range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
+								data: { range: currentSelection, uri: currentResource } satisfies Location
+							})]
+						}
+					});
 				}
 
 				return result;
@@ -797,7 +856,7 @@ class VariableCompletions extends Disposable {
 
 				const usedVariables = widget.parsedInput.parts.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
 				const usedVariableNames = new Set(usedVariables.map(v => v.variableName));
-				const variableItems = Array.from(this.chatVariablesService.getVariables(widget.location))
+				const variableItems = Array.from(this.chatVariablesService.getVariables())
 					// This doesn't look at dynamic variables like `file`, where multiple makes sense.
 					.filter(v => !usedVariableNames.has(v.name))
 					.filter(v => !v.isSlow || slowSupported)

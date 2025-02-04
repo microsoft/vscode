@@ -139,7 +139,7 @@ class OpenChatGlobalAction extends Action2 {
 			}
 		}
 		if (opts?.variableIds && opts.variableIds.length > 0) {
-			const actualVariables = chatVariablesService.getVariables(ChatAgentLocation.Panel);
+			const actualVariables = chatVariablesService.getVariables();
 			for (const actualVariable of actualVariables) {
 				if (opts.variableIds.includes(actualVariable.id)) {
 					chatWidget.attachmentModel.addContext({
