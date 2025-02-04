@@ -36,3 +36,13 @@ export const testPaths = {
 	cwd: vscode.Uri.joinPath(fixtureDir, 'parent/home'),
 	cwdChild: vscode.Uri.joinPath(fixtureDir, 'parent/home/child'),
 };
+
+export function removeArrayEntries<T>(array: T[], ...elements: T[]): T[] {
+	for (const element of elements) {
+		const index = array.indexOf(element);
+		if (index > -1) {
+			array.splice(index, 1);
+		}
+	}
+	return array;
+}

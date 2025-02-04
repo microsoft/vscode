@@ -13,6 +13,7 @@ import { codeTestSuite } from './completions/code.test';
 import { testPaths, type ISuiteSpec } from './helpers';
 import { codeInsidersTestSuite } from './completions/code-insiders.test';
 import { lsTestSuiteSpec } from './completions/upstream/ls.test';
+import { echoTestSuiteSpec } from './completions/upstream/echo.test';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -33,6 +34,7 @@ const testSpecs2: ISuiteSpec[] = [
 	codeInsidersTestSuite,
 
 	// completions/upstream/
+	echoTestSuiteSpec,
 	lsTestSuiteSpec,
 ];
 

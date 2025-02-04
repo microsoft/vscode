@@ -52,14 +52,6 @@ const allOptions = [
 	'-x',
 ];
 
-// function removeEntry<T>(array: T[], element: T): T[] {
-// 	const index = array.indexOf(element);
-// 	if (index > -1) {
-// 		array.splice(index, 1);
-// 	}
-// 	return array;
-// }
-
 export const lsTestSuiteSpec: ISuiteSpec = {
 	name: 'ls',
 	completionSpecs: lsSpec,
@@ -83,7 +75,7 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 
 		// Duplicate option
 		// TODO: Duplicate options should not be presented https://github.com/microsoft/vscode/issues/239607
-		// { input: 'ls -a -|', expectedCompletions: removeEntry(allOptions, '-a'), expectedResourceRequests: undefined }, // { type: 'folders', cwd: testPaths.cwd }
+		// { input: 'ls -a -|', expectedCompletions: removeArrayEntry(allOptions, '-a'), expectedResourceRequests: undefined }, // { type: 'folders', cwd: testPaths.cwd }
 
 		// Relative paths
 		{ input: 'ls c|', expectedCompletions: allOptions, expectedResourceRequests: undefined }, // { type: 'folders', cwd: testPaths.cwd }
