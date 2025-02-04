@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { LANGUAGE_SELECTOR } from '../constants.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
@@ -15,17 +16,9 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
-import { PROMPT_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
-
-/**
- * Prompt files language selector.
- */
-const languageSelector = {
-	pattern: `**/*${PROMPT_SNIPPET_FILE_EXTENSION}`,
-};
 
 /**
  * Provides link references for prompt files.
@@ -42,7 +35,7 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 	) {
 		super();
 
-		this._register(this.languageService.linkProvider.register(languageSelector, this));
+		this._register(this.languageService.linkProvider.register(LANGUAGE_SELECTOR, this));
 		this.parserProvider = this._register(new ObjectCache(this.createParser.bind(this)));
 	}
 

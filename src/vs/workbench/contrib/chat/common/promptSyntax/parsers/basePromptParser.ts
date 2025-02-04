@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
+import { PROMPT_FILE_EXTENSION } from '../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -20,7 +21,6 @@ import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
-import { PROMPT_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
@@ -507,7 +507,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * Check if the provided URI points to a prompt snippet.
 	 */
 	public static isPromptSnippet(uri: URI): boolean {
-		return uri.path.endsWith(PROMPT_SNIPPET_FILE_EXTENSION);
+		return uri.path.endsWith(PROMPT_FILE_EXTENSION);
 	}
 
 	/**
