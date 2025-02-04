@@ -126,7 +126,7 @@ export class ScreenReaderSupport {
 			return;
 		}
 
-		const height = this._context.viewLayout.getLineHeightForModelLineNumber(lineNumber);
+		const height = this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
 		this._doRender(top, this._contentLeft, this._contentWidth, height);
 		this._setScrollTop(height);
 	}
