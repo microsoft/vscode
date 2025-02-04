@@ -261,7 +261,6 @@ export class InlineEditsView extends Disposable {
 				this._useMixedLinesDiff.read(reader) === 'forStableInsertions'
 				&& this._useCodeShifting.read(reader)
 				&& isSingleLineInsertionAfterPosition(diff, edit.cursorPosition)
-				|| isSingleLineDeletion(diff)
 			)
 		) {
 			return 'insertionInline';
@@ -420,21 +419,6 @@ function isSingleMultiLineInsertion(diff: DetailedLineRangeMapping[]) {
 	}
 
 	return true;
-}
-
-function isSingleLineDeletion(diff: DetailedLineRangeMapping[]): boolean {
-	return diff.every(m => m.innerChanges!.every(r => isDeletion(r)));
-
-	function isDeletion(r: RangeMapping) {
-		if (!r.modifiedRange.isEmpty()) {
-			return false;
-		}
-		const isDeletionWithinLine = r.originalRange.startLineNumber === r.originalRange.endLineNumber;
-		if (!isDeletionWithinLine) {
-			return false;
-		}
-		return true;
-	}
 }
 
 function growEditsToEntireWord(replacements: SingleTextEdit[], originalText: AbstractText): SingleTextEdit[] {
