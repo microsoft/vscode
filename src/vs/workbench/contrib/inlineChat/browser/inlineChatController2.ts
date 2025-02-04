@@ -232,6 +232,10 @@ export class InlineChatController2 implements IEditorContribution {
 	markActiveController() {
 		this._isActiveController.set(true, undefined);
 	}
+
+	focus() {
+		this._zone.rawValue?.widget.focus();
+	}
 }
 
 export class StartSessionAction2 extends EditorAction2 {
