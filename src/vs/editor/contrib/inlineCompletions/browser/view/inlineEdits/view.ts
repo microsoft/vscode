@@ -157,7 +157,7 @@ export class InlineEditsView extends Disposable {
 		return {
 			modifiedText: new StringText(e.newText),
 			diff: e.diff,
-			mode: e.state.kind === 'collapsed' ? 'sideBySide' : e.state.kind,
+			mode: e.state.kind,
 			modifiedCodeEditor: this._sideBySide.previewEditor,
 		};
 	});
@@ -250,10 +250,6 @@ export class InlineEditsView extends Disposable {
 
 		// Determine the view based on the edit / diff
 
-		if (edit.isCollapsed) {
-			return 'collapsed';
-		}
-
 		const inner = diff.flatMap(d => d.innerChanges ?? []);
 		const isSingleInnerEdit = inner.length === 1;
 		if (
@@ -318,7 +314,6 @@ export class InlineEditsView extends Disposable {
 		this._previousView = { id: edit.inlineCompletion.id, view, userJumpedToIt: edit.userJumpedToIt, editorWidth: this._editor.getLayoutInfo().width };
 
 		switch (view) {
-			case 'collapsed': return { kind: 'collapsed' as const };
 			case 'insertionInline': return { kind: 'insertionInline' as const };
 			case 'mixedLines': return { kind: 'mixedLines' as const };
 			case 'interleavedLines': return { kind: 'interleavedLines' as const };
