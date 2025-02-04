@@ -64,7 +64,6 @@ export interface TerminalResourceRequestConfig {
 	foldersRequested?: boolean;
 	cwd?: URI;
 	pathSeparator: string;
-	shouldNormalizePrefix?: boolean;
 	env?: { [key: string]: string | null | undefined };
 }
 
@@ -207,7 +206,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore): Promise<ITerminalCompletion[] | undefined> {
-		if (resourceRequestConfig.shouldNormalizePrefix) {
+		const useBackslash = resourceRequestConfig.pathSeparator === '\\';
+		if (useBackslash) {
 			// for tests, make sure the right path separator is used
 			promptValue = promptValue.replaceAll(/[\\/]/g, resourceRequestConfig.pathSeparator);
 		}
@@ -221,7 +221,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
 
-		const useBackslash = resourceRequestConfig.pathSeparator === '\\';
 
 		// The last word (or argument). When the cursor is following a space it will be the empty
 		// string
