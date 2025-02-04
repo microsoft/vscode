@@ -108,7 +108,7 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 					const context = this._context;
 					if (isCodeBlockActionContext(context) && context.codemapperUri) {
 						const label = labelService.getUriLabel(context.codemapperUri, { relative: true });
-						return localize('interactive.applyInEditorWithURL.label', "Apply in {0}", label);
+						return localize('interactive.applyInEditorWithURL.label', "Apply to {0}", label);
 					}
 					return super.getTooltip();
 				}

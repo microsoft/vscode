@@ -9,7 +9,7 @@ import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { derived, derivedObservableWithCache, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -392,6 +392,7 @@ export abstract class ObserverNode<T extends Element = Element> {
 		if (className) {
 			if (hasObservable(className)) {
 				this._deriveds.push(derived(this, reader => {
+					/** @description set.class */
 					setClassName(this._element, getClassName(className, reader));
 				}));
 			} else {
@@ -404,7 +405,7 @@ export abstract class ObserverNode<T extends Element = Element> {
 				for (const [cssKey, cssValue] of Object.entries(value)) {
 					const key = camelCaseToHyphenCase(cssKey);
 					if (isObservable(cssValue)) {
-						this._deriveds.push(derived(this, reader => {
+						this._deriveds.push(derivedOpts({ owner: this, debugName: () => `set.style.${key}` }, reader => {
 							this._element.style.setProperty(key, convertCssValue(cssValue.read(reader)));
 						}));
 					} else {
@@ -414,6 +415,7 @@ export abstract class ObserverNode<T extends Element = Element> {
 			} else if (key === 'tabIndex') {
 				if (isObservable(value)) {
 					this._deriveds.push(derived(this, reader => {
+						/** @description set.tabIndex */
 						this._element.tabIndex = value.read(reader) as any;
 					}));
 				} else {
@@ -423,7 +425,7 @@ export abstract class ObserverNode<T extends Element = Element> {
 				(this._element as any)[key] = value;
 			} else {
 				if (isObservable(value)) {
-					this._deriveds.push(derived(this, reader => {
+					this._deriveds.push(derivedOpts({ owner: this, debugName: () => `set.${key}` }, reader => {
 						setOrRemoveAttribute(this._element, key, value.read(reader));
 					}));
 				} else {
@@ -453,6 +455,7 @@ export abstract class ObserverNode<T extends Element = Element> {
 			}
 
 			const d = derived(this, reader => {
+				/** @description set.children */
 				this._element.replaceChildren(...getChildren(reader, children));
 			});
 			this._deriveds.push(d);
@@ -470,6 +473,7 @@ export abstract class ObserverNode<T extends Element = Element> {
 
 	keepUpdated(store: DisposableStore): ObserverNodeWithElement<T> {
 		derived(reader => {
+			/** update */
 			this.readEffect(reader);
 		}).recomputeInitiallyAndOnChange(store);
 		return this as unknown as ObserverNodeWithElement<T>;
@@ -604,7 +608,9 @@ type Falsy<T> = T extends false | undefined | null ? T : never;
 export function mapOutFalsy<T>(obs: IObservable<T>): IObservable<IObservable<RemoveFalsy<T>> | Falsy<T>> {
 	const nonUndefinedObs = derivedObservableWithCache<T | undefined | null | false>(undefined, (reader, lastValue) => obs.read(reader) || lastValue);
 
-	return derived(reader => {
+	return derivedOpts({
+		debugName: () => `${obs.debugName}.mapOutFalsy`
+	}, reader => {
 		nonUndefinedObs.read(reader);
 		const val = obs.read(reader);
 		if (!val) {

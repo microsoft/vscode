@@ -736,17 +736,6 @@ export class GettingStartedPage extends EditorPane {
 					this.webview.setHtml(body);
 				}
 			}));
-
-			this.stepDisposables.add(this.webview.onMessage(async e => {
-				const message: string = e.message as string;
-				if (message === 'playVideo') {
-					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', {
-						command: 'playVideo',
-						walkthroughId: this.currentWalkthrough?.id,
-						argument: stepId,
-					});
-				}
-			}));
 		}
 	}
 

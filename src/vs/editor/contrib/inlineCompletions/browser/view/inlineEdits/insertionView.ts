@@ -11,6 +11,7 @@ import { observableCodeEditor } from '../../../../../browser/observableCodeEdito
 import { Point } from '../../../../../browser/point.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
@@ -29,10 +30,11 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		if (!state) { return undefined; }
 
 		const textModel = this._editor.getModel()!;
+		const eol = textModel.getEOL();
 
-		if (state.startColumn === 1 && state.lineNumber > 1 && textModel.getLineLength(state.lineNumber) !== 0 && state.text.endsWith('\n') && !state.text.startsWith('\n')) {
+		if (state.startColumn === 1 && state.lineNumber > 1 && textModel.getLineLength(state.lineNumber) !== 0 && state.text.endsWith(eol) && !state.text.startsWith(eol)) {
 			const endOfLineColumn = textModel.getLineLength(state.lineNumber - 1) + 1;
-			return { lineNumber: state.lineNumber - 1, column: endOfLineColumn, text: '\n' + state.text.slice(0, -1) };
+			return { lineNumber: state.lineNumber - 1, column: endOfLineColumn, text: eol + state.text.slice(0, -eol.length) };
 		}
 
 		return { lineNumber: state.lineNumber, column: state.startColumn, text: state.text };
@@ -87,12 +89,12 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		}
 		this._editorObs.versionId.read(reader);
 		const textModel = this._editor.getModel()!;
+		const eol = textModel.getEOL();
 
-		const cleanText = state.text.replace('\r\n', '\n');
-		const textBeforeInsertion = cleanText.startsWith('\n') ? '' : textModel.getValueInRange(new Range(state.lineNumber, 1, state.lineNumber, state.column));
+		const textBeforeInsertion = state.text.startsWith(eol) ? '' : textModel.getValueInRange(new Range(state.lineNumber, 1, state.lineNumber, state.column));
 		const textAfterInsertion = textModel.getValueInRange(new Range(state.lineNumber, state.column, state.lineNumber, textModel.getLineLength(state.lineNumber) + 1));
-		const text = textBeforeInsertion + cleanText + textAfterInsertion;
-		const lines = text.split('\n');
+		const text = textBeforeInsertion + state.text + textAfterInsertion;
+		const lines = text.split(eol);
 
 		const renderOptions = RenderOptions.fromEditor(this._editor).withSetWidth(false);
 		const lineWidths = lines.map(line => {
@@ -112,6 +114,33 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		return Math.max(...lineWidths);
 	});
 
+	private readonly _trimVertically = derived(this, reader => {
+		const text = this._state.read(reader)?.text;
+		if (!text || text.trim() === '') {
+			return { top: 0, bottom: 0 };
+		}
+
+		// Adjust for leading/trailing newlines
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const eol = this._editor.getModel()!.getEOL();
+		let topTrim = 0;
+		let bottomTrim = 0;
+
+		let i = 0;
+		for (; i < text.length && text.startsWith(eol, i); i += eol.length) {
+			topTrim += lineHeight;
+		}
+
+		for (let j = text.length; j > i && text.endsWith(eol, j); j -= eol.length) {
+			bottomTrim += lineHeight;
+		}
+
+		return { top: topTrim, bottom: bottomTrim };
+	});
+
+	public readonly startLineOffset = this._trimVertically.map(v => v.top);
+	public readonly originalLines = this._state.map(s => s ? new LineRange(s.lineNumber, s.lineNumber + 2) : undefined);
+
 	private readonly _overlayLayout = derivedWithStore(this, (reader, store) => {
 		this._ghostText.read(reader);
 		const state = this._state.read(reader);
@@ -122,34 +151,21 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		// Update the overlay when the position changes
 		this._editorObs.observePosition(observableValue(this, new Position(state.lineNumber, state.column)), store).read(reader);
 
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const scrollTop = this._editorObs.scrollTop.read(reader);
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 
 		const left = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
-
-		let height = this._ghostTextView.height.read(reader);
-		let top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop;
-
-		if (state.text.trim() !== '') {
-			// Adjust for leading/trailing newlines
-			let i = 0;
-			for (; i < state.text.length && state.text[i] === '\n'; i++) {
-				height -= lineHeight;
-				top += lineHeight;
-			}
-			for (let j = state.text.length - 1; j > i && state.text[j] === '\n'; j--) {
-				height -= lineHeight;
-			}
-		}
-
 		const codeLeft = editorLayout.contentLeft;
-		const bottom = top + height;
-
 		if (left <= codeLeft) {
 			return null;
 		}
+
+		const { top: topTrim, bottom: bottomTrim } = this._trimVertically.read(reader);
+
+		const scrollTop = this._editorObs.scrollTop.read(reader);
+		const height = this._ghostTextView.height.read(reader) - topTrim - bottomTrim;
+		const top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop + topTrim;
+		const bottom = top + height;
 
 		const code1 = new Point(left, top);
 		const codeStart1 = new Point(codeLeft, top);
@@ -162,7 +178,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			code2,
 			codeStart2,
 			horizontalScrollOffset,
-			padding: 2,
+			padding: 3,
 			borderRadius: 4,
 		};
 	}).recomputeInitiallyAndOnChange(this._store);
@@ -179,8 +195,8 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		const rectangleOverlay = createRectangle(
 			{
 				topLeft: layoutInfo.codeStart1,
-				width: layoutInfo.code1.x - layoutInfo.codeStart1.x,
-				height: layoutInfo.code2.y - layoutInfo.code1.y,
+				width: layoutInfo.code1.x - layoutInfo.codeStart1.x + 1,
+				height: layoutInfo.code2.y - layoutInfo.code1.y + 1,
 			},
 			layoutInfo.padding,
 			layoutInfo.borderRadius,

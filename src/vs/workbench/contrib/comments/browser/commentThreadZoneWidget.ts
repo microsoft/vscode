@@ -140,7 +140,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
-		super(editor, { keepEditorSelection: true, isAccessible: true });
+		super(editor, { keepEditorSelection: true, isAccessible: true, showArrow: !!_commentThread.range });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
 		this._scopedInstantiationService = this._globalToDispose.add(instantiationService.createChild(new ServiceCollection(
@@ -341,7 +341,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				message: nls.localize('confirmCollapse', "Collapsing a comment thread will discard unsubmitted comments. Do you want to collapse this comment thread?"),
 				primaryButton: nls.localize('collapse', "Collapse"),
 				type: Severity.Warning,
+				checkbox: { label: nls.localize('neverAskAgain', "Never ask me again"), checked: false }
 			});
+			if (result.checkboxChecked) {
+				await this.configurationService.updateValue('comments.thread.confirmOnCollapse', 'never');
+			}
 			return result.confirmed;
 		}
 		return true;
@@ -498,7 +502,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 
 			const capture = StableEditorScrollState.capture(this.editor);
-			this._relayout(computedLinesNumber);
+			this._relayout(computedLinesNumber, true);
 			capture.restore(this.editor);
 		}
 	}

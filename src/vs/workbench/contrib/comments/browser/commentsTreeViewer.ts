@@ -62,7 +62,7 @@ interface ICommentThreadTemplateData {
 		timestamp: TimestampWidget;
 		separator: HTMLElement;
 		commentPreview: HTMLSpanElement;
-		range: HTMLSpanElement;
+		range: HTMLElement;
 	};
 	repliesMetadata: {
 		container: HTMLElement;
@@ -193,14 +193,25 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
 		const metadata = dom.append(metadataContainer, dom.$('.comment-metadata'));
+
+		const icon = dom.append(metadata, dom.$('.icon'));
+		const userNames = dom.append(metadata, dom.$('.user'));
+		const timestamp = new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container')));
+		const relevance = dom.append(metadata, dom.$('.relevance'));
+		const separator = dom.append(metadata, dom.$('.separator'));
+		const commentPreview = dom.append(metadata, dom.$('.text'));
+		const rangeContainer = dom.append(metadata, dom.$('.range'));
+		const range = dom.$('p');
+		rangeContainer.appendChild(range);
+
 		const threadMetadata = {
-			icon: dom.append(metadata, dom.$('.icon')),
-			userNames: dom.append(metadata, dom.$('.user')),
-			timestamp: new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container'))),
-			relevance: dom.append(metadata, dom.$('.relevance')),
-			separator: dom.append(metadata, dom.$('.separator')),
-			commentPreview: dom.append(metadata, dom.$('.text')),
-			range: dom.append(metadata, dom.$('.range'))
+			icon,
+			userNames,
+			timestamp,
+			relevance,
+			separator,
+			commentPreview,
+			range
 		};
 		threadMetadata.separator.innerText = '\u00b7';
 
