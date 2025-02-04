@@ -497,9 +497,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		// implement in subclass
 	}
 
-	protected _relayout(_newHeightInLines: number): void {
+	protected _relayout(_newHeightInLines: number, noMax?: boolean): void {
 		const maxHeightInLines = this._getMaximumHeightInLines();
-		const newHeightInLines = maxHeightInLines === undefined ? _newHeightInLines : Math.min(maxHeightInLines, _newHeightInLines);
+		const newHeightInLines = (!noMax && (maxHeightInLines !== undefined)) ? Math.min(maxHeightInLines, _newHeightInLines) : _newHeightInLines;
 		if (this._viewZone && this._viewZone.heightInLines !== newHeightInLines) {
 			this.editor.changeViewZones(accessor => {
 				if (this._viewZone) {
