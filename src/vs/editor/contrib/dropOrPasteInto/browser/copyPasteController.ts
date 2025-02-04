@@ -8,7 +8,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { createStringDataTransferItem, matchesMimeType, UriList, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
+import { createStringDataTransferItem, IReadonlyVSDataTransfer, matchesMimeType, UriList, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -74,6 +74,11 @@ export type PastePreference =
 	| { readonly providerId: string } // Only used internally
 	;
 
+interface CopyOperation {
+	readonly providerMimeTypes: readonly string[];
+	readonly operation: CancelablePromise<IReadonlyVSDataTransfer | undefined>;
+}
+
 export class CopyPasteController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.copyPasteActionController';
@@ -97,7 +102,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	 */
 	private static _currentCopyOperation?: {
 		readonly handle: string;
-		readonly dataTransferPromise: CancelablePromise<VSDataTransfer>;
+		readonly operations: ReadonlyArray<CopyOperation>;
 	};
 
 	private readonly _editor: ICodeEditor;
@@ -222,31 +227,20 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			defaultPastePayload
 		});
 
-		const promise = createCancelablePromise(async token => {
-			const results = coalesce(await Promise.all(providers.map(async provider => {
-				try {
-					return await provider.prepareDocumentPaste!(model, ranges, dataTransfer, token);
-				} catch (err) {
-					console.error(err);
-					return undefined;
-				}
-			})));
-
-			// Values from higher priority providers should overwrite values from lower priority ones.
-			// Reverse the array to so that the calls to `replace` below will do this
-			results.reverse();
-
-			for (const result of results) {
-				for (const [mime, value] of result) {
-					dataTransfer.replace(mime, value);
-				}
-			}
-
-			return dataTransfer;
+		const operations = providers.map((provider): CopyOperation => {
+			return {
+				providerMimeTypes: provider.copyMimeTypes,
+				operation: createCancelablePromise(token =>
+					provider.prepareDocumentPaste!(model, ranges, dataTransfer, token)
+						.catch(err => {
+							console.error(err);
+							return undefined;
+						}))
+			};
 		});
 
-		CopyPasteController._currentCopyOperation?.dataTransferPromise.cancel();
-		CopyPasteController._currentCopyOperation = { handle: handle, dataTransferPromise: promise };
+		CopyPasteController._currentCopyOperation?.operations.forEach(entry => entry.operation.cancel());
+		CopyPasteController._currentCopyOperation = { handle, operations };
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
@@ -356,7 +350,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 			const token = cts.token;
 			try {
-				await this.mergeInDataFromCopy(dataTransfer, metadata, token);
+				await this.mergeInDataFromCopy(allProviders, dataTransfer, metadata, token);
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -371,6 +365,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				const context: DocumentPasteContext = {
 					triggerKind: DocumentPasteTriggerKind.Automatic,
 				};
+
 				const editSession = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, token);
 				disposables.add(editSession);
 				if (token.isCancellationRequested) {
@@ -448,7 +443,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			const disposables = new DisposableStore();
 			const tokenSource = disposables.add(new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined, token));
 			try {
-				await this.mergeInDataFromCopy(dataTransfer, metadata, tokenSource.token);
+				await this.mergeInDataFromCopy(allProviders, dataTransfer, metadata, tokenSource.token);
 				if (tokenSource.token.isCancellationRequested) {
 					return;
 				}
@@ -583,15 +578,26 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		return undefined;
 	}
 
-	private async mergeInDataFromCopy(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken): Promise<void> {
+	private async mergeInDataFromCopy(allProviders: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken): Promise<void> {
 		if (metadata?.id && CopyPasteController._currentCopyOperation?.handle === metadata.id) {
-			const toMergeDataTransfer = await CopyPasteController._currentCopyOperation.dataTransferPromise;
+			// Only resolve providers that have data we may care about
+			const toResolve = CopyPasteController._currentCopyOperation.operations
+				.filter(op => allProviders.some(provider => provider.pasteMimeTypes.some(type => matchesMimeType(type, op.providerMimeTypes))))
+				.map(op => op.operation);
+
+			const toMergeResults = await Promise.all(toResolve);
 			if (token.isCancellationRequested) {
 				return;
 			}
 
-			for (const [key, value] of toMergeDataTransfer) {
-				dataTransfer.replace(key, value);
+			// Values from higher priority providers should overwrite values from lower priority ones.
+			// Reverse the array to so that the calls to `DataTransfer.replace` later will do this
+			for (const toMergeData of toMergeResults.reverse()) {
+				if (toMergeData) {
+					for (const [key, value] of toMergeData) {
+						dataTransfer.replace(key, value);
+					}
+				}
 			}
 		}
 

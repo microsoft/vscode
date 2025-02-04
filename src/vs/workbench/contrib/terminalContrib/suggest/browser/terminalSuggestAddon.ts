@@ -19,19 +19,18 @@ import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../.
 import type { IPromptInputModel, IPromptInputModelState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { getListStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { activeContrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
-import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
-import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
-import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -85,7 +84,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Folder, Codicon.folder],
 		[TerminalCompletionItemKind.Flag, Codicon.symbolProperty],
 		[TerminalCompletionItemKind.Method, Codicon.symbolMethod],
-		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable]
+		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable],
+		[TerminalCompletionItemKind.Alias, Codicon.replace],
 	]);
 
 	private _shouldSyncWhenReady: boolean = false;
@@ -97,7 +97,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		super();
@@ -158,8 +157,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			doNotRequestExtensionCompletions = true;
 		}
 
-		const enableExtensionCompletions = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
-		if (enableExtensionCompletions && !doNotRequestExtensionCompletions) {
+		if (!doNotRequestExtensionCompletions) {
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
 		this._currentPromptInputState = {
@@ -171,7 +169,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, token, doNotRequestExtensionCompletions);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
 
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
@@ -324,12 +322,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		// Hide the widget if the cursor moves to the left of the initial position as the
-		// completions are no longer valid
-		// to do: get replacement length to be correct, readd this?
-		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex <= this._leadingLineContent.length) {
-			this.hideSuggestWidget();
-			return;
+		// Hide the widget if the cursor moves to the left and invalidates the completions.
+		// Originally this was to the left of the initial position that the completions were
+		// requested, but since extensions are expected to allow the client-side to filter, they are
+		// only invalidated when whitespace is encountered.
+		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
+			if (this._currentPromptInputState.cursorIndex === 0 || this._leadingLineContent[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
+				this.hideSuggestWidget();
+				return;
+			}
 		}
 
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
@@ -392,23 +393,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
+
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
 		if (!this._suggestWidget) {
-			const c = this._terminalConfigurationService.config;
-			const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
-			const fontInfo: ISimpleSuggestWidgetFontInfo = {
-				fontFamily: font.fontFamily,
-				fontSize: font.fontSize,
-				lineHeight: Math.ceil(1.5 * font.fontSize),
-				fontWeight: c.fontWeight.toString(),
-				letterSpacing: font.letterSpacing
-			};
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				this._container!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
-				() => fontInfo,
-				{}
+				{
+					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
+					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
+				},
 			));
 			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,

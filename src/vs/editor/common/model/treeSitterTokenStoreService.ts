@@ -16,6 +16,7 @@ export interface ITreeSitterTokenizationStoreService {
 	getTokens(model: ITextModel, line: number): Uint32Array | undefined;
 	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void;
 	markForRefresh(model: ITextModel, range: Range): void;
+	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[];
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
 }
 
@@ -36,7 +37,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
 		const disposables = new DisposableStore();
 		const store = disposables.add(new TokenStore(model));
-		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: 0 });
+		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: model.getVersionId() });
 
 		store.buildStore(tokens);
 		disposables.add(model.onDidChangeContent(e => {
@@ -47,17 +48,24 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 
 			storeInfo.guessVersion = e.versionId;
 			for (const change of e.changes) {
-				storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + change.rangeLength);
 				if (change.text.length > change.rangeLength) {
-					const oldToken = storeInfo.store.getTokenAt(change.rangeOffset)!;
-					// Insert. Just grow the token at this position to include the insert.
-					const newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
-					storeInfo.store.update(oldToken.length, [newToken]);
+					const oldToken = storeInfo.store.getTokenAt(change.rangeOffset);
+					let newToken: TokenUpdate;
+					if (oldToken) {
+						// Insert. Just grow the token at this position to include the insert.
+						newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
+					} else {
+						// The document got larger and the change is at the end of the document.
+						newToken = { startOffsetInclusive: change.rangeOffset, length: change.text.length, token: 0 };
+					}
+					storeInfo.store.update(oldToken?.length ?? 0, [newToken], true);
 				} else if (change.text.length < change.rangeLength) {
 					// Delete. Delete the tokens at the corresponding range.
 					const deletedCharCount = change.rangeLength - change.text.length;
 					storeInfo.store.delete(deletedCharCount, change.rangeOffset);
 				}
+				const refreshLength = change.rangeLength > change.text.length ? change.rangeLength : change.text.length;
+				storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + refreshLength);
 			}
 		}));
 		disposables.add(model.onWillDispose(() => {
@@ -104,8 +112,8 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 
 		existingTokens.accurateVersion = version;
 		for (const update of updates) {
-			const lastToken = update.newTokens[update.newTokens.length - 1];
-			const oldRangeLength = (existingTokens.guessVersion >= version) ? (lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive) : update.oldRangeLength;
+			const lastToken = update.newTokens.length > 0 ? update.newTokens[update.newTokens.length - 1] : undefined;
+			const oldRangeLength = ((existingTokens.guessVersion >= version) && lastToken) ? (lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive) : update.oldRangeLength;
 			existingTokens.store.update(oldRangeLength, update.newTokens);
 		}
 	}
@@ -117,6 +125,18 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		}
 
 		tree.markForRefresh(model.getOffsetAt(range.getStartPosition()), model.getOffsetAt(range.getEndPosition()));
+	}
+
+	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
+		const needsRefreshOffsetRanges = this.tokens.get(model)?.store.getNeedsRefresh();
+		if (!needsRefreshOffsetRanges) {
+			return [];
+		}
+		return needsRefreshOffsetRanges.map(range => ({
+			range: Range.fromPositions(model.getPositionAt(range.startOffset), model.getPositionAt(range.endOffset)),
+			startOffset: range.startOffset,
+			endOffset: range.endOffset
+		}));
 	}
 
 	dispose(): void {

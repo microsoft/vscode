@@ -1657,12 +1657,13 @@ export class SearchView extends ViewPane {
 			await this.refreshAndUpdateCount();
 		}
 
-		const hasResults = !this.viewModel.searchResult.isEmpty();
-		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
+		const allResults = !this.viewModel.searchResult.isEmpty();
+		const aiResults = this.searchResult.getCachedSearchComplete(true);
+		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted || (this.shouldShowAIResults() && !aiResults)) {
 			return;
 		}
 
-		if (!hasResults) {
+		if (!allResults) {
 			const hasExcludes = !!excludePatternText;
 			const hasIncludes = !!includePatternText;
 			let message: string;

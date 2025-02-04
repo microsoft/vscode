@@ -31,7 +31,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { isBoolean, isNumber, isString } from '../../../../base/common/types.js';
 import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey } from '../../extensions/common/extensions.js';
-import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../chat/common/chatService.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 type TelemetryData = {
@@ -143,7 +142,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsReadClassification = {
-				owner: 'bpasero';
+				owner: 'isidorn';
 				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the settings file that was read.' };
 				comment: 'Track when a settings file was read, for example from an editor.';
 			};
@@ -151,7 +150,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
 		} else {
 			type FileGetClassification = {
-				owner: 'bpasero';
+				owner: 'isidorn';
 				comment: 'Track when a file was read, for example from an editor.';
 			} & FileTelemetryDataFragment;
 
@@ -163,14 +162,14 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsWrittenClassification = {
-				owner: 'bpasero';
+				owner: 'isidorn';
 				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the settings file that was written to.' };
 				comment: 'Track when a settings file was written to, for example from an editor.';
 			};
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 		} else {
 			type FilePutClassfication = {
-				owner: 'bpasero';
+				owner: 'isidorn';
 				comment: 'Track when a file was written to, for example from an editor.';
 			} & FileTelemetryDataFragment;
 			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
@@ -306,15 +305,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('extensions.autoUpdate', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
-			case 'files.autoSave':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'isidorn';
-					comment: 'This is used to know if auto save is enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('files.autoSave', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
 			case 'editor.stickyScroll.enabled':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'aiday-mar';
@@ -324,33 +314,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('editor.stickyScroll.enabled', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
-			case KEYWORD_ACTIVIATION_SETTING_ID:
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if voice keyword activation is enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('accessibility.voice.keywordActivation', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.zoomLevel':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if window zoom level is configured or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.zoomLevel', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.zoomPerWindow':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if window zoom per window is configured or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.zoomPerWindow', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
 			case 'window.titleBarStyle':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';
@@ -358,24 +321,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.commandCenter':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if command center is enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.commandCenter', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'chat.commandCenter.enabled':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if command center chat menu is enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('chat.commandCenter.enabled', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.customTitleBarVisibility':
@@ -403,15 +348,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('extensions.verifySignature', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.systemColorTheme':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know how system color theme is enforced';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.systemColorTheme', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.newWindowProfile':

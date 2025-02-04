@@ -6,7 +6,7 @@
 import { IAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import './media/scm.css';
 import { localize } from '../../../../nls.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -70,14 +70,13 @@ interface IContextualResourceMenuItem {
 
 class SCMMenusItem implements IDisposable {
 
-	private readonly _resourceGroupMenu = new MutableDisposable<IMenu>();
+	private _resourceGroupMenu: IMenu | undefined;
 	get resourceGroupMenu(): IMenu {
-		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmResourceGroupResourceCount', this.group.resources.length],
-		]);
+		if (!this._resourceGroupMenu) {
+			this._resourceGroupMenu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, this.contextKeyService);
+		}
 
-		this._resourceGroupMenu.value = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
-		return this._resourceGroupMenu.value;
+		return this._resourceGroupMenu;
 	}
 
 	private _resourceFolderMenu: IMenu | undefined;
@@ -93,9 +92,8 @@ class SCMMenusItem implements IDisposable {
 	private contextualResourceMenus: Map<string /* contextValue */, IContextualResourceMenuItem> | undefined;
 
 	constructor(
-		private readonly group: ISCMResourceGroup,
-		private readonly contextKeyService: IContextKeyService,
-		private readonly menuService: IMenuService
+		private contextKeyService: IContextKeyService,
+		private menuService: IMenuService
 	) { }
 
 	getResourceMenu(resource: ISCMResource): IMenu {
@@ -208,7 +206,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 				['multiDiffEditorEnableViewChanges', group.multiDiffEditorEnableViewChanges],
 			]);
 
-			result = new SCMMenusItem(group, contextKeyService, this.menuService);
+			result = new SCMMenusItem(contextKeyService, this.menuService);
 			this.resourceGroupMenusItems.set(group, result);
 		}
 

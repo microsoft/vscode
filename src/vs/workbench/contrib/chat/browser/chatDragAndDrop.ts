@@ -431,7 +431,7 @@ async function getImageAttachContext(editor: EditorInput | IDraggedResourceEdito
 		return undefined;
 	}
 
-	if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(editor.resource.path)) {
+	if (/\.(png|jpg|jpeg|gif|webp)$/i.test(editor.resource.path)) {
 		const fileName = basename(editor.resource);
 		const readFile = await fileService.readFile(editor.resource);
 		const resizedImage = await resizeImage(readFile.value.buffer);
@@ -443,7 +443,8 @@ async function getImageAttachContext(editor: EditorInput | IDraggedResourceEdito
 			icon: Codicon.fileMedia,
 			isDynamic: true,
 			isImage: true,
-			isFile: false
+			isFile: false,
+			references: [{ reference: editor.resource, kind: 'reference' }]
 		};
 	}
 

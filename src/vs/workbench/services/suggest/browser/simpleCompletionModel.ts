@@ -8,6 +8,7 @@ import { quickSelect } from '../../../../base/common/arrays.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { count } from '../../../../base/common/strings.js';
 
 export interface ISimpleCompletionStats {
 	pLabelLen: number;
@@ -187,14 +188,21 @@ export class SimpleCompletionModel {
 					return score;
 				}
 			}
+
 			// Sort by the score
 			score = b.score[0] - a.score[0];
 			if (score !== 0) {
 				return score;
 			}
-			// Sort files with the same score against each other specially
+
+			// Sort by underscore penalty (eg. `__init__/` should be penalized)
+			if (a.underscorePenalty !== b.underscorePenalty) {
+				return a.underscorePenalty - b.underscorePenalty;
+			}
+
+			// Sort files of the same name by extension
 			const isArg = leadingLineContent.includes(' ');
-			if (!isArg && a.fileExtLow.length > 0 && b.fileExtLow.length > 0) {
+			if (!isArg && a.labelLowExcludeFileExt === b.labelLowExcludeFileExt) {
 				// Then by label length ascending (excluding file extension if it's a file)
 				score = a.labelLowExcludeFileExt.length - b.labelLowExcludeFileExt.length;
 				if (score !== 0) {
@@ -207,12 +215,32 @@ export class SimpleCompletionModel {
 				}
 				// Then by file extension length ascending
 				score = a.fileExtLow.length - b.fileExtLow.length;
+				if (score !== 0) {
+					return score;
+				}
 			}
-			if (score === 0 || fileExtScore(a.fileExtLow) === 0 && fileExtScore(b.fileExtLow) === 0) {
-				// both files or directories, sort alphabetically
-				score = a.completion.label.localeCompare(b.completion.label);
+
+			// Sort by folder depth (eg. `vscode/` should come before `vscode-.../`)
+			if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
+				// Directories
+				// Count depth of path (number of / or \ occurrences)
+				score = count(a.labelLowNormalizedPath, '/') - count(b.labelLowNormalizedPath, '/');
+				if (score !== 0) {
+					return score;
+				}
+
+				// Ensure shorter prefixes appear first
+				if (b.labelLowNormalizedPath.startsWith(a.labelLowNormalizedPath)) {
+					return -1; // `a` is a prefix of `b`, so `a` should come first
+				}
+				if (a.labelLowNormalizedPath.startsWith(b.labelLowNormalizedPath)) {
+					return 1; // `b` is a prefix of `a`, so `b` should come first
+				}
 			}
-			return score;
+
+			// Sort alphabetically, ignoring punctuation causes dot files to be mixed in rather than
+			// all at the top
+			return a.labelLow.localeCompare(b.labelLow, undefined, { ignorePunctuation: true });
 		});
 		this._refilterKind = Refilter.Nothing;
 
