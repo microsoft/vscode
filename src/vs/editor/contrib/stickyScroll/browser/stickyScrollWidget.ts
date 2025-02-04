@@ -366,6 +366,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const foldingIcon = this._renderFoldingIconForLine(foldingModel, line);
 		if (foldingIcon) {
 			lineNumberHTMLNode.appendChild(foldingIcon.domNode);
+			foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
 		}
 
 		this._editor.applyFontInfo(lineHTMLNode);
@@ -537,11 +538,12 @@ class StickyFoldingIcon {
 		public isCollapsed: boolean,
 		public foldingStartLine: number,
 		public foldingEndLine: number,
-		public dimension: dom.Dimension
+		public dimension: number
 	) {
 		this.domNode = document.createElement('div');
-		this.domNode.style.width = `${dimension.width}px`;
+		this.domNode.style.width = `26px`;
 		this.domNode.style.height = `${dimension.height}px`;
+		this.domNode.style.lineHeight = `${dimension.height}px`;
 		this.domNode.className = ThemeIcon.asClassName(isCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
 	}
 

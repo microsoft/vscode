@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { TextModelTreeSitter, TreeSitterImporter, TreeSitterLanguages } from '../../../browser/services/treeSitter/treeSitterParserService.js';
+import { TextModelTreeSitter, TreeSitterImporter, TreeSitterLanguages } from '../../../common/services/treeSitter/treeSitterParserService.js';
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { createTextModel } from '../../common/testTextModel.js';
 import { timeout } from '../../../../base/common/async.js';

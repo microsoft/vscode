@@ -2,25 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getWindow } from '../../../../../../base/browser/dom.js';
+import { $, getWindow } from '../../../../../../base/browser/dom.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { darken, lighten, registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
+import { diffInserted, diffInsertedLine, diffRemoved, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -30,7 +29,7 @@ import { ITextModel } from '../../../../../common/model.js';
 import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionContextKeys } from '../../controller/inlineCompletionContextKeys.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
-import { PathBuilder, StatusBarViewItem, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
+import { PathBuilder, StatusBarViewItem, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
 import { localize } from '../../../../../../nls.js';
 
@@ -63,7 +62,12 @@ export const originalChangedTextOverlayColor = registerColor(
 
 export const modifiedChangedLineBackgroundColor = registerColor(
 	'inlineEdit.modifiedChangedLineBackground',
-	Color.transparent,
+	{
+		light: transparent(diffInsertedLine, 0.5),
+		dark: transparent(diffInsertedLine, 0.5),
+		hcDark: diffInsertedLine,
+		hcLight: diffInsertedLine
+	},
 	localize('inlineEdit.modifiedChangedLineBackground', 'Background color for the changed lines in the modified text of inline edits.'),
 	true
 );
@@ -77,10 +81,10 @@ export const modifiedChangedTextOverlayColor = registerColor(
 export const originalBorder = registerColor(
 	'inlineEdit.originalBorder',
 	{
-		light: darken(editorLineHighlightBorder, 0.15),
-		dark: lighten(editorLineHighlightBorder, 0.50),
-		hcDark: editorLineHighlightBorder,
-		hcLight: editorLineHighlightBorder
+		light: editorHoverBorder,
+		dark: editorHoverBorder,
+		hcDark: editorHoverBorder,
+		hcLight: editorHoverBorder
 	},
 	localize('inlineEdit.originalBorder', 'Border color for the original text in inline edits.')
 );
@@ -88,15 +92,39 @@ export const originalBorder = registerColor(
 export const modifiedBorder = registerColor(
 	'inlineEdit.modifiedBorder',
 	{
-		light: darken(editorLineHighlightBorder, 0.15),
-		dark: lighten(editorLineHighlightBorder, 0.50),
-		hcDark: editorLineHighlightBorder,
-		hcLight: editorLineHighlightBorder
+		light: editorHoverBorder,
+		dark: editorHoverBorder,
+		hcDark: editorHoverBorder,
+		hcLight: editorHoverBorder
 	},
 	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
 );
 
-export class InlineEditsSideBySideDiff extends Disposable {
+export interface IInlineEditsView {
+	isHovered: IObservable<boolean>;
+}
+
+const PADDING = 4;
+const ENABLE_OVERFLOW = false;
+
+export class InlineEditsSideBySideDiff extends Disposable implements IInlineEditsView {
+
+	// This is an approximation and should be improved by using the real parameters used bellow
+	static fitsInsideViewport(editor: ICodeEditor, edit: InlineEditWithChanges, reader: IReader): boolean {
+		const editorObs = observableCodeEditor(editor);
+		const editorWidth = editorObs.layoutInfoWidth.read(reader);
+		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
+		const editorVerticalScrollBar = editor.getLayoutInfo().verticalScrollbarWidth;
+		const w = editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+
+		const maxOriginalContent = maxContentWidthInRange(editorObs, edit.originalLineRange, undefined/* do not reconsider on each layout info change */);
+		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, line.length * w), 0);
+		const endOfEditorPadding = 20; // padding after last line of editor
+		const editorsPadding = edit.modifiedLineRange.length <= edit.originalLineRange.length ? PADDING * 3 + endOfEditorPadding : 60 + endOfEditorPadding * 2;
+
+		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollBar;
+	}
+
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	constructor(
@@ -147,11 +175,13 @@ export class InlineEditsSideBySideDiff extends Disposable {
 				return;
 			}
 
-			this.previewEditor.layout({ height: layoutInfo.editHeight, width: layoutInfo.previewEditorWidth });
+			const editorTopLeft = layoutInfo.editStart1.deltaY(layoutInfo.padding);
+			const editorBottomLeft = layoutInfo.editStart2.deltaY(-layoutInfo.padding);
 
-			const topEdit = layoutInfo.edit1;
-			this._editorContainer.element.style.top = `${topEdit.y}px`;
-			this._editorContainer.element.style.left = `${topEdit.x}px`;
+			this.previewEditor.layout({ height: editorBottomLeft.y - editorTopLeft.y, width: layoutInfo.previewEditorWidth + 15 /* Make sure editor does not scroll horizontally */ });
+			this._editorContainer.element.style.top = `${editorTopLeft.y}px`;
+			this._editorContainer.element.style.left = `${editorTopLeft.x}px`;
+			this._editorContainer.element.style.width = `${layoutInfo.previewEditorWidth}px`; // Set width to clip view zone
 		}));
 
 		/*const toolbarDropdownVisible = observableFromEvent(this, this._toolbar.onDidChangeDropdownVisibility, (e) => e ?? false);
@@ -168,8 +198,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 			this._previewEditorObs.editor.setScrollLeft(layoutInfo.desiredPreviewEditorScrollLeft);
 		}));
-
-		this._editorContainerTopLeft.set(this._previewEditorLayoutInfo.map(i => i?.edit1), undefined);
 	}
 
 	private readonly _display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
@@ -177,11 +205,9 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly previewRef = n.ref<HTMLDivElement>();
 	private readonly toolbarRef = n.ref<HTMLDivElement>();
 
-	private readonly _editorContainerTopLeft = observableValue<IObservable<Point | undefined> | undefined>(this, undefined);
-
 	private readonly _editorContainer = n.div({
-		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.experimental.useGutterIndicator && 'showHover')],
-		style: { position: 'absolute' },
+		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.useGutterIndicator && 'showHover')],
+		style: { position: 'absolute', overflow: 'hidden' },
 	}, [
 		n.div({ class: 'preview', style: {}, ref: this.previewRef }),
 		n.div({ class: 'toolbar', style: {}, ref: this.toolbarRef }),
@@ -261,6 +287,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			overviewRulerLanes: 0,
 			lineDecorationsWidth: 0,
 			lineNumbersMinChars: 0,
+			revealHorizontalRightPadding: 0,
 			bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
 			scrollBeyondLastLine: false,
 			scrollbar: {
@@ -284,6 +311,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 	private readonly _previewEditorObs = observableCodeEditor(this.previewEditor);
 
+	private _activeViewZones: string[] = [];
 	private readonly _updatePreviewEditor = derived(reader => {
 		this._editorContainer.readEffect(reader);
 
@@ -316,6 +344,24 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 		this.previewEditor.setHiddenAreas(hiddenAreas, undefined, true);
 
+		// TODO: is this the proper way to handle viewzones?
+		const previousViewZones = [...this._activeViewZones];
+		this._activeViewZones = [];
+
+		const reducedLinesCount = (range.endLineNumberExclusive - range.startLineNumber) - uiState.newTextLineCount;
+		this.previewEditor.changeViewZones((changeAccessor) => {
+			previousViewZones.forEach(id => changeAccessor.removeZone(id));
+
+			if (reducedLinesCount > 0) {
+				this._activeViewZones.push(changeAccessor.addZone({
+					afterLineNumber: range.startLineNumber + uiState.newTextLineCount - 1,
+					heightInLines: reducedLinesCount,
+					showInHiddenAreas: true,
+					domNode: $('div.diagonal-fill.inline-edits-view-zone'),
+				}));
+			}
+		});
+
 	}).recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _previewEditorWidth = derived(this, reader => {
@@ -323,7 +369,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		if (!edit) { return 0; }
 		this._updatePreviewEditor.read(reader);
 
-		return maxContentWidthInRange(this._previewEditorObs, edit.modifiedLineRange, reader) + 10;
+		return maxContentWidthInRange(this._previewEditorObs, edit.modifiedLineRange, reader);
 	});
 
 	private readonly _cursorPosIfTouchesEdit = derived(this, reader => {
@@ -385,8 +431,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
 		const editorBoundingClientRect = this._editor.getContainerDomNode().getBoundingClientRect();
 		const clientContentAreaRight = editorLayout.contentLeft + editorLayout.contentWidth + editorBoundingClientRect.left;
-		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).outerWidth - clientContentAreaRight;
-		const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).outerWidth - editorBoundingClientRect.right;
+		const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).innerWidth - clientContentAreaRight;
+		const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).innerWidth - editorBoundingClientRect.right;
 		const desiredMinimumWidth = Math.min(editorLayout.contentWidth * 0.3, previewContentWidth, 100);
 		const IN_EDITOR_DISPLACEMENT = 0;
 		const maximumAvailableWidth = IN_EDITOR_DISPLACEMENT + remainingWidthRightOfContent;
@@ -394,7 +440,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const cursorPos = this._cursorPosIfTouchesEdit.read(reader);
 
 		const maxPreviewEditorLeft = Math.max(
-			// We're starting from the content area right and moving it left by IN_EDITOR_DISPLACEMENT and also by an ammount to ensure some mimum desired width
+			// We're starting from the content area right and moving it left by IN_EDITOR_DISPLACEMENT and also by an amount to ensure some minimum desired width
 			editorContentAreaWidth + horizontalScrollOffset - IN_EDITOR_DISPLACEMENT - Math.max(0, desiredMinimumWidth - maximumAvailableWidth),
 			// But we don't want that the moving left ends up covering the cursor, so this will push it to the right again
 			Math.min(
@@ -419,29 +465,54 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		}
 
 		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
-		const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
+		const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getBottomForLineNumber(range.endLineNumberExclusive - 1) - this._editorObs.scrollTop.read(reader);
 
+		// TODO: const { prefixLeftOffset } = getPrefixTrim(inlineEdit.edit.edits.map(e => e.range), inlineEdit.originalLineRange, [], this._editor);
 		const codeLeft = editorLayout.contentLeft;
 
-		const code1 = new Point(left, selectionTop);
-		const codeStart1 = new Point(codeLeft, selectionTop);
-		const code2 = new Point(left, selectionBottom);
-		const codeStart2 = new Point(codeLeft, selectionBottom);
-		const codeHeight = selectionBottom - selectionTop;
+		let code1 = new Point(left, selectionTop);
+		let codeStart1 = new Point(codeLeft, selectionTop);
+		let code2 = new Point(left, selectionBottom);
+		let codeStart2 = new Point(codeLeft, selectionBottom);
 
-		const codeEditDistRange = inlineEdit.modifiedLineRange.length === inlineEdit.originalLineRange.length
+		const editHeight = this._editor.getOption(EditorOption.lineHeight) * inlineEdit.modifiedLineRange.length;
+		const codeHeight = selectionBottom - selectionTop;
+		const previewEditorHeight = Math.max(codeHeight, editHeight);
+
+		const editIsSameHeight = codeHeight === previewEditorHeight;
+		const codeEditDistRange = editIsSameHeight
 			? new OffsetRange(4, 61)
 			: new OffsetRange(60, 61);
 
 		const clipped = dist === 0;
 
-		const codeEditDist = codeEditDistRange.clip(dist);
-		const editHeight = this._editor.getOption(EditorOption.lineHeight) * inlineEdit.modifiedLineRange.length;
+		const codeEditDist = editIsSameHeight ? PADDING : codeEditDistRange.clip(dist); // TODO: Is there a better way to specify the distance?
 
 		const previewEditorWidth = Math.min(previewContentWidth, remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist);
 
-		const edit1 = new Point(left + codeEditDist, selectionTop);
-		const edit2 = new Point(left + codeEditDist, selectionTop + editHeight);
+		let editStart1 = new Point(left + codeEditDist, selectionTop);
+		let edit1 = editStart1.deltaX(previewEditorWidth);
+		let editStart2 = new Point(left + codeEditDist, selectionTop + previewEditorHeight);
+		let edit2 = editStart2.deltaX(previewEditorWidth);
+
+		// padding
+		const isInsertion = codeHeight === 0;
+		if (!isInsertion) {
+			codeStart1 = codeStart1.deltaY(-PADDING).deltaX(-PADDING);
+			code1 = code1.deltaY(-PADDING);
+			codeStart2 = codeStart2.deltaY(PADDING).deltaX(-PADDING);
+			code2 = code2.deltaY(PADDING);
+
+			editStart1 = editStart1.deltaY(-PADDING);
+			edit1 = edit1.deltaY(-PADDING).deltaX(PADDING);
+			editStart2 = editStart2.deltaY(PADDING);
+			edit2 = edit2.deltaY(PADDING).deltaX(PADDING);
+		} else {
+			// Align top of edit with insertion line
+			edit1 = edit1.deltaX(PADDING);
+			editStart2 = editStart2.deltaY(2 * PADDING);
+			edit2 = edit2.deltaY(2 * PADDING).deltaX(PADDING);
+		}
 
 		return {
 			code1,
@@ -449,14 +520,19 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			code2,
 			codeStart2,
 			codeHeight,
+			codeScrollLeft: horizontalScrollOffset,
 
+			editStart1,
 			edit1,
+			editStart2,
 			edit2,
 			editHeight,
 			maxContentWidth,
 			shouldShowShadow: clipped,
 			desiredPreviewEditorScrollLeft,
-			previewEditorWidth
+			previewEditorWidth,
+			padding: PADDING,
+			borderRadius: PADDING
 		};
 	});
 
@@ -464,6 +540,9 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	private readonly _stickyScrollHeight = this._stickyScrollController ? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight) : constObservable(0);
 
 	private readonly _shouldOverflow = derived(reader => {
+		if (!ENABLE_OVERFLOW) {
+			return false;
+		}
 		const range = this._edit.read(reader)?.originalLineRange;
 		if (!range) {
 			return false;
@@ -480,22 +559,25 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		return true;
 	});
 
-
 	private readonly _extendedModifiedPath = derived(reader => {
 		const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 		if (!layoutInfo) { return undefined; }
-		const width = layoutInfo.previewEditorWidth;
-		const extendedModifiedPathBuilder = new PathBuilder()
-			.moveTo(layoutInfo.code1)
-			.lineTo(layoutInfo.edit1)
-			.lineTo(layoutInfo.edit1.deltaX(width))
-			.lineTo(layoutInfo.edit2.deltaX(width))
-			.lineTo(layoutInfo.edit2);
-		if (layoutInfo.edit2.y !== layoutInfo.code2.y) {
-			extendedModifiedPathBuilder.curveTo2(layoutInfo.edit2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
+
+		const path = new PathBuilder()
+			.moveTo(layoutInfo.code2)
+			.lineTo(layoutInfo.code1)
+			.lineTo(layoutInfo.editStart1)
+			.lineTo(layoutInfo.edit1.deltaX(-layoutInfo.borderRadius))
+			.curveTo(layoutInfo.edit1, layoutInfo.edit1.deltaY(layoutInfo.borderRadius))
+			.lineTo(layoutInfo.edit2.deltaY(-layoutInfo.borderRadius))
+			.curveTo(layoutInfo.edit2, layoutInfo.edit2.deltaX(-layoutInfo.borderRadius))
+			.lineTo(layoutInfo.editStart2);
+
+		if (layoutInfo.editStart2.y !== layoutInfo.code2.y) {
+			path.curveTo2(layoutInfo.editStart2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
 		}
-		extendedModifiedPathBuilder.lineTo(layoutInfo.code2);
-		return extendedModifiedPathBuilder.build();
+		path.lineTo(layoutInfo.code2);
+		return path.build();
 	});
 
 	private readonly _originalBackgroundColor = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => {
@@ -531,7 +613,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		}),
 	]).keepUpdated(this._store);
 
-	private readonly _foregroundBackgroundSvg = n.svg({
+	private readonly _modifiedBackgroundSvg = n.svg({
 		transform: 'translate(-0.5 -0.5)',
 		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
 	}, [
@@ -540,10 +622,37 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			d: this._extendedModifiedPath,
 			style: {
 				fill: 'var(--vscode-editor-background, transparent)',
+				strokeWidth: '0px',
+			}
+		}),
+	]).keepUpdated(this._store);
+
+	private readonly _foregroundBackgroundSvg = n.svg({
+		transform: 'translate(-0.5 -0.5)',
+		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
+	}, [
+		n.svgElem('path', {
+			class: 'extendedModifiedBackgroundCoverUp',
+			d: this._extendedModifiedPath,
+			style: {
+				fill: 'var(--vscode-inlineEdit-modifiedChangedLineBackground, transparent)',
 				strokeWidth: '1px',
 			}
 		}),
 	]).keepUpdated(this._store);
+
+	private readonly _middleBorderWithShadow = n.div({
+		class: ['middleBorderWithShadow'],
+		style: {
+			position: 'absolute',
+			display: this._previewEditorLayoutInfo.map(i => i?.shouldShowShadow ? 'block' : 'none'),
+			width: '6px',
+			boxShadow: 'var(--vscode-scrollbar-shadow) -6px 0 6px -6px inset',
+			left: this._previewEditorLayoutInfo.map(i => i ? i.code1.x - 6 : 0),
+			top: this._previewEditorLayoutInfo.map(i => i ? i.code1.y : 0),
+			height: this._previewEditorLayoutInfo.map(i => i ? i.code2.y - i.code1.y : 0),
+		},
+	}, []).keepUpdated(this._store);
 
 	private readonly _foregroundSvg = n.svg({
 		transform: 'translate(-0.5 -0.5)',
@@ -552,17 +661,15 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 		if (!layoutInfoObs) { return undefined; }
 
-		const shadowWidth = 6;
 		return [
 			n.svgElem('path', {
 				class: 'originalOverlay',
-				d: layoutInfoObs.map(layoutInfo => new PathBuilder()
-					.moveTo(layoutInfo.code2)
-					.lineTo(layoutInfo.codeStart2)
-					.lineTo(layoutInfo.codeStart1)
-					.lineTo(layoutInfo.code1)
-					.build()
-				),
+				d: layoutInfoObs.map(layoutInfo => createRectangle(
+					{ topLeft: layoutInfo.codeStart1, width: layoutInfo.code1.x - layoutInfo.codeStart1.x, height: layoutInfo.code2.y - layoutInfo.code1.y },
+					0,
+					{ topLeft: layoutInfo.borderRadius, bottomLeft: layoutInfo.borderRadius, topRight: 0, bottomRight: 0 },
+					{ hideRight: true, hideLeft: layoutInfo.codeScrollLeft !== 0 }
+				)),
 				style: {
 					fill: 'var(--vscode-inlineEdit-originalBackground, transparent)',
 					stroke: 'var(--vscode-inlineEdit-originalBorder)',
@@ -579,46 +686,19 @@ export class InlineEditsSideBySideDiff extends Disposable {
 					strokeWidth: '1px',
 				}
 			}),
-
-			...(!layoutInfoObs.map(i => i.shouldShowShadow).read(reader)
-				? [
-					n.svgElem('path', {
-						class: 'middleBorder',
-						d: layoutInfoObs.map(layoutInfo => new PathBuilder()
-							.moveTo(layoutInfo.code1)
-							.lineTo(layoutInfo.code2)
-							.build()
-						),
-						style: {
-							stroke: 'var(--vscode-inlineEdit-modifiedBorder)',
-							strokeWidth: '1px'
-						}
-					})
-				]
-				: [
-					n.svgElem('defs', {}, [
-						n.svgElem('linearGradient', { id: 'gradient', x1: '0%', x2: '100%', }, [
-							n.svgElem('stop', {
-								offset: '0%',
-								style: { stopColor: 'var(--vscode-inlineEdit-modifiedBorder)', stopOpacity: '0', }
-							}),
-							n.svgElem('stop', {
-								offset: '100%',
-								style: { stopColor: 'var(--vscode-inlineEdit-modifiedBorder)', stopOpacity: '1', }
-							})
-						])
-					]),
-					n.svgElem('rect', {
-						class: 'middleBorderWithShadow',
-						x: layoutInfoObs.map(layoutInfo => layoutInfo.code1.x - shadowWidth),
-						y: layoutInfoObs.map(layoutInfo => layoutInfo.code1.y),
-						width: shadowWidth,
-						height: layoutInfoObs.map(layoutInfo => layoutInfo.code2.y - layoutInfo.code1.y),
-						fill: 'url(#gradient)',
-						style: { strokeWidth: '0', stroke: 'transparent', }
-					})
-				]
-			)
+			n.svgElem('path', {
+				class: 'middleBorder',
+				d: layoutInfoObs.map(layoutInfo => new PathBuilder()
+					.moveTo(layoutInfo.code1)
+					.lineTo(layoutInfo.code2)
+					.build()
+				),
+				style: {
+					display: layoutInfoObs.map(i => i.shouldShowShadow ? 'none' : 'block'),
+					stroke: 'var(--vscode-inlineEdit-modifiedBorder)',
+					strokeWidth: '1px'
+				}
+			})
 		];
 	})).keepUpdated(this._store);
 
@@ -634,7 +714,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		},
 	}, [
 		this._backgroundSvg,
-		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg]),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._modifiedBackgroundSvg, this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg, this._middleBorderWithShadow]),
 	]).keepUpdated(this._store);
 
 	private readonly _overflowView = n.div({
@@ -645,6 +725,6 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			display: this._display,
 		},
 	}, [
-		derived(this, reader => this._shouldOverflow.read(reader) ? [this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg] : []),
+		derived(this, reader => this._shouldOverflow.read(reader) ? [this._modifiedBackgroundSvg, this._foregroundBackgroundSvg, this._editorContainer, this._foregroundSvg, this._middleBorderWithShadow] : []),
 	]).keepUpdated(this._store);
 }

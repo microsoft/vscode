@@ -84,7 +84,7 @@ export class ExplicitTriggerInlineEditAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.triggerInlineEditExplicit',
-			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Inline Edit"),
+			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Next Edit Suggestion"),
 			precondition: EditorContextKeys.writable,
 		});
 	}
@@ -271,7 +271,7 @@ export class HideInlineCompletion extends EditorAction {
 			label: nls.localize2('action.inlineSuggest.hide', "Hide Inline Suggestion"),
 			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			kbOpts: {
-				weight: 100,
+				weight: KeybindingWeight.EditorContrib + 90, // same as hiding the suggest widget
 				primary: KeyCode.Escape,
 			},
 			menuOpts: [{

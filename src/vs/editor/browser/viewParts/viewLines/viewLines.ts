@@ -254,7 +254,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return true;
 	}
 	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		const shouldRender = this._visibleLines.onFlushed(e);
+		const shouldRender = this._visibleLines.onFlushed(e, this._viewLineOptions.useGpu);
 		this._maxLineWidth = 0;
 		return shouldRender;
 	}

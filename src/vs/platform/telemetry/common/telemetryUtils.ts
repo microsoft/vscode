@@ -6,8 +6,10 @@
 import { cloneAndChange, safeStringify } from '../../../base/common/objects.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
+import { LoggerGroup } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getRemoteName } from '../../remote/common/remoteHosts.js';
 import { verifyMicrosoftInternalDomain } from './commonProperties.js';
@@ -56,6 +58,7 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 
 export const telemetryLogId = 'telemetry';
 export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
+export const TelemetryLogGroup: LoggerGroup = { id: 'telemetry', name: localize('telemetryLogName', "Telemetry") };
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;

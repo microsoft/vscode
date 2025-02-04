@@ -185,6 +185,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					},
 					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
 					editorOverflowWidgetsDomNode: editorOverflowNode,
+					enableWorkingSet: this.chatOptions.location === ChatAgentLocation.EditingSession ? 'explicit' : undefined
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,

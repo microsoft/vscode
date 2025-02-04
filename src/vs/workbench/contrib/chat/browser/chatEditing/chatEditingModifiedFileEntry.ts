@@ -7,7 +7,8 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { clamp } from '../../../../../base/common/numbers.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
@@ -26,7 +27,9 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason } from '../../../../common/editor.js';
@@ -35,6 +38,14 @@ import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+
+class AutoAcceptControl {
+	constructor(
+		readonly total: number,
+		readonly remaining: number,
+		readonly cancel: () => void
+	) { }
+}
 
 export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
@@ -89,6 +100,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._maxLineNumberObs;
 	}
 
+	private readonly _reviewModeTempObs = observableValue<true | undefined>(this, undefined);
+	readonly reviewMode: IObservable<boolean>;
+
+	private readonly _autoAcceptCtrl = observableValue<AutoAcceptControl | undefined>(this, undefined);
+	readonly autoAcceptController: IObservable<AutoAcceptControl | undefined> = this._autoAcceptCtrl;
+
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
@@ -130,6 +147,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._telemetryInfo.requestId;
 	}
 
+	private readonly _diffTrimWhitespace: IObservable<boolean>;
+
+	private _refCounter: number = 1;
+
+	private readonly _autoAcceptTimeout: IObservable<number>;
+
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
@@ -139,6 +162,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
+		@IConfigurationService configService: IConfigurationService,
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
@@ -174,7 +198,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
 
-		if (this.modifiedURI.scheme !== Schemas.untitled) {
+		if (this.modifiedURI.scheme !== Schemas.untitled && this.modifiedURI.scheme !== Schemas.vscodeNotebookCell) {
 			this._register(this._fileService.watch(this.modifiedURI));
 			this._register(this._fileService.onDidFilesChange(e => {
 				if (e.affects(this.modifiedURI) && kind === ChatEditKind.Created && e.gotDeleted()) {
@@ -186,6 +210,51 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._register(toDisposable(() => {
 			this._clearCurrentEditLineDecoration();
 		}));
+
+		this._diffTrimWhitespace = observableConfigValue('diffEditor.ignoreTrimWhitespace', true, configService);
+		this._register(autorun(r => {
+			this._diffTrimWhitespace.read(r);
+			this._updateDiffInfoSeq();
+		}));
+
+		// review mode depends on setting and temporary override
+		const autoAcceptRaw = observableConfigValue('chat.editing.autoAcceptDelay', 0, configService);
+		this._autoAcceptTimeout = derived(r => {
+			const value = autoAcceptRaw.read(r);
+			return clamp(value, 0, 100);
+		});
+		this.reviewMode = derived(r => {
+			const configuredValue = this._autoAcceptTimeout.read(r);
+			const tempValue = this._reviewModeTempObs.read(r);
+			return tempValue ?? configuredValue === 0;
+		});
+	}
+
+	override dispose(): void {
+		if (--this._refCounter === 0) {
+			super.dispose();
+		}
+	}
+
+	acquire() {
+		this._refCounter++;
+		return this;
+	}
+
+	enableReviewModeUntilSettled(): void {
+
+		this._reviewModeTempObs.set(true, undefined);
+
+		const cleanup = autorun(r => {
+			// reset config when settled
+			const resetConfig = this.state.read(r) !== WorkingSetEntryState.Modified;
+			if (resetConfig) {
+				this._store.delete(cleanup);
+				this._reviewModeTempObs.set(undefined, undefined);
+			}
+		});
+
+		this._store.add(cleanup);
 	}
 
 	private _clearCurrentEditLineDecoration() {
@@ -224,10 +293,40 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	acceptStreamingEditsStart(tx: ITransaction) {
 		this._resetEditsState(tx);
+		this._autoAcceptCtrl.get()?.cancel();
 	}
 
-	acceptStreamingEditsEnd(tx: ITransaction) {
+	async acceptStreamingEditsEnd(tx: ITransaction) {
 		this._resetEditsState(tx);
+		await this._diffOperation;
+
+		// AUTO accept mode
+		if (!this.reviewMode.get() && !this._autoAcceptCtrl.get()) {
+
+			const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
+			const future = Date.now() + acceptTimeout;
+			const update = () => {
+
+				const reviewMode = this.reviewMode.get();
+				if (reviewMode) {
+					// switched back to review mode
+					this._autoAcceptCtrl.set(undefined, undefined);
+					return;
+				}
+
+				const remain = Math.round(future - Date.now());
+				if (remain <= 0) {
+					this.accept(undefined);
+				} else {
+					const handle = setTimeout(update, 100);
+					this._autoAcceptCtrl.set(new AutoAcceptControl(acceptTimeout, remain, () => {
+						clearTimeout(handle);
+						this._autoAcceptCtrl.set(undefined, undefined);
+					}), undefined);
+				}
+			};
+			update();
+		}
 	}
 
 	private _resetEditsState(tx: ITransaction): void {
@@ -413,10 +512,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		const docVersionNow = this.doc.getVersionId();
 		const snapshotVersionNow = this.docSnapshot.getVersionId();
 
+		const ignoreTrimWhitespace = this._diffTrimWhitespace.get();
+
 		const diff = await this._editorWorkerService.computeDiff(
 			this.docSnapshot.uri,
 			this.doc.uri,
-			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
+			{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
 			'advanced'
 		);
 
@@ -442,6 +543,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._diffInfo.set(nullDocumentDiff, transaction);
 		this._edit = OffsetEdit.empty;
 		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
+		this._autoAcceptCtrl.set(undefined, transaction);
 		await this.collapse(transaction);
 		this._notifyAction('accepted');
 	}
@@ -466,6 +568,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			await this.collapse(transaction);
 		}
 		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
+		this._autoAcceptCtrl.set(undefined, transaction);
 		this._notifyAction('rejected');
 	}
 

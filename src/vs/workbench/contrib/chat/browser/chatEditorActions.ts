@@ -2,19 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { localize2 } from '../../../../nls.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { ChatEditorController, ctxHasEditorModification, ctxHasRequestInProgress } from './chatEditorController.js';
+import { ChatEditorController, ctxHasEditorModification, ctxReviewModeEnabled } from './chatEditorController.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '../common/chatEditingService.js';
+import { IChatEditingService } from '../common/chatEditingService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -37,14 +37,18 @@ abstract class NavigateAction extends Action2 {
 				primary: next
 					? KeyMod.Alt | KeyCode.F5
 					: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
-				weight: KeybindingWeight.EditorContrib,
-				when: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), EditorContextKeys.focus),
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification),
+					EditorContextKeys.focus
+				),
 			},
 			f1: true,
 			menu: {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'navigate',
 				order: !next ? 2 : 3,
+				when: ctxReviewModeEnabled
 			}
 		});
 	}
@@ -54,18 +58,22 @@ abstract class NavigateAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		const editor = editorService.activeTextEditorControl;
+		let editor = editorService.activeTextEditorControl;
+		if (isDiffEditor(editor)) {
+			editor = editor.getModifiedEditor();
+		}
 		if (!isCodeEditor(editor) || !editor.hasModel()) {
 			return;
 		}
-
-		const session = chatEditingService.currentEditingSession;
-		if (!session) {
+		const ctrl = ChatEditorController.get(editor);
+		if (!ctrl) {
 			return;
 		}
 
-		const ctrl = ChatEditorController.get(editor);
-		if (!ctrl) {
+		const session = chatEditingService.editingSessionsObs.get()
+			.find(candidate => candidate.getEntry(editor.getModel().uri));
+
+		if (!session) {
 			return;
 		}
 
@@ -126,7 +134,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasRequestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -142,6 +150,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: accept ? 0 : 1,
+				when: !accept ? ctxReviewModeEnabled : undefined
 			}
 		});
 	}
@@ -152,14 +161,21 @@ abstract class AcceptDiscardAction extends Action2 {
 
 		let uri = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel?.uri;
 		if (!uri) {
-			const editor = editorService.activeTextEditorControl;
-			uri = isCodeEditor(editor) && editor.hasModel() ? editor.getModel().uri : undefined;
+			let editor = editorService.activeTextEditorControl;
+			if (isDiffEditor(editor)) {
+				editor = editor.getModifiedEditor();
+			}
+			uri = isCodeEditor(editor) && editor.hasModel()
+				? editor.getModel().uri
+				: undefined;
 		}
 		if (!uri) {
 			return;
 		}
 
-		const session = chatEditingService.currentEditingSession;
+		const session = chatEditingService.editingSessionsObs.get()
+			.find(candidate => candidate.getEntry(uri));
+
 		if (!session) {
 			return;
 		}
@@ -190,14 +206,13 @@ export class RejectAction extends AcceptDiscardAction {
 	}
 }
 
-class UndoHunkAction extends EditorAction2 {
+class RejectHunkAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'chatEditor.action.undoHunk',
-			title: localize2('undo', 'Undo this Change'),
-			shortTitle: localize2('undo2', 'Undo'),
+			title: localize2('undo', 'Discard this Change'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.discard,
 			f1: true,
 			keybinding: {
@@ -213,7 +228,7 @@ class UndoHunkAction extends EditorAction2 {
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		ChatEditorController.get(editor)?.undoNearestChange(args[0]);
+		ChatEditorController.get(editor)?.rejectNearestChange(args[0]);
 	}
 }
 
@@ -222,9 +237,8 @@ class AcceptHunkAction extends EditorAction2 {
 		super({
 			id: 'chatEditor.action.acceptHunk',
 			title: localize2('acceptHunk', 'Accept this Change'),
-			shortTitle: localize2('acceptHunk2', 'Accept'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.check,
 			f1: true,
 			keybinding: {
@@ -244,32 +258,88 @@ class AcceptHunkAction extends EditorAction2 {
 	}
 }
 
-class OpenDiffFromHunkAction extends EditorAction2 {
+class OpenDiffAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'chatEditor.action.diffHunk',
-			title: localize2('diff', 'Open Diff'),
+			title: localize2('diff', 'Toggle Diff Editor'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			toggled: {
+				condition: EditorContextKeys.inDiffEditor,
+				icon: Codicon.goToFile,
+			},
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.diffSingle,
-			menu: {
+			keybinding: {
+				when: EditorContextKeys.focus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F7,
+			},
+			menu: [{
 				id: MenuId.ChatEditingEditorHunk,
 				order: 10
-			}
+			}, {
+				id: MenuId.ChatEditingEditorContent,
+				group: 'a_resolve',
+				order: 2,
+				when: ctxReviewModeEnabled
+			}]
 		});
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		ChatEditorController.get(editor)?.openDiff(args[0]);
+		ChatEditorController.get(editor)?.toggleDiff(args[0]);
+	}
+}
+
+export class ReviewChangesAction extends EditorAction2 {
+
+	constructor() {
+		super({
+			id: 'chatEditor.action.reviewChanges',
+			title: localize2('review', "Review"),
+			menu: [{
+				id: MenuId.ChatEditingEditorContent,
+				group: 'a_resolve',
+				order: 3,
+				when: ctxReviewModeEnabled.negate(),
+			}]
+		});
+	}
+
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+		const chatEditingService = accessor.get(IChatEditingService);
+
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const session = chatEditingService.editingSessionsObs.get().find(session => session.getEntry(editor.getModel().uri));
+		const entry = session?.getEntry(editor.getModel().uri);
+		entry?.enableReviewModeUntilSettled();
 	}
 }
 
 export function registerChatEditorActions() {
 	registerAction2(class NextAction extends NavigateAction { constructor() { super(true); } });
 	registerAction2(class PrevAction extends NavigateAction { constructor() { super(false); } });
+	registerAction2(ReviewChangesAction);
 	registerAction2(AcceptAction);
-	registerAction2(RejectAction);
-	registerAction2(UndoHunkAction);
 	registerAction2(AcceptHunkAction);
-	registerAction2(OpenDiffFromHunkAction);
+	registerAction2(RejectAction);
+	registerAction2(RejectHunkAction);
+	registerAction2(OpenDiffAction);
+
+	MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
+		command: {
+			id: navigationBearingFakeActionId,
+			title: localize('label', "Navigation Status"),
+			precondition: ContextKeyExpr.false(),
+		},
+		group: 'navigate',
+		order: -1,
+		when: ctxReviewModeEnabled,
+	});
 }
+
+export const navigationBearingFakeActionId = 'chatEditor.navigation.bearings';

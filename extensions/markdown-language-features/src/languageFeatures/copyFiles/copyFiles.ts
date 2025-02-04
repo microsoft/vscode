@@ -96,6 +96,7 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 		// File
 		['fileName', fileName], // The file name of the dropped file, e.g. `image.png`.
 		['fileExtName', path.extname(fileName).replace('.', '')], // The extension of the dropped file, e.g. `png`.
+		['unixTime', Date.now().toString()], // The current Unix timestamp in milliseconds.
 	]);
 
 	return outDest.replaceAll(/(?<escape>\\\$)|(?<!\\)\$\{(?<name>\w+)(?:\/(?<pattern>(?:\\\/|[^\}\/])+)\/(?<replacement>(?:\\\/|[^\}\/])*)\/)?\}/g, (match, _escape, name, pattern, replacement, _offset, _str, groups) => {

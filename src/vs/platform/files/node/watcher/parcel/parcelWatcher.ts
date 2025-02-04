@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import parcelWatcher from '@parcel/watcher';
-import { statSync, unlinkSync } from 'fs';
+import { promises } from 'fs';
 import { tmpdir, homedir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';
 import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
@@ -18,7 +18,7 @@ import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
 import { normalize, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
-import { realcaseSync, realpathSync } from '../../../../../base/node/extpath.js';
+import { realcase, realpath } from '../../../../../base/node/extpath.js';
 import { FileChangeType, IFileChange } from '../../../common/files.js';
 import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from '../../../common/watcher.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -192,16 +192,22 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	}
 
 	private registerListeners(): void {
+		const onUncaughtException = (error: unknown) => this.onUnexpectedError(error);
+		const onUnhandledRejection = (error: unknown) => this.onUnexpectedError(error);
 
-		// Error handling on process
-		process.on('uncaughtException', error => this.onUnexpectedError(error));
-		process.on('unhandledRejection', error => this.onUnexpectedError(error));
+		process.on('uncaughtException', onUncaughtException);
+		process.on('unhandledRejection', onUnhandledRejection);
+
+		this._register(toDisposable(() => {
+			process.off('uncaughtException', onUncaughtException);
+			process.off('unhandledRejection', onUnhandledRejection);
+		}));
 	}
 
 	protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
 
 		// Figure out duplicates to remove from the requests
-		requests = this.removeDuplicateRequests(requests);
+		requests = await this.removeDuplicateRequests(requests);
 
 		// Figure out which watchers to start and which to stop
 		const requestsToStart: IRecursiveWatchRequest[] = [];
@@ -232,7 +238,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// Start watching as instructed
 		for (const request of requestsToStart) {
 			if (request.pollingInterval) {
-				this.startPolling(request, request.pollingInterval);
+				await this.startPolling(request, request.pollingInterval);
 			} else {
 				await this.startWatching(request);
 			}
@@ -247,7 +253,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return isLinux ? path : path.toLowerCase() /* ignore path casing */;
 	}
 
-	private startPolling(request: IRecursiveWatchRequest, pollingInterval: number, restarts = 0): void {
+	private async startPolling(request: IRecursiveWatchRequest, pollingInterval: number, restarts = 0): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		const instance = new DeferredPromise<void>();
@@ -268,13 +274,13 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				watcher.worker.dispose();
 
 				pollingWatcher.dispose();
-				unlinkSync(snapshotFile);
+				await promises.unlink(snapshotFile);
 			}
 		);
 		this._watchers.set(this.requestToWatcherKey(request), watcher);
 
 		// Path checks for symbolic links / wrong casing
-		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
+		const { realPath, realPathDiffers, realPathLength } = await this.normalizePath(request);
 
 		this.trace(`Started watching: '${realPath}' with polling interval '${pollingInterval}'`);
 
@@ -289,19 +295,23 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			// We already ran before, check for events since
 			const parcelWatcherLib = parcelWatcher;
-			if (counter > 1) {
-				const parcelEvents = await parcelWatcherLib.getEventsSince(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+			try {
+				if (counter > 1) {
+					const parcelEvents = await parcelWatcherLib.getEventsSince(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
-				if (cts.token.isCancellationRequested) {
-					return;
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
+
+					// Handle & emit events
+					this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
 				}
 
-				// Handle & emit events
-				this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
+				// Store a snapshot of files to the snapshot file
+				await parcelWatcherLib.writeSnapshot(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+			} catch (error) {
+				this.onUnexpectedError(error, request);
 			}
-
-			// Store a snapshot of files to the snapshot file
-			await parcelWatcherLib.writeSnapshot(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 			// Signal we are ready now when the first snapshot was written
 			if (counter === 1) {
@@ -343,7 +353,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		this._watchers.set(this.requestToWatcherKey(request), watcher);
 
 		// Path checks for symbolic links / wrong casing
-		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
+		const { realPath, realPathDiffers, realPathLength } = await this.normalizePath(request);
 
 		try {
 			const parcelWatcherLib = parcelWatcher;
@@ -471,7 +481,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		}
 	}
 
-	private normalizePath(request: IRecursiveWatchRequest): { realPath: string; realPathDiffers: boolean; realPathLength: number } {
+	private async normalizePath(request: IRecursiveWatchRequest): Promise<{ realPath: string; realPathDiffers: boolean; realPathLength: number }> {
 		let realPath = request.path;
 		let realPathDiffers = false;
 		let realPathLength = request.path.length;
@@ -479,12 +489,12 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		try {
 
 			// First check for symbolic link
-			realPath = realpathSync(request.path);
+			realPath = await realpath(request.path);
 
 			// Second check for casing difference
 			// Note: this will be a no-op on Linux platforms
 			if (request.path === realPath) {
-				realPath = realcaseSync(request.path) ?? request.path;
+				realPath = await realcase(request.path) ?? request.path;
 			}
 
 			// Correct watch path as needed
@@ -578,6 +588,12 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			}
 		}
 
+		// Version 2.5.1 introduces 3 new errors on macOS
+		// via https://github.dev/parcel-bundler/watcher/pull/196
+		else if (msg.indexOf('File system must be re-scanned') !== -1) {
+			this.error(msg, request);
+		}
+
 		// Any other error is unexpected and we should try to
 		// restart the watcher as a result to get into healthy
 		// state again if possible and if not attempted too much
@@ -615,7 +631,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 				// Start watcher again counting the restarts
 				if (watcher.request.pollingInterval) {
-					this.startPolling(watcher.request, watcher.request.pollingInterval, watcher.restarts + 1);
+					await this.startPolling(watcher.request, watcher.request.pollingInterval, watcher.restarts + 1);
 				} else {
 					await this.startWatching(watcher.request, watcher.restarts + 1);
 				}
@@ -640,7 +656,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		}
 	}
 
-	protected removeDuplicateRequests(requests: IRecursiveWatchRequest[], validatePaths = true): IRecursiveWatchRequest[] {
+	protected async removeDuplicateRequests(requests: IRecursiveWatchRequest[], validatePaths = true): Promise<IRecursiveWatchRequest[]> {
 
 		// Sort requests by path length to have shortest first
 		// to have a way to prevent children to be watched if
@@ -686,26 +702,29 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			for (const request of requestsForCorrelation.values()) {
 
-				// Check for overlapping requests
+				// Check for overlapping request paths (but preserve symbolic links)
 				if (requestTrie.findSubstr(request.path)) {
-					try {
-						const realpath = realpathSync(request.path);
-						if (realpath === request.path) {
-							this.trace(`ignoring a request for watching who's parent is already watched: ${this.requestToString(request)}`);
+					if (requestTrie.has(request.path)) {
+						this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
+					} else {
+						try {
+							if (!(await promises.lstat(request.path)).isSymbolicLink()) {
+								this.trace(`ignoring a request for watching who's parent is already watched: ${this.requestToString(request)}`);
+
+								continue;
+							}
+						} catch (error) {
+							this.trace(`ignoring a request for watching who's lstat failed to resolve: ${this.requestToString(request)} (error: ${error})`);
+
+							this._onDidWatchFail.fire(request);
 
 							continue;
 						}
-					} catch (error) {
-						this.trace(`ignoring a request for watching who's realpath failed to resolve: ${this.requestToString(request)} (error: ${error})`);
-
-						this._onDidWatchFail.fire(request);
-
-						continue;
 					}
 				}
 
 				// Check for invalid paths
-				if (validatePaths && !this.isPathValid(request.path)) {
+				if (validatePaths && !(await this.isPathValid(request.path))) {
 					this._onDidWatchFail.fire(request);
 
 					continue;
@@ -720,9 +739,9 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return normalizedRequests;
 	}
 
-	private isPathValid(path: string): boolean {
+	private async isPathValid(path: string): Promise<boolean> {
 		try {
-			const stat = statSync(path);
+			const stat = await promises.stat(path);
 			if (!stat.isDirectory()) {
 				this.trace(`ignoring a path for watching that is a file and not a folder: ${path}`);
 

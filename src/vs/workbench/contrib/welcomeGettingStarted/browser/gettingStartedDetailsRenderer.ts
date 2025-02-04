@@ -201,6 +201,61 @@ export class GettingStartedDetailsRenderer {
 		</html>`;
 	}
 
+	async renderVideo(path: URI, poster?: URI): Promise<string> {
+		const nonce = generateUuid();
+
+		return `<!DOCTYPE html>
+		<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+				<style nonce="${nonce}">
+					video {
+						max-width: 100%;
+						max-height: 100%;
+					object-fit: cover;
+					}
+					vertically-centered {
+						display: flex;
+						justify-content: center; /* Centers horizontally */
+						align-items: center; /* Centers vertically */
+						height: 100vh; /* Added missing semicolon */
+					}
+				</style>
+			</head>
+			<body>
+				<vertically-centered>
+					<video controls autoplay loop ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
+						<source src="${path.toString(true)}" type="video/mp4">
+					</video>
+				</vertically-centered>
+			</body>
+
+			<script nonce="${nonce}">
+				let ongoingLayout = undefined;
+				const doLayout = () => {
+					document.querySelectorAll('vertically-centered').forEach(element => {
+						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 0) + 'px';
+					});
+					ongoingLayout = undefined;
+				};
+
+				const layout = () => {
+					if (ongoingLayout) {
+						clearTimeout(ongoingLayout);
+					}
+					ongoingLayout = setTimeout(doLayout, 0);
+				};
+
+				layout();
+
+				document.querySelectorAll('video').forEach(element => {
+					element.addEventListener('loadeddata', layout);
+				});
+		</script>
+		</html>`;
+	}
+
 	private async readAndCacheSVGFile(path: URI): Promise<string> {
 		if (!this.svgCache.has(path)) {
 			const contents = await this.readContentsOfPath(path, false);

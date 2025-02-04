@@ -5,8 +5,8 @@
 
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
@@ -23,6 +23,8 @@ import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
 import { mapOutFalsy, n, rectToProps } from './utils.js';
 import { localize } from '../../../../../../nls.js';
+import { trackFocus } from '../../../../../../base/browser/dom.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 export const inlineEditIndicatorPrimaryForeground = registerColor(
 	'inlineEdit.gutterIndicator.primaryForeground',
 	buttonForeground,
@@ -71,10 +73,13 @@ export class InlineEditsGutterIndicator extends Disposable {
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _originalRange: IObservable<LineRange | undefined>,
+		private readonly _verticalOffset: IObservable<number>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
-		private readonly _shouldShowHover: IObservable<boolean>,
+		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
+		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -86,10 +91,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			if (this._shouldShowHover.read(reader)) {
-				this._showHover();
-			} else {
-				this._hoverService.hideHover();
+			if (!accessibilityService.isMotionReduced()) {
+				this._indicator.element.classList.toggle('wiggle', this._isHoveringOverInlineEdit.read(reader));
 			}
 		}));
 	}
@@ -116,18 +119,20 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		const layout = this._editorObs.layoutInfo.read(reader);
 
-		const fullViewPort = Rect.fromLeftTopRightBottom(0, 0, layout.width, layout.height);
+		const bottomPadding = 1;
+		const fullViewPort = Rect.fromLeftTopRightBottom(0, 0, layout.width, layout.height - bottomPadding);
 		const viewPortWithStickyScroll = fullViewPort.withTop(this._stickyScrollHeight.read(reader));
 
 		const targetVertRange = s.lineOffsetRange.read(reader);
 
 		const space = 1;
 
-		const targetRect = Rect.fromRanges(OffsetRange.fromTo(space, layout.lineNumbersLeft + layout.lineNumbersWidth + 4), targetVertRange);
+		const targetRect = Rect.fromRanges(OffsetRange.fromTo(space + layout.glyphMarginLeft, layout.lineNumbersLeft + layout.lineNumbersWidth + 4), targetVertRange);
 
 
 		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
-		const pillRect = targetRect.withHeight(lineHeight).withWidth(22);
+		const pillOffset = this._verticalOffset.read(reader);
+		const pillRect = targetRect.withHeight(lineHeight).withWidth(22).moveDown(pillOffset);
 		const pillRectMoved = pillRect.moveToBeContainedIn(viewPortWithStickyScroll);
 
 		const rect = targetRect;
@@ -139,7 +144,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return {
 			rect,
 			iconRect,
-			arrowDirection: (iconRect.top === targetRect.top ? 'right' as const
+			arrowDirection: (targetRect.containsRect(iconRect) ? 'right' as const
 				: iconRect.top > targetRect.top ? 'top' as const : 'bottom' as const),
 			docked: rect.containsRect(iconRect) && viewPortWithStickyScroll.containsRect(iconRect),
 		};
@@ -154,59 +159,72 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return 'inactive' as const;
 	});
 
-	private readonly _onClickAction = derived(this, reader => {
-		if (this._layout.map(d => d && d.docked).read(reader)) {
-			return {
-				selectionOverride: 'accept' as const,
-				action: () => { this._model.get()?.accept(); }
-			};
-		} else {
-			return {
-				selectionOverride: 'jump' as const,
-				action: () => { this._model.get()?.jump(); }
-			};
-		}
-	});
-
 	private readonly _iconRef = n.ref<HTMLDivElement>();
 	private _hoverVisible: boolean = false;
 	private readonly _isHoveredOverIcon = observableValue(this, false);
-	private readonly _hoverSelectionOverride = derived(this, reader => this._isHoveredOverIcon.read(reader) ? this._onClickAction.read(reader).selectionOverride : undefined);
 
 	private _showHover(): void {
 		if (this._hoverVisible) {
 			return;
 		}
 
-		const content = this._instantiationService.createInstance(
+		const displayName = derived(this, reader => {
+			const state = this._model.read(reader)?.inlineEditState;
+			const item = state?.read(reader);
+			const completionSource = item?.inlineCompletion?.source;
+			// TODO: expose the provider (typed) and expose the provider the edit belongs totyping and get correct edit
+			const displayName = (completionSource?.inlineCompletions as any).edits[0]?.provider?.displayName ?? localize('inlineEdit', "Inline Edit");
+			return displayName;
+		});
+
+		const disposableStore = new DisposableStore();
+		const content = disposableStore.add(this._instantiationService.createInstance(
 			GutterIndicatorMenuContent,
-			this._hoverSelectionOverride,
+			displayName,
+			this._tabAction,
 			(focusEditor) => {
-				h?.dispose();
 				if (focusEditor) {
 					this._editorObs.editor.focus();
 				}
+				h?.dispose();
 			},
-			this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.inlineCompletion.source.inlineCompletions.commands),
-		).toDisposableLiveElement();
+			this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.source.inlineCompletions.commands),
+		).toDisposableLiveElement());
+
+		const focusTracker = disposableStore.add(trackFocus(content.element));
+		disposableStore.add(focusTracker.onDidBlur(() => this._focusIsInMenu.set(false, undefined)));
+		disposableStore.add(focusTracker.onDidFocus(() => this._focusIsInMenu.set(true, undefined)));
+		disposableStore.add(toDisposable(() => this._focusIsInMenu.set(false, undefined)));
+
 		const h = this._hoverService.showHover({
 			target: this._iconRef.element,
 			content: content.element,
 		}) as HoverWidget | undefined;
 		if (h) {
 			this._hoverVisible = true;
-			h.onDispose(() => {
-				content.dispose();
+			h.onDispose(() => { // TODO:@hediet fix leak
+				disposableStore.dispose();
 				this._hoverVisible = false;
 			});
 		} else {
-			content.dispose();
+			disposableStore.dispose();
 		}
 	}
 
 	private readonly _indicator = n.div({
 		class: 'inline-edits-view-gutter-indicator',
-		onclick: () => this._onClickAction.get().action(),
+		onclick: () => {
+			const model = this._model.get();
+			if (!model) { return; }
+			const docked = this._layout.map(l => l && l.docked).get();
+			this._editorObs.editor.focus();
+			if (docked) {
+				model.accept();
+			} else {
+				model.jump();
+			}
+		},
+		tabIndex: 0,
 		style: {
 			position: 'absolute',
 			overflow: 'visible',
@@ -264,9 +282,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 						}
 					}),
 					transition: 'rotate 0.2s ease-in-out',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
 				}
 			}, [
-				renderIcon(Codicon.arrowRight)
+				this._tabAction.map(v => v === 'accept' ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
 			])
 		]),
 	])).keepUpdated(this._store);

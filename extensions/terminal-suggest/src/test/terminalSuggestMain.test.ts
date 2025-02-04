@@ -12,6 +12,7 @@ import codeCompletionSpec from '../completions/code';
 import codeInsidersCompletionSpec from '../completions/code-insiders';
 import type { Uri } from 'vscode';
 import { basename } from 'path';
+import { getTokenType } from '../tokens';
 
 const fixtureDir = vscode.Uri.joinPath(vscode.Uri.file(__dirname), '../../testWorkspace');
 const testCwdParent = vscode.Uri.joinPath(fixtureDir, 'parent');
@@ -45,7 +46,8 @@ function createCodeTestSpecs(executable: string): ITestSpec2[] {
 
 	const typingTests: ITestSpec2[] = [];
 	for (let i = 1; i < executable.length; i++) {
-		typingTests.push({ input: `${executable.slice(0, i)}|`, expectedCompletions: [executable] });
+		const input = `${executable.slice(0, i)}|`;
+		typingTests.push({ input, expectedCompletions: [executable], expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testCwd } });
 	}
 
 	return [
@@ -62,9 +64,9 @@ function createCodeTestSpecs(executable: string): ITestSpec2[] {
 		{ input: `${executable} --merge ./file1 ./file2 ./base |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
 		{ input: `${executable} --goto |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
 		{ input: `${executable} --user-data-dir |`, expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-		{ input: `${executable} --profile |` },
-		{ input: `${executable} --install-extension |` },
-		{ input: `${executable} --uninstall-extension |` },
+		{ input: `${executable} --profile |`, expectedResourceRequests: { type: 'both', cwd: testCwd } },
+		{ input: `${executable} --install-extension |`, expectedResourceRequests: { type: 'both', cwd: testCwd } },
+		{ input: `${executable} --uninstall-extension |`, expectedResourceRequests: { type: 'both', cwd: testCwd } },
 		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --sync |`, expectedCompletions: syncOptions },
 		{ input: `${executable} --extensions-dir |`, expectedResourceRequests: { type: 'folders', cwd: testCwd } },
@@ -84,6 +86,9 @@ const testSpecs2: ISuiteSpec[] = [
 		completionSpecs: [],
 		availableCommands: [],
 		testSpecs: [
+			{ input: '|', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: '|.', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: '|./', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 			{ input: 'fakecommand |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 		]
 	},
@@ -92,11 +97,13 @@ const testSpecs2: ISuiteSpec[] = [
 		completionSpecs: cdSpec,
 		availableCommands: 'cd',
 		testSpecs: [
+			// Typing a path
+			{ input: '.|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: './|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: './.|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 			// Typing the command
-			// TODO: Shouldn't this also request file resources that contain "c" as you can run a file as a command?
-			{ input: 'c|', expectedCompletions: ['cd'] },
-			// TODO: Shouldn't this also request file resources that contain "cd" as you can run a file as a command?
-			{ input: 'cd|', expectedCompletions: ['cd'] },
+			{ input: 'c|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: 'cd|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 
 			// Basic arguments
 			{ input: 'cd |', expectedCompletions: ['~', '-'], expectedResourceRequests: { type: 'folders', cwd: testCwd } },
@@ -150,7 +157,8 @@ suite('Terminal Suggest', () => {
 					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const result = await getCompletionItemsFromSpecs(completionSpecs, { commandLine, cursorPosition }, availableCommands, prefix, testCwd);
+					const terminalContext = { commandLine, cursorPosition };
+					const result = await getCompletionItemsFromSpecs(completionSpecs, terminalContext, availableCommands.map(c => { return { label: c }; }), prefix, getTokenType(terminalContext, undefined), testCwd);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested);
 					strictEqual(result.foldersRequested, foldersRequested);
