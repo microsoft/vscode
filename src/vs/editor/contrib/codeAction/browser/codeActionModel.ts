@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '../../
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -165,6 +165,8 @@ export class CodeActionModel extends Disposable {
 	private readonly _onDidChangeState = this._register(new Emitter<CodeActionsState.State>());
 	public readonly onDidChangeState = this._onDidChangeState.event;
 
+	private readonly disposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
 	private _disposed = false;
 
 	constructor(
@@ -233,7 +235,7 @@ export class CodeActionModel extends Disposable {
 				const actions = createCancelablePromise(async token => {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
-						this._register(codeActionSet);
+						this.disposable.value = codeActionSet;
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
 							codeActionSet.dispose();
@@ -276,7 +278,7 @@ export class CodeActionModel extends Disposable {
 
 										const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
 										const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
-										this._register(actionsAtMarker);
+										this.disposable.value = actionsAtMarker;
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
@@ -351,13 +353,10 @@ export class CodeActionModel extends Disposable {
 					}
 
 					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
-					this._register(codeActionSet);
+					this.disposable.value = codeActionSet;
 					return codeActionSet;
 				});
 
-				actions.catch(error => {
-					console.error('Failed to get code actions:', error);
-				});
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
@@ -389,6 +388,7 @@ export class CodeActionModel extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger) {
 		this._codeActionOracle.value?.trigger(trigger);
+		this.disposable.clear();
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {
