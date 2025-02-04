@@ -30,5 +30,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
+  },
+  "dependencies": {
+    "@withfig/autocomplete-helpers": "^0.1.0"
   }
 }
