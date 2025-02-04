@@ -35,8 +35,8 @@ export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
 
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
-	public readonly inlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('inlineCompletions', undefined);
-	public readonly suggestWidgetInlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('suggestWidgetInlineCompletions', undefined);
+	public readonly inlineCompletions = this._register(disposableObservableValue<UpToDateInlineCompletions | undefined>('inlineCompletions', undefined));
+	public readonly suggestWidgetInlineCompletions = this._register(disposableObservableValue<UpToDateInlineCompletions | undefined>('suggestWidgetInlineCompletions', undefined));
 
 	private readonly _loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 	private readonly _invalidationDelay = observableConfigValue<number>('editor.inlineSuggest.edits.experimental.invalidationDelay', 4000, this._configurationService).recomputeInitiallyAndOnChange(this._store);
@@ -280,9 +280,8 @@ export class UpToDateInlineCompletions implements IDisposable {
 			for (const i of this._prependedInlineCompletionItems) {
 				i.source.removeRef();
 			}
+			this._inlineCompletions.forEach(i => i.dispose());
 		}
-
-		this._inlineCompletions.forEach(i => i.dispose());
 	}
 
 	public prepend(inlineCompletion: InlineCompletionItem, range: Range, addRefToSource: boolean): void {
