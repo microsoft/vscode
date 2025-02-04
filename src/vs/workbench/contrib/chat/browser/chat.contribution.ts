@@ -234,10 +234,11 @@ class ChatAgentSettingContribution implements IWorkbenchContribution {
 		}
 
 		const expDisabledKey = ChatContextKeys.Editing.agentModeDisallowed.bindTo(contextKeyService);
-		experimentService.getTreatment<boolean>('chatAgentEnabled').then(value => {
-			if (value) {
+		experimentService.getTreatment<boolean>('chatAgentEnabled').then(enabled => {
+			if (enabled) {
 				this.registerSetting();
-			} else if (value === false) {
+				expDisabledKey.set(false);
+			} else if (enabled === false) {
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}
