@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../../nls.js';
-import { PROMPT_SNIPPET_FILE_EXTENSION } from './contentProviders/promptContentsProviderBase.js';
+import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from './constants.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
@@ -118,11 +118,6 @@ export namespace PromptFilesConfig {
 	export const CONFIG_KEY: string = 'chat.promptFiles';
 
 	/**
-	 * Documentation link for the prompt snippets feature.
-	 */
-	export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
-
-	/**
 	 * Default prompt instructions source folder paths.
 	 */
 	const DEFAULT_LOCATION = Object.freeze(['.github/prompts']);
@@ -234,7 +229,7 @@ export namespace PromptFilesConfig {
 	export const CONFIG_DESCRIPTION = nls.localize(
 		'chat.promptFiles.config.description',
 		"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nSet to `true` or use the `{ \"/path/to/folder\": boolean }` notation to specify a different path (or a couple of them). Relative paths are resolved from the root folder(s) of your workspace, and the default value of `{2}` is used if no other paths provided.\n#### Examples\n{3}\n{4}",
-		PROMPT_SNIPPET_FILE_EXTENSION,
+		PROMPT_FILE_EXTENSION,
 		DOCUMENTATION_URL,
 		DEFAULT_LOCATION[0],
 		usageExample1,

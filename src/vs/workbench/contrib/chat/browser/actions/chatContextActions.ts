@@ -51,8 +51,7 @@ import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
-import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
+import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
@@ -949,7 +948,7 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 		.then((files) => {
 			return files.map((file) => {
 				const fileBasename = basename(file);
-				const fileWithoutExtension = fileBasename.replace(PROMPT_SNIPPET_FILE_EXTENSION, '');
+				const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
 				const result: IQuickPickItem & { value: URI } = {
 					type: 'item',
 					label: fileWithoutExtension,
@@ -968,9 +967,9 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 		const docsQuickPick: IQuickPickItem & { value: URI } = {
 			type: 'item',
 			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how to create reusable prompts'),
-			description: PromptFilesConfig.DOCUMENTATION_URL,
-			tooltip: PromptFilesConfig.DOCUMENTATION_URL,
-			value: URI.parse(PromptFilesConfig.DOCUMENTATION_URL),
+			description: DOCUMENTATION_URL,
+			tooltip: DOCUMENTATION_URL,
+			value: URI.parse(DOCUMENTATION_URL),
 		};
 
 		const result = await quickInputService.pick(
