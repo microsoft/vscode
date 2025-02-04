@@ -50,6 +50,7 @@ module.exports.unicodeFilter = [
 	'!extensions/notebook-renderers/renderer-out/**',
 	'!extensions/php-language-features/src/features/phpGlobalFunctions.ts',
 	'!extensions/terminal-suggest/src/completions/upstream/**',
+	'!extensions/terminal-suggest/src/fig/**',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
@@ -90,6 +91,8 @@ module.exports.indentationFilter = [
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
 	'!extensions/terminal-suggest/src/completions/upstream/**',
+	'!extensions/terminal-suggest/src/fig/**',
+	'!extensions/terminal-suggest/src/fig/autocomplete-parser/src/tryResolveSpecToSubcommand.ts',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/typescript-language-features/resources/walkthroughs/**',
 	'!extensions/typescript-language-features/package-manager/node-maintainer/**',
@@ -173,6 +176,8 @@ module.exports.copyrightFilter = [
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/simple-browser/media/codicon.css',
 	'!extensions/terminal-suggest/src/completions/upstream/**',
+	'!extensions/terminal-suggest/src/fig/autocomplete-parser/src/tryResolveSpecToSubcommand.ts',
+	'!extensions/terminal-suggest/src/fig/**',
 	'!extensions/typescript-language-features/node-maintainer/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
@@ -191,6 +196,7 @@ module.exports.tsFormattingFilter = [
 	'!extensions/**/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
+	'!extensions/terminal-suggest/src/fig/**',
 	'!extensions/**/*.test.ts',
 	'!extensions/html-language-features/server/lib/jquery.d.ts',
 ];
@@ -200,6 +206,7 @@ module.exports.eslintFilter = [
 	'**/*.cjs',
 	'**/*.mjs',
 	'**/*.ts',
+	'!extensions/terminal-suggest/src/fig/**',
 	...readFileSync(join(__dirname, '..', '.eslint-ignore'))
 		.toString()
 		.split(/\r\n|\n/)
