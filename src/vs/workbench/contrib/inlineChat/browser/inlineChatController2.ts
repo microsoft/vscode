@@ -26,8 +26,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ctxIsGlobalEditingSession } from '../../chat/browser/chatEditorController.js';
-import { ChatEditorOverlayController } from '../../chat/browser/chatEditorOverlay.js';
+import { ctxIsGlobalEditingSession } from '../../chat/browser/chatEditing/chatEditingEditorController.js';
+import { ChatEditorOverlayController } from '../../chat/browser/chatEditing/chatEditingEditorOverlay.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
