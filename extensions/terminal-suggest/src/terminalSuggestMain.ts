@@ -409,10 +409,19 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 			continue;
 		}
 		if (arg.template) {
-			if (arg.template === 'filepaths') {
-				filesRequested = true;
-			} else if (arg.template === 'folders') {
-				foldersRequested = true;
+			if (typeof arg.template === 'string') {
+				if (arg.template === 'filepaths') {
+					filesRequested = true;
+				} else if (arg.template === 'folders') {
+					foldersRequested = true;
+				}
+			} else if (Array.isArray(arg.template)) {
+				if (arg.template.includes('filepaths')) {
+					filesRequested = true;
+				}
+				if (arg.template.includes('folders')) {
+					foldersRequested = true;
+				}
 			}
 		}
 		if (arg.suggestions?.length) {
