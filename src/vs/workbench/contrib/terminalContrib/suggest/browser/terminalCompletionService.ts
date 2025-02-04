@@ -6,7 +6,6 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/path.js';
-import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -223,7 +222,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
 
 		// TODO: This should come in through the resourceRequestConfig
-		const useBackslash = isWindows;
+		const useBackslash = resourceRequestConfig.pathSeparator === '\\';
 
 		// The last word (or argument). When the cursor is following a space it will be the empty
 		// string
@@ -242,7 +241,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// this will be `./src/`. This also always ends in the path separator if it is not the empty
 		// string and path separators are normalized on Windows.
 		let lastWordFolder = lastSlashIndex === -1 ? '' : lastWord.slice(0, lastSlashIndex + 1);
-		if (isWindows) {
+		if (useBackslash) {
 			lastWordFolder = lastWordFolder.replaceAll('/', '\\');
 		}
 
