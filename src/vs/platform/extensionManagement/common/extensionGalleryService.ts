@@ -1569,7 +1569,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
-			timeout: 10000 /*10s*/
 		}, CancellationToken.None);
 
 		if (context.res.statusCode !== 200) {
