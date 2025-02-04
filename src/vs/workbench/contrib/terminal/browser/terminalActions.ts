@@ -9,7 +9,8 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { isObject, isString } from '../../../../base/common/types.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isObject, isString, isBoolean } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EndOfLinePreference } from '../../../../editor/common/model.js';
@@ -698,7 +699,9 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeIcon,
 		title: terminalStrings.changeIcon,
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, _, args: unknown) => getResourceOrActiveInstance(c, args)?.changeIcon()
+		run: (c, _, args: unknown) => getResourceOrActiveInstance(c, args)?.changeIcon(
+			isString(args) ? ThemeIcon.fromString(args) || ThemeIcon.fromId(args) : undefined
+		)
 	});
 
 	registerTerminalAction({
@@ -722,7 +725,10 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeColor,
 		title: terminalStrings.changeColor,
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, _, args) => getResourceOrActiveInstance(c, args)?.changeColor()
+		run: (c, _, args1, args2) => getResourceOrActiveInstance(c, args1)?.changeColor(
+			isString(args1) ? args1 : undefined,
+			isBoolean(args2) ? args2 : undefined
+		)
 	});
 
 	registerTerminalAction({
