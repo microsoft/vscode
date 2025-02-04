@@ -19,6 +19,8 @@ import { getPwshGlobals } from './shell/pwsh';
 import { getTokenType, TokenType } from './tokens';
 import { PathExecutableCache } from './env/pathExecutableCache';
 import { getFriendlyResourcePath } from './helpers/uri';
+import { parseArguments } from './fig/autocomplete-parser/src';
+import { getCommand } from './fig/shell-parser/src/command';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -102,7 +104,16 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 			const commands = [...commandsInPath.completionResources, ...shellGlobals];
-
+			const env: Record<string, string> = {};
+			if (terminal.shellIntegration?.env) {
+				for (const [key, value] of Object.entries(terminal.shellIntegration.env)) {
+					if (typeof value === 'string') {
+						env[key] = value;
+					}
+				}
+			}
+			const parsedArguments = await parseArguments(getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition), { environmentVariables: env, currentWorkingDirectory: terminal.shellIntegration!.cwd!.fsPath, sshPrefix: '', currentProcess: terminal.name });
+			console.log(parsedArguments);
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, shellType);
