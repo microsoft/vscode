@@ -4,61 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LANGUAGE_SELECTOR } from '../constants.js';
+import { IPromptSyntaxService } from '../service/types.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { NonPromptSnippetFile } from '../../promptFileReferenceErrors.js';
-import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
 
 /**
  * Provides link references for prompt files.
  */
 export class PromptLinkProvider extends Disposable implements LinkProvider {
-	/**
-	 * Cache of text model content prompt parsers.
-	 */
-	private readonly parserProvider: ObjectCache<TextModelPromptParser, ITextModel>;
-
 	constructor(
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IPromptSyntaxService private readonly promptSyntaxService: IPromptSyntaxService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 	) {
 		super();
 
 		this._register(this.languageService.linkProvider.register(LANGUAGE_SELECTOR, this));
-		this.parserProvider = this._register(new ObjectCache(this.createParser.bind(this)));
-	}
-
-	/**
-	 * Create new prompt parser instance for the provided text model.
-	 *
-	 * @param model - text model to create the parser for
-	 * @param initService - the instantiation service
-	 */
-	private createParser(
-		model: ITextModel,
-	): TextModelPromptParser & { disposed: false } {
-		const parser: TextModelPromptParser = this.initService.createInstance(
-			TextModelPromptParser,
-			model,
-			[],
-		);
-
-		parser.assertNotDisposed(
-			'Created prompt parser must not be disposed.',
-		);
-
-		return parser;
 	}
 
 	/**
@@ -73,7 +43,7 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 			new CancellationError(),
 		);
 
-		const parser = this.parserProvider.get(model);
+		const parser = this.promptSyntaxService.getParserFor(model);
 		assert(
 			!parser.disposed,
 			'Prompt parser must not be disposed.',
@@ -123,6 +93,6 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 	}
 }
 
-// register the text model prompt decorators provider as a workbench contribution
+// register this provider as a workbench contribution
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(PromptLinkProvider, LifecyclePhase.Eventually);

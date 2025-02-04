@@ -88,6 +88,8 @@ import { IWorkbenchAssignmentService } from '../../../services/assignment/common
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IPromptSyntaxService } from '../common/promptSyntax/service/types.js';
+import { PromptSyntaxService } from '../common/promptSyntax/service/promptSyntaxService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -428,3 +430,5 @@ registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Del
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);
+
+registerSingleton(IPromptSyntaxService, PromptSyntaxService, InstantiationType.Delayed);
