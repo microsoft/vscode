@@ -34,7 +34,7 @@ export interface ITerminalCompletion extends ISimpleCompletion {
 
 /**
  * Represents a collection of {@link CompletionItem completion items} to be presented
- * in the editor.
+ * in the terminal.
  */
 export class TerminalCompletionList<ITerminalCompletion> {
 

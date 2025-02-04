@@ -126,10 +126,6 @@ declare module 'vscode' {
 		 */
 		cwd?: Uri;
 		/**
-		 * The path separator to use when constructing paths.
-		 */
-		pathSeparator: string;
-		/**
 		 * Environment variables to use when constructing paths.
 		 */
 		env?: { [key: string]: string | null | undefined };
