@@ -9,6 +9,12 @@ import { Mimes } from '../../base/common/mime.js';
 import { URI } from '../../base/common/uri.js';
 import { CodeDataTransfers, getPathForFile } from '../../platform/dnd/browser/dnd.js';
 
+export interface ClipboardCopyData {
+	'text/plain': string;
+	'text/html': string | null;
+	'vscode-editor-data': string;
+	'application/vnd.code.copymetadata'?: string;
+}
 
 export function toVSDataTransfer(dataTransfer: DataTransfer) {
 	const vsDataTransfer = new VSDataTransfer();
@@ -24,6 +30,21 @@ export function toVSDataTransfer(dataTransfer: DataTransfer) {
 			}
 		}
 	}
+	return vsDataTransfer;
+}
+
+export function toVSDataTransfer2(dataTransfer: ClipboardCopyData) {
+	const vsDataTransfer = new VSDataTransfer();
+	const copyMetadata = dataTransfer['application/vnd.code.copymetadata'];
+	if (copyMetadata) {
+		vsDataTransfer.append('application/vnd.code.copymetadata', createStringDataTransferItem(copyMetadata));
+	}
+	const textHTML = dataTransfer['text/html'];
+	if (textHTML) {
+		vsDataTransfer.append('text/html', createStringDataTransferItem(textHTML));
+	}
+	vsDataTransfer.append('text/plain', createStringDataTransferItem(dataTransfer['text/plain']));
+	vsDataTransfer.append('vscode-editor-data', createStringDataTransferItem(dataTransfer['vscode-editor-data']));
 	return vsDataTransfer;
 }
 
@@ -79,5 +100,13 @@ export function toExternalVSDataTransfer(sourceDataTransfer: DataTransfer, overw
 		vsDataTransfer.delete(internal);
 	}
 
+	return vsDataTransfer;
+}
+
+export function toExternalVSDataTransfer2(clipboardData: ClipboardCopyData, overwriteUriList = false): VSDataTransfer {
+	const vsDataTransfer = toVSDataTransfer2(clipboardData);
+	for (const internal of INTERNAL_DND_MIME_TYPES) {
+		vsDataTransfer.delete(internal);
+	}
 	return vsDataTransfer;
 }

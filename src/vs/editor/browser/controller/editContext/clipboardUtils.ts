@@ -117,17 +117,4 @@ export const ClipboardEventUtils = {
 		console.log('metadata: ', metadata);
 		return [text, metadata];
 	},
-
-	setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
-		console.log('setTextData');
-		console.log('clipboardData: ', clipboardData);
-		console.log('text: ', text);
-		console.log('html: ', html);
-		console.log('metadata: ', metadata);
-		clipboardData.setData(Mimes.text, text);
-		if (typeof html === 'string') {
-			clipboardData.setData('text/html', html);
-		}
-		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
-	}
 };

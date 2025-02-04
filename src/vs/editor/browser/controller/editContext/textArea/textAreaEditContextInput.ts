@@ -18,7 +18,7 @@ import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { ClipboardDataToCopy, ClipboardStoredMetadata } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 
 export namespace TextAreaSyntethicEvents {
@@ -141,10 +141,6 @@ export class TextAreaInput extends Disposable {
 	private _onSelectionChangeRequest = this._register(new Emitter<Selection>());
 	public readonly onSelectionChangeRequest: Event<Selection> = this._onSelectionChangeRequest.event;
 
-	// ---
-
-	private readonly _asyncTriggerCut: RunOnceScheduler;
-
 	private readonly _asyncFocusGainWriteScreenReaderContent: MutableDisposable<RunOnceScheduler> = this._register(new MutableDisposable());
 
 	private _textAreaState: TextAreaState;
@@ -167,7 +163,6 @@ export class TextAreaInput extends Disposable {
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
 		this._textAreaState = TextAreaState.EMPTY;
 		this._selectionChangeListener = null;
 		if (this._accessibilityService.isScreenReaderOptimized()) {
@@ -344,49 +339,6 @@ export class TextAreaInput extends Disposable {
 			) {
 				this._onType.fire(typeInput);
 			}
-		}));
-
-		// --- Clipboard operations
-
-		this._register(this._textArea.onCut((e) => {
-			console.log('onCut of TextAreaInput');
-			// Pretend here we touched the text area, as the `cut` event will most likely
-			// result in a `selectionchange` event which we want to ignore
-			this._textArea.setIgnoreSelectionChangeTime('received cut event');
-
-			this._ensureClipboardGetsEditorSelection(e);
-			this._asyncTriggerCut.schedule();
-		}));
-
-		this._register(this._textArea.onCopy((e) => {
-			console.log('onCopy of TextAreaInput');
-			this._ensureClipboardGetsEditorSelection(e);
-		}));
-
-		this._register(this._textArea.onPaste((e) => {
-			console.log('onPaste of TextAreaInput');
-			// Pretend here we touched the text area, as the `paste` event will most likely
-			// result in a `selectionchange` event which we want to ignore
-			this._textArea.setIgnoreSelectionChangeTime('received paste event');
-
-			e.preventDefault();
-
-			if (!e.clipboardData) {
-				return;
-			}
-
-			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
-			if (!text) {
-				return;
-			}
-
-			// try the in-memory store
-			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
-
-			this._onPaste.fire({
-				text: text,
-				metadata: metadata
-			});
 		}));
 
 		this._register(this._textArea.onFocus(() => {
@@ -596,27 +548,6 @@ export class TextAreaInput extends Disposable {
 			return;
 		}
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
-	}
-
-	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const dataToCopy = this._host.getDataToCopy();
-		const storedMetadata: ClipboardStoredMetadata = {
-			version: 1,
-			isFromEmptySelection: dataToCopy.isFromEmptySelection,
-			multicursorText: dataToCopy.multicursorText,
-			mode: dataToCopy.mode
-		};
-		InMemoryClipboardMetadataManager.INSTANCE.set(
-			// When writing "LINE\r\n" to the clipboard and then pasting,
-			// Firefox pastes "LINE\n", so let's work around this quirk
-			(this._browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
-			storedMetadata
-		);
-
-		e.preventDefault();
-		if (e.clipboardData) {
-			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
-		}
 	}
 }
 
