@@ -337,7 +337,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const chatModel = this._chatService.startSession(ChatAgentLocation.EditingSession, token);
 
-		const editingSession = await this._chatEditingService.createAdhocEditingSession(chatModel.sessionId);
+		const editingSession = await this._chatEditingService.createEditingSession(chatModel.sessionId);
 		editingSession.addFileToWorkingSet(uri);
 
 		const store = new DisposableStore();

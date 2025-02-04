@@ -528,7 +528,7 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.globalEditingSession;
+		const session = chatEditingService.getEditingSession(chatModel.sessionId);
 		if (!session) {
 			return;
 		}
@@ -620,17 +620,17 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		const chatModel = chatService.getSession(context.sessionId);
-		const requests = chatModel?.getRequests();
-		if (!requests) {
+		if (!chatModel) {
 			return;
 		}
-		const snapshotRequestIndex = requests?.findIndex((v, i) => i > 0 && requests[i - 1]?.id === context.requestId);
+		const requests = chatModel.getRequests();
+		const snapshotRequestIndex = requests.findIndex((v, i) => i > 0 && requests[i - 1]?.id === context.requestId);
 		if (snapshotRequestIndex < 1) {
 			return;
 		}
 		const snapshotRequestId = requests[snapshotRequestIndex]?.id;
 		if (snapshotRequestId) {
-			const snapshot = chatEditingService.globalEditingSession?.getSnapshotUri(snapshotRequestId, context.uri);
+			const snapshot = chatEditingService.getEditingSession(chatModel.sessionId)?.getSnapshotUri(snapshotRequestId, context.uri);
 			if (snapshot) {
 				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
 				if (isCodeEditor(editor)) {
