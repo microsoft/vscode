@@ -8,9 +8,9 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { dirname, extUri } from '../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
 
 /**
  * Class to locate prompt instructions files.
@@ -141,7 +141,7 @@ export class ChatInstructionsFileLocator {
 					continue;
 				}
 
-				if (!name.endsWith(PROMPT_SNIPPET_FILE_EXTENSION)) {
+				if (!name.endsWith(PROMPT_FILE_EXTENSION)) {
 					continue;
 				}
 

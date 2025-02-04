@@ -213,7 +213,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			.find(candidate => candidate.chatSessionId === chatSessionId);
 	}
 
-	async createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
+	async createEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
 		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, false, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
 

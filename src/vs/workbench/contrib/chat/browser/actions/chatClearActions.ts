@@ -19,7 +19,7 @@ import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatViewId, EditsViewId, IChatWidgetService } from '../chat.js';
-import { ctxIsGlobalEditingSession } from '../chatEditorController.js';
+import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorController.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';

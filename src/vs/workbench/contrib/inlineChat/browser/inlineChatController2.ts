@@ -26,14 +26,16 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ctxIsGlobalEditingSession } from '../../chat/browser/chatEditorController.js';
-import { ChatEditorOverlayController } from '../../chat/browser/chatEditorOverlay.js';
+import { ctxIsGlobalEditingSession } from '../../chat/browser/chatEditing/chatEditingEditorController.js';
+import { ChatEditorOverlayController } from '../../chat/browser/chatEditing/chatEditingEditorOverlay.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_POSSIBLE, CTX_INLINE_CHAT_VISIBLE } from '../common/inlineChat.js';
+import { InlineChatRunOptions } from './inlineChatController.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
+import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 
 
@@ -49,11 +51,13 @@ export class InlineChatController2 implements IEditorContribution {
 	}
 
 	private readonly _store = new DisposableStore();
-
-
 	private readonly _showWidgetOverrideObs = observableValue(this, false);
 	private readonly _isActiveController = observableValue(this, false);
+	private readonly _zone: Lazy<InlineChatZoneWidget>;
 
+	get widget(): EditorBasedInlineChatWidget {
+		return this._zone.value.widget;
+	}
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -66,7 +70,7 @@ export class InlineChatController2 implements IEditorContribution {
 		const ctxHasSession = CTX_HAS_SESSION.bindTo(contextKeyService);
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 
-		const zone = new Lazy<InlineChatZoneWidget>(() => {
+		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
 
 			const location: IChatWidgetLocationOptions = {
@@ -176,17 +180,17 @@ export class InlineChatController2 implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 
 			if (!session) {
-				zone.rawValue?.hide();
+				this._zone.rawValue?.hide();
 				_editor.focus();
 				ctxInlineChatVisible.reset();
 			} else {
 				ctxInlineChatVisible.set(true);
-				zone.value.widget.setChatModel(session.chatModel);
-				if (!zone.value.position) {
-					zone.value.show(session.initialPosition);
+				this._zone.value.widget.setChatModel(session.chatModel);
+				if (!this._zone.value.position) {
+					this._zone.value.show(session.initialPosition);
 				}
-				zone.value.reveal(zone.value.position!);
-				zone.value.widget.focus();
+				this._zone.value.reveal(this._zone.value.position!);
+				this._zone.value.widget.focus();
 				session.editingSession.getEntry(session.uri)?.autoAcceptController.get()?.cancel();
 			}
 		}));
@@ -228,6 +232,10 @@ export class InlineChatController2 implements IEditorContribution {
 	markActiveController() {
 		this._isActiveController.set(true, undefined);
 	}
+
+	focus() {
+		this._zone.rawValue?.widget.focus();
+	}
 }
 
 export class StartSessionAction2 extends EditorAction2 {
@@ -264,9 +272,31 @@ export class StartSessionAction2 extends EditorAction2 {
 		if (!editor.hasModel()) {
 			return;
 		}
+		const ctrl = InlineChatController2.get(editor);
+		if (!ctrl) {
+			return;
+		}
+
 		const textModel = editor.getModel();
 		await inlineChatSessions.createSession2(editor, textModel.uri, CancellationToken.None);
-		InlineChatController2.get(editor)?.markActiveController();
+
+		ctrl.markActiveController();
+
+		const arg = args[0];
+		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
+			if (arg.initialRange) {
+				editor.revealRange(arg.initialRange);
+			}
+			if (arg.initialSelection) {
+				editor.setSelection(arg.initialSelection);
+			}
+			if (arg.message) {
+				ctrl.widget.chatWidget.setInput(arg.message);
+				if (arg.autoSend) {
+					await ctrl.widget.chatWidget.acceptInput();
+				}
+			}
+		}
 	}
 }
 

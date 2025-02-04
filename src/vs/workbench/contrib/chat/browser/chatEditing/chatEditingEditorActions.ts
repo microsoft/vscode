@@ -2,24 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { ChatEditorController, ctxHasEditorModification, ctxReviewModeEnabled } from './chatEditorController.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { IChatEditingService } from '../common/chatEditingService.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditContext.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { ChatEditorController, ctxHasEditorModification, ctxReviewModeEnabled } from './chatEditingEditorController.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
+import { ctxNotebookHasEditorModification } from '../../../notebook/browser/contrib/chatEdit/notebookChatEditContext.js';
 
 abstract class NavigateAction extends Action2 {
 

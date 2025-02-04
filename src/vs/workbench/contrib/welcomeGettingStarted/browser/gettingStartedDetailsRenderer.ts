@@ -213,46 +213,15 @@ export class GettingStartedDetailsRenderer {
 					video {
 						max-width: 100%;
 						max-height: 100%;
-					object-fit: cover;
-					}
-					vertically-centered {
-						display: flex;
-						justify-content: center; /* Centers horizontally */
-						align-items: center; /* Centers vertically */
-						height: 100vh; /* Added missing semicolon */
+						object-fit: cover;
 					}
 				</style>
 			</head>
 			<body>
-				<vertically-centered>
-					<video controls autoplay loop ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
-						<source src="${path.toString(true)}" type="video/mp4">
-					</video>
-				</vertically-centered>
+				<video controls autoplay loop ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
+					<source src="${path.toString(true)}" type="video/mp4">
+				</video>
 			</body>
-
-			<script nonce="${nonce}">
-				let ongoingLayout = undefined;
-				const doLayout = () => {
-					document.querySelectorAll('vertically-centered').forEach(element => {
-						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 0) + 'px';
-					});
-					ongoingLayout = undefined;
-				};
-
-				const layout = () => {
-					if (ongoingLayout) {
-						clearTimeout(ongoingLayout);
-					}
-					ongoingLayout = setTimeout(doLayout, 0);
-				};
-
-				layout();
-
-				document.querySelectorAll('video').forEach(element => {
-					element.addEventListener('loadeddata', layout);
-				});
-		</script>
 		</html>`;
 	}
 
