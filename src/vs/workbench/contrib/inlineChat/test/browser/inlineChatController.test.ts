@@ -34,7 +34,7 @@ import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../.
 import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { InlineChatController, State } from '../../browser/inlineChatController.js';
-import { CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
+import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
@@ -331,7 +331,7 @@ suite('InlineChatController', function () {
 		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 3)); // initial
 
 		ctrl.chatWidget.setInput('GENGEN');
-		ctrl.acceptInput();
+		ctrl.chatWidget.acceptInput();
 		assert.strictEqual(await ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]), undefined);
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 3));
@@ -452,7 +452,6 @@ suite('InlineChatController', function () {
 		assert.strictEqual(await p, undefined);
 
 		assert.ok(model.getValue().includes('GENERATED'));
-		assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), undefined);
 		ctrl.cancelSession();
 		await r;
 		assert.ok(!model.getValue().includes('GENERATED'));
@@ -470,7 +469,6 @@ suite('InlineChatController', function () {
 		assert.ok(model.getValue().includes('GENERATED'));
 
 		editor.executeEdits('test', [EditOperation.insert(model.getFullModelRange().getEndPosition(), 'MANUAL')]);
-		assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), true);
 
 		ctrl.finishExistingSession();
 		await r;
@@ -548,7 +546,7 @@ suite('InlineChatController', function () {
 		// REQUEST 2
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
 		ctrl.chatWidget.setInput('1');
-		await ctrl.acceptInput();
+		await ctrl.chatWidget.acceptInput();
 		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'zwei-eins-');
@@ -632,7 +630,7 @@ suite('InlineChatController', function () {
 		// REQUEST 2
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
 		ctrl.chatWidget.setInput('1');
-		await ctrl.acceptInput();
+		await ctrl.chatWidget.acceptInput();
 		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'zwei\neins\nHello\nWorld\nHello Again\nHello World\n');

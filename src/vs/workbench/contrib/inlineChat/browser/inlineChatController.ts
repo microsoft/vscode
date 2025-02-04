@@ -45,7 +45,7 @@ import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/cha
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
 import { HunkInformation, Session, StashedSession } from './inlineChatSession.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatError } from './inlineChatSessionServiceImpl.js';
@@ -110,7 +110,6 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxEditing: IContextKey<boolean>;
 	private readonly _ctxResponseType: IContextKey<undefined | InlineChatResponseType>;
-	private readonly _ctxUserDidEdit: IContextKey<boolean>;
 	private readonly _ctxRequestInProgress: IContextKey<boolean>;
 
 	private readonly _ctxResponse: IContextKey<boolean>;
@@ -146,7 +145,6 @@ export class InlineChatController implements IEditorContribution {
 	) {
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxEditing = CTX_INLINE_CHAT_EDITING.bindTo(contextKeyService);
-		this._ctxUserDidEdit = CTX_INLINE_CHAT_USER_DID_EDIT.bindTo(contextKeyService);
 		this._ctxResponseType = CTX_INLINE_CHAT_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxRequestInProgress = CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
@@ -409,13 +407,9 @@ export class InlineChatController implements IEditorContribution {
 			this._messages.fire(msg);
 		}));
 
-		const altVersionNow = this._editor.getModel()?.getAlternativeVersionId();
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
 
-			if (!this._session?.hunkData.ignoreTextModelNChanges) {
-				this._ctxUserDidEdit.set(altVersionNow !== this._editor.getModel()?.getAlternativeVersionId());
-			}
 
 			if (this._session?.hunkData.ignoreTextModelNChanges || this._ui.value.widget.hasFocus()) {
 				return;
@@ -491,7 +485,7 @@ export class InlineChatController implements IEditorContribution {
 		this._updatePlaceholder();
 
 		if (options.message) {
-			this.updateInput(options.message);
+			this._updateInput(options.message);
 			aria.alert(options.message);
 			delete options.message;
 			this._showWidget(this._session.headless, false);
@@ -888,7 +882,6 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.clear();
 		this._ctxVisible.reset();
-		this._ctxUserDidEdit.reset();
 
 		this._ui.rawValue?.hide();
 
@@ -969,13 +962,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ui.value.widget.placeholder = this._session?.agent.description ?? '';
 	}
 
-	// ---- controller API
-
-	acceptInput() {
-		return this.chatWidget.acceptInput();
-	}
-
-	updateInput(text: string, selectAll = true): void {
+	private _updateInput(text: string, selectAll = true): void {
 
 		this._ui.value.widget.chatWidget.setInput(text);
 		if (selectAll) {
@@ -984,6 +971,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
+	// ---- controller API
 
 	arrowOut(up: boolean): void {
 		if (this._ui.value.position && this._editor.hasModel()) {
@@ -998,11 +986,6 @@ export class InlineChatController implements IEditorContribution {
 	focus(): void {
 		this._ui.value.widget.focus();
 	}
-
-	hasFocus(): boolean {
-		return this._ui.value.widget.hasFocus();
-	}
-
 
 	async viewInChat() {
 		if (!this._strategy || !this._session) {
