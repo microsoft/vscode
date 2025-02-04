@@ -105,12 +105,6 @@ export interface IChatContentInlineReference {
 	kind: 'inlineReference';
 }
 
-export interface IChatAgentDetection {
-	agentId: string;
-	command?: IChatAgentCommand;
-	kind: 'agentDetection';
-}
-
 export interface IChatMarkdownContent {
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
@@ -231,7 +225,6 @@ export type IChatProgress =
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatCodeCitation
-	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatTask
 	| IChatTaskResult

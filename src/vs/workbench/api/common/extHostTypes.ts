@@ -4517,16 +4517,6 @@ export class ChatResponseMarkdownWithVulnerabilitiesPart {
 	}
 }
 
-export class ChatResponseDetectedParticipantPart {
-	participant: string;
-	// TODO@API validate this against statically-declared slash commands?
-	command?: vscode.ChatCommand;
-	constructor(participant: string, command?: vscode.ChatCommand) {
-		this.participant = participant;
-		this.command = command;
-	}
-}
-
 export class ChatResponseConfirmationPart {
 	title: string;
 	message: string;
