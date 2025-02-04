@@ -279,7 +279,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				if (Array.isArray(completions)) {
 					return completions.map(c => ({ ...c, provider: id }));
 				} else {
-					return { items: completions?.items.map(c => ({ ...c, provider: id })), resourceRequestConfig: { pathSeparator: isWindows ? '\\' : '/', ...completions?.resourceRequestConfig } };
+					return { items: completions?.items.map(c => ({ ...c, provider: id })), resourceRequestConfig: completions?.resourceRequestConfig };
 				}
 			}
 		}, ...triggerCharacters));
