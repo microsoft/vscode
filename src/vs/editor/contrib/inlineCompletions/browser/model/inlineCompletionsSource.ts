@@ -307,7 +307,7 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 
 	private _lastEdit: OffsetEdit | undefined; // helper as derivedHandleChanges can not access previous value
 
-	private readonly _updatedEdit = derivedHandleChanges<OffsetEdit | undefined, IModelContentChangedEvent[]>({
+	private readonly _updatedEdit = derivedHandleChanges<OffsetEdit | undefined | null, IModelContentChangedEvent[]>({
 		owner: this,
 		equalityComparer: equalsIfDefined(itemEquals()),
 		createEmptyChangeSummary: () => [] as IModelContentChangedEvent[],
@@ -326,7 +326,7 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 
 		return this._lastEdit;
 	});
-	public get updatedEdit(): IObservable<OffsetEdit | undefined> { return this._updatedEdit; }
+	public get updatedEdit(): IObservable<OffsetEdit | undefined> { return this._updatedEdit.map(edit => edit ?? undefined); }
 
 	private readonly _updatedRange = derived(reader => {
 		const edit = this._updatedEdit.read(reader);
@@ -553,7 +553,7 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 	}
 
 	public canBeReused(model: ITextModel, position: Position): boolean {
-		if (this._updatedEdit.get() === undefined) {
+		if (!this._updatedEdit.get()) {
 			return false;
 		}
 
