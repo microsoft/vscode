@@ -221,7 +221,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
 
-		// TODO: This should come in through the resourceRequestConfig
 		const useBackslash = resourceRequestConfig.pathSeparator === '\\';
 
 		// The last word (or argument). When the cursor is following a space it will be the empty

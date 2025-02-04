@@ -23,7 +23,6 @@ import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/commo
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
 import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
-import { isWindows } from '../../../base/common/platform.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 
 /**
@@ -2202,9 +2201,6 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 	constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig) {
 		this.items = items ?? [];
 		this.resourceRequestConfig = resourceRequestConfig;
-		if (this.resourceRequestConfig) {
-			this.resourceRequestConfig.pathSeparator = isWindows ? '\\' : '/';
-		}
 	}
 }
 
