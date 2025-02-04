@@ -52,13 +52,13 @@ const allOptions = [
 	'-x',
 ];
 
-export function removeEntry<T>(array: T[], element: T): T[] {
-	const index = array.indexOf(element);
-	if (index > -1) {
-		array.splice(index, 1);
-	}
-	return array;
-}
+// function removeEntry<T>(array: T[], element: T): T[] {
+// 	const index = array.indexOf(element);
+// 	if (index > -1) {
+// 		array.splice(index, 1);
+// 	}
+// 	return array;
+// }
 
 export const lsTestSuiteSpec: ISuiteSpec = {
 	name: 'ls',
@@ -74,7 +74,7 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 
 		// Basic options
 		// TODO: The spec wants file paths and folders (which seems like it should only be folders),
-		//       but neither are requested
+		//       but neither are requested https://github.com/microsoft/vscode/issues/239606
 		{ input: 'ls |', expectedCompletions: allOptions, expectedResourceRequests: undefined }, // { type: 'folders', cwd: testPaths.cwd }
 		{ input: 'ls -|', expectedCompletions: allOptions, expectedResourceRequests: undefined }, // { type: 'folders', cwd: testPaths.cwd }
 
@@ -82,7 +82,7 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 		{ input: 'ls -a|', expectedCompletions: allOptions, expectedResourceRequests: undefined }, // { type: 'folders', cwd: testPaths.cwd }
 
 		// Duplicate option
-		// TODO: Duplicate options should not be presented
+		// TODO: Duplicate options should not be presented https://github.com/microsoft/vscode/issues/239607
 		// { input: 'ls -a -|', expectedCompletions: removeEntry(allOptions, '-a'), expectedResourceRequests: undefined }, // { type: 'folders', cwd: testPaths.cwd }
 
 		// Relative paths
