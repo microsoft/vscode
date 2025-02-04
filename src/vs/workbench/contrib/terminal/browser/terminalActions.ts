@@ -14,7 +14,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { dirname } from '../../../../base/common/resources.js';
-import { hasKey, isObject, isString } from '../../../../base/common/types.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { hasKey, isBoolean, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -712,7 +713,9 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeIcon,
 		title: terminalStrings.changeIcon,
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, _, args: unknown) => getResourceOrActiveInstance(c, args)?.changeIcon()
+		run: (c, _, args: unknown) => getResourceOrActiveInstance(c, args)?.changeIcon(
+			isString(args) ? ThemeIcon.fromString(args) || ThemeIcon.fromId(args) : undefined
+		)
 	});
 
 	registerTerminalAction({
@@ -739,7 +742,10 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeColor,
 		title: terminalStrings.changeColor,
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, _, args) => getResourceOrActiveInstance(c, args)?.changeColor()
+		run: (c, _, args1, args2) => getResourceOrActiveInstance(c, args1)?.changeColor(
+			isString(args1) ? args1 : undefined,
+			isBoolean(args2) ? args2 : undefined
+		)
 	});
 
 	registerTerminalAction({
