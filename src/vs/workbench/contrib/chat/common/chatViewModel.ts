@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { annotateVulnerabilitiesInText } from './annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from './chatAgents.js';
-import { ChatModelInitState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
+import { ChatModelInitState, ChatPauseState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
@@ -53,6 +53,7 @@ export interface IChatViewModel {
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly requestInProgress: boolean;
+	readonly requestPausibility: ChatPauseState;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[];
 	setInputPlaceholder(text: string): void;
@@ -226,6 +227,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	get requestInProgress(): boolean {
 		return this._model.requestInProgress;
+	}
+
+	get requestPausibility(): ChatPauseState {
+		return this._model.requestPausibility;
 	}
 
 	get initState() {
@@ -577,18 +582,23 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 				const now = Date.now();
 				const wordCount = countWords(_model.response.getMarkdown());
 
-				const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
-				const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
-				const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (newTotalTime / 1000);
-				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
-				this._contentUpdateTimings = {
-					totalTime: this._contentUpdateTimings.totalTime !== 0 || this.response.value.some(v => v.kind === 'markdownContent') ?
-						newTotalTime :
-						this._contentUpdateTimings.totalTime,
-					lastUpdateTime: now,
-					impliedWordLoadRate,
-					lastWordCount: wordCount
-				};
+				if (wordCount > 0 && wordCount === this._contentUpdateTimings.lastWordCount) {
+					this.trace('onDidChange', `Update- no new words`);
+				} else {
+					const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
+					const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
+					const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (newTotalTime / 1000);
+					this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
+					this._contentUpdateTimings = {
+						totalTime: this._contentUpdateTimings.totalTime !== 0 || this.response.value.some(v => v.kind === 'markdownContent') ?
+							newTotalTime :
+							this._contentUpdateTimings.totalTime,
+						lastUpdateTime: now,
+						impliedWordLoadRate,
+						lastWordCount: wordCount
+					};
+				}
+
 			} else {
 				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
 			}

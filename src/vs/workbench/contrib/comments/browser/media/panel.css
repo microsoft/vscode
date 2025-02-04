@@ -87,7 +87,8 @@
 	opacity: 0.8;
 }
 
-.comments-panel .comments-panel-container .tree-container .comment-thread-container .text * {
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .text *,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .range * {
 	margin: 0;
 	text-overflow: ellipsis;
 	overflow: hidden;

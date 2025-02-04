@@ -50,13 +50,18 @@ div.chat-welcome-view {
 		text-align: center;
 	}
 
-	& > .chat-welcome-view-indicator {
-		color: var(--vscode-badge-foreground);
-		background: var(--vscode-badge-background);
-		padding: 1px 8px;
-		border-radius: 14px;
+	& > .chat-welcome-view-indicator-container {
+		display: flex;
 		margin-top: 10px;
-		font-size: 11px;
+		gap: 9px;
+
+		& > .chat-welcome-view-indicator {
+			font-size: 11px;
+			color: var(--vscode-badge-foreground);
+			background: var(--vscode-badge-background);
+			padding: 1px 8px;
+			border-radius: 14px;
+		}
 	}
 
 	& > .chat-welcome-view-message {

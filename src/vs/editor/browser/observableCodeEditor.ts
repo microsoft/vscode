@@ -231,6 +231,7 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly layoutInfo = observableFromEvent(this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
 	public readonly layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
 	public readonly layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
+	public readonly layoutInfoWidth = this.layoutInfo.map(l => l.width);
 
 	public readonly contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 
@@ -286,7 +287,14 @@ export class ObservableCodeEditor extends Disposable {
 			start.read(reader);
 			end.read(reader);
 			const range = lineRange.read(reader);
-			const s = this.editor.getTopForLineNumber(range.startLineNumber) - this.scrollTop.read(reader);
+			const lineCount = this.model.read(reader)?.getLineCount();
+			const s = (
+				(typeof lineCount !== 'undefined' && range.startLineNumber > lineCount
+					? this.editor.getBottomForLineNumber(lineCount)
+					: this.editor.getTopForLineNumber(range.startLineNumber)
+				)
+				- this.scrollTop.read(reader)
+			);
 			const e = range.isEmpty ? s : (this.editor.getBottomForLineNumber(range.endLineNumberExclusive - 1) - this.scrollTop.read(reader));
 			return new OffsetRange(s, e);
 		});
@@ -304,8 +312,14 @@ export class ObservableCodeEditor extends Disposable {
 			},
 			getId: () => contentWidgetId,
 			allowEditorOverflow: false,
-			afterRender(position, coordinate) {
-				result.set(coordinate ? new Point(coordinate.left, coordinate.top) : null, undefined);
+			afterRender: (position, coordinate) => {
+				const model = this._model.get();
+				if (model && pos && pos.lineNumber > model.getLineCount()) {
+					// the position is after the last line
+					result.set(new Point(0, this.editor.getBottomForLineNumber(model.getLineCount()) - this.scrollTop.get()), undefined);
+				} else {
+					result.set(coordinate ? new Point(coordinate.left, coordinate.top) : null, undefined);
+				}
 			},
 		};
 		this.editor.addContentWidget(w);

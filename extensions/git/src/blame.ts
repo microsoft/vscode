@@ -9,11 +9,12 @@ import { dispose, fromNow, getCommitShortHash, IDisposable } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation, Commit } from './git';
-import { fromGitUri, isGitUri } from './uri';
+import { fromGitUri, isGitUri, toGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
+import { LRUCache } from './cache';
 
 const AVATAR_SIZE = 20;
 
@@ -78,82 +79,34 @@ type BlameInformationTemplateTokens = {
 	readonly authorDateAgo: string;
 };
 
-interface RepositoryBlameInformation {
-	/**
-	 * Track the current HEAD of the repository so that we can clear cache entries
-	 */
-	HEAD: string;
-
-	/**
-	 * Outer map - maps resource scheme to resource blame information. Using the uri
-	 * scheme as the key so that we can easily delete the cache entries for the "file"
-	 * scheme as those entries are outdated when the HEAD of the repository changes.
-	 *
-	 * Inner map - maps commit + resource to blame information.
-	 */
-	readonly blameInformation: Map<string, Map<string, BlameInformation[]>>;
-}
-
 interface LineBlameInformation {
 	readonly lineNumber: number;
 	readonly blameInformation: BlameInformation | string;
 }
 
 class GitBlameInformationCache {
-	private readonly _cache = new Map<Repository, RepositoryBlameInformation>();
+	private readonly _cache = new Map<Repository, LRUCache<string, BlameInformation[]>>();
 
-	getRepositoryHEAD(repository: Repository): string | undefined {
-		return this._cache.get(repository)?.HEAD;
+	delete(repository: Repository): boolean {
+		return this._cache.delete(repository);
 	}
 
-	setRepositoryHEAD(repository: Repository, commit: string): void {
-		const repositoryBlameInformation = this._cache.get(repository) ?? {
-			HEAD: commit,
-			blameInformation: new Map<string, Map<string, BlameInformation[]>>()
-		} satisfies RepositoryBlameInformation;
-
-		this._cache.set(repository, {
-			...repositoryBlameInformation,
-			HEAD: commit
-		} satisfies RepositoryBlameInformation);
+	get(repository: Repository, resource: Uri, commit: string): BlameInformation[] | undefined {
+		const key = this._getCacheKey(resource, commit);
+		return this._cache.get(repository)?.get(key);
 	}
 
-	deleteBlameInformation(repository: Repository, scheme?: string): boolean {
-		if (scheme === undefined) {
-			return this._cache.delete(repository);
-		}
-
-		return this._cache.get(repository)?.blameInformation.delete(scheme) === true;
-	}
-
-	getBlameInformation(repository: Repository, resource: Uri, commit: string): BlameInformation[] | undefined {
-		const blameInformationKey = this._getBlameInformationKey(resource, commit);
-		return this._cache.get(repository)?.blameInformation.get(resource.scheme)?.get(blameInformationKey);
-	}
-
-	setBlameInformation(repository: Repository, resource: Uri, commit: string, blameInformation: BlameInformation[]): void {
-		if (!repository.HEAD?.commit) {
-			return;
-		}
-
+	set(repository: Repository, resource: Uri, commit: string, blameInformation: BlameInformation[]): void {
 		if (!this._cache.has(repository)) {
-			this._cache.set(repository, {
-				HEAD: repository.HEAD.commit,
-				blameInformation: new Map<string, Map<string, BlameInformation[]>>()
-			} satisfies RepositoryBlameInformation);
+			this._cache.set(repository, new LRUCache<string, BlameInformation[]>(100));
 		}
 
-		const repositoryBlameInformation = this._cache.get(repository)!;
-		if (!repositoryBlameInformation.blameInformation.has(resource.scheme)) {
-			repositoryBlameInformation.blameInformation.set(resource.scheme, new Map<string, BlameInformation[]>());
-		}
-
-		const resourceSchemeBlameInformation = repositoryBlameInformation.blameInformation.get(resource.scheme)!;
-		resourceSchemeBlameInformation.set(this._getBlameInformationKey(resource, commit), blameInformation);
+		const key = this._getCacheKey(resource, commit);
+		this._cache.get(repository)!.set(key, blameInformation);
 	}
 
-	private _getBlameInformationKey(resource: Uri, commit: string): string {
-		return `${commit}:${resource.toString()}`;
+	private _getCacheKey(resource: Uri, commit: string): string {
+		return toGitUri(resource, commit).toString();
 	}
 }
 
@@ -172,6 +125,8 @@ export class GitBlameController {
 		this._onDidChangeBlameInformation.fire();
 	}
 
+	private _HEAD: string | undefined;
+	private readonly _commitInformationCache = new LRUCache<string, Commit>(100);
 	private readonly _repositoryBlameCache = new GitBlameInformationCache();
 
 	private _editorDecoration: GitBlameEditorDecoration | undefined;
@@ -216,7 +171,11 @@ export class GitBlameController {
 		if (repository) {
 			try {
 				// Commit details
-				commitInformation = await repository.getCommit(blameInformation.hash);
+				commitInformation = this._commitInformationCache.get(blameInformation.hash);
+				if (!commitInformation) {
+					commitInformation = await repository.getCommit(blameInformation.hash);
+					this._commitInformationCache.set(blameInformation.hash, commitInformation);
+				}
 
 				// Avatar
 				const avatarQuery = {
@@ -383,23 +342,16 @@ export class GitBlameController {
 		}
 
 		this._repositoryDisposables.delete(repository);
-		this._repositoryBlameCache.deleteBlameInformation(repository);
+		this._repositoryBlameCache.delete(repository);
 	}
 
 	private _onDidRunGitStatus(repository: Repository): void {
-		const repositoryHEAD = this._repositoryBlameCache.getRepositoryHEAD(repository);
-		if (!repositoryHEAD || !repository.HEAD?.commit) {
+		if (!repository.HEAD?.commit || this._HEAD === repository.HEAD.commit) {
 			return;
 		}
 
-		// If the HEAD of the repository changed we can remove the cache
-		// entries for the "file" scheme as those entries are outdated.
-		if (repositoryHEAD !== repository.HEAD.commit) {
-			this._repositoryBlameCache.deleteBlameInformation(repository, 'file');
-			this._repositoryBlameCache.setRepositoryHEAD(repository, repository.HEAD.commit);
-
-			this._updateTextEditorBlameInformation(window.activeTextEditor);
-		}
+		this._HEAD = repository.HEAD.commit;
+		this._updateTextEditorBlameInformation(window.activeTextEditor);
 	}
 
 	private async _getBlameInformation(resource: Uri, commit: string): Promise<BlameInformation[] | undefined> {
@@ -408,18 +360,18 @@ export class GitBlameController {
 			return undefined;
 		}
 
-		const resourceBlameInformation = this._repositoryBlameCache.getBlameInformation(repository, resource, commit);
+		const resourceBlameInformation = this._repositoryBlameCache.get(repository, resource, commit);
 		if (resourceBlameInformation) {
 			return resourceBlameInformation;
 		}
 
-		// Ensure that the emojis are loaded. We will
-		// use them when formatting the blame information.
+		// Ensure that the emojis are loaded as we will need
+		// access to them when formatting the blame information.
 		await ensureEmojis();
 
 		// Get blame information for the resource and cache it
 		const blameInformation = await repository.blame2(resource.fsPath, commit) ?? [];
-		this._repositoryBlameCache.setBlameInformation(repository, resource, commit, blameInformation);
+		this._repositoryBlameCache.set(repository, resource, commit, blameInformation);
 
 		return blameInformation;
 	}

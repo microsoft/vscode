@@ -191,8 +191,6 @@ export class InlineCompletionsController extends Disposable {
 				if (!m) { return; }
 				if (m.state.get()?.kind === 'ghostText') {
 					this.model.get()?.stop();
-				} else if (m.state.get()?.inlineCompletion) {
-					this.model.get()?.collapseInlineEdit();
 				}
 			}
 		}));

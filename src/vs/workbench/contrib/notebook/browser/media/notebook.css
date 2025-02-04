@@ -335,7 +335,7 @@
 }
 
 .monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row .codicon:not(.suggest-icon) {
-	color: inherit;
+	color: var(--vscode-icon-foreground);
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-overview-ruler-container {

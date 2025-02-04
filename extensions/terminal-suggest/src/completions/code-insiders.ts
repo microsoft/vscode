@@ -7,6 +7,7 @@ import code from './code';
 const codeInsidersCompletionSpec: Fig.Spec = {
 	...code,
 	name: 'code-insiders',
+	description: 'Visual Studio Code Insiders',
 };
 
 export default codeInsidersCompletionSpec;

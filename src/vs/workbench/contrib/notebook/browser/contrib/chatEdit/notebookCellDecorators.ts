@@ -90,7 +90,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 			if (!editor) {
 				return false;
 			}
-			const value = this._chatEditingService.currentEditingSessionObs.read(r);
+			const value = this._chatEditingService.globalEditingSessionObs.read(r);
 			if (!value || value.state.read(r) !== ChatEditingSessionState.StreamingEdits) {
 				return false;
 			}

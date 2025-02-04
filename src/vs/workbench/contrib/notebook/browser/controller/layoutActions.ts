@@ -262,11 +262,8 @@ registerAction2(class ToggleNotebookStickyScroll extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{
-					id: MenuId.NotebookStickyScrollContext,
-					group: 'notebookView',
-					order: 2
-				}
+				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 },
+				{ id: MenuId.NotebookToolbarContext, group: 'notebookView', order: 2 }
 			]
 		});
 	}

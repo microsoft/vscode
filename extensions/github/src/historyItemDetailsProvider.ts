@@ -83,7 +83,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 	private readonly _disposables = new DisposableStore();
 
 	constructor(private readonly _gitAPI: API, private readonly _logger: LogOutputChannel) {
-		this._disposables.add(this._gitAPI.onDidCloseRepository(this._onDidCloseRepository));
+		this._disposables.add(this._gitAPI.onDidCloseRepository(repository => this._onDidCloseRepository(repository)));
 
 		this._disposables.add(authentication.onDidChangeSessions(e => {
 			if (e.provider.id === 'github') {
