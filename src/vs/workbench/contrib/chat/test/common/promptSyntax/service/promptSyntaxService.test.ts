@@ -5,10 +5,12 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { isWindows } from '../../../../../../../base/common/platform.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { waitRandom } from '../../../../../../../base/test/common/testUtils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
 import { IPromptSyntaxService } from '../../../../common/promptSyntax/service/types.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
@@ -19,7 +21,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -38,13 +39,13 @@ class ExpectedLink {
 		assert.strictEqual(
 			link.type,
 			'file',
-			`Link must have correct type.`,
+			'Link must have correct type.',
 		);
 
 		assert.strictEqual(
 			link.uri.toString(),
 			this.uri.toString(),
-			`Link URI must be '${this.uri.toString()}'.`,
+			'Link must have correct URI.',
 		);
 
 		assert(
@@ -88,6 +89,18 @@ const assertLinks = (
 	);
 };
 
+/**
+ * Creates cross-platform URI. On Windows, absolute paths
+ * are prefixed with the disk name.
+ */
+const createURI = (linkPath: string): URI => {
+	if (isWindows && linkPath.startsWith('/')) {
+		return URI.file('/d:' + linkPath);
+	}
+
+	return URI.file(linkPath);
+};
+
 suite('PromptSyntaxService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -105,7 +118,7 @@ suite('PromptSyntaxService', () => {
 	});
 
 	suite('getParserFor', () => {
-		test('provides a cached prompt syntax parser', async () => {
+		test('provides cached parser instance', async () => {
 			const langId = 'fooLang';
 
 			/**
@@ -116,7 +129,7 @@ suite('PromptSyntaxService', () => {
 				'test1\n\t#file:./file.md\n\n\n   [bin file](/root/tmp.bin)\t\n',
 				langId,
 				undefined,
-				URI.parse('/Users/vscode/repos/test/file1.txt'),
+				createURI('/Users/vscode/repos/test/file1.txt'),
 			));
 
 			const parser1 = service.getParserFor(model1);
@@ -145,12 +158,12 @@ suite('PromptSyntaxService', () => {
 				parser1.allReferences,
 				[
 					new ExpectedLink(
-						URI.file('/Users/vscode/repos/test/file.md'),
+						createURI('/Users/vscode/repos/test/file.md'),
 						new Range(2, 2, 2, 2 + 15),
 						new Range(2, 8, 2, 8 + 9),
 					),
 					new ExpectedLink(
-						URI.file('/root/tmp.bin'),
+						createURI('/root/tmp.bin'),
 						new Range(5, 4, 5, 4 + 25),
 						new Range(5, 15, 5, 15 + 13),
 					),
@@ -187,7 +200,7 @@ suite('PromptSyntaxService', () => {
 				'some text #file:/absolute/path.txt  \t\ntest-text2',
 				langId,
 				undefined,
-				URI.parse('/Users/vscode/repos/test/some-folder/file.md'),
+				createURI('/Users/vscode/repos/test/some-folder/file.md'),
 			));
 
 			// wait for some random amount of time
@@ -242,7 +255,7 @@ suite('PromptSyntaxService', () => {
 				parser2.allReferences,
 				[
 					new ExpectedLink(
-						URI.file('/absolute/path.txt'),
+						createURI('/absolute/path.txt'),
 						new Range(1, 11, 1, 11 + 24),
 						new Range(1, 17, 1, 17 + 18),
 					),
@@ -261,12 +274,12 @@ suite('PromptSyntaxService', () => {
 				parser1_1.allReferences,
 				[
 					new ExpectedLink(
-						URI.file('/Users/vscode/repos/test/file.md'),
+						createURI('/Users/vscode/repos/test/file.md'),
 						new Range(2, 2, 2, 2 + 15),
 						new Range(2, 8, 2, 8 + 9),
 					),
 					new ExpectedLink(
-						URI.file('/root/tmp.bin'),
+						createURI('/root/tmp.bin'),
 						new Range(5, 4, 5, 4 + 25),
 						new Range(5, 15, 5, 15 + 13),
 					),
@@ -333,12 +346,12 @@ suite('PromptSyntaxService', () => {
 				parser1_2.allReferences,
 				[
 					new ExpectedLink(
-						URI.file('/Users/vscode/repos/test/file.md'),
+						createURI('/Users/vscode/repos/test/file.md'),
 						new Range(2, 2, 2, 2 + 15),
 						new Range(2, 8, 2, 8 + 9),
 					),
 					new ExpectedLink(
-						URI.file('/root/tmp.bin'),
+						createURI('/root/tmp.bin'),
 						new Range(5, 4, 5, 4 + 25),
 						new Range(5, 15, 5, 15 + 13),
 					),
@@ -380,7 +393,7 @@ suite('PromptSyntaxService', () => {
 				'some text #file:/absolute/path.txt  \n [caption](.copilot/prompts/test.prompt.md)\t\n\t\n more text',
 				langId,
 				undefined,
-				URI.parse('/Users/vscode/repos/test/some-folder/file.md'),
+				createURI('/Users/vscode/repos/test/some-folder/file.md'),
 			));
 			const parser2_1 = service.getParserFor(model2_1);
 
@@ -413,13 +426,13 @@ suite('PromptSyntaxService', () => {
 				[
 					// the first link didn't change
 					new ExpectedLink(
-						URI.file('/absolute/path.txt'),
+						createURI('/absolute/path.txt'),
 						new Range(1, 11, 1, 11 + 24),
 						new Range(1, 17, 1, 17 + 18),
 					),
 					// the second link is new
 					new ExpectedLink(
-						URI.file('/Users/vscode/repos/test/some-folder/.copilot/prompts/test.prompt.md'),
+						createURI('/Users/vscode/repos/test/some-folder/.copilot/prompts/test.prompt.md'),
 						new Range(2, 2, 2, 2 + 42),
 						new Range(2, 12, 2, 12 + 31),
 					),
@@ -427,14 +440,14 @@ suite('PromptSyntaxService', () => {
 			);
 		});
 
-		test('parser is auto updated on model changes', async () => {
+		test('auto-updated on model changes', async () => {
 			const langId = 'bazLang';
 
 			const model = disposables.add(createTextModel(
 				' \t #file:../file.md\ntest1\n\t\n  [another file](/Users/root/tmp/file2.txt)\t\n',
 				langId,
 				undefined,
-				URI.parse('/repos/test/file1.txt'),
+				createURI('/repos/test/file1.txt'),
 			));
 
 			const parser = service.getParserFor(model);
@@ -455,12 +468,12 @@ suite('PromptSyntaxService', () => {
 				parser.allReferences,
 				[
 					new ExpectedLink(
-						URI.file('/repos/file.md'),
+						createURI('/repos/file.md'),
 						new Range(1, 4, 1, 4 + 16),
 						new Range(1, 10, 1, 10 + 10),
 					),
 					new ExpectedLink(
-						URI.file('/Users/root/tmp/file2.txt'),
+						createURI('/Users/root/tmp/file2.txt'),
 						new Range(4, 3, 4, 3 + 41),
 						new Range(4, 18, 4, 18 + 25),
 					),
@@ -481,13 +494,13 @@ suite('PromptSyntaxService', () => {
 				[
 					// link1 didn't change
 					new ExpectedLink(
-						URI.file('/repos/file.md'),
+						createURI('/repos/file.md'),
 						new Range(1, 4, 1, 4 + 16),
 						new Range(1, 10, 1, 10 + 10),
 					),
 					// link2 changed in the file name only
 					new ExpectedLink(
-						URI.file('/Users/root/tmp/file3.txt'),
+						createURI('/Users/root/tmp/file3.txt'),
 						new Range(4, 3, 4, 3 + 41),
 						new Range(4, 18, 4, 18 + 25),
 					),
@@ -495,7 +508,7 @@ suite('PromptSyntaxService', () => {
 			);
 		});
 
-		test('throws if disposed model is provided', async function () {
+		test('throws if disposed model provided', async function () {
 			const model = disposables.add(createTextModel(
 				'test1\ntest2\n\ntest3\t\n',
 				'barLang',
