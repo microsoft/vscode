@@ -19,7 +19,7 @@ import { IDiffComputationResult, ILineChange } from '../common/diff/legacyLinesD
 import * as editorCommon from '../common/editorCommon.js';
 import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../common/model.js';
 import { InjectedText } from '../common/modelLineProjectionData.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from '../common/textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelLineHeightChangedEvent } from '../common/textModelEvents.js';
 import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { MenuId } from '../../platform/actions/common/actions.js';
@@ -890,6 +890,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	getConfiguredWordAtPosition(position: Position): IWordAtPosition | null;
+
+	/**
+	 * An event emitted when line heights from decorations changes
+	 * @internal
+	 * @event
+	 */
+	onDidChangeSpecialLineHeight: Event<ModelLineHeightChangedEvent>;
 
 	/**
 	 * Get value of the current model attached to this editor.

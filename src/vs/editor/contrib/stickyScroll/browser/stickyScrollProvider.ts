@@ -153,7 +153,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		result: StickyLineCandidate[],
 		depth: number,
 		lastStartLineNumber: number,
-		topOfElement: number,
+		topOfElement: number
 	): void {
 		if (outlineModel.children.length === 0) {
 			return;

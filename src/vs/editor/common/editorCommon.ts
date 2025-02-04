@@ -239,11 +239,6 @@ export interface IEditor {
 	getId(): string;
 
 	/**
-	* Get the id number for this editor instance.
-	*/
-	getIdNumber(): number;
-
-	/**
 	 * Get the editor type. Please see `EditorType`.
 	 * This is to avoid an instanceof check
 	 */
