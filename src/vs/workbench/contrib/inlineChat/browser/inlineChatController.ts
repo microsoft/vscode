@@ -141,7 +141,6 @@ export class InlineChatController implements IEditorContribution {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 	) {
@@ -985,9 +984,6 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	cancelCurrentRequest(): void {
-		this._messages.fire(Message.CANCEL_INPUT | Message.CANCEL_REQUEST);
-	}
 
 	arrowOut(up: boolean): void {
 		if (this._ui.value.position && this._editor.hasModel()) {
@@ -1127,56 +1123,60 @@ export class InlineChatController implements IEditorContribution {
 	joinCurrentRun(): Promise<void> | undefined {
 		return this._currentRun;
 	}
-
-	async reviewEdits(stream: AsyncIterable<TextEdit[]>, token: CancellationToken) {
-		if (!this._editor.hasModel()) {
-			return false;
-		}
-
-		const uri = this._editor.getModel().uri;
-		const chatModel = this._chatService.startSession(ChatAgentLocation.Editor, token);
-
-		const editSession = await this._chatEditingService.createEditingSession(chatModel.sessionId);
-
-		//
-		const store = new DisposableStore();
-		store.add(chatModel);
-		store.add(editSession);
-
-		// STREAM
-		const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
-		assertType(chatRequest.response);
-		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
-		for await (const chunk of stream) {
-
-			if (token.isCancellationRequested) {
-				chatRequest.response.cancel();
-				break;
-			}
-
-			chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: chunk, done: false });
-		}
-		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
-
-		if (!token.isCancellationRequested) {
-			chatRequest.response.complete();
-		}
-
-		const whenDecided = new Promise(resolve => {
-			store.add(autorun(r => {
-				if (!editSession.entries.read(r).some(e => e.state.read(r) === WorkingSetEntryState.Modified)) {
-					resolve(undefined);
-				}
-			}));
-		});
-
-		await raceCancellation(whenDecided, token);
-
-		store.dispose();
-
-		return true;
-	}
 }
+
+
+export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEditor, stream: AsyncIterable<TextEdit[]>, token: CancellationToken): Promise<boolean> {
+	if (!editor.hasModel()) {
+		return false;
+	}
+
+	const chatService = accessor.get(IChatService);
+	const chatEditingService = accessor.get(IChatEditingService);
+
+	const uri = editor.getModel().uri;
+	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token);
+
+	const editSession = await chatEditingService.createEditingSession(chatModel.sessionId);
+
+	const store = new DisposableStore();
+	store.add(chatModel);
+	store.add(editSession);
+
+	// STREAM
+	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
+	assertType(chatRequest.response);
+	chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
+	for await (const chunk of stream) {
+
+		if (token.isCancellationRequested) {
+			chatRequest.response.cancel();
+			break;
+		}
+
+		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: chunk, done: false });
+	}
+	chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
+
+	if (!token.isCancellationRequested) {
+		chatRequest.response.complete();
+	}
+
+	const whenDecided = new Promise(resolve => {
+		store.add(autorun(r => {
+			if (!editSession.entries.read(r).some(e => e.state.read(r) === WorkingSetEntryState.Modified)) {
+				resolve(undefined);
+			}
+		}));
+	});
+
+	await raceCancellation(whenDecided, token);
+
+	store.dispose();
+
+	return true;
+}
+
 
 async function moveToPanelChat(accessor: ServicesAccessor, model: ChatModel | undefined) {
 
