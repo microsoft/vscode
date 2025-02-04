@@ -77,6 +77,18 @@ export class EditorWhitespace implements IEditorWhitespace {
 	}
 }
 
+/*
+TODO:
+
+Read how the _arr is implemented, how the whitespaces are handled
+Look at how pending changes are implemented
+Implement the line height segment, and the composite line height segment
+Use the onLinesDeleted method in order to handle the insertions and deletions of lines
+Use the onModelLineHeightChange to signal the change of a line height
+In the datastructure have one object per decoration, do not have one entry per view line
+Emit also an event per range of the decoration, not for each line in between
+*/
+
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
  *

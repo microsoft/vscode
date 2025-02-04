@@ -1437,6 +1437,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean): void | model.IValidEditOperation[] {
 
+		// probably should get rid of the changes in this method, because this should be handled in the linesLayout
 		const oldLineCount = this._buffer.getLineCount();
 		const linesWithSpecialHeightsAffectedByEdits: { startLine: number; endLine: number }[] = [];
 		for (const operation of rawOperations) {
