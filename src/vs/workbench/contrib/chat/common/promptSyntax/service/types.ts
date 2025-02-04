@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextModel } from '../../../../../../editor/common/model.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
@@ -15,7 +16,7 @@ export const IPromptSyntaxService = createDecorator<IPromptSyntaxService>('IProm
 /**
  * Provides prompt syntax services.
  */
-export interface IPromptSyntaxService {
+export interface IPromptSyntaxService extends IDisposable {
 	readonly _serviceBrand: undefined;
 
 	/**

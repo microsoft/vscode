@@ -4,318 +4,511 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { assertSnapshot } from '../../../../../../../base/test/common/snapshot.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { ServiceCollection } from '../../../../../../../platform/instantiation/common/serviceCollection.js';
-import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
+import { waitRandom } from '../../../../../../../base/test/common/testUtils.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IPromptSyntaxService } from '../../../../common/promptSyntax/service/types.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from '../../../../common/chatAgents.js';
-import { IChatModel, ISerializableChatData } from '../../../../common/chatModel.js';
-import { IChatFollowup, IChatService } from '../../../../common/chatService.js';
-import { ChatService } from '../../../../common/chatServiceImpl.js';
-import { ChatSlashCommandService, IChatSlashCommandService } from '../../../../common/chatSlashCommands.js';
-import { IChatVariablesService } from '../../../../common/chatVariables.js';
-import { IWorkbenchAssignmentService } from '../../../../../../services/assignment/common/assignmentService.js';
-import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
-import { IExtensionService, nullExtensionDescription } from '../../../../../../services/extensions/common/extensions.js';
-import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
-import { TestContextService, TestExtensionService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
-import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { PromptSyntaxService } from '../../../../common/promptSyntax/service/promptSyntaxService.js';
+import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
 
-const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
-const chatAgentWithUsedContext: IChatAgent = {
-	id: chatAgentWithUsedContextId,
-	name: chatAgentWithUsedContextId,
-	extensionId: nullExtensionDescription.identifier,
-	publisherDisplayName: '',
-	extensionPublisherId: '',
-	extensionDisplayName: '',
-	locations: [ChatAgentLocation.Panel],
-	metadata: {},
-	slashCommands: [],
-	disambiguation: [],
-	async invoke(request, progress, history, token) {
-		progress({
-			documents: [
-				{
-					uri: URI.file('/test/path/to/file'),
-					version: 3,
-					ranges: [
-						new Range(1, 1, 2, 2)
-					]
-				}
-			],
-			kind: 'usedContext'
-		});
+/**
+ * Helper class to assert the properties of a link.
+ */
+class ExpectedLink {
+	constructor(
+		public readonly uri: URI,
+		public readonly fullRange: Range,
+		public readonly linkRange: Range,
+	) { }
 
-		return { metadata: { metadataKey: 'value' } };
-	},
-	async provideFollowups(sessionId, token) {
-		return [{ kind: 'reply', message: 'Something else', agentId: '', tooltip: 'a tooltip' } satisfies IChatFollowup];
-	},
-};
+	/**
+	 * Assert a provided link has the same properties as this object.
+	 */
+	public assertEqual(link: IPromptFileReference) {
+		assert.strictEqual(
+			link.type,
+			'file',
+			`Link must have correct type.`,
+		);
 
-const chatAgentWithMarkdownId = 'ChatProviderWithMarkdown';
-const chatAgentWithMarkdown: IChatAgent = {
-	id: chatAgentWithMarkdownId,
-	name: chatAgentWithMarkdownId,
-	extensionId: nullExtensionDescription.identifier,
-	publisherDisplayName: '',
-	extensionPublisherId: '',
-	extensionDisplayName: '',
-	locations: [ChatAgentLocation.Panel],
-	metadata: {},
-	slashCommands: [],
-	disambiguation: [],
-	async invoke(request, progress, history, token) {
-		progress({ kind: 'markdownContent', content: new MarkdownString('test') });
-		return { metadata: { metadataKey: 'value' } };
-	},
-	async provideFollowups(sessionId, token) {
-		return [];
-	},
-};
+		assert.strictEqual(
+			link.uri.toString(),
+			this.uri.toString(),
+			`Link URI must be '${this.uri.toString()}'.`,
+		);
 
-function getAgentData(id: string) {
-	return {
-		name: id,
-		id: id,
-		extensionId: nullExtensionDescription.identifier,
-		extensionPublisherId: '',
-		publisherDisplayName: '',
-		extensionDisplayName: '',
-		locations: [ChatAgentLocation.Panel],
-		metadata: {},
-		slashCommands: [],
-		disambiguation: [],
-	};
+		assert(
+			this.fullRange.equalsRange(link.range),
+			`Full range must be '${this.fullRange}', got '${link.range}'.`,
+		);
+
+		assertDefined(
+			link.linkRange,
+			'Link must have a link range.',
+		);
+
+		assert(
+			this.linkRange.equalsRange(link.linkRange),
+			`Link range must be '${this.linkRange}', got '${link.linkRange}'.`,
+		);
+	}
 }
 
-suite('ChatService', () => {
-	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+/**
+ * Asserts that provided links are equal to the expected links.
+ * @param links Links to assert.
+ * @param expectedLinks Expected links to compare against.
+ */
+const assertLinks = (
+	links: readonly IPromptFileReference[],
+	expectedLinks: readonly ExpectedLink[],
+) => {
+	for (let i = 0; i < links.length; i++) {
+		try {
+			expectedLinks[i].assertEqual(links[i]);
+		} catch (error) {
+			throw new Error(`link#${i}: ${error}`);
+		}
+	}
 
-	let storageService: IStorageService;
+	assert.strictEqual(
+		links.length,
+		expectedLinks.length,
+		`Links count must be correct.`,
+	);
+};
+
+suite('PromptSyntaxService', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: IPromptSyntaxService;
 	let instantiationService: TestInstantiationService;
 
-	let chatAgentService: IChatAgentService;
-
 	setup(async () => {
-		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
-			[IChatVariablesService, new MockChatVariablesService()],
-			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
-		)));
-		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
+		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IExtensionService, new TestExtensionService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IViewsService, new TestExtensionService());
-		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IFileService, new TestConfigurationService());
+		instantiationService.stub(IFileService, disposables.add(instantiationService.createInstance(FileService)));
 
-		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
-		instantiationService.stub(IChatAgentService, chatAgentService);
-
-		const agent: IChatAgentImplementation = {
-			async invoke(request, progress, history, token) {
-				return {};
-			},
-		};
-		testDisposables.add(chatAgentService.registerAgent('testAgent', { ...getAgentData('testAgent'), isDefault: true }));
-		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, getAgentData(chatAgentWithUsedContextId)));
-		testDisposables.add(chatAgentService.registerAgent(chatAgentWithMarkdownId, getAgentData(chatAgentWithMarkdownId)));
-		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
-		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' } });
+		service = disposables.add(instantiationService.createInstance(PromptSyntaxService));
 	});
 
-	test('retrieveSession', async () => {
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		const session1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session1.waitForInitialization();
-		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
+	suite('getParserFor', () => {
+		test('provides a cached prompt syntax parser', async () => {
+			const langId = 'fooLang';
 
-		const session2 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session2.waitForInitialization();
-		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
+			/**
+			 * Create a text model, get a parser for it, and perform basic assertions.
+			 */
 
-		storageService.flush();
-		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
-		const retrieved1 = testDisposables.add(testService2.getOrRestoreSession(session1.sessionId)!);
-		await retrieved1.waitForInitialization();
-		const retrieved2 = testDisposables.add(testService2.getOrRestoreSession(session2.sessionId)!);
-		await retrieved2.waitForInitialization();
-		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
-		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
-	});
+			const model1 = disposables.add(createTextModel(
+				'test1\n\t#file:./file.md\n\n\n   [bin file](/root/tmp.bin)\t\n',
+				langId,
+				undefined,
+				URI.parse('/Users/vscode/repos/test/file1.txt'),
+			));
 
-	test('addCompleteRequest', async () => {
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+			const parser1 = service.getParserFor(model1);
+			assert.strictEqual(
+				parser1.uri.toString(),
+				model1.uri.toString(),
+				'Must create parser1 with the correct URI.',
+			);
 
-		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		assert.strictEqual(model.getRequests().length, 0);
+			assert(
+				!parser1.disposed,
+				'Parser1 must not be disposed.',
+			);
 
-		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, 0, { message: 'test response' });
-		assert.strictEqual(model.getRequests().length, 1);
-		assert.ok(model.getRequests()[0].response);
-		assert.strictEqual(model.getRequests()[0].response?.response.toString(), 'test response');
-	});
+			assert(
+				parser1 instanceof TextModelPromptParser,
+				'Parser1 must be an instance of TextModelPromptParser.',
+			);
 
-	test('sendRequest fails', async () => {
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+			/**
+			 * Validate that all links of the model are correctly parsed.
+			 */
 
-		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
-		assert(response);
-		await response.responseCompletePromise;
+			await parser1.settled();
+			assertLinks(
+				parser1.allReferences,
+				[
+					new ExpectedLink(
+						URI.file('/Users/vscode/repos/test/file.md'),
+						new Range(2, 2, 2, 2 + 15),
+						new Range(2, 8, 2, 8 + 9),
+					),
+					new ExpectedLink(
+						URI.file('/root/tmp.bin'),
+						new Range(5, 4, 5, 4 + 25),
+						new Range(5, 15, 5, 15 + 13),
+					),
+				],
+			);
 
-		await assertSnapshot(toSnapshotExportData(model));
-	});
+			// wait for some random amount of time
+			await waitRandom(5);
 
-	test('history', async () => {
-		const historyLengthAgent: IChatAgentImplementation = {
-			async invoke(request, progress, history, token) {
-				return {
-					metadata: { historyLength: history.length }
-				};
-			},
-		};
+			/**
+			 * Next, get parser for the same exact model and
+			 * validate that the same cached object is returned.
+			 */
 
-		testDisposables.add(chatAgentService.registerAgent('defaultAgent', { ...getAgentData('defaultAgent'), isDefault: true }));
-		testDisposables.add(chatAgentService.registerAgent('agent2', getAgentData('agent2')));
-		testDisposables.add(chatAgentService.registerAgentImplementation('defaultAgent', historyLengthAgent));
-		testDisposables.add(chatAgentService.registerAgentImplementation('agent2', historyLengthAgent));
+			// get the same parser again, the call must return the same object
+			const parser1_1 = service.getParserFor(model1);
+			assert.strictEqual(
+				parser1,
+				parser1_1,
+				'Must return the same parser object.',
+			);
 
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+			assert.strictEqual(
+				parser1_1.uri.toString(),
+				model1.uri.toString(),
+				'Must create parser1_1 with the correct URI.',
+			);
 
-		// Send a request to default agent
-		const response = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'defaultAgent' });
-		assert(response);
-		await response.responseCompletePromise;
-		assert.strictEqual(model.getRequests().length, 1);
-		assert.strictEqual(model.getRequests()[0].response?.result?.metadata?.historyLength, 0);
+			/**
+			 * Get parser for a different model and perform basic assertions.
+			 */
 
-		// Send a request to agent2- it can't see the default agent's message
-		const response2 = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'agent2' });
-		assert(response2);
-		await response2.responseCompletePromise;
-		assert.strictEqual(model.getRequests().length, 2);
-		assert.strictEqual(model.getRequests()[1].response?.result?.metadata?.historyLength, 0);
+			const model2 = disposables.add(createTextModel(
+				'some text #file:/absolute/path.txt  \t\ntest-text2',
+				langId,
+				undefined,
+				URI.parse('/Users/vscode/repos/test/some-folder/file.md'),
+			));
 
-		// Send a request to defaultAgent - the default agent can see agent2's message
-		const response3 = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'defaultAgent' });
-		assert(response3);
-		await response3.responseCompletePromise;
-		assert.strictEqual(model.getRequests().length, 3);
-		assert.strictEqual(model.getRequests()[2].response?.result?.metadata?.historyLength, 2);
-	});
+			// wait for some random amount of time
+			await waitRandom(5);
 
-	test('can serialize', async () => {
-		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
-		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' } });
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+			const parser2 = service.getParserFor(model2);
 
-		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		assert.strictEqual(model.getRequests().length, 0);
+			assert.strictEqual(
+				parser2.uri.toString(),
+				model2.uri.toString(),
+				'Must create parser2 with the correct URI.',
+			);
 
-		await assertSnapshot(toSnapshotExportData(model));
+			assert(
+				!parser2.disposed,
+				'Parser2 must not be disposed.',
+			);
 
-		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
-		assert(response);
-		await response.responseCompletePromise;
-		assert.strictEqual(model.getRequests().length, 1);
+			assert(
+				parser2 instanceof TextModelPromptParser,
+				'Parser2 must be an instance of TextModelPromptParser.',
+			);
 
-		const response2 = await testService.sendRequest(model.sessionId, `test request 2`);
-		assert(response2);
-		await response2.responseCompletePromise;
-		assert.strictEqual(model.getRequests().length, 2);
+			assert(
+				!parser2.disposed,
+				'Parser2 must not be disposed.',
+			);
 
-		await assertSnapshot(toSnapshotExportData(model));
-	});
+			assert(
+				!parser1.disposed,
+				'Parser1 must not be disposed.',
+			);
 
-	test('can deserialize', async () => {
-		let serializedChatData: ISerializableChatData;
-		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
+			assert(
+				!parser1_1.disposed,
+				'Parser1_1 must not be disposed.',
+			);
 
-		// create the first service, send request, get response, and serialize the state
-		{  // serapate block to not leak variables in outer scope
-			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+			/**
+			 * Validate that all links of the model 2 are correctly parsed.
+			 */
 
-			const chatModel1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-			assert.strictEqual(chatModel1.getRequests().length, 0);
+			await parser2.settled();
 
-			const response = await testService.sendRequest(chatModel1.sessionId, `@${chatAgentWithUsedContextId} test request`);
-			assert(response);
+			assert.notStrictEqual(
+				parser1.uri.toString(),
+				parser2.uri.toString(),
+				'Parser2 must have its own URI.',
+			);
 
-			await response.responseCompletePromise;
+			assertLinks(
+				parser2.allReferences,
+				[
+					new ExpectedLink(
+						URI.file('/absolute/path.txt'),
+						new Range(1, 11, 1, 11 + 24),
+						new Range(1, 17, 1, 17 + 18),
+					),
+				],
+			);
 
-			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
-		}
+			/**
+			 * Validate the first parser was not affected by the presence
+			 * of the second parser.
+			 */
 
-		// try deserializing the state into a new service
+			await parser1_1.settled();
 
-		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+			// parser1_1 has the same exact links as before
+			assertLinks(
+				parser1_1.allReferences,
+				[
+					new ExpectedLink(
+						URI.file('/Users/vscode/repos/test/file.md'),
+						new Range(2, 2, 2, 2 + 15),
+						new Range(2, 8, 2, 8 + 9),
+					),
+					new ExpectedLink(
+						URI.file('/root/tmp.bin'),
+						new Range(5, 4, 5, 4 + 25),
+						new Range(5, 15, 5, 15 + 13),
+					),
+				],
+			);
 
-		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
-		assert(chatModel2);
+			// wait for some random amount of time
+			await waitRandom(5);
 
-		await assertSnapshot(toSnapshotExportData(chatModel2));
-	});
+			/**
+			 * Dispose the first parser, perform basic validations, and confirm
+			 * that the second parser is not affected by the disposal of the first one.
+			 */
+			parser1.dispose();
 
-	test('can deserialize with response', async () => {
-		let serializedChatData: ISerializableChatData;
-		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+			assert(
+				parser1.disposed,
+				'Parser1 must be disposed.',
+			);
 
-		{
-			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+			assert(
+				parser1_1.disposed,
+				'Parser1_1 must be disposed.',
+			);
 
-			const chatModel1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-			assert.strictEqual(chatModel1.getRequests().length, 0);
+			assert(
+				!parser2.disposed,
+				'Parser2 must not be disposed.',
+			);
 
-			const response = await testService.sendRequest(chatModel1.sessionId, `@${chatAgentWithUsedContextId} test request`);
-			assert(response);
 
-			await response.responseCompletePromise;
+			/**
+			 * Get parser for the first model again. Confirm that we get
+			 * a new non-disposed parser object back with correct properties.
+			 */
 
-			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
-		}
+			const parser1_2 = service.getParserFor(model1);
 
-		// try deserializing the state into a new service
+			assert(
+				!parser1_2.disposed,
+				'Parser1_2 must not be disposed.',
+			);
 
-		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+			assert.notStrictEqual(
+				parser1_2,
+				parser1,
+				'Must create a new parser object for the model1.',
+			);
 
-		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
-		assert(chatModel2);
+			assert.strictEqual(
+				parser1_2.uri.toString(),
+				model1.uri.toString(),
+				'Must create parser1_2 with the correct URI.',
+			);
 
-		await assertSnapshot(toSnapshotExportData(chatModel2));
+			/**
+			 * Validate that the contents of the second parser did not change.
+			 */
+
+			await parser1_2.settled();
+
+			// parser1_2 must have the same exact links as before
+			assertLinks(
+				parser1_2.allReferences,
+				[
+					new ExpectedLink(
+						URI.file('/Users/vscode/repos/test/file.md'),
+						new Range(2, 2, 2, 2 + 15),
+						new Range(2, 8, 2, 8 + 9),
+					),
+					new ExpectedLink(
+						URI.file('/root/tmp.bin'),
+						new Range(5, 4, 5, 4 + 25),
+						new Range(5, 15, 5, 15 + 13),
+					),
+				],
+			);
+
+			// wait for some random amount of time
+			await waitRandom(5);
+
+			/**
+			 * This time dispose model of the second parser instead of
+			 * the parser itself. Validate that the parser is disposed too, but
+			 * the newly created first parser is not affected.
+			 */
+
+			// dispose the `model` of the second parser now
+			model2.dispose();
+
+			// assert that the parser is also disposed
+			assert(
+				parser2.disposed,
+				'Parser2 must be disposed.',
+			);
+
+			// sanity check that the other parser is not affected
+			assert(
+				!parser1_2.disposed,
+				'Parser1_2 must not be disposed.',
+			);
+
+			/**
+			 * Create a new second parser with new model - we cannot use
+			 * the old one because it was disposed. This new model also has
+			 * a different second link.
+			 */
+
+			// we cannot use the same model since it was already disposed
+			const model2_1 = disposables.add(createTextModel(
+				'some text #file:/absolute/path.txt  \n [caption](.copilot/prompts/test.prompt.md)\t\n\t\n more text',
+				langId,
+				undefined,
+				URI.parse('/Users/vscode/repos/test/some-folder/file.md'),
+			));
+			const parser2_1 = service.getParserFor(model2_1);
+
+			assert(
+				!parser2_1.disposed,
+				'Parser2_1 must not be disposed.',
+			);
+
+			assert.notStrictEqual(
+				parser2_1,
+				parser2,
+				'Parser2_1 must be a new object.',
+			);
+
+			assert.strictEqual(
+				parser2_1.uri.toString(),
+				model2.uri.toString(),
+				'Must create parser2_1 with the correct URI.',
+			);
+
+			/**
+			 * Validate that new model2 contents are parsed correctly.
+			 */
+
+			await parser2_1.settled();
+
+			// parser2_1 must have 2 links now
+			assertLinks(
+				parser2_1.allReferences,
+				[
+					// the first link didn't change
+					new ExpectedLink(
+						URI.file('/absolute/path.txt'),
+						new Range(1, 11, 1, 11 + 24),
+						new Range(1, 17, 1, 17 + 18),
+					),
+					// the second link is new
+					new ExpectedLink(
+						URI.file('/Users/vscode/repos/test/some-folder/.copilot/prompts/test.prompt.md'),
+						new Range(2, 2, 2, 2 + 42),
+						new Range(2, 12, 2, 12 + 31),
+					),
+				],
+			);
+		});
+
+		test('parser is auto updated on model changes', async () => {
+			const langId = 'bazLang';
+
+			const model = disposables.add(createTextModel(
+				' \t #file:../file.md\ntest1\n\t\n  [another file](/Users/root/tmp/file2.txt)\t\n',
+				langId,
+				undefined,
+				URI.parse('/repos/test/file1.txt'),
+			));
+
+			const parser = service.getParserFor(model);
+
+			// sanity checks
+			assert(
+				!parser.disposed,
+				'Parser must not be disposed.',
+			);
+			assert(
+				parser instanceof TextModelPromptParser,
+				'Parser must be an instance of TextModelPromptParser.',
+			);
+
+			await parser.settled();
+
+			assertLinks(
+				parser.allReferences,
+				[
+					new ExpectedLink(
+						URI.file('/repos/file.md'),
+						new Range(1, 4, 1, 4 + 16),
+						new Range(1, 10, 1, 10 + 10),
+					),
+					new ExpectedLink(
+						URI.file('/Users/root/tmp/file2.txt'),
+						new Range(4, 3, 4, 3 + 41),
+						new Range(4, 18, 4, 18 + 25),
+					),
+				],
+			);
+
+			model.applyEdits([
+				{
+					range: new Range(4, 18, 4, 18 + 25),
+					text: '/Users/root/tmp/file3.txt',
+				},
+			]);
+
+			await parser.settled();
+
+			assertLinks(
+				parser.allReferences,
+				[
+					// link1 didn't change
+					new ExpectedLink(
+						URI.file('/repos/file.md'),
+						new Range(1, 4, 1, 4 + 16),
+						new Range(1, 10, 1, 10 + 10),
+					),
+					// link2 changed in the file name only
+					new ExpectedLink(
+						URI.file('/Users/root/tmp/file3.txt'),
+						new Range(4, 3, 4, 3 + 41),
+						new Range(4, 18, 4, 18 + 25),
+					),
+				],
+			);
+		});
+
+		test('throws if disposed model is provided', async function () {
+			const model = disposables.add(createTextModel(
+				'test1\ntest2\n\ntest3\t\n',
+				'barLang',
+				undefined,
+				URI.parse('./github/prompts/file.prompt.md'),
+			));
+
+			// dispose the model before using it
+			model.dispose();
+
+			assert.throws(() => {
+				service.getParserFor(model);
+			}, 'Cannot create a prompt parser for a disposed model.');
+		});
 	});
 });
-
-
-function toSnapshotExportData(model: IChatModel) {
-	const exp = model.toExport();
-	return {
-		...exp,
-		requests: exp.requests.map(r => {
-			return {
-				...r,
-				timestamp: undefined,
-				requestId: undefined, // id contains a random part
-				responseId: undefined, // id contains a random part
-			};
-		})
-	};
-}

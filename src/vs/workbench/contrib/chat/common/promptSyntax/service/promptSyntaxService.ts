@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptSyntaxService } from './types.js';
+import { assert } from '../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
@@ -41,6 +42,8 @@ export class PromptSyntaxService extends Disposable implements IPromptSyntaxServ
 					[],
 				);
 
+				parser.start();
+
 				// this is a sanity check and the contract of the object cache,
 				// we must return a non-disposed object from this factory function
 				parser.assertNotDisposed(
@@ -55,12 +58,19 @@ export class PromptSyntaxService extends Disposable implements IPromptSyntaxServ
 	/**
 	 * Gets a prompt syntax parser for the provided text model.
 	 *
-	 * @throws {Error} If a newly create parser is disposed on creation. See factory function
-	 * 				   passed to `ObjectCache` instance in the {@link constructor} for more info.
+	 * @throws {Error} if:
+	 * 	- the provided model is disposed
+	 * 	- newly created parser is disposed immediately on initialization.
+	 * 	  See factory function in the {@link constructor} for more info.
 	 */
 	public getParserFor(
 		model: ITextModel,
 	): TextModelPromptParser & { disposed: false } {
+		assert(
+			!model.isDisposed(),
+			'Cannot create a prompt parser for a disposed model.',
+		);
+
 		return this.cache.get(model);
 	}
 }
