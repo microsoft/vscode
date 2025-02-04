@@ -14,6 +14,7 @@ import { testPaths, type ISuiteSpec } from './helpers';
 import { codeInsidersTestSuite } from './completions/code-insiders.test';
 import { lsTestSuiteSpec } from './completions/upstream/ls.test';
 import { echoTestSuiteSpec } from './completions/upstream/echo.test';
+import { mkdirTestSuiteSpec } from './completions/upstream/mkdir.test';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -36,6 +37,7 @@ const testSpecs2: ISuiteSpec[] = [
 	// completions/upstream/
 	echoTestSuiteSpec,
 	lsTestSuiteSpec,
+	mkdirTestSuiteSpec,
 ];
 
 suite('Terminal Suggest', () => {
