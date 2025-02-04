@@ -209,6 +209,19 @@ export class OffsetEdit {
 		}
 		return postEditsOffset - accumulatedDelta;
 	}
+
+	equals(other: OffsetEdit): boolean {
+		if (this.edits.length !== other.edits.length) {
+			return false;
+		}
+		for (let i = 0; i < this.edits.length; i++) {
+			if (!this.edits[i].equals(other.edits[i])) {
+				return false;
+			}
+
+		}
+		return true;
+	}
 }
 
 export type IOffsetEdit = ISingleOffsetEdit[];
@@ -251,6 +264,10 @@ export class SingleOffsetEdit {
 
 	getRangeAfterApply(): OffsetRange {
 		return new OffsetRange(this.replaceRange.start, this.replaceRange.start + this.newText.length);
+	}
+
+	equals(other: SingleOffsetEdit): boolean {
+		return this.replaceRange.equals(other.replaceRange) && this.newText === other.newText;
 	}
 }
 

@@ -7,7 +7,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ISettableObservable, ITransaction, derivedOpts, disposableObservableValue, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, IReader, ITransaction, derived, derivedHandleChanges, disposableObservableValue, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { splitLines } from '../../../../../base/common/strings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -50,7 +50,7 @@ export class InlineCompletionsSource extends Disposable {
 
 	constructor(
 		private readonly _textModel: ITextModel,
-		private readonly _versionId: IObservable<number | null>,
+		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -62,13 +62,6 @@ export class InlineCompletionsSource extends Disposable {
 
 		this._register(this._textModel.onDidChangeContent((e) => {
 			this._updateOperation.clear();
-
-			const inlineCompletions = this.inlineCompletions.get();
-			if (inlineCompletions) {
-				transaction(tx => {
-					inlineCompletions.acceptTextModelChangeEvent(e, tx);
-				});
-			}
 		}));
 	}
 
@@ -267,7 +260,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 		private readonly inlineCompletionProviderResult: InlineCompletionProviderResult,
 		public readonly request: UpdateRequest,
 		private readonly _textModel: ITextModel,
-		private readonly _versionId: IObservable<number | null>,
+		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _invalidationDelay: IObservable<number>,
 	) {
 		const ids = _textModel.deltaDecorations([], inlineCompletionProviderResult.completions.map(i => ({
@@ -280,12 +273,6 @@ export class UpToDateInlineCompletions implements IDisposable {
 		this._inlineCompletions = inlineCompletionProviderResult.completions.map(
 			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._textModel, this._versionId, this._invalidationDelay, this.request)
 		);
-	}
-
-	public acceptTextModelChangeEvent(e: IModelContentChangedEvent, tx: ITransaction) {
-		for (const inlineCompletion of this._inlineCompletions) {
-			inlineCompletion.acceptTextModelChangeEvent(e, tx);
-		}
 	}
 
 	public clone(): this {
@@ -308,6 +295,8 @@ export class UpToDateInlineCompletions implements IDisposable {
 				i.source.removeRef();
 			}
 		}
+
+		this._inlineCompletions.forEach(i => i.dispose());
 	}
 
 	public prepend(inlineCompletion: InlineCompletionItem, range: Range, addRefToSource: boolean): void {
@@ -326,7 +315,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 	}
 }
 
-export class InlineCompletionWithUpdatedRange {
+export class InlineCompletionWithUpdatedRange extends Disposable {
 	public readonly semanticId = JSON.stringify([
 		this.inlineCompletion.filterText,
 		this.inlineCompletion.insertText,
@@ -337,21 +326,40 @@ export class InlineCompletionWithUpdatedRange {
 		return this.source.inlineCompletions.enableForwardStability ?? false;
 	}
 
-	private readonly _updatedRange = derivedOpts<Range | null>({ owner: this, equalsFn: Range.equalsRange }, reader => {
-		if (this._inlineEdit.read(reader)) {
-			const edit = this.toSingleTextEdit(reader);
-			return (edit.isEmpty ? null : edit.range);
-		} else {
-			this._modelVersion.read(reader);
-			return this._textModel.getDecorationRange(this.decorationId);
-		}
-	});
+	private _lastEdit: OffsetEdit | undefined; // helper as derivedHandleChanges can not access previous value
 
-	/**
-	 * This will be null for ghost text completions
-	 */
-	private _inlineEdit: ISettableObservable<OffsetEdit | null>;
-	public get inlineEdit(): IObservable<OffsetEdit | null> { return this._inlineEdit; }
+	private readonly _updatedEdit = derivedHandleChanges<OffsetEdit | undefined, IModelContentChangedEvent[]>({
+		owner: this,
+		equalityComparer: equalsIfDefined(itemEquals()),
+		createEmptyChangeSummary: () => [] as IModelContentChangedEvent[],
+		handleChange: (context, changeSummary) => {
+			if (context.didChange(this._modelVersion) && context.change) {
+				changeSummary.push(context.change);
+			}
+			return true;
+		}
+	}, (reader, changeSummary) => {
+		this._modelVersion.read(reader);
+
+		for (const change of changeSummary) {
+			this._lastEdit = this.applyTextModelChanges(change, this._lastEdit);
+		}
+
+		return this._lastEdit;
+	});
+	public get updatedEdit(): IObservable<OffsetEdit | undefined> { return this._updatedEdit; }
+
+	private readonly _updatedRange = derived(reader => {
+		const edit = this._updatedEdit.read(reader);
+		if (!edit || edit.edits.length === 0) {
+			return undefined;
+		}
+
+		return Range.fromPositions(
+			this._textModel.getPositionAt(edit.edits[0].replaceRange.start),
+			this._textModel.getPositionAt(edit.edits[edit.edits.length - 1].replaceRange.endExclusive)
+		);
+	});
 
 	public get source() { return this.inlineCompletion.source; }
 	public get sourceInlineCompletion() { return this.inlineCompletion.sourceInlineCompletion; }
@@ -365,19 +373,17 @@ export class InlineCompletionWithUpdatedRange {
 		public readonly inlineCompletion: InlineCompletionItem,
 		public readonly decorationId: string,
 		private readonly _textModel: ITextModel,
-		private readonly _modelVersion: IObservable<number | null>,
+		private readonly _modelVersion: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _invalidationDelay: IObservable<number>,
 		public readonly request: UpdateRequest,
 	) {
-		const inlineCompletions = this.inlineCompletion.source.inlineCompletions.items;
-		if (inlineCompletions.length > 0 && inlineCompletions[inlineCompletions.length - 1].isInlineEdit) {
-			this._inlineEdit = observableValue(this, this._toIndividualEdits(this.inlineCompletion.range, this.inlineCompletion.insertText));
-		} else {
-			this._inlineEdit = observableValue(this, null);
-		}
+		super();
+
+		this._lastEdit = this._toIndividualEdits(this.inlineCompletion.range, this.inlineCompletion.insertText);
+		this._updatedEdit.recomputeInitiallyAndOnChange(this._store); // make sure to call this after setting `_lastEdit`
 	}
 
-	private _toIndividualEdits(editRange: Range, _replaceText: string): OffsetEdit {
+	private _toIndividualEdits(editRange: Range, _replaceText: string): OffsetEdit | undefined {
 		const eol = this._textModel.getEOL();
 		const editOriginalText = this._textModel.getValueInRange(editRange);
 		const editReplaceText = _replaceText.replace(/\r\n|\r|\n/g, eol);
@@ -396,10 +402,7 @@ export class InlineCompletionWithUpdatedRange {
 
 		const innerChanges = lineDiffs.changes.flatMap(c => c.innerChanges ?? []);
 		if (innerChanges.length === 0) {
-			const startOffset = this._textModel.getOffsetAt(editRange.getStartPosition());
-			return new OffsetEdit(
-				[new SingleOffsetEdit(OffsetRange.ofStartAndLength(startOffset, editOriginalText.length), editReplaceText)]
-			);
+			return undefined;
 		}
 
 		function addRangeToPos(pos: Position, range: Range): Range {
@@ -428,61 +431,58 @@ export class InlineCompletionWithUpdatedRange {
 		);
 	}
 
-	public acceptTextModelChangeEvent(e: IModelContentChangedEvent, tx: ITransaction): void {
+	public applyTextModelChanges(e: IModelContentChangedEvent, offsetEdit: OffsetEdit | undefined): OffsetEdit | undefined {
 		this._lastChangePartOfInlineEdit = false;
 
-		const offsetEdit = this._inlineEdit.get();
 		if (!offsetEdit) {
 			return;
 		}
 
-		const editUpdates = offsetEdit.edits.map(edit => acceptTextModelChange(edit, e.changes));
-		const newEdits = editUpdates.filter(({ changeType }) => changeType !== 'fullyAccepted').map(({ edit }) => edit);
+		const potentialEditUpdates = offsetEdit.edits.map(edit => applyChangesToInnerEdit(edit, e.changes));
+		if (potentialEditUpdates.some(editUpdate => editUpdate === undefined)) {
+			return undefined; // change collided with one of our edits, so we will have to drop the completion
+		}
+		const editUpdates = potentialEditUpdates as { edit: SingleOffsetEdit; accepted?: 'partially' | 'fully' }[];
 
-		const emptyEdit = newEdits.find(edit => edit.isEmpty);
-		if (emptyEdit || newEdits.length === 0) {
-			// Either a change collided with one of our edits, so we will have to drop the completion
-			// Or the completion has been typed by the user
-			this._inlineEdit.set(new OffsetEdit([emptyEdit ?? new SingleOffsetEdit(new OffsetRange(0, 0), '')]), tx);
-			return;
+		const newEdits = editUpdates.filter(({ accepted }) => accepted !== 'fully').map(({ edit }) => edit);
+		if (newEdits.length === 0) {
+			return undefined; // the completion has been typed by the user
 		}
 
-		const changePartiallyAcceptsEdit = editUpdates.some(({ changeType }) => changeType === 'partiallyAccepted' || changeType === 'fullyAccepted');
-
+		const changePartiallyAcceptsEdit = editUpdates.some(({ accepted }) => !!accepted);
 		if (changePartiallyAcceptsEdit) {
 			this._invalidationTime = undefined;
 		}
 		if (this._invalidationTime && this._invalidationTime < Date.now()) {
 			// The completion has been shown for a while and the user
 			// has been working on a different part of the document, so invalidate it
-			this._inlineEdit.set(new OffsetEdit([new SingleOffsetEdit(new OffsetRange(0, 0), '')]), tx);
-			return;
+			return undefined;
 		}
 
 		this._lastChangePartOfInlineEdit = changePartiallyAcceptsEdit;
-		this._inlineEdit.set(new OffsetEdit(newEdits), tx);
+		return new OffsetEdit(newEdits);
 
-		function acceptTextModelChange(edit: SingleOffsetEdit, changes: readonly IModelContentChange[]): { edit: SingleOffsetEdit; changeType: 'move' | 'partiallyAccepted' | 'fullyAccepted' } {
+		function applyChangesToInnerEdit(edit: SingleOffsetEdit, changes: readonly IModelContentChange[]): { edit: SingleOffsetEdit; accepted?: 'partially' | 'fully' } | undefined {
 			let start = edit.replaceRange.start;
 			let end = edit.replaceRange.endExclusive;
 			let newText = edit.newText;
-			let changeType: 'move' | 'partiallyAccepted' | 'fullyAccepted' = 'move';
+			let accepted: 'partially' | 'fully' | undefined;
 			for (let i = changes.length - 1; i >= 0; i--) {
 				const change = changes[i];
 
-				// Edit is an insertion: user inserted text at the start of the completion
 				if (edit.replaceRange.isEmpty && change.rangeLength === 0 && change.rangeOffset === start && newText.startsWith(change.text)) {
+					// Edit is an insertion: user inserted text at the start of the completion
 					start += change.text.length;
 					end = Math.max(start, end);
 					newText = newText.substring(change.text.length);
-					changeType = newText.length === 0 ? 'fullyAccepted' : 'partiallyAccepted';
+					accepted = newText.length === 0 ? 'fully' : 'partially';
 					continue;
 				}
 
-				// Edit is a deletion: user deleted text inside the deletion range
 				if (!edit.replaceRange.isEmpty && change.text.length === 0 && change.rangeOffset >= start && change.rangeOffset + change.rangeLength <= end) {
+					// Edit is a deletion: user deleted text inside the deletion range
 					end -= change.rangeLength;
-					changeType = start === end ? 'fullyAccepted' : 'partiallyAccepted';
+					accepted = start === end ? 'fully' : 'partially';
 					continue;
 				}
 
@@ -498,11 +498,9 @@ export class InlineCompletionWithUpdatedRange {
 				}
 
 				// The change intersects the completion, so we will have to drop the completion
-				start = change.rangeOffset;
-				end = change.rangeOffset;
-				newText = '';
+				return undefined;
 			}
-			return { edit: new SingleOffsetEdit(new OffsetRange(start, end), newText), changeType };
+			return { edit: new SingleOffsetEdit(new OffsetRange(start, end), newText), accepted };
 		}
 	}
 
@@ -513,7 +511,7 @@ export class InlineCompletionWithUpdatedRange {
 
 	public toSingleTextEdit(reader: IReader | undefined): SingleTextEdit {
 		this._modelVersion.read(reader);
-		const offsetEdit = this._inlineEdit.read(reader);
+		const offsetEdit = this._updatedEdit.read(reader);
 		if (!offsetEdit) {
 			return new SingleTextEdit(this._updatedRange.read(reader) ?? emptyRange, this.inlineCompletion.insertText);
 		}
@@ -577,11 +575,12 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	public canBeReused(model: ITextModel, position: Position): boolean {
-		const inlineEdit = this._inlineEdit.get();
-		if (inlineEdit !== null) {
-			return model === this._textModel
-				&& !inlineEdit.isEmpty
-				&& this._lastChangePartOfInlineEdit;
+		if (this._updatedEdit.get() === undefined) {
+			return false;
+		}
+
+		if (this.sourceInlineCompletion.isInlineEdit) {
+			return this._lastChangePartOfInlineEdit;
 		}
 
 		const updatedRange = this._updatedRange.read(undefined);
