@@ -12,7 +12,7 @@ import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, Remo
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
-import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
+import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
 import { dispose, getCommitShortHash, grep, isDefined, isDescendant, pathEquals, relativePath, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
@@ -1567,17 +1567,20 @@ export class CommandCenter {
 			return;
 		}
 
-		this.logger.trace(`[CommandCenter][stageSelectedChanges] changes: ${JSON.stringify(changes)}`);
-
 		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
-		if (workingTreeDiffInformation) {
-			this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
-			this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation changes: ${JSON.stringify(toLineChanges(workingTreeDiffInformation))}`);
+		if (!workingTreeDiffInformation) {
+			return;
 		}
+
+		const workingTreeLineChanges = toLineChanges(workingTreeDiffInformation);
+
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] changes: ${JSON.stringify(changes)}`);
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation changes: ${JSON.stringify(workingTreeLineChanges)}`);
 
 		const modifiedDocument = textEditor.document;
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedChanges = changes
+		const selectedChanges = workingTreeLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(d => !!d) as LineChange[];
 
@@ -1759,22 +1762,25 @@ export class CommandCenter {
 			return;
 		}
 
-		this.logger.trace(`[CommandCenter][revertSelectedRanges] changes: ${JSON.stringify(changes)}`);
-
 		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
-		if (workingTreeDiffInformation) {
-			this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
-			this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation changes: ${JSON.stringify(toLineChanges(workingTreeDiffInformation))}`);
+		if (!workingTreeDiffInformation) {
+			return;
 		}
+
+		const workingTreeLineChanges = toLineChanges(workingTreeDiffInformation);
+
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] changes: ${JSON.stringify(changes)}`);
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation changes: ${JSON.stringify(workingTreeLineChanges)}`);
 
 		const modifiedDocument = textEditor.document;
 		const selections = textEditor.selections;
-		const selectedChanges = changes.filter(change => {
+		const selectedChanges = workingTreeLineChanges.filter(change => {
 			const modifiedRange = getModifiedRange(modifiedDocument, change);
 			return selections.every(selection => !selection.intersection(modifiedRange));
 		});
 
-		if (selectedChanges.length === changes.length) {
+		if (selectedChanges.length === workingTreeLineChanges.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
@@ -1859,24 +1865,21 @@ export class CommandCenter {
 			return;
 		}
 
+		const indexDiffInformation = getIndexDiffInformation(textEditor);
+		if (!indexDiffInformation) {
+			return;
+		}
+
+		const indexLineChanges = toLineChanges(indexDiffInformation);
+
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(changes)}`);
-
-		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
-		if (workingTreeDiffInformation) {
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation (working tree): ${JSON.stringify(workingTreeDiffInformation)}`);
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes (working tree): ${JSON.stringify(toLineChanges(workingTreeDiffInformation))}`);
-		}
-
-		const workingTreeAndIndexDiffInformation = getWorkingTreeAndIndexDiffInformation(textEditor);
-		if (workingTreeAndIndexDiffInformation) {
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation (working tree + index): ${JSON.stringify(workingTreeAndIndexDiffInformation)}`);
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes (working tree + index): ${JSON.stringify(toLineChanges(workingTreeAndIndexDiffInformation))}`);
-		}
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation: ${JSON.stringify(indexDiffInformation)}`);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes: ${JSON.stringify(indexLineChanges)}`);
 
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = changes
+		const selectedDiffs = indexLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(c => !!c) as LineChange[];
 
