@@ -24,6 +24,7 @@ import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMim
 import { IRelativePatternDto } from './extHost.protocol.js';
 import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { isWindows } from '../../../base/common/platform.js';
 
 /**
  * @deprecated
@@ -2201,6 +2202,9 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 	constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig) {
 		this.items = items ?? [];
 		this.resourceRequestConfig = resourceRequestConfig;
+		if (this.resourceRequestConfig) {
+			this.resourceRequestConfig.pathSeparator = isWindows ? '\\' : '/';
+		}
 	}
 }
 
@@ -2208,7 +2212,7 @@ export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
 	cwd?: vscode.Uri;
-	pathSeparator?: string;
+	pathSeparator: string;
 }
 
 export enum TaskRevealKind {
