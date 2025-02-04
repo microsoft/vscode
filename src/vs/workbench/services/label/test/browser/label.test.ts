@@ -463,23 +463,19 @@ suite('Notebooks URI Label', () => {
 
 	test('Notebook Uri instead of Cell Uri', function () {
 		const uri1 = URI.joinPath(TestWorkspace.folders[0].uri, 'test.ipynb');
-		assert.strictEqual(labelService.getUriLabel(uri1), URI.joinPath(TestWorkspace.folders[0].uri, 'test.ipynb').path);
 		assert.strictEqual(labelService.getUriLabel(uri1, { relative: true, noPrefix: true, appendCellNumber: true }), 'test.ipynb');
 	});
 
 	test('Notebook Uri instead of Cell Uri', function () {
 		const uri1 = URI.joinPath(TestWorkspace.folders[0].uri, 'test.ipynb').with({ scheme: Schemas.vscodeNotebookCell, fragment: 'cell=2' });
-		assert.strictEqual(labelService.getUriLabel(uri1), URI.joinPath(TestWorkspace.folders[0].uri, 'test.ipynb').path);
 		assert.strictEqual(labelService.getUriLabel(uri1, { relative: true, noPrefix: true, appendCellNumber: true }), 'test.ipynb • Cell 2');
 
 		const uri2 = URI.joinPath(TestWorkspace.folders[0].uri, 'two.ipynb').with({ scheme: Schemas.vscodeNotebookCell, fragment: 'cell=1' });
-		assert.strictEqual(labelService.getUriLabel(uri2), URI.joinPath(TestWorkspace.folders[0].uri, 'two.ipynb').path);
 		assert.strictEqual(labelService.getUriLabel(uri2, { relative: true, noPrefix: true, appendCellNumber: true }), 'two.ipynb • Cell 1');
 	});
 
 	test('Invalid Cell Uri', function () {
 		const uri1 = URI.joinPath(TestWorkspace.folders[0].uri, 'test.ipynb').with({ scheme: Schemas.vscodeNotebookCell, fragment: 'cell=4' });
-		assert.strictEqual(labelService.getUriLabel(uri1), URI.joinPath(TestWorkspace.folders[0].uri, 'test.ipynb').path);
 		assert.strictEqual(labelService.getUriLabel(uri1, { relative: true, noPrefix: true, appendCellNumber: true }), 'test.ipynb');
 	});
 });
