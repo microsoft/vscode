@@ -17,7 +17,7 @@ import { IEnvironmentVariableService } from '../../contrib/terminal/common/envir
 import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariableShared.js';
 import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, ITerminalProfileService } from '../../contrib/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../services/remote/common/remoteAgentService.js';
-import { isWindows, OperatingSystem, OS } from '../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../base/common/platform.js';
 import { TerminalEditorLocationOptions } from 'vscode';
 import { Promises } from '../../../base/common/async.js';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
