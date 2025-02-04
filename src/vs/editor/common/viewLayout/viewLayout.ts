@@ -10,7 +10,7 @@ import { ConfigurationChangedEvent, EditorOption } from '../config/editorOptions
 import { ScrollType } from '../editorCommon.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { LinesLayout } from './linesLayout.js';
-import { ICoordinatesConverter, IEditorWhitespace, IPartialViewLinesViewportData, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
+import { IEditorWhitespace, IPartialViewLinesViewportData, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
 
 const SMOOTH_SCROLLING_TIME = 125;
@@ -163,7 +163,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public readonly onDidScroll: Event<ScrollEvent>;
 	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent>;
 
-	constructor(configuration: IEditorConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable, coordinatesConverter: ICoordinatesConverter, getMaxColumn: (lineNumber: number) => number) {
+	constructor(configuration: IEditorConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this._configuration = configuration;
@@ -171,7 +171,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const padding = options.get(EditorOption.padding);
 
-		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom, coordinatesConverter, getMaxColumn);
+		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom);
 		this._maxLineWidth = 0;
 		this._overlayWidgetsMinWidth = 0;
 
@@ -398,12 +398,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
 		return this._linesLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
 	}
-	public getLineHeightForModelLineNumber(modelLineNumber: number): number {
-		return this._linesLayout.getLineHeightForModelLineNumber(modelLineNumber);
-	}
 
-	public getLineHeightForViewLineNumber(modelLineNumber: number): number {
-		return this._linesLayout.getLineHeightForViewLineNumber(modelLineNumber);
+	public getLineHeightForLineNumber(lineNumber: number): number {
+		return this._linesLayout.getLineHeightForLineNumber(lineNumber);
 	}
 
 	public isAfterLines(verticalOffset: number): boolean {

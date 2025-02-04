@@ -603,7 +603,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		const modelPosition = new Position(lineNumber, 1);
-		return this._modelData.viewModel.viewLayout.getLineHeightForModelLineNumber(modelPosition.lineNumber);
+		const viewPosition = this._modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		return this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 	}
 
 	public getSpecialFontInfoForPosition(position: Position): {
@@ -1618,7 +1619,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const top = CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, position.lineNumber, position.column) - this.getScrollTop();
 		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this.getScrollLeft();
-		const height = this._modelData.viewModel.viewLayout.getLineHeightForModelLineNumber(position.lineNumber);
+		const viewPosition = this._modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
+		const height = this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 		return {
 			top: top,
 			left: left,

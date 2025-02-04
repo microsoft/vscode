@@ -433,7 +433,7 @@ export class GlyphMarginWidgets extends ViewPart {
 			domNode.setTop(top);
 			domNode.setLeft(left);
 			domNode.setWidth(width);
-			const lineHeight = this._context.viewLayout.getLineHeightForViewLineNumber(decLineNumber);
+			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(decLineNumber);
 			domNode.setHeight(lineHeight);
 		}
 

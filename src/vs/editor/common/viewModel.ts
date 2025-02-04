@@ -133,8 +133,7 @@ export interface IViewLayout {
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 	getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number;
-	getLineHeightForModelLineNumber(modelLineNumber: number): number;
-	getLineHeightForViewLineNumber(viewLineNumber: number): number;
+	getLineHeightForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	/**

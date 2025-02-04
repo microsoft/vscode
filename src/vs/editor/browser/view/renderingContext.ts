@@ -61,8 +61,8 @@ export abstract class RestrictedRenderingContext {
 		return this._viewLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
 	}
 
-	public getLineHeightForViewLineNumber(modelLineNumber: number): number {
-		return this._viewLayout.getLineHeightForViewLineNumber(modelLineNumber);
+	public getLineHeightForViewLineNumber(lineNumber: number): number {
+		return this._viewLayout.getLineHeightForLineNumber(lineNumber);
 	}
 
 	public getSpecialFontInfoForPosition(position: Position): { fontFamily?: string; fontWeight?: string; fontSize?: number } | null {
