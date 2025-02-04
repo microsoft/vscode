@@ -12,6 +12,7 @@ import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
 import { codeTestSuite } from './completions/code.test';
 import { testPaths, type ISuiteSpec } from './helpers';
 import { codeInsidersTestSuite } from './completions/code-insiders.test';
+import { lsTestSuiteSpec } from './completions/upstream/ls.test';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -25,9 +26,14 @@ const testSpecs2: ISuiteSpec[] = [
 			{ input: 'fakecommand |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		]
 	},
+
+	// completions/
 	cdTestSuite,
 	codeTestSuite,
 	codeInsidersTestSuite,
+
+	// completions/upstream/
+	lsTestSuiteSpec,
 ];
 
 suite('Terminal Suggest', () => {
