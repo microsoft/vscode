@@ -22,7 +22,7 @@ import { assertType } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditingEditorActions.js';
 import { ChatEditorController } from './chatEditingEditorController.js';
-import './media/chatEditorOverlay.css';
+import '../media/chatEditorOverlay.css';
 import { findDiffEditorContainingCodeEditor } from '../../../../../editor/browser/widget/diffEditor/commands.js';
 import { IChatService } from '../../common/chatService.js';
 import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';

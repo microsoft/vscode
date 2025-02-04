@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatEditorController.css';
+import '../media/chatEditorController.css';
 import { addStandardDisposableListener, getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../../base/common/observable.js';
