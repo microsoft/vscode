@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
 import * as iconv from '@vscode/iconv-lite-umd';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceConfiguration, WorkspaceEdit } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefQuery, RefType, Remote, Status } from './api/git';
@@ -1794,21 +1794,11 @@ export class Repository implements Disposable {
 		return this.pullFrom(false, remote, branch, unshallow);
 	}
 
-	private getAutoStashConfig(config: WorkspaceConfiguration) {
-		const supportsAutoStashFlag = this.repository.git.compareGitVersionTo('2.27') >= 0
-		const autoStashOption = config.get<boolean>('autoStash');
-		const autoStashFlag = supportsAutoStashFlag ? autoStashOption : false;
-		return {
-			supportsAutoStashFlag,
-			autoStashFlag,
-		}
-	}
-
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string, unshallow?: boolean): Promise<void> {
 		await this.run(Operation.Pull, async () => {
-			const config = workspace.getConfiguration('git', Uri.file(this.root));
-			const { supportsAutoStashFlag, autoStashFlag } = this.getAutoStashConfig(config);
-			const operation = async () => {
+			await this.maybeAutoStash(async () => {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const autoStash = config.get<boolean>('autoStash');
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 
@@ -1818,14 +1808,9 @@ export class Repository implements Disposable {
 				}
 
 				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags, autoStash: autoStashFlag });
+					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags, autoStash });
 				}
-			}
-			if (supportsAutoStashFlag) {
-				operation()
-			} else {
-				this.maybeAutoStash(operation)
-			}
+			});
 		});
 	}
 
@@ -1895,9 +1880,9 @@ export class Repository implements Disposable {
 		}
 
 		await this.run(Operation.Sync, async () => {
-			const config = workspace.getConfiguration('git', Uri.file(this.root));
-			const { supportsAutoStashFlag, autoStashFlag } = this.getAutoStashConfig(config);
-			const operation = async () => {
+			await this.maybeAutoStash(async () => {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const autoStash = config.get<boolean>('autoStash');
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 				const followTags = config.get<boolean>('followTagsWhenSync');
@@ -1910,7 +1895,7 @@ export class Repository implements Disposable {
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken, autoStash: autoStashFlag, });
+						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken, autoStash });
 					}
 				};
 
@@ -1937,13 +1922,7 @@ export class Repository implements Disposable {
 				if (shouldPush) {
 					await this._push(remoteName, pushBranch, false, followTags);
 				}
-			}
-
-			if (supportsAutoStashFlag) {
-				operation()
-			} else {
-				this.maybeAutoStash(operation)
-			}
+			});
 		});
 	}
 
@@ -2553,6 +2532,7 @@ export class Repository implements Disposable {
 	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const shouldAutoStash = config.get<boolean>('autoStash')
+			&& this.repository.git.compareGitVersionTo('2.27.0') < 0
 			&& (this.indexGroup.resourceStates.length > 0
 				|| this.workingTreeGroup.resourceStates.some(
 					r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED));
