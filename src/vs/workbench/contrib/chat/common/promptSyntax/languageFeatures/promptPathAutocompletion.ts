@@ -9,9 +9,7 @@ import { isWindows } from '../../../../../../base/common/platform.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { dirname, extUri } from '../../../../../../base/common/resources.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
@@ -21,7 +19,6 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { PROMPT_SNIPPET_FILE_EXTENSION } from '../contentProviders/promptContentsProviderBase.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../editor/common/languages.js';
 
@@ -125,20 +122,14 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 	 */
 	public readonly triggerCharacters: TTriggerCharacter[] = [':', '.', '/'];
 
-	/**
-	 * Cache of text model content prompt parsers.
-	 */
-	private readonly parserProvider: ObjectCache<TextModelPromptParser, ITextModel>;
-
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IPromptSyntaxService private readonly promptSyntaxService: IPromptSyntaxService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 	) {
 		super();
 
 		this.languageService.completionProvider.register(languageSelector, this);
-		this.parserProvider = this._register(new ObjectCache(this.createParser.bind(this)));
 	}
 
 	public async provideCompletionItems(
@@ -165,7 +156,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			`Prompt path autocompletion provider`,
 		);
 
-		const parser = this.parserProvider.get(model);
+		const parser = this.promptSyntaxService.get(model);
 		assert(
 			!parser.disposed,
 			'Prompt parser must not be disposed.',
@@ -188,42 +179,34 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return undefined;
 		}
 
-		const suggestions = await this.getSuggestions(
-			triggerCharacter,
-			dirname(model.uri),
-			fileReference,
-		);
-
-		return {
-			suggestions,
-			incomplete: false,
-		};
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	private async getSuggestions(
-		character: TTriggerCharacter,
-		fileFolderUri: URI,
-		fileReference: IPromptFileReference,
-	): Promise<TFilesystemCompletionItem[]> {
-		if (character === ':' || character === '.') {
-			return this.getFirstFolderSuggestions(character, fileFolderUri, fileReference);
+		const modelDirname = dirname(model.uri);
+		if (triggerCharacter === ':' || triggerCharacter === '.') {
+			return {
+				suggestions: await this.getFirstFolderSuggestions(
+					triggerCharacter,
+					modelDirname,
+					fileReference,
+				),
+			};
 		}
 
-		if (character === '/') {
-			return this.getNonFirstFolderSuggestions(fileFolderUri, fileReference);
+		if (triggerCharacter === '/') {
+			return {
+				suggestions: await this.getNonFirstFolderSuggestions(
+					modelDirname,
+					fileReference,
+				),
+			};
 		}
 
 		assertNever(
-			character,
-			`Unexpected trigger character '${character}'.`,
+			triggerCharacter,
+			`Unexpected trigger character '${triggerCharacter}'.`,
 		);
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get raw suggestions for a provided folder.
 	 */
 	private async getFolderSuggestions(
 		uri: URI,
@@ -259,7 +242,6 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 
 		return suggestions;
 	}
-
 
 	/**
 	 * Gets suggestions for a first folder/file name in the path. E.g., the one
@@ -328,7 +310,6 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 		];
 	}
 
-
 	private async getNonFirstFolderSuggestions(
 		fileFolderUri: URI,
 		fileReference: IPromptFileReference,
@@ -354,24 +335,6 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 					insertText: `${suggestion.label}${suffix}`,
 				};
 			});
-	}
-
-
-	// TODO: @legomushroom - this should be a part of a common global singleton
-	private createParser(
-		model: ITextModel,
-	): TextModelPromptParser & { disposed: false } {
-		const parser: TextModelPromptParser = this.initService.createInstance(
-			TextModelPromptParser,
-			model,
-			[],
-		);
-
-		parser.assertNotDisposed(
-			'Created prompt parser must not be disposed.',
-		);
-
-		return parser;
 	}
 }
 
