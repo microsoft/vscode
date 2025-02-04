@@ -538,7 +538,7 @@ class StickyFoldingIcon {
 		public isCollapsed: boolean,
 		public foldingStartLine: number,
 		public foldingEndLine: number,
-		public dimension: number
+		public dimension: dom.IDimension
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = `26px`;
