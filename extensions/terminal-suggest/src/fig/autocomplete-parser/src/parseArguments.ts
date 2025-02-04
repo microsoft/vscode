@@ -652,13 +652,18 @@ const generateSpecForState = async (
 		// 	newSpec = generateSpecCache.get(cacheKey)!;
 		// } else {
 		const exec = getExecuteShellCommandFunction(isParsingHistory);
-		newSpec = convertSubcommand(
-			await generateSpec(tokenArray, exec),
-			initializeDefault,
-		);
+		const spec = await generateSpec(tokenArray, exec);
+		if (spec) {
+			newSpec = convertSubcommand(
+				spec,
+				initializeDefault,
+			);
+		}
 		// if (cacheKey) generateSpecCache.set(cacheKey, newSpec);
 		// }
-
+		if (!newSpec) {
+			throw new Error("Failed to generate spec");
+		}
 		const keepArgs = completionObj.args.length > 0;
 
 		return {
@@ -1032,21 +1037,22 @@ const firstTokenSpec: Internal.Subcommand = {
 				{
 					custom: async (_tokens: any, _exec: any, context: { currentProcess: string | string[]; }) => {
 						let result: Fig.Suggestion[] = [];
-						if (context?.currentProcess.includes("fish")) {
+
+						if (context?.currentProcess.includes("fish") && typeof context.currentProcess === 'string') {
 							const commands = await executeLoginShell({
 								command: 'complete -C ""',
-								executable: context.currentProcess,
+								executable: Array.isArray(context.currentProcess) ? context.currentProcess[0] : context.currentProcess,
 							});
-							result = commands.split("\n").map((commandString: string | string[]) => {
+							result = commands.split("\n").map((commandString: string) => {
 								const splitIndex = commandString.indexOf("\t");
 								const name = commandString.slice(0, splitIndex + 1);
 								const description = commandString.slice(splitIndex + 1);
-								return { name, description, type: "subcommand" };
+								return { name, description: description as string, type: "subcommand" };
 							});
 						} else if (context?.currentProcess.includes("bash")) {
 							const commands = await executeLoginShell({
 								command: "compgen -c",
-								executable: context.currentProcess,
+								executable: Array.isArray(context.currentProcess) ? context.currentProcess[0] : context.currentProcess,
 							});
 							result = commands
 								.split("\n")
@@ -1054,7 +1060,7 @@ const firstTokenSpec: Internal.Subcommand = {
 						} else if (context?.currentProcess.includes("zsh")) {
 							const commands = await executeLoginShell({
 								command: `for key in \${(k)commands}; do echo $key; done && alias +r`,
-								executable: context.currentProcess,
+								executable: Array.isArray(context.currentProcess) ? context.currentProcess[0] : context.currentProcess,
 							});
 							result = commands
 								.split("\n")
