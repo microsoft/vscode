@@ -407,7 +407,7 @@ export class CodeBlockPart extends Disposable {
 
 	private clearWidgets() {
 		ContentHoverController.get(this.editor)?.hideContentHover();
-		GlyphHoverController.get(this.editor)?.hideContentHover();
+		GlyphHoverController.get(this.editor)?.hideGlyphHover();
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
@@ -742,8 +742,8 @@ export class CodeCompareBlockPart extends Disposable {
 	private clearWidgets() {
 		ContentHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
 		ContentHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
-		GlyphHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
-		GlyphHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		GlyphHoverController.get(this.diffEditor.getOriginalEditor())?.hideGlyphHover();
+		GlyphHoverController.get(this.diffEditor.getModifiedEditor())?.hideGlyphHover();
 	}
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {

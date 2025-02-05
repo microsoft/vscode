@@ -29,6 +29,10 @@ import './quickInputActions.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { Platform, platform } from '../../../base/common/platform.js';
+import { getTitleBarStyle, TitlebarStyle } from '../../window/common/window.js';
+import { getZoomFactor } from '../../../base/browser/browser.js';
 
 const $ = dom.$;
 
@@ -343,7 +347,8 @@ export class QuickInputController extends Disposable {
 					node: headerContainer,
 					includeChildren: false
 				}
-			]
+			],
+			this.viewState
 		));
 
 		// DnD update layout
@@ -666,6 +671,7 @@ export class QuickInputController extends Disposable {
 
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.dndController?.layoutContainer();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
 	}
@@ -898,22 +904,46 @@ class QuickInputDragAndDropController extends Disposable {
 	private readonly _snapThreshold = 20;
 	private readonly _snapLineHorizontalRatio = 0.25;
 
+	private readonly _controlsOnLeft: boolean;
+	private readonly _controlsOnRight: boolean;
+
 	private _quickInputAlignmentContext = QuickInputAlignmentContextKey.bindTo(this._contextKeyService);
 
 	constructor(
 		private _container: HTMLElement,
 		private readonly _quickInputContainer: HTMLElement,
 		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean }[],
+		initialViewState: QuickInputViewState | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+		const customTitleBar = getTitleBarStyle(this.configurationService) === TitlebarStyle.CUSTOM;
+
+		// Do not allow the widget to overflow or underflow window controls.
+		// Use CSS calculations to avoid having to force layout with `.clientWidth`
+		this._controlsOnLeft = customTitleBar && platform === Platform.Mac;
+		this._controlsOnRight = customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
 		this._registerLayoutListener();
 		this.registerMouseListeners();
+		this.dndViewState.set({ ...initialViewState, done: true }, undefined);
 	}
 
 	reparentUI(container: HTMLElement): void {
 		this._container = container;
+	}
+
+	layoutContainer(dimension = this._layoutService.activeContainerDimension): void {
+		const state = this.dndViewState.get();
+		const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
+		if (state?.top && state?.left) {
+			const a = Math.round(state.left * 1e2) / 1e2;
+			const b = dimension.width;
+			const c = dragAreaRect.width;
+			const d = a * b - c / 2;
+			this._layout(state.top * dimension.height, d);
+		}
 	}
 
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }, done = true): void {
@@ -938,20 +968,7 @@ class QuickInputDragAndDropController extends Disposable {
 	}
 
 	private _registerLayoutListener() {
-		this._layoutService.onDidLayoutContainer((e) => {
-			if (e.container !== this._container) {
-				return;
-			}
-			const state = this.dndViewState.get();
-			const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
-			if (state?.top && state?.left) {
-				const a = Math.round(state.left * 1e2) / 1e2;
-				const b = e.dimension.width;
-				const c = dragAreaRect.width;
-				const d = a * b - c / 2;
-				this._layout(state.top * e.dimension.height, d);
-			}
-		});
+		this._register(Event.filter(this._layoutService.onDidLayoutContainer, e => e.container === this._container)((e) => this.layoutContainer(e.dimension)));
 	}
 
 	private registerMouseListeners(): void {
@@ -1018,6 +1035,15 @@ class QuickInputDragAndDropController extends Disposable {
 		const snapCoordinateX = this._getCenterXSnapValue();
 		// Make sure the quick input is not moved outside the container
 		topCoordinate = Math.max(0, Math.min(topCoordinate, this._container.clientHeight - this._quickInputContainer.clientHeight));
+
+		if (topCoordinate < this._layoutService.activeContainerOffset.top) {
+			if (this._controlsOnLeft) {
+				leftCoordinate = Math.max(leftCoordinate, 80 / getZoomFactor(dom.getActiveWindow()));
+			} else if (this._controlsOnRight) {
+				leftCoordinate = Math.min(leftCoordinate, this._container.clientWidth - this._quickInputContainer.clientWidth - (140 / getZoomFactor(dom.getActiveWindow())));
+			}
+		}
+
 		const snappingToTop = Math.abs(topCoordinate - snapCoordinateYTop) < this._snapThreshold;
 		topCoordinate = snappingToTop ? snapCoordinateYTop : topCoordinate;
 		const snappingToCenter = Math.abs(topCoordinate - snapCoordinateY) < this._snapThreshold;

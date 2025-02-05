@@ -417,7 +417,7 @@ export class InstallAction extends ExtensionAction {
 		this.hideOnDisabled = false;
 		this.options = { isMachineScoped: false, ...options };
 		this.update();
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 	}
 
@@ -1024,7 +1024,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 				this.update();
 			}
 		}));
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(e => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(e => this.update()));
 		this.update();
 	}
 
@@ -1458,7 +1458,7 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super(TogglePreReleaseExtensionAction.ID, TogglePreReleaseExtensionAction.LABEL, TogglePreReleaseExtensionAction.DisabledClass);
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
 		this.update();
 	}
 
@@ -1534,7 +1534,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
 		this.extension = extension;
 		this.update();
 	}
@@ -2521,7 +2521,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this._register(this.extensionFeaturesManagementService.onDidChangeAccessData(() => this.update()));
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
 		this.update();
 	}
 

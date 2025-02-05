@@ -38,8 +38,8 @@ function shouldUseMsal(expService: IExperimentationService): boolean {
 	// If no setting or experiment value is found, default to true
 	return true;
 }
-let useMsal: boolean | undefined;
 
+let useMsal: boolean | undefined;
 export async function activate(context: ExtensionContext) {
 	const mainTelemetryReporter = new MicrosoftAuthenticationTelemetryReporter(context.extension.packageJSON.aiKey);
 	const expService = await createExperimentationService(
@@ -48,9 +48,14 @@ export async function activate(context: ExtensionContext) {
 		env.uriScheme !== 'vscode', // isPreRelease
 	);
 	useMsal = shouldUseMsal(expService);
+	const clientIdVersion = workspace.getConfiguration('microsoft-authentication').get<'v1' | 'v2'>('clientIdVersion', 'v1');
 
 	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
-		if (!e.affectsConfiguration('microsoft-authentication.implementation') || useMsal === shouldUseMsal(expService)) {
+		if (!e.affectsConfiguration('microsoft-authentication')) {
+			return;
+		}
+
+		if (useMsal === shouldUseMsal(expService) && clientIdVersion === workspace.getConfiguration('microsoft-authentication').get<'v1' | 'v2'>('clientIdVersion', 'v1')) {
 			return;
 		}
 

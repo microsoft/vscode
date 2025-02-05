@@ -688,7 +688,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				{ count: number },
 				{
 					owner: 'sandy081';
-					comment: 'Report the query to the the Marketplace for fetching extensions by name';
+					comment: 'Report the query to the Marketplace for fetching extensions by name';
 					readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions to fetch' };
 				}>('galleryService:additionalQueryByName', {
 					count: extensionInfosByName.length
@@ -756,7 +756,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			}
 
 			if (!EXTENSION_IDENTIFIER_REGEX.test(extensionInfo.id)) {
-				toQuery.push(extensionInfo);
 				return;
 			}
 
@@ -1032,6 +1031,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			for (const rawGalleryExtension of rawGalleryExtensions) {
 				const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
 				const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
+				const includePreRelease = isBoolean(criteria.includePreRelease) ? criteria.includePreRelease : !!criteria.includePreRelease.find(extensionIdentifierWithPreRelease => areSameExtensions(extensionIdentifierWithPreRelease, extensionIdentifier))?.includePreRelease;
 				const rawGalleryExtensionVersion = await this.getRawGalleryExtensionVersion(
 					rawGalleryExtension,
 					{
@@ -1039,7 +1039,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 						targetPlatform: criteria.targetPlatform,
 						productVersion: criteria.productVersion,
 						version: criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version
-							?? (criteria.includePreRelease ? VersionKind.Latest : VersionKind.Release)
+							?? (includePreRelease ? VersionKind.Latest : VersionKind.Release)
 					},
 					allTargetPlatforms
 				);
@@ -1074,7 +1074,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					targetPlatform: criteria.targetPlatform,
 					productVersion: criteria.productVersion,
 					version: criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version
-						?? (criteria.includePreRelease ? VersionKind.Latest : VersionKind.Release)
+						?? (includePreRelease ? VersionKind.Latest : VersionKind.Release)
 				},
 				allTargetPlatforms
 			);
@@ -1296,7 +1296,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		finally {
 			type GalleryServiceGetLatestEventClassification = {
 				owner: 'sandy081';
-				comment: 'Report the query to the the Marketplace for fetching latest version of an extension';
+				comment: 'Report the query to the Marketplace for fetching latest version of an extension';
 				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the extension' };
 				duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration in ms for the query' };
 				errorCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error code in case of error' };

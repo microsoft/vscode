@@ -709,10 +709,16 @@ class TestResultsPeek extends PeekViewWidget {
 			return defaultMaxHeight;
 		}
 
+		if (this.testingPeek.historyVisible.value) { // don't cap height with the history split
+			return defaultMaxHeight;
+		}
+
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		// 41 is experimentally determined to be the overhead of the peek view itself
 		// to avoid showing scrollbars by default in its content.
-		return Math.min(defaultMaxHeight || Infinity, (contentHeight + 41) / lineHeight);
+		const basePeekOverhead = 41;
+
+		return Math.min(defaultMaxHeight || Infinity, (contentHeight + basePeekOverhead) / lineHeight + 1);
 	}
 
 	private applyTheme() {

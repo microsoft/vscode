@@ -6,7 +6,7 @@
 'use strict';
 
 import { spawnSync } from 'child_process';
-import path = require('path');
+import path from 'path';
 import { getChromiumSysroot, getVSCodeSysroot } from './debian/install-sysroot';
 import { generatePackageDeps as generatePackageDepsDebian } from './debian/calculate-deps';
 import { generatePackageDeps as generatePackageDepsRpm } from './rpm/calculate-deps';

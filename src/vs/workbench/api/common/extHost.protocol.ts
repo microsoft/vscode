@@ -261,6 +261,9 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 	setEndOfLine?: EndOfLineSequence;
 }
 
+export interface ISnippetOptions extends IUndoStopOptions {
+	keepWhitespace?: boolean;
+}
 export interface ITextDocumentShowOptions {
 	position?: EditorGroupColumn;
 	preserveFocus?: boolean;
@@ -692,7 +695,7 @@ export type StatusBarItemDto = {
 };
 
 export interface ExtHostStatusBarShape {
-	$acceptStaticEntries(added?: StatusBarItemDto[], removed?: string): void;
+	$acceptStaticEntries(added?: StatusBarItemDto[]): void;
 	$provideTooltip(entryId: string, cancellation: CancellationToken): Promise<string | IMarkdownString | undefined>;
 }
 
@@ -1328,6 +1331,7 @@ export type IChatAgentHistoryEntryDto = {
 
 export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
+	$setRequestPaused(handle: number, requestId: string, isPaused: boolean): void;
 	$provideFollowups(request: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;

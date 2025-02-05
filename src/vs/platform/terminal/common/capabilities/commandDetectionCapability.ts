@@ -358,7 +358,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, options?.marker?.line, this._currentCommand.command, this._currentCommand);
 
 		// HACK: Handle a special case on some versions of bash where identical commands get merged
-		// in the output of `history`, this detects that case and sets the exit code to the the last
+		// in the output of `history`, this detects that case and sets the exit code to the last
 		// command's exit code. This covered the majority of cases but will fail if the same command
 		// runs with a different exit code, that will need a more robust fix where we send the
 		// command ID and exit code over to the capability to adjust there.

@@ -17,6 +17,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
@@ -97,10 +98,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this.renderDisposables.clear();
 		this.domNode.classList.remove('warning', 'error', 'disabled');
 
-		const { enabled, resolveIssue: errorCondition } = this.model;
-		if (!enabled) {
-			this.domNode.classList.add('disabled');
-		}
+		const { topError } = this.model;
 
 		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 		const file = this.model.reference.uri;
@@ -108,64 +106,64 @@ export class InstructionsAttachmentWidget extends Disposable {
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const ariaLabel = localize('chat.instructionsAttachment', "Prompt instructions attachment, {0}", friendlyName);
+		const ariaLabel = localize('chat.promptAttachment', "Prompt attachment, {0}", friendlyName);
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
-		const currentFile = localize('openEditor', "Prompt instructions");
-		const inactive = localize('enableHint', "disabled");
-		const currentFileHint = currentFile + (enabled ? '' : ` (${inactive})`);
+		const promptLabel = localize('prompt', "Prompt");
 
-		let title = `${currentFileHint} ${uriLabel}`;
+		let title = `${promptLabel} ${uriLabel}`;
 
 		// if there are some errors/warning during the process of resolving
 		// attachment references (including all the nested child references),
-		// add the issue details in the hover title for the attachment
-		if (errorCondition) {
-			const { type, message: details } = errorCondition;
-			this.domNode.classList.add(type);
+		// add the issue details in the hover title for the attachment, one
+		// error/warning at a time because there is a limited space available
+		if (topError) {
+			const { isRootError, message: details } = topError;
+			const isWarning = !isRootError;
 
-			const errorCaption = type === 'warning'
+			this.domNode.classList.add(
+				(isWarning) ? 'warning' : 'error',
+			);
+
+			const errorCaption = (isWarning)
 				? localize('warning', "Warning")
 				: localize('error', "Error");
 
 			title += `\n-\n[${errorCaption}]: ${details}`;
 		}
 
-		label.setFile(file, {
+		const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
+		label.setFile(URI.file(fileWithoutExtension), {
 			fileKind: FileKind.FILE,
 			hidePath: true,
 			range: undefined,
 			title,
-			icon: ThemeIcon.fromId(Codicon.lightbulbSparkle.id),
+			icon: ThemeIcon.fromId(Codicon.bookmark.id),
 			extraClasses: [],
 		});
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
 
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, localize('instructions', 'Instructions')));
+		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, promptLabel));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
-		// create `toggle` enabled state button
-		const toggleButtonMsg = enabled
-			? localize('disable', "Disable")
-			: localize('enable', "Enable");
-
-		const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: toggleButtonMsg }));
-		toggleButton.icon = enabled ? Codicon.eye : Codicon.eyeClosed;
-		this.renderDisposables.add(toggleButton.onDidClick((e) => {
-			e.stopPropagation();
-			this.model.toggle();
-		}));
-
 		// create the `remove` button
-		const removeButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: localize('remove', "Remove") }));
+		const removeButton = this.renderDisposables.add(
+			new Button(
+				this.domNode,
+				{
+					supportIcons: true,
+					title: localize('remove', "Remove"),
+				},
+			),
+		);
 		removeButton.icon = Codicon.x;
 		this.renderDisposables.add(removeButton.onDidClick((e) => {
 			e.stopPropagation();
 			this.model.dispose();
 		}));
 
-		// Context menu
+		// context menu
 		const scopedContextKeyService = this.renderDisposables.add(this.contextKeyService.createScoped(this.domNode));
 
 		const resourceContextKey = this.renderDisposables.add(

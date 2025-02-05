@@ -17,16 +17,18 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { ChatViewId, EditsViewId, IChatWidgetService } from '../chat.js';
+import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
+import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
+import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorController.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
-
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
+export const ChatDoneActionId = 'workbench.action.chat.done';
 
 export function registerNewChatActions() {
 	registerAction2(class NewChatEditorAction extends Action2 {
@@ -101,7 +103,7 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class NewEditSessionAction extends Action2 {
+	registerAction2(class NewEditSessionAction extends EditingSessionAction {
 		constructor() {
 			super({
 				id: ACTION_ID_NEW_EDIT_SESSION,
@@ -135,8 +137,7 @@ export function registerNewChatActions() {
 		 *
 		 * @returns false if the user had edits and did not action the dialog to take action on them, true otherwise
 		 */
-		private async _handleCurrentEditingSession(chatEditingService: IChatEditingService, dialogService: IDialogService): Promise<boolean> {
-			const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
+		private async _handleCurrentEditingSession(currentEditingSession: IChatEditingSession, dialogService: IDialogService): Promise<boolean> {
 			const currentEdits = currentEditingSession?.entries.get();
 			const currentEditCount = currentEdits?.length;
 
@@ -173,14 +174,13 @@ export function registerNewChatActions() {
 			return true;
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
 			const context = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const widgetService = accessor.get(IChatWidgetService);
-			const chatEditingService = accessor.get(IChatEditingService);
 			const dialogService = accessor.get(IDialogService);
 			const viewsService = accessor.get(IViewsService);
-			if (!(await this._handleCurrentEditingSession(chatEditingService, dialogService))) {
+			if (!(await this._handleCurrentEditingSession(editingSession, dialogService))) {
 				return;
 			}
 			if (isChatViewTitleActionContext(context)) {
@@ -188,7 +188,7 @@ export function registerNewChatActions() {
 				announceChatCleared(accessibilitySignalService);
 				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				if (widget) {
-					await chatEditingService.currentEditingSessionObs.get()?.stop(true);
+					await editingSession.stop(true);
 					widget.clear();
 					widget.attachmentModel.clear();
 					widget.focusInput();
@@ -199,7 +199,7 @@ export function registerNewChatActions() {
 				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
-				await chatEditingService.currentEditingSessionObs.get()?.stop(true);
+				await editingSession.stop(true);
 				widget.clear();
 				widget.attachmentModel.clear();
 				widget.focusInput();
@@ -210,7 +210,7 @@ export function registerNewChatActions() {
 	registerAction2(class GlobalEditsDoneAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.done',
+				id: ChatDoneActionId,
 				title: localize2('chat.done.label', "Done"),
 				category: CHAT_CATEGORY,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
@@ -272,7 +272,7 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const currentEditingSession = chatEditingService.currentEditingSession;
+			const currentEditingSession = chatEditingService.globalEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
@@ -300,11 +300,11 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const currentEditingSession = chatEditingService.currentEditingSession;
+			const currentEditingSession = chatEditingService.globalEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
-			await chatEditingService.currentEditingSession?.redoInteraction();
+			await currentEditingSession.redoInteraction();
 		}
 	});
 
@@ -332,6 +332,7 @@ export function registerNewChatActions() {
 					order: 2
 				}, {
 					id: MenuId.ChatEditingEditorContent,
+					when: ctxIsGlobalEditingSession,
 					group: 'navigate',
 					order: 4,
 				}],

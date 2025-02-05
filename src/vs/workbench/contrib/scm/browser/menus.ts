@@ -73,7 +73,6 @@ class SCMMenusItem implements IDisposable {
 	private readonly _resourceGroupMenu = new MutableDisposable<IMenu>();
 	get resourceGroupMenu(): IMenu {
 		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmResourceGroupResourceCount', this.group.resources.length],
 			['scmResourceGroupState', this.group.contextValue],
 		]);
 

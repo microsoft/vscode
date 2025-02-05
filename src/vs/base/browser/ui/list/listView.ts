@@ -87,6 +87,7 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly transformOptimization?: boolean;
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
+	readonly scrollToActiveElement?: boolean;
 }
 
 const DefaultOptions = {
@@ -445,7 +446,9 @@ export class ListView<T> implements IListView<T> {
 			const element = (e.target as HTMLElement);
 			const scrollValue = element.scrollTop;
 			element.scrollTop = 0;
-			this.setScrollTop(this.scrollTop + scrollValue);
+			if (options.scrollToActiveElement) {
+				this.setScrollTop(this.scrollTop + scrollValue);
+			}
 		}));
 
 		this.disposables.add(addDisposableListener(this.domNode, 'dragover', e => this.onDragOver(this.toDragEvent(e))));
@@ -465,7 +468,9 @@ export class ListView<T> implements IListView<T> {
 		this.dnd = options.dnd ?? this.disposables.add(DefaultOptions.dnd);
 
 		this.layout(options.initialSize?.height, options.initialSize?.width);
-		this._setupFocusObserver(container);
+		if (options.scrollToActiveElement) {
+			this._setupFocusObserver(container);
+		}
 	}
 
 	private _setupFocusObserver(container: HTMLElement): void {
@@ -1223,9 +1228,11 @@ export class ListView<T> implements IListView<T> {
 		// Selection events also don't tell us where the input doing the selection is. So, make a poor
 		// assumption that a user is using the mouse, and base our events on that.
 		movementStore.add(addDisposableListener(this.domNode, 'selectstart', () => {
-			this.setupDragAndDropScrollTopAnimation(e);
-
-			movementStore.add(addDisposableListener(doc, 'mousemove', e => this.setupDragAndDropScrollTopAnimation(e)));
+			movementStore.add(addDisposableListener(doc, 'mousemove', e => {
+				if (doc.getSelection()?.isCollapsed === false) {
+					this.setupDragAndDropScrollTopAnimation(e);
+				}
+			}));
 
 			// The selection is cleared either on mouseup if there's no selection, or on next mousedown
 			// when `this.currentSelectionDisposable` is reset.
@@ -1253,6 +1260,7 @@ export class ListView<T> implements IListView<T> {
 
 		movementStore.add(addDisposableListener(doc, 'mouseup', () => {
 			movementStore.dispose();
+			this.teardownDragAndDropScrollTopAnimation();
 
 			if (doc.getSelection()?.isCollapsed !== false) {
 				selectionStore.dispose();
