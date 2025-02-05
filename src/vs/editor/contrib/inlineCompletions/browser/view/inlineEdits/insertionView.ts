@@ -54,6 +54,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			targetTextModel: this._editorObs.model.map(model => model ?? undefined),
 		},
 		observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
+		true,
 	));
 
 	constructor(

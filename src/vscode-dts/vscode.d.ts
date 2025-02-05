@@ -11906,7 +11906,7 @@ declare module 'vscode' {
 	 * A map containing a mapping of the mime type of the corresponding transferred data.
 	 *
 	 * Drag and drop controllers that implement {@link TreeDragAndDropController.handleDrag `handleDrag`} can add additional mime types to the
-	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
+	 * data transfer. These additional mime types will only be included in the `handleDrop` when the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
 	export class DataTransfer implements Iterable<[mimeType: string, item: DataTransferItem]> {

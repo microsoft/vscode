@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatEditingSession, IModifiedFileEntry } from '../common/chatEditingService.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { IActionRunner } from '../../../../base/common/actions.js';
-import { $, addDisposableGenericMouseMoveListener, append, EventLike, reset } from '../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { assertType } from '../../../../base/common/types.js';
-import { localize } from '../../../../nls.js';
-import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditorActions.js';
-import { ChatEditorController } from './chatEditorController.js';
-import './media/chatEditorOverlay.css';
-import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
-import { IChatService } from '../common/chatService.js';
-import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
-import { rcut } from '../../../../base/common/strings.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { Lazy } from '../../../../base/common/lazy.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatEditingSession, IModifiedFileEntry } from '../../common/chatEditingService.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IActionRunner } from '../../../../../base/common/actions.js';
+import { $, addDisposableGenericMouseMoveListener, append, EventLike, reset } from '../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { localize } from '../../../../../nls.js';
+import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditingEditorActions.js';
+import { ChatEditorController } from './chatEditingEditorController.js';
+import '../media/chatEditorOverlay.css';
+import { findDiffEditorContainingCodeEditor } from '../../../../../editor/browser/widget/diffEditor/commands.js';
+import { IChatService } from '../../common/chatService.js';
+import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
+import { rcut } from '../../../../../base/common/strings.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 

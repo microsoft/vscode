@@ -35,6 +35,10 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditsAttachmentModel } from '../chatAttachmentModel.js';
 
+export interface IEditingSessionActionContext {
+	widget?: IChatWidget;
+}
+
 export abstract class EditingSessionAction extends Action2 {
 
 	constructor(opts: Readonly<IAction2Options>) {
@@ -45,8 +49,10 @@ export abstract class EditingSessionAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IEditingSessionActionContext | undefined = args[0];
+
 		const chatEditingService = accessor.get(IChatEditingService);
-		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
 
 		if (chatWidget?.location !== ChatAgentLocation.EditingSession || !chatWidget.viewModel) {
 			return;

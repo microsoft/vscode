@@ -293,7 +293,7 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	/**
-	 * The active comment thread is the the thread that is currently being edited.
+	 * The active comment thread is the thread that is currently being edited.
 	 * @param commentThread
 	 */
 	setActiveEditingCommentThread(commentThread: CommentThread | null) {
