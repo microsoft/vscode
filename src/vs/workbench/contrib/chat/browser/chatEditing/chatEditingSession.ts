@@ -529,7 +529,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		}
 		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
-			multiDiffSource: getMultiDiffSourceUri(),
+			multiDiffSource: getMultiDiffSourceUri(this),
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 

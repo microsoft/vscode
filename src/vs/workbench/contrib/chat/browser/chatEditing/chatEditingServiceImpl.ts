@@ -105,7 +105,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	) {
 		super();
 		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this.editingSessionsObs)));
-		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
+		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver)));
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider, this._currentSessionObs)));
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingSnapshotTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider, this._currentSessionObs)));
 
@@ -496,8 +496,8 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	constructor(
-		private readonly _currentSession: IObservable<ChatEditingSession | null>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService
 	) { }
 
 	canHandleUri(uri: URI): boolean {
@@ -505,7 +505,12 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 	}
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
-		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, this._currentSession);
+
+		const thisSession = derived(this, r => {
+			return this._chatEditingService.editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
+		});
+
+		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession);
 	}
 }
 
@@ -535,6 +540,6 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 	};
 
 	constructor(
-		private readonly _currentSession: IObservable<ChatEditingSession | null>
+		private readonly _currentSession: IObservable<IChatEditingSession | undefined>
 	) { }
 }
