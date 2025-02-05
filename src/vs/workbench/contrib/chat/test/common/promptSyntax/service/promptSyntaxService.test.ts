@@ -111,7 +111,6 @@ suite('PromptSyntaxService', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IFileService, new TestConfigurationService());
 		instantiationService.stub(IFileService, disposables.add(instantiationService.createInstance(FileService)));
 
 		service = disposables.add(instantiationService.createInstance(PromptSyntaxService));
