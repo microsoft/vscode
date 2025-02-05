@@ -311,7 +311,6 @@ export class TerminalViewPane extends ViewPane {
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
 		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
-		// this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
 		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 

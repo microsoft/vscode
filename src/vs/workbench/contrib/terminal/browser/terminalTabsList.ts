@@ -65,7 +65,7 @@ export const enum TerminalTabsListSizes {
 	MaximumWidth = 500
 }
 
-export class TerminalTabList extends WorkbenchList<ITerminalInstance> implements IDisposable {
+export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _decorationsProvider: TabDecorationsProvider | undefined;
 	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 	private _isSplitContextKey: IContextKey<boolean>;
@@ -75,7 +75,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> implements
 		disposableStore: DisposableStore,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
