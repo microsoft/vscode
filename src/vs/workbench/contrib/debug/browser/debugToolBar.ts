@@ -244,7 +244,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	}
 
 	/**
-	 * Gets the y position set in the style of the toolbar. This may not be its
+	 * Gets the x position set in the style of the toolbar. This may not be its
 	 * actual position on screen depending on toolbar locations.
 	 */
 	private getCurrentXPercent(): number {
