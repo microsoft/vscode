@@ -458,6 +458,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
 		if (this.chatAgentService.getDefaultAgent(this.location)?.isToolsAgent) {
+			if (this.configurationService.getValue('chat.agent.allModels')) {
+				return true;
+			}
+
 			// Filter out models that don't support tool calling, and models that don't support enough context to have a good experience with the tools agent
 			return !!model.metadata.capabilities?.toolCalling && model.metadata.maxInputTokens > 40000;
 		}
