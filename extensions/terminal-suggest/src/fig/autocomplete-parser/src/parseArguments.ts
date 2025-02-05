@@ -1,4 +1,5 @@
 // import { filepaths, folders } from "@fig/autocomplete-generators";
+import codeCompletionSpec from '../../../completions/code';
 import * as Internal from "../../shared/src/internal";
 import {
 	firstMatchingToken,
@@ -28,6 +29,7 @@ import {
 	ParsingHistoryError,
 	UpdateStateError,
 } from "./errors.js";
+import { convertSubcommand, initializeDefault } from '../../autocomplete-shared/src';
 const { exec } = require("child_process");
 
 type ArgArrayState = {
@@ -796,7 +798,7 @@ const parseArgumentsCached = async (
 	// const tokenText = tokens.map((token) => token.text);
 
 	// TODO: Fill this in the with actual one (replace specLocations)
-	const spec: Fig.Spec = null!;
+	const spec = codeCompletionSpec; // null!;
 	const specPath: Fig.SpecLocation = { type: 'global', name: 'fake' };
 
 	// tokenTest[0] is the command and the spec they need
@@ -855,7 +857,7 @@ const parseArgumentsCached = async (
 	}
 
 	let state: ArgumentParserState = getInitialState(
-		spec,
+		convertSubcommand(spec, initializeDefault),
 		tokens[0].text,
 		specPath,
 	);

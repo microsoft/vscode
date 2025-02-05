@@ -6,16 +6,11 @@
 			"node"
 		],
 		"target": "es2020",
-		"module": "ES2020",
+		"module": "CommonJS",
 		"moduleResolution": "node",
 		"strict": true,
 		"esModuleInterop": true,
-		// "skipLibCheck": true,
-		"lib": [
-			"es2018",
-			"DOM",
-			"DOM.Iterable"
-		],
+		"skipLibCheck": true,
 
 		// Needed to suppress warnings in upstream completions
 		"noImplicitReturns": false,
