@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -156,6 +156,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
+		dispose(this._adhocSessionsObs.get());
 		super.dispose();
 	}
 
