@@ -20,6 +20,10 @@ export class NativeClipboardService implements IClipboardService {
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) { }
 
+	async triggerPaste(): Promise<void> {
+		this.nativeHostService.triggerPaste();
+	}
+
 	async readImage(): Promise<Uint8Array> {
 		console.log('readImage of NativeClipboardService');
 		return this.nativeHostService.readImage();

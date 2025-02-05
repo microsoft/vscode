@@ -261,20 +261,24 @@ if (PasteAction) {
 					// focus the text area
 					textArea.focus();
 					console.log('before exec paste of focusedEditor 1');
-					result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-					// We just want the event to be fired, the text content can be emptied
-					textArea.domNode.textContent = '';
+					clipboardService.triggerPaste();
+					if (textArea.domNode.textContent !== '') {
+						// We just want the event to be fired, the text content can be emptied
+						textArea.domNode.textContent = '';
+						result = true;
+					} else {
+						result = false;
+					}
 					// focus again on the native edit context
 					nativeEditContext.domNode.focus();
 				} else {
 					result = false;
 				}
 			} else {
-				console.log('before exec paste of focusedEditor 2');
 				// otherwise directly execute the paste command, where the original text area is focused, and so the paste command is done on the hidden text area
-				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+				clipboardService.triggerPaste();
+				result = true;
 			}
-			console.log('result : ', result);
 			if (result) {
 				// if the result is true, so pasting worked, then finish the paste
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
@@ -285,7 +289,6 @@ if (PasteAction) {
 				return (async () => {
 					// need to call the code in copy/paste controller
 					const clipboardText = await clipboardService.readText();
-					console.log('clipboardText : ', clipboardText);
 					if (clipboardText !== '') {
 						// fetching the text from the instance of the in memory clipboard metadata manager
 						// singleton
@@ -298,9 +301,6 @@ if (PasteAction) {
 							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 							mode = metadata.mode;
 						}
-						console.log('pasteOnNewLine : ', pasteOnNewLine);
-						console.log('multicursorText : ', multicursorText);
-						console.log('mode : ', mode);
 						focusedEditor.trigger('keyboard', Handler.Paste, {
 							text: clipboardText,
 							pasteOnNewLine,
@@ -318,7 +318,7 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-		getActiveDocument().execCommand('paste');
+		accessor.get(IClipboardService).triggerPaste();
 		return true;
 	});
 }
