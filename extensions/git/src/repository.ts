@@ -1667,8 +1667,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async deleteRemoteRef(remoteName: string, tagName: string): Promise<void> {
-		await this.run(Operation.DeleteRemoteRef, () => this.repository.deleteRemoteRef(remoteName, tagName));
+	async deleteRemoteRef(remoteName: string, refName: string): Promise<void> {
+		await this.run(Operation.DeleteRemoteRef, () => this.repository.deleteRemoteRef(remoteName, refName));
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
