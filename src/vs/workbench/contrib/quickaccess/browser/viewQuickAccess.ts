@@ -151,7 +151,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Viewlets / Panels
 		addPaneComposites(ViewContainerLocation.Sidebar, localize('views', "Side Bar"));
 		addPaneComposites(ViewContainerLocation.Panel, localize('panels', "Panel"));
-		addPaneComposites(ViewContainerLocation.AuxiliaryBar, localize('secondary side bar', "Secondary Side Bar"));
+		addPaneComposites(ViewContainerLocation.AuxiliaryBar, localize('PearAI Side Bar', "PearAI Side Bar"));
 
 		const addPaneCompositeViews = (location: ViewContainerLocation) => {
 			const paneComposites = this.paneCompositeService.getPaneComposites(location);

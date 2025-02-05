@@ -72,7 +72,7 @@ export const viewsContainersContribution: IJSONSchema = {
 			items: viewsContainerSchema
 		},
 		"auxiliarybar": {
-			description: localize('views.container.auxiliarybar', "Contribute views containers to Secondary Side Bar"),
+			description: localize('views.container.auxiliarybar', "Contribute views containers to PearAI Side Bar"),
 			type: 'array',
 			items: viewsContainerSchema
 		}

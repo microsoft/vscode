@@ -314,7 +314,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeAuxiliaryBar',
-			title: localize2('closeSecondarySideBar', 'Hide Secondary Side Bar'),
+			title: localize2('closeSecondarySideBar', 'Hide PearAI Side Bar'),
 			category: Categories.View,
 			icon: closeIcon,
 			menu: [{
@@ -388,7 +388,7 @@ class MoveViewsBetweenPanelsAction extends Action2 {
 }
 
 
-// Move Pear AI extension to secondary side bar (Auxiliary Bar) (we want secondary side bar to be default loaction for extension)
+// Move Pear AI extension to PearAI Side Bar (Auxiliary Bar) (we want PearAI Side Bar to be default loaction for extension)
 class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
     static readonly ID = 'workbench.action.movePearExtensionToAuxBar';
 		readonly PearExtensionId;
@@ -421,14 +421,14 @@ class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
 
 registerAction2(MovePearExtensionToAuxBarAction);
 
-// --- Move Panel Views To Secondary Side Bar
+// --- Move Panel Views To PearAI Side Bar
 
 class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
 	static readonly ID = 'workbench.action.movePanelToSidePanel';
 	constructor() {
 		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
 			id: MovePanelToSidePanelAction.ID,
-			title: localize2('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
+			title: localize2('movePanelToSecondarySideBar', "Move Panel Views To PearAI Side Bar"),
 			category: Categories.View,
 			f1: false
 		});
@@ -440,7 +440,7 @@ export class MovePanelToSecondarySideBarAction extends MoveViewsBetweenPanelsAct
 	constructor() {
 		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
 			id: MovePanelToSecondarySideBarAction.ID,
-			title: localize2('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
+			title: localize2('movePanelToSecondarySideBar', "Move Panel Views To PearAI Side Bar"),
 			category: Categories.View,
 			f1: true
 		});
@@ -450,7 +450,7 @@ export class MovePanelToSecondarySideBarAction extends MoveViewsBetweenPanelsAct
 registerAction2(MovePanelToSidePanelAction);
 registerAction2(MovePanelToSecondarySideBarAction);
 
-// --- Move Secondary Side Bar Views To Panel
+// --- Move PearAI Side Bar Views To Panel
 
 class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 	static readonly ID = 'workbench.action.moveSidePanelToPanel';
@@ -458,7 +458,7 @@ class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 	constructor() {
 		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
 			id: MoveSidePanelToPanelAction.ID,
-			title: localize2('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
+			title: localize2('moveSidePanelToPanel', "Move PearAI Side Bar Views To Panel"),
 			category: Categories.View,
 			f1: false
 		});
@@ -471,7 +471,7 @@ export class MoveSecondarySideBarToPanelAction extends MoveViewsBetweenPanelsAct
 	constructor() {
 		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
 			id: MoveSecondarySideBarToPanelAction.ID,
-			title: localize2('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
+			title: localize2('moveSidePanelToPanel', "Move PearAI Side Bar Views To Panel"),
 			category: Categories.View,
 			f1: true
 		});

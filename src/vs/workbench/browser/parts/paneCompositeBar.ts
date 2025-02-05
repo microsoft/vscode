@@ -205,7 +205,7 @@ export class PaneCompositeBar extends Disposable {
 	private createMoveAction(viewContainer: ViewContainer, newLocation: ViewContainerLocation, defaultLocation: ViewContainerLocation): IAction {
 		return toAction({
 			id: `moveViewContainerTo${newLocation}`,
-			label: newLocation === ViewContainerLocation.Panel ? localize('panel', "Panel") : newLocation === ViewContainerLocation.Sidebar ? localize('sidebar', "Primary Side Bar") : localize('auxiliarybar', "Secondary Side Bar"),
+			label: newLocation === ViewContainerLocation.Panel ? localize('panel', "Panel") : newLocation === ViewContainerLocation.Sidebar ? localize('sidebar', "Primary Side Bar") : localize('auxiliarybar', "PearAI Side Bar"),
 			run: () => {
 				let index: number | undefined;
 				if (newLocation !== defaultLocation) {
