@@ -421,11 +421,6 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 			if (Array.isArray(arg.template) ? arg.template.includes('folders') : arg.template === 'folders') {
 				foldersRequested = true;
 			}
-			// if (arg.template === 'filepaths') {
-			// 	filesRequested = true;
-			// } else if (arg.template === 'folders') {
-			// 	foldersRequested = true;
-			// }
 		}
 		if (arg.suggestions?.length) {
 			// there are specific suggestions to show

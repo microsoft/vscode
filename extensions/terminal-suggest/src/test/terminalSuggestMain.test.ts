@@ -16,6 +16,8 @@ import { lsTestSuiteSpec } from './completions/upstream/ls.test';
 import { echoTestSuiteSpec } from './completions/upstream/echo.test';
 import { mkdirTestSuiteSpec } from './completions/upstream/mkdir.test';
 import { rmTestSuiteSpec } from './completions/upstream/rm.test';
+import { rmdirTestSuiteSpec } from './completions/upstream/rmdir.test';
+import { touchTestSuiteSpec } from './completions/upstream/touch.test';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -40,6 +42,8 @@ const testSpecs2: ISuiteSpec[] = [
 	lsTestSuiteSpec,
 	mkdirTestSuiteSpec,
 	rmTestSuiteSpec,
+	rmdirTestSuiteSpec,
+	touchTestSuiteSpec,
 ];
 
 suite('Terminal Suggest', () => {
