@@ -163,6 +163,44 @@ export function assertAllDefined(...args: (unknown | null | undefined)[]): unkno
 	return result;
 }
 
+/**
+ * Asserts that the provided `item` is one of the items in the `list`.
+ * Helps to narrow down broader `TType` of the `item` to the more
+ * specific `TSubtype` type.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * // note! item type is a `subset of string`
+ * type TItem = ':' | '.' | '/';
+ *
+ * // note! item is type of `string` here
+ * const item: string = ':';
+ * // list of the items to check against
+ * const list: TItem[] = [':', '.'];
+ *
+ * // ok
+ * assertOneOf(
+ *   item,
+ *   list,
+ *   'Must succeed',
+ * );
+ *
+ * // `item` is of `TItem` type now
+ * ```
+ */
+export function assertOneOf<TType, TSubtype extends TType>(
+	item: TType,
+	list: readonly TSubtype[],
+	errorPrefix: string,
+): asserts item is TSubtype {
+	// note! it's ok to type cast here because `TSubtype` is a subtype of `TType`
+	assert(
+		list.includes(item as TSubtype),
+		`${errorPrefix}: Expected '${item}' to be one of [${list.join(', ')}].`,
+	);
+}
+
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**

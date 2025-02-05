@@ -40,7 +40,7 @@ export interface IChatEditingService {
 	/**
 	 * Creates a new short lived editing session
 	 */
-	createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable>;
+	createEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable>;
 
 	readonly editingSessionFileLimit: number;
 

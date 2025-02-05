@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptContentsProvider } from './types.js';
+import { PROMPT_FILE_EXTENSION } from '../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -13,11 +14,6 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FailedToResolveContentsStream, ParseError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
-
-/**
- * File extension for the prompt snippets.
- */
-export const PROMPT_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
 
 /**
  * Base class for prompt contents providers. Classes that extend this one are responsible to:
@@ -149,6 +145,6 @@ export abstract class PromptContentsProviderBase<
 	 * Check if the current URI points to a prompt snippet.
 	 */
 	public isPromptSnippet(): boolean {
-		return this.uri.path.endsWith(PROMPT_SNIPPET_FILE_EXTENSION);
+		return this.uri.path.endsWith(PROMPT_FILE_EXTENSION);
 	}
 }

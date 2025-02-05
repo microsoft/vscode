@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -373,8 +372,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				let kind: TerminalCompletionItemKind | undefined;
 				if (foldersRequested && stat.isDirectory) {
 					kind = TerminalCompletionItemKind.Folder;
-				}
-				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
+				} else if (filesRequested && stat.isFile) {
 					kind = TerminalCompletionItemKind.File;
 				}
 				if (kind === undefined) {

@@ -314,6 +314,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 	private _activeViewZones: string[] = [];
 	private readonly _updatePreviewEditor = derived(reader => {
 		this._editorContainer.readEffect(reader);
+		this._previewEditorObs.model.read(reader); // update when the model is set
 
 		// Setting this here explicitly to make sure that the preview editor is
 		// visible when needed, we're also checking that these fields are defined

@@ -24,7 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
 import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
 import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
@@ -34,6 +34,7 @@ import { isResponseVM } from '../../common/chatViewModel.js';
 import { ICodeBlockActionContext } from '../codeBlockPart.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export class InsertCodeBlockOperation {
 	constructor(
@@ -115,6 +116,7 @@ export class ApplyCodeBlockOperation {
 		@IProgressService private readonly progressService: IProgressService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 	}
 
@@ -303,11 +305,7 @@ export class ApplyCodeBlockOperation {
 	}
 
 	private async applyWithInlinePreview(edits: AsyncIterable<TextEdit[]>, codeEditor: IActiveCodeEditor, tokenSource: CancellationTokenSource): Promise<boolean> {
-		const inlineChatController = InlineChatController.get(codeEditor);
-		if (inlineChatController) {
-			return inlineChatController.reviewEdits(edits, tokenSource.token);
-		}
-		return false;
+		return this.instantiationService.invokeFunction(reviewEdits, codeEditor, edits, tokenSource.token);
 	}
 
 	private tryToRevealCodeBlock(codeEditor: IActiveCodeEditor, codeBlock: string): void {
