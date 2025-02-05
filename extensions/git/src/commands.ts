@@ -2896,6 +2896,11 @@ export class CommandCenter {
 			return;
 		}
 
+		if (historyItemRef.id === repository.historyProvider.currentHistoryItemRef?.id) {
+			window.showInformationMessage(l10n.t('The active branch cannot be deleted.'));
+			return;
+		}
+
 		await this._deleteBranch(repository, undefined, historyItemRef.name, { remote: false });
 	}
 
