@@ -25,7 +25,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		...typingTests,
 
 		// Basic arguments
-		{ input: `${executable} |`, expectedCompletions: codeOptions },
+		{ input: `${executable} |`, expectedCompletions: codeOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --locale |`, expectedCompletions: localeOptions },
 		{ input: `${executable} --diff |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} --diff ./file1 |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
@@ -40,13 +40,13 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --sync |`, expectedCompletions: syncOptions },
 		{ input: `${executable} --extensions-dir |`, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: `${executable} --list-extensions |`, expectedCompletions: codeOptions },
-		{ input: `${executable} --show-versions |`, expectedCompletions: codeOptions },
+		{ input: `${executable} --list-extensions |`, expectedCompletions: codeOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} --show-versions |`, expectedCompletions: codeOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
 		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions.filter(c => c.startsWith('a')) },
 
 		// Middle of command
-		{ input: `${executable} | --locale`, expectedCompletions: codeOptions },
+		{ input: `${executable} | --locale`, expectedCompletions: codeOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 	];
 }
 

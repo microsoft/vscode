@@ -240,6 +240,8 @@ export async function getCompletionItemsFromSpecs(
 	let foldersRequested = false;
 
 	const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
+	// TODO: Normalize precedingText to ignore file extensions on Windows
+	// precedingText = precedingText.replace('.cmd', '');
 
 	let specificItemsProvided = false;
 	for (const spec of specs) {
@@ -251,6 +253,8 @@ export async function getCompletionItemsFromSpecs(
 
 		for (const specLabel of specLabels) {
 			const availableCommand = availableCommands.find(command => specLabel === command.label);
+			// TODO: Normalize commands to ignore file extensions on Windows https://github.com/microsoft/vscode/issues/237598
+			// const availableCommand = availableCommands.find(command => command.label.startsWith(specLabel));
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -263,27 +267,29 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
+			// TODO: Normalize commands to ignore file extensions on Windows https://github.com/microsoft/vscode/issues/237598
+			// const commandAndAliases = availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label).replace('.cmd', ''));
+			// if (!commandAndAliases.some(e => terminalContext.commandLine.startsWith(`${e.label} `) || terminalContext.commandLine.startsWith(`${e.label}.cmd `))) {
 			const commandAndAliases = availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label));
 			if (!commandAndAliases.some(e => terminalContext.commandLine.startsWith(`${e.label} `))) {
 				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
 			}
 
-			const argsCompletionResult = handleArguments(specLabel, spec, terminalContext, precedingText);
-			if (argsCompletionResult) {
-				items.push(...argsCompletionResult.items);
-				filesRequested ||= argsCompletionResult.filesRequested;
-				foldersRequested ||= argsCompletionResult.foldersRequested;
-				specificItemsProvided ||= argsCompletionResult.items.length > 0;
+			const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
+			if (optionsCompletionResult) {
+				items.push(...optionsCompletionResult.items);
+				filesRequested ||= optionsCompletionResult.filesRequested;
+				foldersRequested ||= optionsCompletionResult.foldersRequested;
+				specificItemsProvided ||= optionsCompletionResult.items.length > 0;
 			}
-			if (!argsCompletionResult?.items.length) {
-				// Arg completions are more specific, only get options if those are not provided.
-				const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
-				if (optionsCompletionResult) {
-					items.push(...optionsCompletionResult.items);
-					filesRequested ||= optionsCompletionResult.filesRequested;
-					foldersRequested ||= optionsCompletionResult.foldersRequested;
-					specificItemsProvided ||= optionsCompletionResult.items.length > 0;
+			if (!optionsCompletionResult?.isOptionArg) {
+				const argsCompletionResult = handleArguments(specLabel, spec, terminalContext, precedingText);
+				if (argsCompletionResult) {
+					items.push(...argsCompletionResult.items);
+					filesRequested ||= argsCompletionResult.filesRequested;
+					foldersRequested ||= argsCompletionResult.foldersRequested;
+					specificItemsProvided ||= argsCompletionResult.items.length > 0;
 				}
 			}
 		}
@@ -341,7 +347,7 @@ function handleArguments(specLabel: string, spec: Fig.Spec, terminalContext: { c
 	return argsCompletions;
 }
 
-function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string, prefix: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
+function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string, prefix: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; isOptionArg: boolean } | undefined {
 	let options;
 	if ('options' in spec && spec.options) {
 		options = spec.options;
@@ -387,12 +393,12 @@ function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { com
 			const argsCompletions = getCompletionItemsFromArgs(option.args, currentPrefix, terminalContext);
 
 			if (argsCompletions) {
-				return { items: argsCompletions.items, filesRequested: argsCompletions.filesRequested, foldersRequested: argsCompletions.foldersRequested };
+				return { items: argsCompletions.items, filesRequested: argsCompletions.filesRequested, foldersRequested: argsCompletions.foldersRequested, isOptionArg: true };
 			}
 		}
 	}
 
-	return { items: optionItems, filesRequested: false, foldersRequested: false };
+	return { items: optionItems, filesRequested: false, foldersRequested: false, isOptionArg: false };
 }
 
 
@@ -409,11 +415,17 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 			continue;
 		}
 		if (arg.template) {
-			if (arg.template === 'filepaths') {
+			if (Array.isArray(arg.template) ? arg.template.includes('filepaths') : arg.template === 'filepaths') {
 				filesRequested = true;
-			} else if (arg.template === 'folders') {
+			}
+			if (Array.isArray(arg.template) ? arg.template.includes('folders') : arg.template === 'folders') {
 				foldersRequested = true;
 			}
+			// if (arg.template === 'filepaths') {
+			// 	filesRequested = true;
+			// } else if (arg.template === 'folders') {
+			// 	foldersRequested = true;
+			// }
 		}
 		if (arg.suggestions?.length) {
 			// there are specific suggestions to show
