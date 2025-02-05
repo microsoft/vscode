@@ -2076,7 +2076,7 @@
         },
         {
           "command": "git.graph.deleteBranch",
-          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\//",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\/|^refs\\/remotes\\//",
           "group": "2_branch@2"
         },
         {
