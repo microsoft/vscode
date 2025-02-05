@@ -688,7 +688,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				{ count: number },
 				{
 					owner: 'sandy081';
-					comment: 'Report the query to the the Marketplace for fetching extensions by name';
+					comment: 'Report the query to the Marketplace for fetching extensions by name';
 					readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions to fetch' };
 				}>('galleryService:additionalQueryByName', {
 					count: extensionInfosByName.length
@@ -1296,7 +1296,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		finally {
 			type GalleryServiceGetLatestEventClassification = {
 				owner: 'sandy081';
-				comment: 'Report the query to the the Marketplace for fetching latest version of an extension';
+				comment: 'Report the query to the Marketplace for fetching latest version of an extension';
 				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the extension' };
 				duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration in ms for the query' };
 				errorCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error code in case of error' };

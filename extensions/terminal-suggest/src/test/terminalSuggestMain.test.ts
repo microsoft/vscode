@@ -3,82 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
-import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
-import cdSpec from '../completions/cd';
-import codeCompletionSpec from '../completions/code';
-import codeInsidersCompletionSpec from '../completions/code-insiders';
-import type { Uri } from 'vscode';
 import { basename } from 'path';
+import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
 import { getTokenType } from '../tokens';
-
-const fixtureDir = vscode.Uri.joinPath(vscode.Uri.file(__dirname), '../../testWorkspace');
-const testCwdParent = vscode.Uri.joinPath(fixtureDir, 'parent');
-const testCwd = vscode.Uri.joinPath(fixtureDir, 'parent/home');
-const testCwdChild = vscode.Uri.joinPath(fixtureDir, 'parent/home/child');
-
-interface ISuiteSpec {
-	name: string;
-	completionSpecs: Fig.Spec | Fig.Spec[];
-	// TODO: This seems unnecessary, ideally getCompletionItemsFromSpecs would only consider the
-	//       spec's completions
-	availableCommands: string | string[];
-	testSpecs: ITestSpec2[];
-}
-
-interface ITestSpec2 {
-	input: string;
-	expectedResourceRequests?: {
-		type: 'files' | 'folders' | 'both';
-		cwd: Uri;
-	};
-	expectedCompletions?: string[];
-}
-
-function createCodeTestSpecs(executable: string): ITestSpec2[] {
-	const codeOptions = ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'];
-	const localeOptions = ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'];
-	const categoryOptions = ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'];
-	const logOptions = ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'];
-	const syncOptions = ['on', 'off'];
-
-	const typingTests: ITestSpec2[] = [];
-	for (let i = 1; i < executable.length; i++) {
-		const input = `${executable.slice(0, i)}|`;
-		typingTests.push({ input, expectedCompletions: [executable], expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testCwd } });
-	}
-
-	return [
-		// Typing the command
-		...typingTests,
-
-		// Basic arguments
-		{ input: `${executable} |`, expectedCompletions: codeOptions },
-		{ input: `${executable} --locale |`, expectedCompletions: localeOptions },
-		{ input: `${executable} --diff |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
-		{ input: `${executable} --diff ./file1 |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
-		{ input: `${executable} --merge |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
-		{ input: `${executable} --merge ./file1 ./file2 |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
-		{ input: `${executable} --merge ./file1 ./file2 ./base |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
-		{ input: `${executable} --goto |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
-		{ input: `${executable} --user-data-dir |`, expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-		{ input: `${executable} --profile |`, expectedResourceRequests: { type: 'both', cwd: testCwd } },
-		{ input: `${executable} --install-extension |`, expectedResourceRequests: { type: 'both', cwd: testCwd } },
-		{ input: `${executable} --uninstall-extension |`, expectedResourceRequests: { type: 'both', cwd: testCwd } },
-		{ input: `${executable} --log |`, expectedCompletions: logOptions },
-		{ input: `${executable} --sync |`, expectedCompletions: syncOptions },
-		{ input: `${executable} --extensions-dir |`, expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-		{ input: `${executable} --list-extensions |`, expectedCompletions: codeOptions },
-		{ input: `${executable} --show-versions |`, expectedCompletions: codeOptions },
-		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
-		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions.filter(c => c.startsWith('a')) },
-
-		// Middle of command
-		{ input: `${executable} | --locale`, expectedCompletions: codeOptions },
-	];
-}
+import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
+import { codeSpecOptions, codeTestSuite } from './completions/code.test';
+import { testPaths, type ISuiteSpec } from './helpers';
+import { codeInsidersTestSuite } from './completions/code-insiders.test';
+import { lsTestSuiteSpec } from './completions/upstream/ls.test';
+import { echoTestSuiteSpec } from './completions/upstream/echo.test';
+import { mkdirTestSuiteSpec } from './completions/upstream/mkdir.test';
+import { rmTestSuiteSpec } from './completions/upstream/rm.test';
+import { rmdirTestSuiteSpec } from './completions/upstream/rmdir.test';
+import { touchTestSuiteSpec } from './completions/upstream/touch.test';
+import { osIsWindows } from '../helpers/os';
+import codeCompletionSpec from '../completions/code';
+import { figGenericTestSuites } from './fig.test';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -86,57 +28,48 @@ const testSpecs2: ISuiteSpec[] = [
 		completionSpecs: [],
 		availableCommands: [],
 		testSpecs: [
-			{ input: '|', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
-			{ input: '|.', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
-			{ input: '|./', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
-			{ input: 'fakecommand |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+			{ input: '|', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: '|.', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: '|./', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'fakecommand |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		]
 	},
-	{
-		name: 'cd',
-		completionSpecs: cdSpec,
-		availableCommands: 'cd',
-		testSpecs: [
-			// Typing a path
-			{ input: '.|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
-			{ input: './|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
-			{ input: './.|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
-			// Typing the command
-			{ input: 'c|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
-			{ input: 'cd|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testCwd } },
 
-			// Basic arguments
-			{ input: 'cd |', expectedCompletions: ['~', '-'], expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd -|', expectedCompletions: ['-'], expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd ~|', expectedCompletions: ['~'], expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+	...figGenericTestSuites,
 
-			// Relative paths
-			{ input: 'cd c|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd child|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd .|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd ./|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd ./child|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
-			{ input: 'cd ..|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+	// completions/
+	cdTestSuite,
+	codeTestSuite,
+	codeInsidersTestSuite,
 
-			// Relative directories (changes cwd due to /)
-			{ input: 'cd child/|', expectedResourceRequests: { type: 'folders', cwd: testCwdChild } },
-			{ input: 'cd ../|', expectedResourceRequests: { type: 'folders', cwd: testCwdParent } },
-			{ input: 'cd ../sibling|', expectedResourceRequests: { type: 'folders', cwd: testCwdParent } },
-		]
-	},
-	{
-		name: 'code',
-		completionSpecs: codeCompletionSpec,
-		availableCommands: 'code',
-		testSpecs: createCodeTestSpecs('code')
-	},
-	{
-		name: 'code-insiders',
-		completionSpecs: codeInsidersCompletionSpec,
-		availableCommands: 'code-insiders',
-		testSpecs: createCodeTestSpecs('code-insiders')
-	}
+	// completions/upstream/
+	echoTestSuiteSpec,
+	lsTestSuiteSpec,
+	mkdirTestSuiteSpec,
+	rmTestSuiteSpec,
+	rmdirTestSuiteSpec,
+	touchTestSuiteSpec,
 ];
+
+if (osIsWindows()) {
+	testSpecs2.push({
+		name: 'Handle options extensions on Windows',
+		completionSpecs: [codeCompletionSpec],
+		availableCommands: [
+			'code.bat',
+			'code.cmd',
+			'code.exe',
+			'code.anything',
+		],
+		testSpecs: [
+			{ input: 'code |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.bat |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.cmd |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.exe |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.anything |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		]
+	});
+}
 
 suite('Terminal Suggest', () => {
 	for (const suiteSpec of testSpecs2) {
@@ -147,7 +80,7 @@ suite('Terminal Suggest', () => {
 				let expectedString = testSpec.expectedCompletions ? `[${testSpec.expectedCompletions.map(e => `'${e}'`).join(', ')}]` : '[]';
 				if (testSpec.expectedResourceRequests) {
 					expectedString += ` + ${testSpec.expectedResourceRequests.type}`;
-					if (testSpec.expectedResourceRequests.cwd.fsPath !== testCwd.fsPath) {
+					if (testSpec.expectedResourceRequests.cwd.fsPath !== testPaths.cwd.fsPath) {
 						expectedString += ` @ ${basename(testSpec.expectedResourceRequests.cwd.fsPath)}/`;
 					}
 				}
@@ -158,7 +91,14 @@ suite('Terminal Suggest', () => {
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
 					const terminalContext = { commandLine, cursorPosition };
-					const result = await getCompletionItemsFromSpecs(completionSpecs, terminalContext, availableCommands.map(c => { return { label: c }; }), prefix, getTokenType(terminalContext, undefined), testCwd);
+					const result = await getCompletionItemsFromSpecs(
+						completionSpecs,
+						terminalContext,
+						availableCommands.map(c => { return { label: c }; }),
+						prefix,
+						getTokenType(terminalContext, undefined),
+						testPaths.cwd
+					);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested);
 					strictEqual(result.foldersRequested, foldersRequested);
