@@ -314,7 +314,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingAcceptAllAction);
 
-export class ChatEditingDiscardAllAction extends Action2 {
+export class ChatEditingDiscardAllAction extends EditingSessionAction {
 
 	constructor() {
 		super({
@@ -345,19 +345,15 @@ export class ChatEditingDiscardAllAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		await discardAllEditsWithConfirmation(accessor);
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+		await discardAllEditsWithConfirmation(accessor, editingSession);
 	}
 }
 registerAction2(ChatEditingDiscardAllAction);
 
-export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor): Promise<boolean> {
-	const chatEditingService = accessor.get(IChatEditingService);
+export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession): Promise<boolean> {
+
 	const dialogService = accessor.get(IDialogService);
-	const currentEditingSession = chatEditingService.globalEditingSession;
-	if (!currentEditingSession) {
-		return false;
-	}
 
 	// Ask for confirmation if there are any edits
 	const entries = currentEditingSession.entries.get();

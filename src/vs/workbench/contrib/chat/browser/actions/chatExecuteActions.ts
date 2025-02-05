@@ -6,12 +6,12 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
@@ -95,7 +95,8 @@ export interface IToggleAgentModeArgs {
 	agentMode: boolean;
 }
 
-export class ToggleAgentModeAction extends Action2 {
+export class ToggleAgentModeAction extends EditingSessionAction {
+
 	static readonly ID = ToggleAgentModeActionId;
 
 	constructor() {
@@ -132,20 +133,16 @@ export class ToggleAgentModeAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async runEditingSessionAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+
 		const agentService = accessor.get(IChatAgentService);
-		const chatEditingService = accessor.get(IChatEditingService);
 		const chatService = accessor.get(IChatService);
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
-		const currentEditingSession = chatEditingService.globalEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
 
 		const entries = currentEditingSession.entries.get();
 		if (entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
-			if (!await discardAllEditsWithConfirmation(accessor)) {
+			if (!await discardAllEditsWithConfirmation(accessor, currentEditingSession)) {
 				// User cancelled
 				return;
 			}
