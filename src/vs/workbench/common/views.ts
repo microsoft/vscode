@@ -26,6 +26,7 @@ import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { VSDataTransfer } from '../../base/common/dataTransfer.js';
 import { ILocalizedString } from '../../platform/action/common/action.js';
+import { auxiliaryBarAllowedViewContainerIDs } from '../services/views/pearai/pearaiViewsShared.js';
 
 export const VIEWS_LOG_ID = 'views';
 export const VIEWS_LOG_NAME = localize('views log', "Views");
@@ -255,7 +256,21 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	}
 }
 
-Registry.add(Extensions.ViewContainersRegistry, new ViewContainersRegistryImpl());
+
+class PearAIViewContainersRegistryImpl extends ViewContainersRegistryImpl implements IViewContainersRegistry {
+	override registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean }): ViewContainer {
+	  // Register to sidebar instead of aux bar if non pearai integration
+	  if (
+		viewContainerLocation === ViewContainerLocation.AuxiliaryBar &&
+		!auxiliaryBarAllowedViewContainerIDs.includes(viewContainerDescriptor.id)
+	  ) {
+		viewContainerLocation = ViewContainerLocation.Sidebar;
+	  }
+	  return super.registerViewContainer(viewContainerDescriptor, viewContainerLocation, options);
+	}
+  }
+
+Registry.add(Extensions.ViewContainersRegistry, new PearAIViewContainersRegistryImpl());
 
 export interface IViewDescriptor {
 
