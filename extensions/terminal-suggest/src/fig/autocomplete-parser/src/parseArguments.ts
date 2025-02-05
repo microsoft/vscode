@@ -1,6 +1,4 @@
-import logger from "loglevel";
-import { convertSubcommand, initializeDefault } from "@fig/autocomplete-shared";
-import { filepaths, folders } from "@fig/autocomplete-generators";
+// import { filepaths, folders } from "@fig/autocomplete-generators";
 import * as Internal from "../../shared/src/internal";
 import {
 	firstMatchingToken,
@@ -8,30 +6,29 @@ import {
 	SpecLocationSource,
 	SuggestionFlag,
 	SuggestionFlags,
-	withTimeout,
 } from "../../shared/src/utils";
-import {
-	executeCommand,
-	executeLoginShell,
-	getSetting,
-	isInDevMode,
-	SETTINGS,
-} from "../../api-bindings-wrappers/src";
+// import {
+// 	executeCommand,
+// 	executeLoginShell,
+// 	getSetting,
+// 	isInDevMode,
+// 	SETTINGS,
+// } from "../../api-bindings-wrappers/src";
 import {
 	Command,
 	substituteAlias,
 } from "../../shell-parser/src";
-import {
-	getSpecPath,
-	loadSubcommandCached,
-	serializeSpecLocation,
-} from "./loadSpec.js";
+// import {
+// 	getSpecPath,
+// 	loadSubcommandCached,
+// 	serializeSpecLocation,
+// } from "./loadSpec.js";
 import {
 	ParseArgumentsError,
 	ParsingHistoryError,
 	UpdateStateError,
 } from "./errors.js";
-import { createCache, generateSpecCache } from "./caches.js";
+const { exec } = require("child_process");
 
 type ArgArrayState = {
 	args: Array<Internal.Arg> | null;
@@ -109,10 +106,12 @@ export const createArgState = (args?: Internal.Arg[]): ArgArrayState => {
 			const templateArray = makeArray(generator.template ?? []);
 
 			let updatedGenerator: Fig.Generator | undefined;
+			// TODO: Pass templates out as a result
 			if (templateArray.includes("filepaths")) {
-				updatedGenerator = filepaths;
+				// TODO@meganrogge
+				// updatedGenerator = filepaths;
 			} else if (templateArray.includes("folders")) {
-				updatedGenerator = folders;
+				// updatedGenerator = folders;
 			}
 
 			if (updatedGenerator && generator.filterTemplateSuggestions) {
@@ -600,101 +599,101 @@ const historyExecuteShellCommand: Fig.ExecuteCommandFunction = async () => {
 };
 
 const getExecuteShellCommandFunction = (isParsingHistory = false) =>
-	isParsingHistory ? historyExecuteShellCommand : executeCommand;
+	isParsingHistory ? historyExecuteShellCommand : () => { throw new Error("Not implemented"); };
 
-const getGenerateSpecCacheKey = (
-	completionObj: Internal.Subcommand,
-	tokenArray: string[],
-): string | undefined => {
-	let cacheKey: string | undefined;
+// const getGenerateSpecCacheKey = (
+// 	completionObj: Internal.Subcommand,
+// 	tokenArray: string[],
+// ): string | undefined => {
+// 	let cacheKey: string | undefined;
 
-	const generateSpecCacheKey = completionObj?.generateSpecCacheKey;
-	if (generateSpecCacheKey) {
-		if (typeof generateSpecCacheKey === "string") {
-			cacheKey = generateSpecCacheKey;
-		} else if (typeof generateSpecCacheKey === "function") {
-			cacheKey = generateSpecCacheKey({
-				tokens: tokenArray,
-			});
-		} else {
-			logger.error(
-				"generateSpecCacheKey must be a string or function",
-				generateSpecCacheKey,
-			);
-		}
-	}
+// 	const generateSpecCacheKey = completionObj?.generateSpecCacheKey;
+// 	if (generateSpecCacheKey) {
+// 		if (typeof generateSpecCacheKey === "string") {
+// 			cacheKey = generateSpecCacheKey;
+// 		} else if (typeof generateSpecCacheKey === "function") {
+// 			cacheKey = generateSpecCacheKey({
+// 				tokens: tokenArray,
+// 			});
+// 		} else {
+// 			console.error(
+// 				"generateSpecCacheKey must be a string or function",
+// 				generateSpecCacheKey,
+// 			);
+// 		}
+// 	}
 
-	// Return this late to ensure any generateSpecCacheKey side effects still happen
-	if (isInDevMode()) {
-		return undefined;
-	}
-	if (typeof cacheKey === "string") {
-		// Prepend the spec name to the cacheKey to avoid collisions between specs.
-		return `${tokenArray[0]}:${cacheKey}`;
-	}
-	return undefined;
-};
+// 	// Return this late to ensure any generateSpecCacheKey side effects still happen
+// 	// if (isInDevMode()) {
+// 	// 	return undefined;
+// 	// }
+// 	if (typeof cacheKey === "string") {
+// 		// Prepend the spec name to the cacheKey to avoid collisions between specs.
+// 		return `${tokenArray[0]}:${cacheKey}`;
+// 	}
+// 	return undefined;
+// };
 
-const generateSpecForState = async (
-	state: ArgumentParserState,
-	tokenArray: string[],
-	isParsingHistory = false,
-	localLogger: logger.Logger = logger,
-): Promise<ArgumentParserState> => {
-	localLogger.debug("generateSpec", { state, tokenArray });
-	const { completionObj } = state;
-	const { generateSpec } = completionObj;
-	if (!generateSpec) {
-		return state;
-	}
+// const generateSpecForState = async (
+// 	state: ArgumentParserState,
+// 	tokenArray: string[],
+// 	isParsingHistory = false,
+// 	// localconsole: console.console = console,
+// ): Promise<ArgumentParserState> => {
+// 	console.debug("generateSpec", { state, tokenArray });
+// 	const { completionObj } = state;
+// 	const { generateSpec } = completionObj;
+// 	if (!generateSpec) {
+// 		return state;
+// 	}
 
-	try {
-		const cacheKey = getGenerateSpecCacheKey(completionObj, tokenArray);
-		let newSpec;
-		if (cacheKey && generateSpecCache.has(cacheKey)) {
-			newSpec = generateSpecCache.get(cacheKey)!;
-		} else {
-			const exec = getExecuteShellCommandFunction(isParsingHistory);
-			const spec = await generateSpec(tokenArray, exec);
-			if (!spec) {
-				throw new UpdateStateError("generateSpec must return a spec");
-			}
-			newSpec = convertSubcommand(
-				spec,
-				initializeDefault,
-			);
-			if (cacheKey) generateSpecCache.set(cacheKey, newSpec);
-		}
+// 	try {
+// 		const cacheKey = getGenerateSpecCacheKey(completionObj, tokenArray);
+// 		let newSpec;
+// 		if (cacheKey && generateSpecCache.has(cacheKey)) {
+// 			newSpec = generateSpecCache.get(cacheKey)!;
+// 		} else {
+// 			const exec = getExecuteShellCommandFunction(isParsingHistory);
+// 			const spec = await generateSpec(tokenArray, exec);
+// 			if (!spec) {
+// 				throw new UpdateStateError("generateSpec must return a spec");
+// 			}
+// 			newSpec = convertSubcommand(
+// 				spec,
+// 				initializeDefault,
+// 			);
+// 			if (cacheKey) generateSpecCache.set(cacheKey, newSpec);
+// 		}
 
-		const keepArgs = completionObj.args.length > 0;
+// 		const keepArgs = completionObj.args.length > 0;
 
-		return {
-			...state,
-			completionObj: {
-				...completionObj,
-				subcommands: { ...completionObj.subcommands, ...newSpec.subcommands },
-				options: { ...completionObj.options, ...newSpec.options },
-				persistentOptions: {
-					...completionObj.persistentOptions,
-					...newSpec.persistentOptions,
-				},
-				args: keepArgs ? completionObj.args : newSpec.args,
-			},
-			subcommandArgState: keepArgs
-				? state.subcommandArgState
-				: createArgState(newSpec.args),
-		};
-	} catch (err) {
-		if (!(err instanceof ParsingHistoryError)) {
-			localLogger.error(
-				`There was an error with spec (generator owner: ${completionObj.name
-				}, tokens: ${tokenArray.join(", ")}) generateSpec function`,
-				err,
-			);
-		}
-	}
-	return state;
-};
+// 		return {
+// 			...state,
+// 			completionObj: {
+// 				...completionObj,
+// 				subcommands: { ...completionObj.subcommands, ...newSpec.subcommands },
+// 				options: { ...completionObj.options, ...newSpec.options },
+// 				persistentOptions: {
+// 					...completionObj.persistentOptions,
+// 					...newSpec.persistentOptions,
+// 				},
+// 				args: keepArgs ? completionObj.args : newSpec.args,
+// 			},
+// 			subcommandArgState: keepArgs
+// 				? state.subcommandArgState
+// 				: createArgState(newSpec.args),
+// 		};
+// 	} catch (err) {
+// 		if (!(err instanceof ParsingHistoryError)) {
+// 			console.error(
+// 				`There was an error with spec (generator owner: ${completionObj.name
+// 				}, tokens: ${tokenArray.join(", ")}) generateSpec function`,
+// 				err,
+// 			);
+// 		}
+// 	}
+// 	return state;
+// };
 
 export const getResultFromState = (
 	state: ArgumentParserState,
@@ -757,27 +756,27 @@ export const initialParserState = getResultFromState(
 	}),
 );
 
-const parseArgumentsCache = createCache<ArgumentParserState>();
-const parseArgumentsGenerateSpecCache = createCache<ArgumentParserState>();
-const figCaches = new Set<string>();
-export const clearFigCaches = () => {
-	for (const cache of figCaches) {
-		parseArgumentsGenerateSpecCache.delete(cache);
-	}
-	return { unsubscribe: false };
-};
+// const parseArgumentsCache = createCache<ArgumentParserState>();
+// const parseArgumentsGenerateSpecCache = createCache<ArgumentParserState>();
+// const figCaches = new Set<string>();
+// export const clearFigCaches = () => {
+// 	for (const cache of figCaches) {
+// 		parseArgumentsGenerateSpecCache.delete(cache);
+// 	}
+// 	return { unsubscribe: false };
+// };
 
-const getCacheKey = (
-	tokenArray: string[],
-	context: Fig.ShellContext,
-	specLocation: Internal.SpecLocation,
-): string =>
-	[
-		tokenArray.slice(0, -1).join(" "),
-		serializeSpecLocation(specLocation),
-		context.currentWorkingDirectory,
-		context.currentProcess,
-	].join(",");
+// const getCacheKey = (
+// 	tokenArray: string[],
+// 	context: Fig.ShellContext,
+// 	specLocation: Internal.SpecLocation,
+// ): string =>
+// 	[
+// 		tokenArray.slice(0, -1).join(" "),
+// 		// serializeSpecLocation(specLocation),
+// 		context.currentWorkingDirectory,
+// 		context.currentProcess,
+// 	].join(",");
 
 // Parse all arguments in tokenArray.
 const parseArgumentsCached = async (
@@ -787,63 +786,69 @@ const parseArgumentsCached = async (
 	specLocations?: Internal.SpecLocation[],
 	isParsingHistory?: boolean,
 	startIndex = 0,
-	localLogger: logger.Logger = logger,
+	// localconsole: console.console = console,
 ): Promise<ArgumentParserState> => {
+	// Route to cp.exec instead, we don't need to deal with ipc
 	const exec = getExecuteShellCommandFunction(isParsingHistory);
 
 	let currentCommand = command;
 	let tokens = currentCommand.tokens.slice(startIndex);
-	const tokenText = tokens.map((token) => token.text);
+	// const tokenText = tokens.map((token) => token.text);
 
-	const locations = specLocations || [
-		await getSpecPath(tokenText[0], context.currentWorkingDirectory),
-	];
-	localLogger.debug({ locations });
+	// TODO: Fill this in the with actual one (replace specLocations)
+	const spec: Fig.Spec = null!;
+	const specPath: Fig.SpecLocation = { type: 'global', name: 'fake' };
 
-	let cacheKey = "";
-	for (let i = 0; i < locations.length; i += 1) {
-		cacheKey = getCacheKey(tokenText, context, locations[i]);
-		if (
-			!isInDevMode() &&
-			(parseArgumentsCache.has(cacheKey) ||
-				parseArgumentsGenerateSpecCache.has(cacheKey))
-		) {
-			return (
-				(parseArgumentsGenerateSpecCache.get(
-					cacheKey,
-				) as ArgumentParserState) ||
-				(parseArgumentsCache.get(cacheKey) as ArgumentParserState)
-			);
-		}
-	}
+	// tokenTest[0] is the command and the spec they need
+	// const locations = specLocations || [
+	// 	await getSpecPath(tokenText[0], context.currentWorkingDirectory),
+	// ];
+	// console.debug({ locations });
 
-	let spec: Internal.Subcommand | undefined;
-	let specPath: Internal.SpecLocation | undefined;
-	for (let i = 0; i < locations.length; i += 1) {
-		specPath = locations[i];
-		if (isParsingHistory && specPath?.type === SpecLocationSource.LOCAL) {
-			continue;
-		}
+	// let cacheKey = "";
+	// for (let i = 0; i < locations.length; i += 1) {
+	// 	cacheKey = getCacheKey(tokenText, context, locations[i]);
+	// 	if (
+	// 		// !isInDevMode() &&
+	// 		(parseArgumentsCache.has(cacheKey) ||
+	// 			parseArgumentsGenerateSpecCache.has(cacheKey))
+	// 	) {
+	// 		return (
+	// 			(parseArgumentsGenerateSpecCache.get(
+	// 				cacheKey,
+	// 			) as ArgumentParserState) ||
+	// 			(parseArgumentsCache.get(cacheKey) as ArgumentParserState)
+	// 		);
+	// 	}
+	// }
 
-		spec = await withTimeout(
-			5000,
-			loadSubcommandCached(specPath, context, localLogger),
-		);
-		if (!specPath) {
-			throw new Error("specPath is undefined");
-		}
+	// let spec: Internal.Subcommand | undefined;
+	// let specPath: Internal.SpecLocation | undefined;
+	// for (let i = 0; i < locations.length; i += 1) {
+	// 	specPath = locations[i];
+	// 	if (isParsingHistory && specPath?.type === SpecLocationSource.LOCAL) {
+	// 		continue;
+	// 	}
 
-		if (!spec) {
-			const path =
-				specPath.type === SpecLocationSource.LOCAL ? specPath?.path : "";
-			localLogger.warn(
-				`Failed to load spec ${specPath.name} from ${specPath.type} ${path}`,
-			);
-		} else {
-			cacheKey = getCacheKey(tokenText, context, specPath);
-			break;
-		}
-	}
+	// 	spec = await withTimeout(
+	// 		5000,
+	// 		loadSubcommandCached(specPath, context, console),
+	// 	);
+	// 	if (!specPath) {
+	// 		throw new Error("specPath is undefined");
+	// 	}
+
+	// 	if (!spec) {
+	// 		const path =
+	// 			specPath.type === SpecLocationSource.LOCAL ? specPath?.path : "";
+	// 		console.warn(
+	// 			`Failed to load spec ${specPath.name} from ${specPath.type} ${path}`,
+	// 		);
+	// 	} else {
+	// 		cacheKey = getCacheKey(tokenText, context, specPath);
+	// 		break;
+	// 	}
+	// }
 
 	if (!spec || !specPath) {
 		throw new UpdateStateError("Failed loading spec");
@@ -855,71 +860,71 @@ const parseArgumentsCached = async (
 		specPath,
 	);
 
-	let generatedSpec = false;
+	// let generatedSpec = false;
 
 	const substitutedAliases = new Set<string>();
 	let aliasError: Error | undefined;
 
 	// Returns true if we should return state immediately after calling.
-	const updateStateForLoadSpec = async (
-		loadSpec: typeof state.completionObj.loadSpec,
-		index: number,
-		token?: string,
-	) => {
-		const loadSpecResult =
-			typeof loadSpec === "function"
-				? token !== undefined
-					? await loadSpec(token, exec)
-					: undefined
-				: loadSpec;
+	// const updateStateForLoadSpec = async (
+	// 	loadSpec: typeof state.completionObj.loadSpec,
+	// 	index: number,
+	// 	token?: string,
+	// ) => {
+	// 	const loadSpecResult =
+	// 		typeof loadSpec === "function"
+	// 			? token !== undefined
+	// 				? await loadSpec(token, exec)
+	// 				: undefined
+	// 			: loadSpec;
 
-		if (Array.isArray(loadSpecResult)) {
-			state = await parseArgumentsCached(
-				currentCommand,
-				context,
-				// authClient,
-				loadSpecResult,
-				isParsingHistory,
-				startIndex + index,
-			);
-			state = { ...state, commandIndex: state.commandIndex + index };
-			return true;
-		}
+	// 	if (Array.isArray(loadSpecResult)) {
+	// 		state = await parseArgumentsCached(
+	// 			currentCommand,
+	// 			context,
+	// 			// authClient,
+	// 			loadSpecResult,
+	// 			isParsingHistory,
+	// 			startIndex + index,
+	// 		);
+	// 		state = { ...state, commandIndex: state.commandIndex + index };
+	// 		return true;
+	// 	}
 
-		if (loadSpecResult) {
-			state = {
-				...state,
-				completionObj: {
-					...loadSpecResult,
-					parserDirectives: {
-						...state.completionObj.parserDirectives,
-						...loadSpecResult.parserDirectives,
-					},
-				},
-				optionArgState: createArgState(),
-				passedOptions: [],
-				subcommandArgState: createArgState(loadSpecResult.args),
-				haveEnteredSubcommandArgs: false,
-			};
-		}
+	// 	if (loadSpecResult) {
+	// 		state = {
+	// 			...state,
+	// 			completionObj: {
+	// 				...loadSpecResult,
+	// 				parserDirectives: {
+	// 					...state.completionObj.parserDirectives,
+	// 					...loadSpecResult.parserDirectives,
+	// 				},
+	// 			},
+	// 			optionArgState: createArgState(),
+	// 			passedOptions: [],
+	// 			subcommandArgState: createArgState(loadSpecResult.args),
+	// 			haveEnteredSubcommandArgs: false,
+	// 		};
+	// 	}
 
-		return false;
-	};
+	// 	return false;
+	// };
 
-	if (await updateStateForLoadSpec(state.completionObj.loadSpec, 0)) {
-		return state;
-	}
+	// if (await updateStateForLoadSpec(state.completionObj.loadSpec, 0)) {
+	// 	return state;
+	// }
 
 	for (let i = 1; i < tokens.length; i += 1) {
-		if (state.completionObj.generateSpec) {
-			state = await generateSpecForState(
-				state,
-				tokens.map((token) => token.text),
-				isParsingHistory,
-				localLogger,
-			);
-			generatedSpec = true;
-		}
+		// TODO: Investigate generate spec
+		// if (state.completionObj.generateSpec) {
+		// 	state = await generateSpecForState(
+		// 		state,
+		// 		tokens.map((token) => token.text),
+		// 		isParsingHistory,
+		// 	);
+		// 	generatedSpec = true;
+		// }
 
 		if (i === tokens.length - 1) {
 			// Don't update state for last token.
@@ -936,7 +941,7 @@ const parseArgumentsCached = async (
 		const lastState = state;
 
 		state = updateState(state, token);
-		localLogger.debug("Parser state update", { state });
+		console.debug("Parser state update", { state });
 
 		const { annotations } = state;
 		const lastAnnotation = annotations[annotations.length - 1];
@@ -963,7 +968,7 @@ const parseArgumentsCached = async (
 					i -= 1;
 					continue;
 				} catch (err) {
-					localLogger.error("Error substituting alias:", err);
+					console.error("Error substituting alias:", err);
 					throw err;
 				}
 			} catch (err) {
@@ -974,41 +979,42 @@ const parseArgumentsCached = async (
 			}
 		}
 
-		let loadSpec =
-			lastType === TokenType.Subcommand
-				? state.completionObj.loadSpec
-				: undefined;
+		// TODO: Investigate whether we want to support loadSpec, vs just importing them directly
+		// let loadSpec =
+		// 	lastType === TokenType.Subcommand
+		// 		? state.completionObj.loadSpec
+		// 		: undefined;
 
 		// Recurse for load spec or special arg
-		if (lastType === lastArgType && lastArgObject) {
-			const {
-				isCommand,
-				isModule,
-				isScript,
-				loadSpec: argLoadSpec,
-			} = lastArgObject;
-			if (argLoadSpec) {
-				loadSpec = argLoadSpec;
-			} else if (isCommand || isScript) {
-				const specLocation = await getSpecPath(
-					token,
-					context.currentWorkingDirectory,
-					Boolean(isScript),
-				);
-				loadSpec = [specLocation];
-			} else if (isModule) {
-				loadSpec = [
-					{
-						name: `${isModule}${token}`,
-						type: SpecLocationSource.GLOBAL,
-					},
-				];
-			}
-		}
+		// if (lastType === lastArgType && lastArgObject) {
+		// 	const {
+		// 		isCommand,
+		// 		isModule,
+		// 		isScript,
+		// 		loadSpec: argLoadSpec,
+		// 	} = lastArgObject;
+		// 	if (argLoadSpec) {
+		// 		loadSpec = argLoadSpec;
+		// 	} else if (isCommand || isScript) {
+		// 		// const specLocation = await getSpecPath(
+		// 		// 	token,
+		// 		// 	context.currentWorkingDirectory,
+		// 		// 	Boolean(isScript),
+		// 		// );
+		// 		// loadSpec = [specLocation];
+		// 	} else if (isModule) {
+		// 		loadSpec = [
+		// 			{
+		// 				name: `${isModule}${token}`,
+		// 				type: SpecLocationSource.GLOBAL,
+		// 			},
+		// 		];
+		// 	}
+		// }
 
-		if (await updateStateForLoadSpec(loadSpec, i, token)) {
-			return state;
-		}
+		// if (await updateStateForLoadSpec(loadSpec, i, token)) {
+		// 	return state;
+		// }
 
 		// If error with alias and corresponding arg was not used in a loadSpec,
 		// throw the error.
@@ -1019,12 +1025,12 @@ const parseArgumentsCached = async (
 		substitutedAliases.clear();
 	}
 
-	if (generatedSpec) {
-		if (tokenText[0] === "fig") figCaches.add(cacheKey);
-		parseArgumentsGenerateSpecCache.set(cacheKey, state);
-	} else {
-		parseArgumentsCache.set(cacheKey, state);
-	}
+	// if (generatedSpec) {
+	// 	if (tokenText[0] === "fig") figCaches.add(cacheKey);
+	// 	parseArgumentsGenerateSpecCache.set(cacheKey, state);
+	// } else {
+	// 	parseArgumentsCache.set(cacheKey, state);
+	// }
 
 	return state;
 };
@@ -1091,12 +1097,30 @@ const firstTokenSpec: Internal.Subcommand = {
 	parserDirectives: {},
 };
 
+const executeLoginShell = async ({
+	command,
+	executable,
+}: {
+	command: string;
+	executable: string;
+}): Promise<string> => {
+	return new Promise((resolve, reject) => {
+		exec(`${executable} -c "${command}"`, (error: Error, stdout: string, stderr: string) => {
+			if (error) {
+				reject(stderr);
+			} else {
+				resolve(stdout);
+			}
+		});
+	});
+};
+
 export const parseArguments = async (
 	command: Command | null,
 	context: Fig.ShellContext,
 	// authClient: AuthClient,
 	isParsingHistory = false,
-	localLogger: logger.Logger = logger,
+	// localconsole: console.console = console,
 ): Promise<ArgumentParserResult> => {
 	const tokens = command?.tokens ?? [];
 	if (!command || tokens.length === 0) {
@@ -1104,9 +1128,7 @@ export const parseArguments = async (
 	}
 
 	if (tokens.length === 1) {
-		const showFirstCommandCompletion = getSetting(
-			SETTINGS.FIRST_COMMAND_COMPLETION,
-		);
+		const showFirstCommandCompletion = true;
 		let spec = showFirstCommandCompletion
 			? firstTokenSpec
 			: { ...firstTokenSpec, args: [] };
@@ -1119,7 +1141,7 @@ export const parseArguments = async (
 			} else {
 				specPath = { name: "dotslash", type: SpecLocationSource.GLOBAL };
 			}
-			spec = await loadSubcommandCached(specPath, context, localLogger);
+			// spec = await loadSubcommandCached(specPath, context);
 		}
 		return getResultFromState(getInitialState(spec, tokens[0].text, specPath));
 	}
@@ -1131,7 +1153,6 @@ export const parseArguments = async (
 		undefined,
 		isParsingHistory,
 		0,
-		localLogger,
 	);
 
 	const finalToken = tokens[tokens.length - 1].text;

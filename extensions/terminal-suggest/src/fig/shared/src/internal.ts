@@ -1,4 +1,4 @@
-import { Internal, Metadata } from "@fig/autocomplete-shared";
+import { Internal, Metadata } from "../../autocomplete-shared/src";
 import type { Result } from "./fuzzysort";
 
 export type SpecLocation = Fig.SpecLocation & {
