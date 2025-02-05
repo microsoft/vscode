@@ -16,7 +16,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/ex
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { IToolInputProcessor } from '../../contrib/chat/common/tools/tools.js';
-import { EditToolData, EditToolInputProcessor } from '../../contrib/chat/common/tools/editFileTool.js';
+import { EditToolData, EditToolId, EditToolInputProcessor } from '../../contrib/chat/common/tools/editFileTool.js';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -61,7 +61,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				throw new Error(`Invalid tool invocation token`);
 			}
 
-			if (toolId === 'vscode_editFile' && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+			if (toolId === EditToolId && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
 				throw new Error(`Invalid tool: ${toolId}`);
 			}
 
@@ -92,7 +92,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return Array.from(this._allTools.values())
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool))
 			.filter(tool => {
-				if (tool.name === 'vscode_editFile') {
+				if (tool.name === EditToolId) {
 					return isProposedApiEnabled(extension, 'chatParticipantPrivate');
 				}
 
