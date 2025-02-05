@@ -239,9 +239,15 @@ export async function getCompletionItemsFromSpecs(
 	let filesRequested = false;
 	let foldersRequested = false;
 
-	const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
-	// TODO: Normalize precedingText to ignore file extensions on Windows
-	// precedingText = precedingText.replace('.cmd', '');
+	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
+	if (isWindows) {
+		const spaceIndex = precedingText.indexOf(' ');
+		const commandEndIndex = spaceIndex === -1 ? precedingText.length : spaceIndex;
+		const lastDotIndex = precedingText.lastIndexOf('.', commandEndIndex);
+		if (lastDotIndex > 0) { // Don't treat dotfiles as extensions
+			precedingText = precedingText.substring(0, lastDotIndex) + precedingText.substring(spaceIndex);
+		}
+	}
 
 	let specificItemsProvided = false;
 	for (const spec of specs) {
@@ -252,9 +258,9 @@ export async function getCompletionItemsFromSpecs(
 		}
 
 		for (const specLabel of specLabels) {
-			const availableCommand = availableCommands.find(command => specLabel === command.label);
-			// TODO: Normalize commands to ignore file extensions on Windows https://github.com/microsoft/vscode/issues/237598
-			// const availableCommand = availableCommands.find(command => command.label.startsWith(specLabel));
+			const availableCommand = (isWindows
+				? availableCommands.find(command => command.label.match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
+				: availableCommands.find(command => command.label.startsWith(specLabel)));
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -267,11 +273,14 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			// TODO: Normalize commands to ignore file extensions on Windows https://github.com/microsoft/vscode/issues/237598
-			// const commandAndAliases = availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label).replace('.cmd', ''));
-			// if (!commandAndAliases.some(e => terminalContext.commandLine.startsWith(`${e.label} `) || terminalContext.commandLine.startsWith(`${e.label}.cmd `))) {
-			const commandAndAliases = availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label));
-			if (!commandAndAliases.some(e => terminalContext.commandLine.startsWith(`${e.label} `))) {
+			const commandAndAliases = (isWindows
+				? availableCommands.filter(command => specLabel === removeAnyFileExtension(command.definitionCommand ?? command.label))
+				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label)));
+			if (
+				!(isWindows
+					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension(e.label)} `))
+					: commandAndAliases.some(e => precedingText.startsWith(`${e.label} `)))
+			) {
 				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
 			}
@@ -469,3 +478,6 @@ function getShell(shellType: TerminalShellType): string | undefined {
 	}
 }
 
+function removeAnyFileExtension(label: string): string {
+	return label.replace(/\.[a-zA-Z0-9!#\$%&'\(\)\-@\^_`{}~\+,;=\[\]]+$/, '');
+}
