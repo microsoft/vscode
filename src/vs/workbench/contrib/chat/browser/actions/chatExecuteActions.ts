@@ -16,11 +16,11 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
-import { discardAllEditsWithConfirmation } from '../chatEditing/chatEditingActions.js';
+import { discardAllEditsWithConfirmation, EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatDoneActionId } from './chatClearActions.js';
@@ -370,7 +370,7 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 	}
 }
 
-class SendToChatEditingAction extends Action2 {
+class SendToChatEditingAction extends EditingSessionAction {
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
@@ -410,16 +410,8 @@ class SendToChatEditingAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async runEditingSessionAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, widget: IChatWidget, ...args: any[]) {
 		if (!accessor.get(IChatAgentService).getDefaultAgent(ChatAgentLocation.EditingSession)) {
-			return;
-		}
-
-		const context: IChatExecuteActionContext | undefined = args[0];
-
-		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget || widget.viewModel?.model.initialLocation === ChatAgentLocation.EditingSession) {
 			return;
 		}
 
@@ -427,7 +419,6 @@ class SendToChatEditingAction extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const chatEditingService = accessor.get(IChatEditingService);
 
-		const currentEditingSession = chatEditingService.globalEditingSessionObs.get();
 		const currentEditCount = currentEditingSession?.entries.get().length;
 		if (currentEditCount) {
 			const result = await dialogService.confirm({
