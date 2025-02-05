@@ -104,7 +104,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IProductService productService: IProductService,
 	) {
 		super();
-		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this._currentSessionObs)));
+		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this.editingSessionsObs)));
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider, this._currentSessionObs)));
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingSnapshotTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider, this._currentSessionObs)));
@@ -434,15 +434,18 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 	readonly label: string = localize('chat', "Chat Editing");
 
 	private readonly _currentEntries = derived<readonly IModifiedFileEntry[]>(this, (r) => {
-		const session = this._session.read(r);
-		if (!session) {
+		const sessions = this._sessions.read(r);
+		if (!sessions) {
 			return [];
 		}
-		const state = session.state.read(r);
-		if (state === ChatEditingSessionState.Disposed) {
-			return [];
+		const result: IModifiedFileEntry[] = [];
+		for (const session of sessions) {
+			if (session.state.read(r) !== ChatEditingSessionState.Disposed) {
+				const entries = session.entries.read(r);
+				result.push(...entries);
+			}
 		}
-		return session.entries.read(r);
+		return result;
 	});
 
 	private readonly _currentlyEditingUris = derived<URI[]>(this, (r) => {
@@ -461,7 +464,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 	);
 
 	constructor(
-		private readonly _session: IObservable<IChatEditingSession | null>,
+		private readonly _sessions: IObservable<readonly IChatEditingSession[]>,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
