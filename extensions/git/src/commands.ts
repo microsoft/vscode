@@ -2904,6 +2904,7 @@ export class CommandCenter {
 			}
 
 			await this._deleteBranch(repository, undefined, historyItemRef.name, { remote: false });
+			return;
 		}
 
 		// Remote branch
