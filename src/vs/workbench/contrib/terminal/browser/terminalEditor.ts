@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Action, IAction } from '../../../../base/common/actions.js';
+import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -166,25 +166,13 @@ export class TerminalEditor extends EditorPane {
 			case TerminalCommandId.CreateTerminalEditor: {
 				if (action instanceof MenuItemAction) {
 					const location = { viewColumn: ACTIVE_GROUP };
-					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
-					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
+					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
 					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
 					return button;
 				}
 			}
 		}
 		return super.getActionViewItem(action, options);
-	}
-
-	/**
-	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
-	 */
-	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
-		this._disposableStore.clear();
-		if (dropdownAction instanceof Action) {
-			this._disposableStore.add(dropdownAction);
-		}
-		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._disposableStore.add(a));
 	}
 
 	private _getDefaultProfileName(): string {
