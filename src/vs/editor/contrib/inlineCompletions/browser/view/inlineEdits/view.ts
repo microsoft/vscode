@@ -73,7 +73,13 @@ export class InlineEditsView extends Disposable {
 		let newText = edit.edit.apply(edit.originalText);
 		let diff = lineRangeMappingFromRangeMappings(mappings, edit.originalText, new StringText(newText));
 
-		const state = this.determineRenderState(edit, reader, diff, new StringText(newText));
+		const originalDisplayRange = edit.originalText.lineRange.intersect(
+			edit.originalLineRange.join(
+				LineRange.ofLength(edit.originalLineRange.startLineNumber, edit.lineEdit.newLines.length)
+			)
+		)!;
+
+		const state = this.determineRenderState(edit, reader, diff, new StringText(newText), originalDisplayRange);
 		if (!state) {
 			this._model.get()?.stop();
 			return undefined;
@@ -86,12 +92,6 @@ export class InlineEditsView extends Disposable {
 			mappings = applyEditToModifiedRangeMappings(mappings, indentationAdjustmentEdit);
 			diff = lineRangeMappingFromRangeMappings(mappings, edit.originalText, new StringText(newText));
 		}
-
-		const originalDisplayRange = edit.originalText.lineRange.intersect(
-			edit.originalLineRange.join(
-				LineRange.ofLength(edit.originalLineRange.startLineNumber, edit.lineEdit.newLines.length)
-			)
-		)!;
 
 		this._previewTextModel.setLanguage(this._editor.getModel()!.getLanguageId());
 
@@ -196,20 +196,21 @@ export class InlineEditsView extends Disposable {
 		return 0;
 	});
 
-	private readonly _originalDisplayRange = derived(this, reader => {
-		const state = this._uiState.read(reader);
-		if (state?.state?.kind === 'insertionMultiLine') {
-			return this._insertion.originalLines.read(reader);
-		}
-		return state?.originalDisplayRange;
-	});
-
 	protected readonly _indicator = this._register(autorunWithStore((reader, store) => {
+
+		const indicatorDisplayRange = derived(this, reader => {
+			const state = this._uiState.read(reader);
+			if (state?.state?.kind === 'insertionMultiLine') {
+				return this._insertion.originalLines.read(reader);
+			}
+			return state?.originalDisplayRange;
+		});
+
 		if (this._useGutterIndicator.read(reader)) {
 			store.add(this._instantiationService.createInstance(
 				InlineEditsGutterIndicator,
 				this._editorObs,
-				this._originalDisplayRange,
+				indicatorDisplayRange,
 				this._gutterIndicatorOffset,
 				this._model,
 				this._inlineEditsIsHovered,
@@ -220,7 +221,7 @@ export class InlineEditsView extends Disposable {
 				this._editorObs,
 				derived<IInlineEditsIndicatorState | undefined>(reader => {
 					const state = this._uiState.read(reader);
-					const range = this._originalDisplayRange.read(reader);
+					const range = indicatorDisplayRange.read(reader);
 					if (!state || !state.state || !range) { return undefined; }
 					const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader) + this._gutterIndicatorOffset.read(reader);
 					return { editTop: top, showAlways: state.state.kind !== 'sideBySide' };
@@ -230,7 +231,7 @@ export class InlineEditsView extends Disposable {
 		}
 	}));
 
-	private determineView(edit: InlineEditWithChanges, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText): string {
+	private determineView(edit: InlineEditWithChanges, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange): string {
 		// Check if we can use the previous view if it is the same InlineCompletion as previously shown
 		const canUseCache = this._previousView?.id === edit.inlineCompletion.id;
 		const reconsiderViewAfterJump = edit.userJumpedToIt !== this._previousView?.userJumpedToIt &&
@@ -283,9 +284,8 @@ export class InlineEditsView extends Disposable {
 				return 'wordReplacements';
 			}
 		}
-
 		if (numOriginalLines > 0 && numModifiedLines > 0) {
-			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, reader)) {
+			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideDiff.fitsInsideViewport(this._editor, edit, originalDisplayRange, reader)) {
 				return 'sideBySide';
 			}
 
@@ -306,9 +306,9 @@ export class InlineEditsView extends Disposable {
 		return 'sideBySide';
 	}
 
-	private determineRenderState(edit: InlineEditWithChanges, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText) {
+	private determineRenderState(edit: InlineEditWithChanges, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange) {
 
-		const view = this.determineView(edit, reader, diff, newText);
+		const view = this.determineView(edit, reader, diff, newText, originalDisplayRange);
 
 		this._previousView = { id: edit.inlineCompletion.id, view, userJumpedToIt: edit.userJumpedToIt, editorWidth: this._editor.getLayoutInfo().width };
 
