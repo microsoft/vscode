@@ -15,7 +15,6 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import * as errors from '../../../../base/common/errors.js';
 import { DisposableStore, dispose, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { Platform, platform } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -32,7 +31,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { getTitleBarStyle, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_IN_DEBUG_MODE, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from '../common/debug.js';
@@ -79,21 +77,14 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		this.$el = dom.$('div.debug-toolbar');
 
-		// Note: changes to this setting require a restart, so no need to listen to it.
-		const customTitleBar = getTitleBarStyle(this.configurationService) === TitlebarStyle.CUSTOM;
-
-		// Do not allow the widget to overflow or underflow window controls.
-		// Use CSS calculations to avoid having to force layout with `.clientWidth`
-		const controlsOnLeft = customTitleBar && platform === Platform.Mac;
-		const controlsOnRight = customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
 		this.$el.style.transform = `translate(
-			min(
-				max(${controlsOnLeft ? '60px' : '0px'}, calc(-50% + (100vw * var(--x-position)))),
-				calc(100vw - 100% - ${controlsOnRight ? '100px' : '0px'})
+			clamp(
+				var(--min-from-left),
+				calc(-50% + (100vw * var(--x-position))),
+				calc(100vw - var(--min-from-right) - 100%)
 			),
 			var(--y-position)
 		)`;
-
 
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + ThemeIcon.asCSSSelector(icons.debugGripper)));
@@ -142,6 +133,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			this.show();
 		}, 20));
 
+		this._applyTitleBarBounds();
 		this.updateStyles();
 		this.registerListeners();
 		this.hide();
@@ -183,7 +175,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const activeWindow = dom.getWindow(this.layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
-			const originX = this.getCurrentXPercent();
+			const originX = this.computeCurrentXPercent();
 			const originY = this.getCurrentYPosition();
 
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
@@ -217,13 +209,49 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				this.doShowInActiveContainer();
 				this.setCoordinates();
 			}
+
+			this._applyTitleBarBounds();
 		}));
 	}
 
+	private _applyTitleBarBounds() {
+		// Not very smart, but the logic around how the controls container gets positioned
+		// is gnarly and not entirely accessible from JS directly (CSS `env()` usages)
+		const win = dom.getWindow(this.$el);
+		const rect = win.document.querySelector('.monaco-workbench .window-controls-container')?.getBoundingClientRect();
+		if (!rect) {
+			this.$el.style.setProperty('--min-from-left', '0px');
+			this.$el.style.setProperty('--min-from-right', '0px');
+			return;
+		}
+
+		const isLeft = rect.left > rect.right;
+		if (isLeft) {
+			this.$el.style.setProperty('--min-from-left', `${rect.right}px`);
+			this.$el.style.setProperty('--min-from-right', '0px');
+		} else {
+			this.$el.style.setProperty('--min-from-left', '0px');
+			this.$el.style.setProperty('--min-from-right', `${win.innerWidth - rect.left}px`);
+		}
+	}
+
+	/**
+	 * Computes the x percent position at which the toolbar is currently displayed.
+	 */
+	private computeCurrentXPercent(): number {
+		const { left, width } = this.$el.getBoundingClientRect();
+		return (left + width / 2) / dom.getWindow(this.$el).innerWidth;
+	}
+
+	/**
+	 * Gets the y position set in the style of the toolbar. This may not be its
+	 * actual position on screen depending on toolbar locations.
+	 */
 	private getCurrentXPercent(): number {
 		return Number(this.$el.style.getPropertyValue('--x-position'));
 	}
 
+	/** Gets the y position set in the style of the toolbar */
 	private getCurrentYPosition(): number {
 		return parseInt(this.$el.style.getPropertyValue('--y-position'));
 	}
