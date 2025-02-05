@@ -646,7 +646,7 @@ export class CustomMenubarControl extends MenubarControl {
 							title = menuItem.item.toggled.mnemonicTitle ?? menuItem.item.toggled.title ?? title;
 						}
 
-						const newAction = new Action(menuItem.id, mnemonicMenuLabel(title), menuItem.class, menuItem.enabled, () => this.commandService.executeCommand(menuItem.id));
+						const newAction = this._register(new Action(menuItem.id, mnemonicMenuLabel(title), menuItem.class, menuItem.enabled, () => this.commandService.executeCommand(menuItem.id)));
 						newAction.tooltip = menuItem.tooltip;
 						newAction.checked = menuItem.checked;
 						target.push(newAction);
