@@ -33,6 +33,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
+import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -391,10 +392,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
 
 		if (lineHeight <= 1) {
-			// Scale so icon shows by default
-			lineHeight = fontSize < 16 ? Math.ceil(fontSize * 1.5) : fontSize;
-		} else if (lineHeight <= 8) {
-			lineHeight = fontSize * lineHeight;
+			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
+		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
+			// Values too small to be line heights in pixels are in ems.
+			lineHeight = lineHeight * fontSize;
+		}
+
+		// Enforce integer, minimum constraints
+		lineHeight = Math.round(lineHeight);
+		if (lineHeight < MINIMUM_LINE_HEIGHT) {
+			lineHeight = MINIMUM_LINE_HEIGHT;
 		}
 
 		const fontInfo = {
