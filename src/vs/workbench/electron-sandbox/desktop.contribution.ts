@@ -241,8 +241,8 @@ import { LinuxCustomTitlebarExperiment } from './parts/titlebar/titlebarPart.js'
 			},
 			'window.experimentalControlOverlay': {
 				'type': 'boolean',
-				'included': isLinux,
-				'markdownDescription': localize('window.experimentalControlOverlay', "Show the native window controls when {0} is set to `custom` (Linux only).", '`#window.titleBarStyle#`'),
+				'included': isLinux || isMacintosh,
+				'markdownDescription': localize('window.experimentalControlOverlay', "Show the native window controls when {0} is set to `custom` (Linux and MacOS only).", '`#window.titleBarStyle#`'),
 				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
 			},

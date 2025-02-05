@@ -332,7 +332,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Windows/Linux: window control overlay (WCO)
-		if (this.hasWindowControlOverlay) {
+		if (this.hasWindowControlOverlay && !isMacintosh) {
 			win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
