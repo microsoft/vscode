@@ -25,9 +25,10 @@ import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.j
 import { InlineCompletionContext, InlineCompletionTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
+import { OffsetEdits } from '../../../../common/model/textModelOffsetEdit.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
-import { IModelContentChange, IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
+import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
@@ -307,13 +308,13 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 
 	private _lastEdit: OffsetEdit | undefined; // helper as derivedHandleChanges can not access previous value
 
-	private readonly _updatedEdit = derivedHandleChanges<OffsetEdit | undefined | null, IModelContentChangedEvent[]>({
+	private readonly _updatedEdit = derivedHandleChanges<OffsetEdit | undefined | null, OffsetEdit[]>({
 		owner: this,
 		equalityComparer: equalsIfDefined(itemEquals()),
-		createEmptyChangeSummary: () => [] as IModelContentChangedEvent[],
+		createEmptyChangeSummary: () => [] as OffsetEdit[],
 		handleChange: (context, changeSummary) => {
 			if (context.didChange(this._modelVersion) && context.change) {
-				changeSummary.push(context.change);
+				changeSummary.push(OffsetEdits.fromContentChanges(context.change.changes));
 			}
 			return true;
 		}
@@ -409,14 +410,14 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 		);
 	}
 
-	public applyTextModelChanges(e: IModelContentChangedEvent, offsetEdit: OffsetEdit | undefined): OffsetEdit | undefined {
+	public applyTextModelChanges(textModelChanges: OffsetEdit, offsetEdit: OffsetEdit | undefined): OffsetEdit | undefined {
 		this._lastChangePartOfInlineEdit = false;
 
 		if (!offsetEdit) {
 			return;
 		}
 
-		const potentialEditUpdates = offsetEdit.edits.map(edit => applyChangesToInnerEdit(edit, e.changes));
+		const potentialEditUpdates = offsetEdit.edits.map(edit => applyChangesToInnerEdit(edit, textModelChanges));
 		if (potentialEditUpdates.some(editUpdate => editUpdate === undefined)) {
 			return undefined; // change collided with one of our edits, so we will have to drop the completion
 		}
@@ -440,38 +441,39 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 		this._lastChangePartOfInlineEdit = changePartiallyAcceptsEdit;
 		return new OffsetEdit(newEdits);
 
-		function applyChangesToInnerEdit(edit: SingleOffsetEdit, changes: readonly IModelContentChange[]): { edit: SingleOffsetEdit; accepted?: 'partially' | 'fully' } | undefined {
+		function applyChangesToInnerEdit(edit: SingleOffsetEdit, textModelChanges: OffsetEdit): { edit: SingleOffsetEdit; accepted?: 'partially' | 'fully' } | undefined {
 			let start = edit.replaceRange.start;
 			let end = edit.replaceRange.endExclusive;
 			let newText = edit.newText;
 			let accepted: 'partially' | 'fully' | undefined;
-			for (let i = changes.length - 1; i >= 0; i--) {
-				const change = changes[i];
 
-				if (edit.replaceRange.isEmpty && change.rangeLength === 0 && change.rangeOffset === start && newText.startsWith(change.text)) {
+			for (let i = textModelChanges.edits.length - 1; i >= 0; i--) {
+				const change = textModelChanges.edits[i];
+
+				if (edit.replaceRange.isEmpty && change.replaceRange.length === 0 && change.replaceRange.start === start && newText.startsWith(change.newText)) {
 					// Edit is an insertion: user inserted text at the start of the completion
-					start += change.text.length;
+					start += change.newText.length;
 					end = Math.max(start, end);
-					newText = newText.substring(change.text.length);
+					newText = newText.substring(change.newText.length);
 					accepted = newText.length === 0 ? 'fully' : 'partially';
 					continue;
 				}
 
-				if (!edit.replaceRange.isEmpty && change.text.length === 0 && change.rangeOffset >= start && change.rangeOffset + change.rangeLength <= end) {
+				if (!edit.replaceRange.isEmpty && change.newText.length === 0 && change.replaceRange.start >= start && change.replaceRange.endExclusive <= end) {
 					// Edit is a deletion: user deleted text inside the deletion range
-					end -= change.rangeLength;
+					end -= change.replaceRange.length;
 					accepted = start === end ? 'fully' : 'partially';
 					continue;
 				}
 
-				if (change.rangeOffset > end) {
+				if (change.replaceRange.start > end) {
 					// the change happens after the completion range
 					continue;
 				}
-				if (change.rangeOffset + change.rangeLength < start) {
+				if (change.replaceRange.endExclusive < start) {
 					// the change happens before the completion range
-					start += change.text.length - change.rangeLength;
-					end += change.text.length - change.rangeLength;
+					start += change.newText.length - change.replaceRange.length;
+					end += change.newText.length - change.replaceRange.length;
 					continue;
 				}
 
