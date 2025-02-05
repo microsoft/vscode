@@ -2759,7 +2759,7 @@ export class Repository {
 				return {
 					type: RefType.Head,
 					name: branchName,
-					upstream: upstream ? {
+					upstream: upstream !== '' && status !== '[gone]' ? {
 						name: upstreamRef ? upstreamRef.substring(11) : upstream.substring(index + 1),
 						remote: remoteName ? remoteName : upstream.substring(0, index)
 					} : undefined,
