@@ -290,7 +290,12 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		x ??= this.getStoredXPosition();
 		y ??= this.getStoredYPosition();
 
+		const xMin = 0;
+		// Our max is the entire window minus the width of the toolbar so it doesn't go off screen.
+		// Divide by 2 since the toolbar's zero point is in the middle.
+		const xMax = 1 - this.$el.clientWidth / this.layoutService.activeContainerDimension.width / 2;
 		const [yMin, yMax] = this.yRange;
+		x = Math.max(xMin, Math.min(x, xMax));
 		y = Math.max(yMin, Math.min(y, yMax));
 		this.$el.style.setProperty('--x-position', `${x}`);
 		this.$el.style.setProperty('--y-position', `${y}px`);
