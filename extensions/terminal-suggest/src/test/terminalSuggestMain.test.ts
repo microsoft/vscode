@@ -20,6 +20,7 @@ import { rmdirTestSuiteSpec } from './completions/upstream/rmdir.test';
 import { touchTestSuiteSpec } from './completions/upstream/touch.test';
 import { osIsWindows } from '../helpers/os';
 import codeCompletionSpec from '../completions/code';
+import { figGenericTestSuites } from './fig.test';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -33,6 +34,8 @@ const testSpecs2: ISuiteSpec[] = [
 			{ input: 'fakecommand |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		]
 	},
+
+	...figGenericTestSuites,
 
 	// completions/
 	cdTestSuite,
