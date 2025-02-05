@@ -262,7 +262,7 @@ suite('TextModelPromptParser', () => {
 
 		assert.strictEqual(
 			test.parser.toString(),
-			`text-model-prompt:${modelUri}`,
+			`text-model-prompt:${modelUri.path}`,
 			'The parser should provide correct `toString()` implementation.',
 		);
 	});
