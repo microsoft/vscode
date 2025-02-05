@@ -6,9 +6,9 @@
 import assert from 'assert';
 import { randomInt } from '../../../../../../base/common/numbers.js';
 import { PromptFilesConfig } from '../../../common/promptSyntax/config.js';
+import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 
 /**
  * Mocked mocked instance of {@link IConfigurationService}.
@@ -190,274 +190,286 @@ suite('PromptFilesConfig', () => {
 			);
 		});
 
-		test('array', () => {
-			// empty array
-			assert.deepStrictEqual(
-				PromptFilesConfig.getValue(createMock([])),
-				[],
-				'Must read correct value.',
-			);
+		suite('array', () => {
+			test('empty', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.getValue(createMock([])),
+					[],
+					'Must read correct value.',
+				);
+			});
 
-			// valid strings
-			assert.deepStrictEqual(
-				PromptFilesConfig.getValue(createMock([
-					'/absolute/path/to/folder',
-					'./relative-path/to/folder',
-					'.github/prompts',
-					'/abs/path/to/file.prompt.md',
-				])),
-				[
-					'/absolute/path/to/folder',
-					'./relative-path/to/folder',
-					'.github/prompts',
-					'/abs/path/to/file.prompt.md',
-				],
-				'Must read correct value.',
-			);
-
-			// filters out not valid string values
-			assert.deepStrictEqual(
-				PromptFilesConfig.getValue(createMock([
-					'/usr/local/bin/.hidden-tool',
-					'../config/.env.example',
+			test('valid strings', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.getValue(createMock([
+						'/absolute/path/to/folder',
+						'./relative-path/to/folder',
+						'.github/prompts',
+						'/abs/path/to/file.prompt.md',
+					])),
 					[
-						'test',
-						randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/absolute/path/to/folder',
+						'./relative-path/to/folder',
+						'.github/prompts',
+						'/abs/path/to/file.prompt.md',
 					],
-					'',
-					'./scripts/build.sh',
-					randomBoolean(),
-					'/home/user/Documents/report.v1.pdf',
-					'tmp/.cache/.session.lock',
-					'/var/log/backup.2025-02-05.log',
-					{
-						'key1': randomBoolean(),
-						'key2': 'value2',
-					},
-					'../.git/hooks/pre-commit.sample',
-					randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-					'\t\t',
-					'/opt/app/data/config.yaml',
-					'./.config/subfolder.file',
-					undefined,
-					'/usr/share/man/man1/bash.1',
-					null,
-				])),
-				[
-					'/usr/local/bin/.hidden-tool',
-					'../config/.env.example',
-					'./scripts/build.sh',
-					'/home/user/Documents/report.v1.pdf',
-					'tmp/.cache/.session.lock',
-					'/var/log/backup.2025-02-05.log',
-					'../.git/hooks/pre-commit.sample',
-					'/opt/app/data/config.yaml',
-					'./.config/subfolder.file',
-					'/usr/share/man/man1/bash.1',
-				],
-				'Must read correct value.',
-			);
+					'Must read correct value.',
+				);
+			});
 
-			// only invalid values
-			assert.deepStrictEqual(
-				PromptFilesConfig.getValue(createMock([
-					null,
-					undefined,
-					'',
-					'  ',
-					'\t',
-					'\v',
-					'\f',
-					'\n',
-					'\r\n',
-					{
-						'some-key': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-						'another-key': randomBoolean(),
-						'one_more_key': '../relative/path.to.file',
-					},
-					[randomBoolean(), randomBoolean()],
-					randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-				])),
-				[],
-				'Must read correct value.',
-			);
+			test('filters out not valid string values', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.getValue(createMock([
+						'/usr/local/bin/.hidden-tool',
+						'../config/.env.example',
+						[
+							'test',
+							randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						],
+						'',
+						'./scripts/build.sh',
+						randomBoolean(),
+						'/home/user/Documents/report.v1.pdf',
+						'tmp/.cache/.session.lock',
+						'/var/log/backup.2025-02-05.log',
+						{
+							'key1': randomBoolean(),
+							'key2': 'value2',
+						},
+						'../.git/hooks/pre-commit.sample',
+						randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'\t\t',
+						'/opt/app/data/config.yaml',
+						'./.config/subfolder.file',
+						undefined,
+						'/usr/share/man/man1/bash.1',
+						null,
+					])),
+					[
+						'/usr/local/bin/.hidden-tool',
+						'../config/.env.example',
+						'./scripts/build.sh',
+						'/home/user/Documents/report.v1.pdf',
+						'tmp/.cache/.session.lock',
+						'/var/log/backup.2025-02-05.log',
+						'../.git/hooks/pre-commit.sample',
+						'/opt/app/data/config.yaml',
+						'./.config/subfolder.file',
+						'/usr/share/man/man1/bash.1',
+					],
+					'Must read correct value.',
+				);
+			});
+
+			test('only invalid values', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.getValue(createMock([
+						null,
+						undefined,
+						'',
+						'  ',
+						'\t',
+						'\v',
+						'\f',
+						'\n',
+						'\r\n',
+						{
+							'some-key': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+							'another-key': randomBoolean(),
+							'one_more_key': '../relative/path.to.file',
+						},
+						[randomBoolean(), randomBoolean()],
+						randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+					])),
+					[],
+					'Must read correct value.',
+				);
+			});
 		});
 
-		test('object', () => {
-			// empty object
-			assert.deepStrictEqual(
-				PromptFilesConfig.getValue(createMock({})),
-				[],
-				'Must read correct value.',
-			);
+		suite('object', () => {
+			test('empty', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.getValue(createMock({})),
+					[],
+					'Must read correct value.',
+				);
+			});
 
-			// only valid strings
-			assert.deepStrictEqual(
-				PromptFilesConfig.getValue(createMock({
-					'/root/.bashrc': true,
-					'../../folder/.hidden-folder/config.xml': true,
-					'/srv/www/public_html/.htaccess': true,
-					'../../another.folder/.weird_file.log': true,
-					'./folder.name/file.name': true,
-					'/media/external/backup.tar.gz': true,
-					'/media/external/.secret.backup': true,
-					'../relative/path.to.file': true,
-					'./folderName.with.dots/more.dots.extension': true,
-					'some/folder.with.dots/another.file': true,
-					'/var/logs/app.01.05.error': true,
-					'./.tempfile': true,
-				})),
-				[
-					'/root/.bashrc',
-					'../../folder/.hidden-folder/config.xml',
-					'/srv/www/public_html/.htaccess',
-					'../../another.folder/.weird_file.log',
-					'./folder.name/file.name',
-					'/media/external/backup.tar.gz',
-					'/media/external/.secret.backup',
-					'../relative/path.to.file',
-					'./folderName.with.dots/more.dots.extension',
-					'some/folder.with.dots/another.file',
-					'/var/logs/app.01.05.error',
-					'./.tempfile'
-				],
-				'Must read correct value.',
-			);
+			test('only valid strings', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.getValue(createMock({
+						'/root/.bashrc': true,
+						'../../folder/.hidden-folder/config.xml': true,
+						'/srv/www/public_html/.htaccess': true,
+						'../../another.folder/.weird_file.log': true,
+						'./folder.name/file.name': true,
+						'/media/external/backup.tar.gz': true,
+						'/media/external/.secret.backup': true,
+						'../relative/path.to.file': true,
+						'./folderName.with.dots/more.dots.extension': true,
+						'some/folder.with.dots/another.file': true,
+						'/var/logs/app.01.05.error': true,
+						'./.tempfile': true,
+					})),
+					[
+						'/root/.bashrc',
+						'../../folder/.hidden-folder/config.xml',
+						'/srv/www/public_html/.htaccess',
+						'../../another.folder/.weird_file.log',
+						'./folder.name/file.name',
+						'/media/external/backup.tar.gz',
+						'/media/external/.secret.backup',
+						'../relative/path.to.file',
+						'./folderName.with.dots/more.dots.extension',
+						'some/folder.with.dots/another.file',
+						'/var/logs/app.01.05.error',
+						'./.tempfile'
+					],
+					'Must read correct value.',
+				);
+			});
 
-			// filters out non valid entries
-			assert.deepStrictEqual(
-				PromptFilesConfig.getValue(createMock({
-					'/etc/hosts.backup': '\t\n\t',
-					'./run.tests.sh': '\v',
-					'../assets/img/logo.v2.png': true,
-					'/mnt/storage/video.archive/episode.01.mkv': false,
-					'../.local/bin/script.sh': true,
-					'/usr/local/share/.fonts/CustomFont.otf': '',
-					'../../development/branch.name/some.test': true,
-					'/home/user/.ssh/config': true,
-					'./hidden.dir/.subhidden': '\f',
-					'/tmp/.temp.folder/cache.db': true,
-					'/opt/software/v3.2.1/build.log': '  ',
-					'': true,
-					'./scripts/.old.build.sh': true,
-					'/var/data/datafile.2025-02-05.json': '\n',
-					'\n\n': true,
-					'\t': true,
-					'\v': true,
-					'\f': true,
-					'\r\n': true,
-					'\f\f': true,
-					'../lib/some_library.v1.0.1.so': '\r\n',
-					'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-				})),
-				[
-					'../assets/img/logo.v2.png',
-					'../.local/bin/script.sh',
-					'../../development/branch.name/some.test',
-					'/home/user/.ssh/config',
-					'/tmp/.temp.folder/cache.db',
-					'./scripts/.old.build.sh',
-				],
-				'Must read correct value.',
-			);
+			test('filters out non valid entries', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.getValue(createMock({
+						'/etc/hosts.backup': '\t\n\t',
+						'./run.tests.sh': '\v',
+						'../assets/img/logo.v2.png': true,
+						'/mnt/storage/video.archive/episode.01.mkv': false,
+						'../.local/bin/script.sh': true,
+						'/usr/local/share/.fonts/CustomFont.otf': '',
+						'../../development/branch.name/some.test': true,
+						'/home/user/.ssh/config': true,
+						'./hidden.dir/.subhidden': '\f',
+						'/tmp/.temp.folder/cache.db': true,
+						'/opt/software/v3.2.1/build.log': '  ',
+						'': true,
+						'./scripts/.old.build.sh': true,
+						'/var/data/datafile.2025-02-05.json': '\n',
+						'\n\n': true,
+						'\t': true,
+						'\v': true,
+						'\f': true,
+						'\r\n': true,
+						'\f\f': true,
+						'../lib/some_library.v1.0.1.so': '\r\n',
+						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+					})),
+					[
+						'../assets/img/logo.v2.png',
+						'../.local/bin/script.sh',
+						'../../development/branch.name/some.test',
+						'/home/user/.ssh/config',
+						'/tmp/.temp.folder/cache.db',
+						'./scripts/.old.build.sh',
+					],
+					'Must read correct value.',
+				);
+			});
 
-			// only invalid or false values
-			assert.deepStrictEqual(
-				PromptFilesConfig.getValue(createMock({
-					'/etc/hosts.backup': '\t\n\t',
-					'./run.tests.sh': '\v',
-					'../assets/img/logo.v2.png': '',
-					'/mnt/storage/video.archive/episode.01.mkv': false,
-					'/usr/local/share/.fonts/CustomFont.otf': '',
-					'./hidden.dir/.subhidden': '\f',
-					'/opt/software/v3.2.1/build.log': '  ',
-					'/var/data/datafile.2025-02-05.json': '\n',
-					'../lib/some_library.v1.0.1.so': '\r\n',
-					'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-				})),
-				[],
-				'Must read correct value.',
-			);
+			test('only invalid or false values', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.getValue(createMock({
+						'/etc/hosts.backup': '\t\n\t',
+						'./run.tests.sh': '\v',
+						'../assets/img/logo.v2.png': '',
+						'/mnt/storage/video.archive/episode.01.mkv': false,
+						'/usr/local/share/.fonts/CustomFont.otf': '',
+						'./hidden.dir/.subhidden': '\f',
+						'/opt/software/v3.2.1/build.log': '  ',
+						'/var/data/datafile.2025-02-05.json': '\n',
+						'../lib/some_library.v1.0.1.so': '\r\n',
+						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+					})),
+					[],
+					'Must read correct value.',
+				);
+			});
 		});
 
-		test('array immutability', () => {
-			// empty input array case
-			assert.throws(() => {
-				const value = PromptFilesConfig.getValue(createMock([]));
+		suite('array immutability', () => {
+			test('empty input array case', () => {
+				assert.throws(() => {
+					const value = PromptFilesConfig.getValue(createMock([]));
 
-				// sanity check
-				assert(
-					Array.isArray(value),
-					'Must return an array.',
-				);
+					// sanity check
+					assert(
+						Array.isArray(value),
+						'Must return an array.',
+					);
 
-				// note! we have to type case here to be able to test for immutability
-				(value as unknown as string[]).push('/usr/src/kernel/module.build');
+					// note! we have to type case here to be able to test for immutability
+					(value as unknown as string[]).push('/usr/src/kernel/module.build');
+				});
 			});
 
-			// empty result array case
-			assert.throws(() => {
-				const value = PromptFilesConfig.getValue(createMock([
-					randomBoolean(),
-					'\n\n',
-					'\v\t',
-					randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-					'   ',
-				]));
+			test('empty result array case', () => {
+				assert.throws(() => {
+					const value = PromptFilesConfig.getValue(createMock([
+						randomBoolean(),
+						'\n\n',
+						'\v\t',
+						randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'   ',
+					]));
 
-				// sanity check
-				assert(
-					Array.isArray(value),
-					'Must return an array.',
-				);
+					// sanity check
+					assert(
+						Array.isArray(value),
+						'Must return an array.',
+					);
 
-				// note! we have to type case here to be able to test for immutability
-				(value as unknown as string[]).push('../../archive/old.logs/app.10-12-2025.log');
+					// note! we have to type case here to be able to test for immutability
+					(value as unknown as string[]).push('../../archive/old.logs/app.10-12-2025.log');
+				});
 			});
 
-			// empty input object case
-			assert.throws(() => {
-				const value = PromptFilesConfig.getValue(createMock({}));
+			test('empty input object case', () => {
+				assert.throws(() => {
+					const value = PromptFilesConfig.getValue(createMock({}));
 
-				// sanity check
-				assert(
-					Array.isArray(value),
-					'Must return an array.',
-				);
+					// sanity check
+					assert(
+						Array.isArray(value),
+						'Must return an array.',
+					);
 
-				// note! we have to type case here to be able to test for immutability
-				(value as unknown as string[]).push('./local.repo/.gitignore');
+					// note! we have to type case here to be able to test for immutability
+					(value as unknown as string[]).push('./local.repo/.gitignore');
+				});
 			});
 
-			// empty result array case (object input)
-			assert.throws(() => {
-				const value = PromptFilesConfig.getValue(createMock({
-					'/etc/hostname.backup': '\t\n\t',
-					'./run.tests.bat': '\v',
-					'/mnt/storage/video.archive/episode.02.mkv': false,
-					'/usr/local/share/.fonts/CustomFont.ttf': '',
-					'./hidden.dir/.subhiddenfile': '\f',
-					'/opt/software/v3.2.1/build.log.old': '  ',
-					'': true,
-					'/var/data/datafile.2025-03-05.json': '\n',
-					'\n\n': true,
-					'\t': true,
-					'\v': true,
-					'\f': true,
-					'\r\n': true,
-					'\f\f': true,
-					'../lib/some_library.v1.0.2.so': '\r\n',
-					'/dev/shm/.shared_resource.tmp': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-				}));
+			test('empty result array case (object input)', () => {
+				assert.throws(() => {
+					const value = PromptFilesConfig.getValue(createMock({
+						'/etc/hostname.backup': '\t\n\t',
+						'./run.tests.bat': '\v',
+						'/mnt/storage/video.archive/episode.02.mkv': false,
+						'/usr/local/share/.fonts/CustomFont.ttf': '',
+						'./hidden.dir/.subhiddenfile': '\f',
+						'/opt/software/v3.2.1/build.log.old': '  ',
+						'': true,
+						'/var/data/datafile.2025-03-05.json': '\n',
+						'\n\n': true,
+						'\t': true,
+						'\v': true,
+						'\f': true,
+						'\r\n': true,
+						'\f\f': true,
+						'../lib/some_library.v1.0.2.so': '\r\n',
+						'/dev/shm/.shared_resource.tmp': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+					}));
 
-				// sanity check
-				assert(
-					Array.isArray(value),
-					'Must return an array.',
-				);
+					// sanity check
+					assert(
+						Array.isArray(value),
+						'Must return an array.',
+					);
 
-				// note! we have to type case here to be able to test for immutability
-				(value as unknown as string[]).push('/etc/systemd/system/app.service');
+					// note! we have to type case here to be able to test for immutability
+					(value as unknown as string[]).push('/etc/systemd/system/app.service');
+				});
 			});
 		});
 	});
