@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { randomInt } from '../../../../../../base/common/numbers.js';
 import { PromptFilesConfig } from '../../../common/promptSyntax/config.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 
 /**
  * Mocked mocked instance of {@link IConfigurationService}.
@@ -220,20 +222,21 @@ suite('PromptFilesConfig', () => {
 					'../config/.env.example',
 					[
 						'test',
-						24,
+						randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
 					],
 					'',
 					'./scripts/build.sh',
-					true,
+					randomBoolean(),
 					'/home/user/Documents/report.v1.pdf',
 					'tmp/.cache/.session.lock',
 					'/var/log/backup.2025-02-05.log',
 					{
-						'key1': true,
+						'key1': randomBoolean(),
 						'key2': 'value2',
 					},
 					'../.git/hooks/pre-commit.sample',
-					56,
+					randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+					'\t\t',
 					'/opt/app/data/config.yaml',
 					'./.config/subfolder.file',
 					undefined,
@@ -268,13 +271,104 @@ suite('PromptFilesConfig', () => {
 					'\n',
 					'\r\n',
 					{
-						'some-key': 89,
-						'another-key': false,
+						'some-key': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'another-key': randomBoolean(),
 						'one_more_key': '../relative/path.to.file',
 					},
-					[true, false],
-					472,
+					[randomBoolean(), randomBoolean()],
+					randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
 				])),
+				[],
+				'Must read correct value.',
+			);
+		});
+
+		test('object', () => {
+			// empty object
+			assert.deepStrictEqual(
+				PromptFilesConfig.getValue(createMock({})),
+				[],
+				'Must read correct value.',
+			);
+
+			// only valid strings
+			assert.deepStrictEqual(
+				PromptFilesConfig.getValue(createMock({
+					'/root/.bashrc': true,
+					'../../folder/.hidden-folder/config.xml': true,
+					'/srv/www/public_html/.htaccess': true,
+					'../../another.folder/.weird_file.log': true,
+					'./folder.name/file.name': true,
+					'/media/external/backup.tar.gz': true,
+					'/media/external/.secret.backup': true,
+					'../relative/path.to.file': true,
+					'./folderName.with.dots/more.dots.extension': true,
+					'some/folder.with.dots/another.file': true,
+					'/var/logs/app.01.05.error': true,
+					'./.tempfile': true,
+				})),
+				[
+					'/root/.bashrc',
+					'../../folder/.hidden-folder/config.xml',
+					'/srv/www/public_html/.htaccess',
+					'../../another.folder/.weird_file.log',
+					'./folder.name/file.name',
+					'/media/external/backup.tar.gz',
+					'/media/external/.secret.backup',
+					'../relative/path.to.file',
+					'./folderName.with.dots/more.dots.extension',
+					'some/folder.with.dots/another.file',
+					'/var/logs/app.01.05.error',
+					'./.tempfile'
+				],
+				'Must read correct value.',
+			);
+
+			// filters out non valid entries
+			assert.deepStrictEqual(
+				PromptFilesConfig.getValue(createMock({
+					'/etc/hosts.backup': '\t\n\t',
+					'./run.tests.sh': '\v',
+					'../assets/img/logo.v2.png': true,
+					'/mnt/storage/video.archive/episode.01.mkv': false,
+					'../.local/bin/script.sh': true,
+					'/usr/local/share/.fonts/CustomFont.otf': '',
+					'../../development/branch.name/some.test': true,
+					'/home/user/.ssh/config': true,
+					'./hidden.dir/.subhidden': '\f',
+					'/tmp/.temp.folder/cache.db': true,
+					'/opt/software/v3.2.1/build.log': '  ',
+					'': true,
+					'./scripts/.old.build.sh': true,
+					'/var/data/datafile.2025-02-05.json': '\n',
+					'../lib/some_library.v1.0.1.so': '\r\n',
+					'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+				})),
+				[
+					'../assets/img/logo.v2.png',
+					'../.local/bin/script.sh',
+					'../../development/branch.name/some.test',
+					'/home/user/.ssh/config',
+					'/tmp/.temp.folder/cache.db',
+					'./scripts/.old.build.sh',
+				],
+				'Must read correct value.',
+			);
+
+			// only invalid or false values
+			assert.deepStrictEqual(
+				PromptFilesConfig.getValue(createMock({
+					'/etc/hosts.backup': '\t\n\t',
+					'./run.tests.sh': '\v',
+					'../assets/img/logo.v2.png': '',
+					'/mnt/storage/video.archive/episode.01.mkv': false,
+					'/usr/local/share/.fonts/CustomFont.otf': '',
+					'./hidden.dir/.subhidden': '\f',
+					'/opt/software/v3.2.1/build.log': '  ',
+					'/var/data/datafile.2025-02-05.json': '\n',
+					'../lib/some_library.v1.0.1.so': '\r\n',
+					'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+				})),
 				[],
 				'Must read correct value.',
 			);
