@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mockFolder } from './testUtils/mockFolder.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { MockFilesystem } from './testUtils/mockFilesystem.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -98,13 +98,10 @@ class TestPromptFileReference extends Disposable {
 	 */
 	public async run() {
 		// create the files structure on the disk
-		await mockFolder(
-			this.fileStructure,
-			this.fileService,
-		);
+		await (this.initService.createInstance(MockFilesystem, this.fileStructure)).mock();
 
 		// randomly test with and without delay to ensure that the file
-		// reference resolution is not suseptible to race conditions
+		// reference resolution is not susceptible to race conditions
 		if (randomBoolean()) {
 			await waitRandom(5);
 		}
