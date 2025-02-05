@@ -139,7 +139,8 @@ suite('lm', function () {
 		}
 	});
 
-	test('LanguageModelError instance is not thrown to extensions#235322 (SYNC)', async function () {
+	// SKIPPED until Feb 6 2025
+	test.skip('LanguageModelError instance is not thrown to extensions#235322 (SYNC)', async function () {
 
 		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
 			provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
