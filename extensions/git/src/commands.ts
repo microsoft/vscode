@@ -178,7 +178,7 @@ class RemoteTagDeleteItem extends RefItem {
 
 	async run(repository: Repository, remote: string): Promise<void> {
 		if (this.ref.name) {
-			await repository.deleteRemoteTag(remote, this.ref.name);
+			await repository.deleteRemoteRef(remote, this.ref.name);
 		}
 	}
 }
