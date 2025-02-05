@@ -146,6 +146,9 @@ import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService
 import { ExtensionStorageService, IExtensionStorageService } from '../platform/extensionManagement/common/extensionStorage.js';
 import { IUserDataSyncLogService } from '../platform/userDataSync/common/userDataSync.js';
 import { UserDataSyncLogService } from '../platform/userDataSync/common/userDataSyncLog.js';
+import { Registry } from '../platform/registry/common/platform.js';
+import { IInstantiationService } from '../platform/instantiation/common/instantiation.js';
+import { IWebUIService } from '../platform/webui/common/webuiService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -399,5 +402,14 @@ import './contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
 import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 import { AllowedExtensionsService } from '../platform/extensionManagement/common/allowedExtensionsService.js';
 
+// WebUI
+import './contrib/webui/browser/webui.contribution.js';
 
 //#endregion
+
+// Debug check for WebUI service
+setTimeout(() => {
+	const instantiationService = Registry.as<IInstantiationService>('instantiationService');
+	const webUIService = instantiationService.invokeFunction(accessor => accessor.get(IWebUIService));
+	console.log('[WebUI] Service availability check:', !!webUIService, 'type:', webUIService?.constructor.name);
+}, 2000);
