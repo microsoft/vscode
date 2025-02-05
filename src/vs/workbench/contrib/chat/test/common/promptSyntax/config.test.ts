@@ -39,12 +39,11 @@ const createMock = <T>(value: T): IConfigurationService => {
 	// note! it's ok to `as IConfigurationService` here, because of the runtime checks in the Proxy getter
 	return service as Pick<IConfigurationService, 'getValue'> as IConfigurationService;
 };
-
 suite('PromptFilesConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('getValue', () => {
-		test('undefined', () => {
+	suite('• getValue', () => {
+		test('• undefined', () => {
 			const configService = createMock(undefined);
 
 			assert.strictEqual(
@@ -54,7 +53,7 @@ suite('PromptFilesConfig', () => {
 			);
 		});
 
-		test('null', () => {
+		test('• null', () => {
 			const configService = createMock(null);
 
 			assert.strictEqual(
@@ -64,8 +63,8 @@ suite('PromptFilesConfig', () => {
 			);
 		});
 
-		suite('string', () => {
-			test('empty', () => {
+		suite('• string', () => {
+			test('• empty', () => {
 				assert.strictEqual(
 					PromptFilesConfig.getValue(createMock('')),
 					undefined,
@@ -109,7 +108,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('true', () => {
+			test('• true', () => {
 				assert.strictEqual(
 					PromptFilesConfig.getValue(createMock('true')),
 					true,
@@ -129,7 +128,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('false', () => {
+			test('• false', () => {
 				assert.strictEqual(
 					PromptFilesConfig.getValue(createMock('false')),
 					false,
@@ -149,7 +148,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('non-empty', () => {
+			test('• non-empty', () => {
 				assert.strictEqual(
 					PromptFilesConfig.getValue(createMock('/absolute/path/to/folder')),
 					'/absolute/path/to/folder',
@@ -176,7 +175,7 @@ suite('PromptFilesConfig', () => {
 			});
 		});
 
-		test('boolean', () => {
+		test('• boolean', () => {
 			assert.strictEqual(
 				PromptFilesConfig.getValue(createMock(true)),
 				true,
@@ -190,8 +189,8 @@ suite('PromptFilesConfig', () => {
 			);
 		});
 
-		suite('array', () => {
-			test('empty', () => {
+		suite('• array', () => {
+			test('• empty', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock([])),
 					[],
@@ -199,7 +198,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('valid strings', () => {
+			test('• valid strings', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock([
 						'/absolute/path/to/folder',
@@ -217,7 +216,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('filters out not valid string values', () => {
+			test('• filters out not valid string values', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock([
 						'/usr/local/bin/.hidden-tool',
@@ -261,7 +260,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('only invalid values', () => {
+			test('• only invalid values', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock([
 						null,
@@ -287,8 +286,8 @@ suite('PromptFilesConfig', () => {
 			});
 		});
 
-		suite('object', () => {
-			test('empty', () => {
+		suite('• object', () => {
+			test('• empty', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock({})),
 					[],
@@ -296,7 +295,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('only valid strings', () => {
+			test('• only valid strings', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock({
 						'/root/.bashrc': true,
@@ -330,7 +329,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('filters out non valid entries', () => {
+			test('• filters out non valid entries', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock({
 						'/etc/hosts.backup': '\t\n\t',
@@ -368,7 +367,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('only invalid or false values', () => {
+			test('• only invalid or false values', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock({
 						'/etc/hosts.backup': '\t\n\t',
@@ -388,8 +387,8 @@ suite('PromptFilesConfig', () => {
 			});
 		});
 
-		suite('array immutability', () => {
-			test('empty input array case', () => {
+		suite('• array immutability', () => {
+			test('• empty input array case', () => {
 				assert.throws(() => {
 					const value = PromptFilesConfig.getValue(createMock([]));
 
@@ -404,7 +403,7 @@ suite('PromptFilesConfig', () => {
 				});
 			});
 
-			test('empty result array case', () => {
+			test('• empty result array case', () => {
 				assert.throws(() => {
 					const value = PromptFilesConfig.getValue(createMock([
 						randomBoolean(),
@@ -425,7 +424,7 @@ suite('PromptFilesConfig', () => {
 				});
 			});
 
-			test('empty input object case', () => {
+			test('• empty input object case', () => {
 				assert.throws(() => {
 					const value = PromptFilesConfig.getValue(createMock({}));
 
@@ -440,7 +439,7 @@ suite('PromptFilesConfig', () => {
 				});
 			});
 
-			test('empty result array case (object input)', () => {
+			test('• empty result array case (object input)', () => {
 				assert.throws(() => {
 					const value = PromptFilesConfig.getValue(createMock({
 						'/etc/hostname.backup': '\t\n\t',
