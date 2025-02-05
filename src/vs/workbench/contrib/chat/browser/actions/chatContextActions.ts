@@ -495,7 +495,7 @@ export class AttachContextAction extends Action2 {
 				} else {
 					// file attachment
 					if (chatEditingService) {
-						chatEditingService.globalEditingSessionObs.get()?.addFileToWorkingSet(pick.resource);
+						getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(pick.resource);
 					} else {
 						toAttach.push({
 							id: this._getFileContextId({ resource: pick.resource }),
@@ -520,7 +520,7 @@ export class AttachContextAction extends Action2 {
 					const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
 					if (uri) {
 						if (chatEditingService) {
-							chatEditingService.globalEditingSessionObs.get()?.addFileToWorkingSet(uri);
+							getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(uri);
 						} else {
 							toAttach.push({
 								id: this._getFileContextId({ resource: uri }),
@@ -536,7 +536,7 @@ export class AttachContextAction extends Action2 {
 				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
 				for (const result of searchView.model.searchResult.matches()) {
 					if (chatEditingService) {
-						chatEditingService.globalEditingSessionObs.get()?.addFileToWorkingSet(result.resource);
+						getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(result.resource);
 					} else {
 						toAttach.push({
 							id: this._getFileContextId({ resource: result.resource }),
@@ -575,7 +575,7 @@ export class AttachContextAction extends Action2 {
 					}, []));
 				const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
 				for (const file of selectedFiles ?? []) {
-					chatEditingService?.globalEditingSessionObs.get()?.addFileToWorkingSet(file.value);
+					chatEditingService.getEditingSession(chatSessionId)?.addFileToWorkingSet(file.value);
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
 				const blob = await hostService.getScreenshot();
@@ -778,7 +778,7 @@ export class AttachContextAction extends Action2 {
 				});
 			}
 		} else if (context.showFilesOnly) {
-			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || chatEditingService.globalEditingSessionObs.get()?.workingSet.size)) {
+			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || (getEditingSession(chatEditingService, widget)?.workingSet.size))) {
 				quickPickItems.push({
 					kind: 'related-files',
 					id: 'related-files',
@@ -852,7 +852,7 @@ export class AttachContextAction extends Action2 {
 				// Avoid attaching the same context twice
 				const attachedContext = widget.attachmentModel.getAttachmentIDs();
 				if (chatEditingService) {
-					for (const [file, state] of chatEditingService.globalEditingSessionObs.get()?.workingSet.entries() ?? []) {
+					for (const [file, state] of getEditingSession(chatEditingService, widget)?.workingSet.entries() ?? []) {
 						if (state.state !== WorkingSetEntryState.Suggested) {
 							attachedContext.add(this._getFileContextId({ resource: file }));
 						}
@@ -1002,3 +1002,10 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 
 	// if the file selection dialog was dismissed, nothing to do
 };
+
+function getEditingSession(chatEditingService: IChatEditingService, chatWidget: IChatWidget) {
+	if (!chatWidget.viewModel?.sessionId) {
+		return;
+	}
+	return chatEditingService.getEditingSession(chatWidget.viewModel.sessionId);
+}
