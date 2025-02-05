@@ -154,7 +154,7 @@ export namespace PromptFilesConfig {
 
 		if (Array.isArray(configValue)) {
 			return configValue.filter((item) => {
-				return typeof item === 'string';
+				return typeof item === 'string' && !!item.trim();
 			});
 		}
 
