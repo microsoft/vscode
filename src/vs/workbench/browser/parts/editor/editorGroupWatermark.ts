@@ -244,69 +244,71 @@ export class EditorGroupWatermark extends Disposable {
 		// recent folders and workspaces list
 		const recentList = append(container, $('.recent-list'));
 
-		const recentlyOpened = await this.workspacesService.getRecentlyOpened();
-		const recents = recentlyOpened.workspaces
-			.filter(recent => !this.contextService.isCurrentWorkspace(
-				isRecentFolder(recent) ? recent.folderUri : recent.workspace.configPath
-			))
-			.slice(0, 6);
+		const recentlyOpenedFiles = async () => {
+			recentList.replaceChildren();
+			const recentlyOpened = await this.workspacesService.getRecentlyOpened();
+			const recents = recentlyOpened.workspaces
+				.filter(recent => !this.contextService.isCurrentWorkspace(
+					isRecentFolder(recent) ? recent.folderUri : recent.workspace.configPath
+				))
+				.slice(0, 6);
 
-		if (recents.length === 0) {
-			const noRecentsElement = append(recentList, $('.recent-item'));
-			noRecentsElement.textContent = localize('watermark.noRecents', "No Recent Folders");
-			return;
-		}
-
-		recents.forEach(recent => {
-			const itemElement = append(recentList, $('.recent-item'));
-
-			let fullPath: string;
-			let windowOpenable: IWindowOpenable;
-
-			if (isRecentFolder(recent)) {
-				windowOpenable = { folderUri: recent.folderUri };
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: Verbosity.LONG });
-			} else {
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
-				windowOpenable = { workspaceUri: recent.workspace.configPath };
+			if (recents.length === 0) {
+				const noRecentsElement = append(recentList, $('.recent-item'));
+				noRecentsElement.textContent = localize('watermark.noRecents', "No Recent Folders");
+				return;
 			}
+			recents.forEach(recent => {
+				const itemElement = append(recentList, $('.recent-item'));
 
-			const { name, parentPath } = splitRecentLabel(fullPath);
+				let fullPath: string;
+				let windowOpenable: IWindowOpenable;
 
-			itemElement.textContent = name;
-			if (parentPath) {
-				append(itemElement, $('span.spacer'));
-				const pathSpan = append(itemElement, $('span.path'));
-				pathSpan.textContent = parentPath;
-			}
-
-			itemElement.title = fullPath;
-			itemElement.style.cursor = 'pointer';
-
-			this._register(addDisposableListener(itemElement, EventType.CLICK, async (e: MouseEvent) => {
-				try {
-					e.preventDefault();
-					e.stopPropagation();
-					await this.hostService.openWindow([windowOpenable], {
-						forceNewWindow: e.ctrlKey || e.metaKey,
-						remoteAuthority: recent.remoteAuthority ?? null
-					});
-				} catch (error) {
-					console.error('Failed to open recent item:', error);
+				if (isRecentFolder(recent)) {
+					windowOpenable = { folderUri: recent.folderUri };
+					fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: Verbosity.LONG });
+				} else {
+					fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
+					windowOpenable = { workspaceUri: recent.workspace.configPath };
 				}
+				const { name, parentPath } = splitRecentLabel(fullPath);
+				itemElement.textContent = name;
+				if (parentPath) {
+					append(itemElement, $('span.spacer'));
+					const pathSpan = append(itemElement, $('span.path'));
+					pathSpan.textContent = parentPath;
+				}
+				itemElement.title = fullPath;
+				itemElement.style.cursor = 'pointer';
+				this._register(addDisposableListener(itemElement, EventType.CLICK, async (e: MouseEvent) => {
+					try {
+						e.preventDefault();
+						e.stopPropagation();
+						await this.hostService.openWindow([windowOpenable], {
+							forceNewWindow: e.ctrlKey || e.metaKey,
+							remoteAuthority: recent.remoteAuthority ?? null
+						});
+					} catch (error) {
+						console.error('Failed to open recent item:', error);
+					}
+				}));
+			})
+			// "More..." item
+			const moreItem = append(recentList, $('.more-item'));
+			moreItem.textContent = localize('watermark.more', "More...");
+			moreItem.title = localize('watermark.showMoreRecents', "Show All Recent Folders");
+			moreItem.style.cursor = 'pointer';
+			this._register(addDisposableListener(moreItem, EventType.CLICK, (e: MouseEvent) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this.commandService.executeCommand('workbench.action.openRecent');
 			}));
-		});
+		}
+		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => {
+			recentlyOpenedFiles()
+		}))
+		recentlyOpenedFiles()
 
-		// "More..." item
-		const moreItem = append(recentList, $('.more-item'));
-		moreItem.textContent = localize('watermark.more', "More...");
-		moreItem.title = localize('watermark.showMoreRecents', "Show All Recent Folders");
-		moreItem.style.cursor = 'pointer';
-		this._register(addDisposableListener(moreItem, EventType.CLICK, (e: MouseEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this.commandService.executeCommand('workbench.action.openRecent');
-		}));
 	}
 
 	private filterEntries(entries: WatermarkEntry[], shuffleEntries: boolean): WatermarkEntry[] {
