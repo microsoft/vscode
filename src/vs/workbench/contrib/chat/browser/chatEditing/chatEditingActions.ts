@@ -292,12 +292,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
-				{
-					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-					id: MenuId.EditorTitle,
-					order: 0,
-					group: 'navigation',
-				},
+
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
@@ -324,12 +319,6 @@ export class ChatEditingDiscardAllAction extends Action2 {
 			tooltip: localize('discardAllEdits', 'Discard All Edits'),
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			menu: [
-				{
-					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-					id: MenuId.EditorTitle,
-					order: 1,
-					group: 'navigation',
-				},
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
