@@ -59,10 +59,10 @@ export interface ITerminalSuggestConfiguration {
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSuggestSettingId.Enabled]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
+		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
+		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
@@ -73,19 +73,21 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			'terminal-suggest': true,
 			'pwsh-shell-integration': false,
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
 		type: 'boolean',
 		default: true,
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
 		restricted: true,
 		markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
 		type: 'boolean',
 		default: true,
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
@@ -99,6 +101,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
 		default: 'ignore',
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.BuiltinCompletions]: {
 		restricted: true,
@@ -117,7 +120,8 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		default: {
 			pwshCode: true,
 			pwshGit: true,
-		}
+		},
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {
 		restricted: true,
@@ -126,14 +130,14 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		),
 		type: 'object',
 		default: {},
-		tags: ['experimental'],
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.ShowStatusBar]: {
 		restricted: true,
 		markdownDescription: localize('suggest.showStatusBar', "Controls whether the terminal suggestions status bar should be shown."),
 		type: 'boolean',
 		default: true,
-		tags: ['experimental'],
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.CdPath]: {
 		restricted: true,
@@ -145,7 +149,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('suggest.cdPath.absolute', "Enable the feature and use absolute paths. This is useful when the shell doesn't natively support `$CDPATH`."),
 		],
 		default: 'absolute',
-		tags: ['experimental'],
+		tags: ['preview']
 	},
 };
 
