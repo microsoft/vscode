@@ -27,7 +27,14 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
  * class using different test input parameters
  */
 class TextModelPromptParserTest extends Disposable {
+	/**
+	 * Underlying text model of the parser.
+	 */
 	public readonly model: ITextModel;
+
+	/**
+	 * The parser instance.
+	 */
 	public readonly parser: TextModelPromptParser;
 
 	constructor(
@@ -243,8 +250,9 @@ suite('TextModelPromptParser', () => {
 	});
 
 	test('toString() implementation', async () => {
+		const modelUri = createURI('/Users/legomushroom/repos/prompt-snippets/README.md');
 		const test = createTest(
-			createURI('/Users/legomushroom/repos/prompt-snippets/README.md'),
+			modelUri,
 			[
 				'line1',
 				'line2',
@@ -254,7 +262,7 @@ suite('TextModelPromptParser', () => {
 
 		assert.strictEqual(
 			test.parser.toString(),
-			'text-model-prompt:/Users/legomushroom/repos/prompt-snippets/README.md',
+			`text-model-prompt:${modelUri}`,
 			'The parser should provide correct `toString()` implementation.',
 		);
 	});
