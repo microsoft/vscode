@@ -1,8 +1,3 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 // Loosely follows the following grammar:
 // terminator = ";" | "&" | "&;"
 // literal = string | ansi_c_string | raw_string | expansion | simple_expansion | word

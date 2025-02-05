@@ -1,13 +1,9 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
-import { getVersionFromVersionedSpec } from '@fig/autocomplete-helpers';
-import { splitPath } from "@aws/amazon-q-developer-cli-shared/utils";
-import { SpecLocation } from "@aws/amazon-q-developer-cli-shared/internal";
+import { getVersionFromVersionedSpec } from "@fig/autocomplete-helpers";
+import { splitPath } from "../../shared/src/utils";
+import { SpecLocation } from "../../shared/src/internal";
 import { SpecFileImport, getVersionFromFullFile } from "./loadHelpers.js";
-import { importSpecFromLocation } from './loadSpec.js';
+import { WrongDiffVersionedSpecError } from "./errors.js";
+import { importSpecFromLocation } from "./loadSpec.js";
 
 export const tryResolveSpecToSubcommand = async (
   spec: SpecFileImport,
@@ -37,7 +33,7 @@ export const tryResolveSpecToSubcommand = async (
         return result.spec;
       }
 
-      throw new Error("Invalid versioned specs file");
+      throw new WrongDiffVersionedSpecError("Invalid versioned specs file");
     }
 
     return subcommandOrDiffVersionInfo;

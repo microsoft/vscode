@@ -1,22 +1,19 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
-import logger, { Logger } from 'loglevel';
 import * as semver from 'semver';
+import logger, { Logger } from 'loglevel';
+
 import {
-	ensureTrailingSlash,
 	withTimeout,
 	exponentialBackoff,
-} from '@aws/amazon-q-developer-cli-shared/utils';
+	ensureTrailingSlash,
+} from "../../shared/src/utils";
 import {
 	executeCommand,
 	fread,
 	isInDevMode,
-} from '@aws/amazon-q-developer-cli-api-bindings-wrappers';
-import z from 'zod';
-import { MOST_USED_SPECS } from './constants.js';
+} from "../../api-bindings-wrappers/src";
+import z from "zod";
+import { MOST_USED_SPECS } from "./constants.js";
+import { LoadLocalSpecError, SpecCDNError } from "./errors.js";
 
 export type SpecFileImport =
 	| {
@@ -65,7 +62,7 @@ export async function importSpecFromFile(
 		localLogger.info(`Loading spec from ${fullPath}`);
 		const contents = await fread(fullPath);
 		if (!contents) {
-			throw new Error(`Failed to read file: ${fullPath}`);
+			throw new LoadLocalSpecError(`Failed to read file: ${fullPath}`);
 		}
 		return contents;
 	};
@@ -84,22 +81,22 @@ export async function importSpecFromFile(
 /**
  * Specs can only be loaded from non "secure" contexts, so we can't load from https
  */
-// export const canLoadSpecProtocol = () => getActiveWindow().location.protocol !== "https:";
+//TODO@meganrogge fix
+export const canLoadSpecProtocol = () => true;
 
 // TODO: this is a problem for diff-versioned specs
 export async function importFromPublicCDN<T = SpecFileImport>(
 	name: string,
 ): Promise<T> {
-	//TODO@meganrogge
-	// if (canLoadSpecProtocol()) {
-	return withTimeout(
-		20000,
-		import(
-			/* @vite-ignore */
-			`spec://localhost/${name}.js`
-		),
-	);
-	// }
+	if (canLoadSpecProtocol()) {
+		return withTimeout(
+			20000,
+			import(
+				/* @vite-ignore */
+				`spec://localhost/${name}.js`
+			),
+		);
+	}
 
 	// Total of retries in the worst case should be close to previous timeout value
 	// 500ms * 2^5 + 5 * 1000ms + 5 * 100ms = 21500ms, before the timeout was 20000ms
@@ -118,14 +115,13 @@ export async function importFromPublicCDN<T = SpecFileImport>(
 		/**/
 	}
 
-	throw new Error("Unable to load from a CDN");
+	throw new SpecCDNError("Unable to load from a CDN");
 }
 
 async function jsonFromPublicCDN(path: string): Promise<unknown> {
-	// if (canLoadSpecProtocol()) {
-	//TODO@meganrogge
-	return fetch(`spec://localhost/${path}.json`).then((res) => res.json());
-	// }
+	if (canLoadSpecProtocol()) {
+		return fetch(`spec://localhost/${path}.json`).then((res) => res.json());
+	}
 
 	return exponentialBackoff(
 		{

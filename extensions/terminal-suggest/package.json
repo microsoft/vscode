@@ -32,6 +32,7 @@
     "url": "https://github.com/microsoft/vscode.git"
   },
   "dependencies": {
-    "@withfig/autocomplete-helpers": "^0.1.0"
+    "@withfig/autocomplete-helpers": "^0.1.0",
+    "@aws/amazon-q-developer-cli-proto/fig": "^0.1.0"
   }
 }

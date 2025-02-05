@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import logger, { Logger } from 'loglevel';
-import { Settings } from '@aws/amazon-q-developer-cli-api-bindings';
+import * as Settings from '../../shared/src/settings';
 import { convertSubcommand, initializeDefault } from '@fig/autocomplete-shared';
 import {
 	withTimeout,
 	SpecLocationSource,
 	splitPath,
 	ensureTrailingSlash,
-} from '@aws/amazon-q-developer-cli-shared/utils';
+} from "../../shared/src/utils";
 import {
 	Subcommand,
 	SpecLocation,
-} from '@aws/amazon-q-developer-cli-shared/internal';
+} from "../../shared/src/internal";
 import {
 	SETTINGS,
 	getSetting,
 	executeCommand,
 	isInDevMode,
-} from '@aws/amazon-q-developer-cli-api-bindings-wrappers';
+} from "../../api-bindings-wrappers/src";
 import {
 	importFromPublicCDN,
 	publicSpecExists,
@@ -29,8 +29,10 @@ import {
 	importSpecFromFile,
 	isDiffVersionedSpec,
 	importFromLocalhost,
-} from './loadHelpers.js';
-import { tryResolveSpecToSubcommand } from './tryResolveSpecToSubcommand.js';
+} from "./loadHelpers.js";
+import { DisabledSpecError, MissingSpecError } from "./errors.js";
+import { specCache } from "./caches.js";
+import { tryResolveSpecToSubcommand } from "./tryResolveSpecToSubcommand.js";
 
 /**
  * This searches for the first directory containing a .fig/ folder in the parent directories
@@ -40,9 +42,9 @@ const searchFigFolder = async (currentDirectory: string) => {
 		return ensureTrailingSlash(
 			(
 				await executeCommand({
-					command: 'bash',
+					command: "bash",
 					args: [
-						'-c',
+						"-c",
 						`until [[ -f .fig/autocomplete/build/_shortcuts.js ]] || [[ $PWD = $HOME ]] || [[ $PWD = "/" ]]; do cd ..; done; echo $PWD`,
 					],
 					cwd: currentDirectory,
@@ -193,7 +195,7 @@ export const importSpecFromLocation = async (
 	}
 
 	if (!specFile) {
-		throw new Error("No spec found");
+		throw new MissingSpecError("No spec found");
 	}
 
 	return { specFile, resolvedLocation };
@@ -218,24 +220,24 @@ export const loadSubcommandCached = async (
 	context?: Fig.ShellContext,
 	localLogger: Logger = logger,
 ): Promise<Subcommand> => {
-	const { name } = specLocation;
-	// const path =
-	// 	specLocation.type === SpecLocationSource.LOCAL ? specLocation.path : "";
+	const { name, type: source } = specLocation;
+	const path =
+		specLocation.type === SpecLocationSource.LOCAL ? specLocation.path : "";
 
 	// Do not load completion spec for commands that are 'disabled' by user
 	const disabledSpecs =
 		<string[]>getSetting(SETTINGS.DISABLE_FOR_COMMANDS) || [];
 	if (disabledSpecs.includes(name)) {
 		localLogger.info(`Not getting path for disabled spec ${name}`);
-		throw new Error("Command requested disabled completion spec");
+		throw new DisabledSpecError("Command requested disabled completion spec");
 	}
 
-	// const key = [source, path || "", name].join(",");
+	const key = [source, path || "", name].join(",");
 	if (getSetting(SETTINGS.DEV_MODE_NPM_INVALIDATE_CACHE)) {
-		// specCache.clear();
+		specCache.clear();
 		Settings.set(SETTINGS.DEV_MODE_NPM_INVALIDATE_CACHE, false);
-		// } else if (!getSetting(SETTINGS.DEV_MODE_NPM) && specCache.has(key)) {
-		// return specCache.get(key) as Subcommand;
+	} else if (!getSetting(SETTINGS.DEV_MODE_NPM) && specCache.has(key)) {
+		return specCache.get(key) as Subcommand;
 	}
 
 	const subcommand = await withTimeout(
@@ -243,6 +245,6 @@ export const loadSubcommandCached = async (
 		loadFigSubcommand(specLocation, context, localLogger),
 	);
 	const converted = convertSubcommand(subcommand, initializeDefault);
-	// specCache.set(key, converted);
+	specCache.set(key, converted);
 	return converted;
 };

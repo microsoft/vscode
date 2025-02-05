@@ -7,10 +7,15 @@
 		],
 		"target": "es2020",
 		"module": "ES2020",
-		"moduleResolution": "bundler",
+		"moduleResolution": "node",
 		"strict": true,
 		"esModuleInterop": true,
-		"skipLibCheck": true,
+		// "skipLibCheck": true,
+		"lib": [
+			"es2018",
+			"DOM",
+			"DOM.Iterable"
+		],
 
 		// Needed to suppress warnings in upstream completions
 		"noImplicitReturns": false,
