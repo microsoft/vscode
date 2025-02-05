@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mockFolder } from './testUtils/mockFolder.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -98,9 +98,9 @@ class TestPromptFileReference extends Disposable {
 	 */
 	public async run() {
 		// create the files structure on the disk
-		await this.createFolder(
-			this.fileService,
+		await mockFolder(
 			this.fileStructure,
+			this.fileService,
 		);
 
 		// randomly test with and without delay to ensure that the file
@@ -165,36 +165,6 @@ class TestPromptFileReference extends Disposable {
 				`Received(${resolvedReferences.length}): [\n ${resolvedReferences.join('\n ')}\n]`,
 			].join('\n')
 		);
-	}
-
-	/**
-	 * Create the provided filesystem folder structure.
-	 */
-	async createFolder(
-		fileService: IFileService,
-		folder: IFolder,
-		parentFolder?: URI,
-	): Promise<void> {
-		const folderUri = parentFolder
-			? URI.joinPath(parentFolder, folder.name)
-			: URI.file(folder.name);
-
-		if (await fileService.exists(folderUri)) {
-			await fileService.del(folderUri);
-		}
-		await fileService.createFolder(folderUri);
-
-		for (const child of folder.children) {
-			const childUri = URI.joinPath(folderUri, child.name);
-			// create child file
-			if ('contents' in child) {
-				await fileService.writeFile(childUri, VSBuffer.fromString(child.contents));
-				continue;
-			}
-
-			// recursively create child filesystem structure
-			await this.createFolder(fileService, child, folderUri);
-		}
 	}
 }
 
