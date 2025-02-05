@@ -2896,12 +2896,31 @@ export class CommandCenter {
 			return;
 		}
 
-		if (historyItemRef.id === repository.historyProvider.currentHistoryItemRef?.id) {
-			window.showInformationMessage(l10n.t('The active branch cannot be deleted.'));
+		// Local branch
+		if (historyItemRef.id.startsWith('refs/heads/')) {
+			if (historyItemRef.id === repository.historyProvider.currentHistoryItemRef?.id) {
+				window.showInformationMessage(l10n.t('The active branch cannot be deleted.'));
+				return;
+			}
+
+			await this._deleteBranch(repository, undefined, historyItemRef.name, { remote: false });
+		}
+
+		// Remote branch
+		if (historyItemRef.id === repository.historyProvider.currentHistoryItemRemoteRef?.id) {
+			window.showInformationMessage(l10n.t('The remote branch of the active branch cannot be deleted.'));
 			return;
 		}
 
-		await this._deleteBranch(repository, undefined, historyItemRef.name, { remote: false });
+		const index = historyItemRef.name.indexOf('/');
+		if (index === -1) {
+			return;
+		}
+
+		const remoteName = historyItemRef.name.substring(0, index);
+		const refName = historyItemRef.name.substring(index + 1);
+
+		await this._deleteBranch(repository, remoteName, refName, { remote: true });
 	}
 
 	@command('git.deleteRemoteBranch', { repository: true })
