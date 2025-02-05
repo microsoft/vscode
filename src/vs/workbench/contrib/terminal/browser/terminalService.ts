@@ -846,7 +846,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance),
 			instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e))
 		];
-		instance.onDisposed(() => dispose(instanceDisposables));
+		this._register(instance.onDisposed(() => dispose(instanceDisposables)));
 	}
 
 	private async _addInstanceToGroup(instance: ITerminalInstance, e: IRequestAddInstanceToGroupEvent): Promise<void> {
@@ -1002,7 +1002,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Panel);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
-				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
+				this._register(instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance))
 			]);
 			this._terminalHasBeenCreated.set(true);
 			return instance;
