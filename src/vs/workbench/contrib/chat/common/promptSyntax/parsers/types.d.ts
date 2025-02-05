@@ -56,6 +56,16 @@ export interface IPromptReference extends IDisposable {
 	readonly linkRange: IRange | undefined;
 
 	/**
+	 * Text of the reference as it appears in the source.
+	 */
+	readonly text: string;
+
+	/**
+	 * Original link path as it appears in the source.
+	 */
+	readonly path: string;
+
+	/**
 	 * Whether the current reference points to a prompt snippet file.
 	 */
 	readonly isPromptSnippet: boolean;
