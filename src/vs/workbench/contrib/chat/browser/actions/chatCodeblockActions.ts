@@ -27,7 +27,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { InlineChatController, reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -575,6 +575,7 @@ export function registerChatCodeCompareBlockActions() {
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
+			const instaService = accessor.get(IInstantiationService);
 			const editorService = accessor.get(ICodeEditorService);
 
 			const item = context.edit;
@@ -601,7 +602,7 @@ export function registerChatCodeCompareBlockActions() {
 				const inlineChatController = InlineChatController.get(editorToApply);
 				if (inlineChatController) {
 					editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
-					inlineChatController.reviewEdits(textEdits, CancellationToken.None);
+					instaService.invokeFunction(reviewEdits, editorToApply, textEdits, CancellationToken.None);
 					response.setEditApplied(item, 1);
 					return true;
 				}

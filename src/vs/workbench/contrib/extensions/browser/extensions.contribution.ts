@@ -69,7 +69,7 @@ import { ExtensionsCompletionItemsProvider } from './extensionsCompletionItemsPr
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Event } from '../../../../base/common/event.js';
 import { UnsupportedExtensionsMigrationContrib } from './unsupportedExtensionsMigrationContribution.js';
-import { isLinux, isNative, isWeb } from '../../../../base/common/platform.js';
+import { isNative, isWeb } from '../../../../base/common/platform.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
@@ -263,7 +263,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensions.verifySignature', "When enabled, extensions are verified to be signed before getting installed."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
-				included: isNative && !isLinux
+				included: isNative
 			},
 			[UseUnpkgResourceApiConfigKey]: {
 				type: 'boolean',
@@ -1873,7 +1873,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.manageTrustedPublishers',
-			title: localize2('workbench.extensions.action.manageTrustedPublishers', "Manage Trusted Extensions Publishers"),
+			title: localize2('workbench.extensions.action.manageTrustedPublishers', "Manage Trusted Extension Publishers"),
 			category: EXTENSIONS_CATEGORY,
 			f1: true,
 			run: async (accessor: ServicesAccessor) => {
@@ -1888,7 +1888,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				})).sort((a, b) => a.label.localeCompare(b.label));
 				const result = await quickInputService.pick(trustedPublisherItems, {
 					canPickMany: true,
-					title: localize('trustedPublishers', "Manage Trusted Extensions Publishers"),
+					title: localize('trustedPublishers', "Manage Trusted Extension Publishers"),
 					placeHolder: localize('trustedPublishersPlaceholder', "Choose which publishers to trust"),
 				});
 				if (result) {

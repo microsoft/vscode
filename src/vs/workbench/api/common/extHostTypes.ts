@@ -1951,7 +1951,6 @@ export namespace TextEditorSelectionChangeKind {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api':
 			case TextEditorSelectionSource.PROGRAMMATIC:
 			case TextEditorSelectionSource.JUMP:
 			case TextEditorSelectionSource.NAVIGATION:
@@ -4515,16 +4514,6 @@ export class ChatResponseMarkdownWithVulnerabilitiesPart {
 
 		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
 		this.vulnerabilities = vulnerabilities;
-	}
-}
-
-export class ChatResponseDetectedParticipantPart {
-	participant: string;
-	// TODO@API validate this against statically-declared slash commands?
-	command?: vscode.ChatCommand;
-	constructor(participant: string, command?: vscode.ChatCommand) {
-		this.participant = participant;
-		this.command = command;
 	}
 }
 

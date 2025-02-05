@@ -169,7 +169,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, token, doNotRequestExtensionCompletions);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
 
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
@@ -258,6 +258,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
 	}
 
+	private _wasLastInputArrowKey(): boolean {
+		// Never request completions if the last key sequence was up or down as the user was likely
+		// navigating history
+		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/);
+	}
+
 	private _sync(promptInputState: IPromptInputModelState): void {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
@@ -268,9 +274,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
 					if (promptInputState.prefix.match(/[^\s]$/)) {
-						// Never request completions if the last key sequence was up or down as the user was likely
-						// navigating history
-						if (!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/)) {
+						if (!this._wasLastInputArrowKey()) {
 							this.requestCompletions();
 							sent = true;
 						}
@@ -289,8 +293,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					// with git branches in particular
 					this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 				) {
-					this.requestCompletions();
-					sent = true;
+					if (!this._wasLastInputArrowKey()) {
+						this.requestCompletions();
+						sent = true;
+					}
 				}
 				if (!sent) {
 					for (const provider of this._terminalCompletionService.providers) {
@@ -299,8 +305,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						}
 						for (const char of provider.triggerCharacters) {
 							if (prefix?.endsWith(char)) {
-								this.requestCompletions();
-								sent = true;
+								if (!this._wasLastInputArrowKey()) {
+									this.requestCompletions();
+									sent = true;
+								}
 								break;
 							}
 						}
@@ -322,12 +330,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		// Hide the widget if the cursor moves to the left of the initial position as the
-		// completions are no longer valid
-		// to do: get replacement length to be correct, readd this?
-		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex <= this._leadingLineContent.length) {
-			this.hideSuggestWidget();
-			return;
+		// Hide the widget if the cursor moves to the left and invalidates the completions.
+		// Originally this was to the left of the initial position that the completions were
+		// requested, but since extensions are expected to allow the client-side to filter, they are
+		// only invalidated when whitespace is encountered.
+		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
+			if (this._currentPromptInputState.cursorIndex === 0 || this._leadingLineContent[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
+				this.hideSuggestWidget();
+				return;
+			}
 		}
 
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {

@@ -56,8 +56,8 @@ import './chatAttachmentModel.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
-import { registerChatEditorActions } from './chatEditorActions.js';
-import { ChatEditorController } from './chatEditorController.js';
+import { registerChatEditorActions } from './chatEditing/chatEditingEditorActions.js';
+import { ChatEditorController } from './chatEditing/chatEditingEditorController.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
 import { ChatInputBoxContentProvider } from './chatEdinputInputContentProvider.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDecorationsRenderer.js';
@@ -80,14 +80,18 @@ import { Extensions, IConfigurationMigrationRegistry } from '../../../common/con
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from './chatQuotasService.js';
 import { ChatSetupContribution } from './chatSetup.js';
-import { ChatEditorOverlayController } from './chatEditorOverlay.js';
+import { ChatEditorOverlayController } from './chatEditing/chatEditingEditorOverlay.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
+import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
 import { PromptFilesConfig } from '../common/promptSyntax/config.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IPromptSyntaxService } from '../common/promptSyntax/service/types.js';
+import { PromptSyntaxService } from '../common/promptSyntax/service/promptSyntaxService.js';
+import { BuiltinVariablesContribution } from './variables/variables.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -232,10 +236,11 @@ class ChatAgentSettingContribution implements IWorkbenchContribution {
 		}
 
 		const expDisabledKey = ChatContextKeys.Editing.agentModeDisallowed.bindTo(contextKeyService);
-		experimentService.getTreatment<boolean>('chatAgentEnabled').then(value => {
-			if (value) {
+		experimentService.getTreatment<boolean>('chatAgentEnabled').then(enabled => {
+			if (enabled) {
 				this.registerSetting();
-			} else if (value === false) {
+				expDisabledKey.set(false);
+			} else if (enabled === false) {
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}
@@ -346,7 +351,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				}
 
 				const variables = [
-					...chatVariablesService.getVariables(ChatAgentLocation.Panel),
+					...chatVariablesService.getVariables(),
 					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
 				];
 				const variableText = variables
@@ -388,6 +393,7 @@ registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingSta
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatQuotasStatusBarEntry.ID, ChatQuotasStatusBarEntry, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(BuiltinVariablesContribution.ID, BuiltinVariablesContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.BlockRestore);
 
 registerChatActions();
@@ -428,3 +434,5 @@ registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Del
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);
+
+registerSingleton(IPromptSyntaxService, PromptSyntaxService, InstantiationType.Delayed);

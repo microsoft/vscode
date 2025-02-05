@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -64,11 +64,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return result;
 	});
 
-	get currentEditingSession(): IChatEditingSession | null {
+	get globalEditingSession(): IChatEditingSession | null {
 		return this._currentSessionObs.get();
 	}
 
-	get currentEditingSessionObs(): IObservable<IChatEditingSession | null> {
+	get globalEditingSessionObs(): IObservable<IChatEditingSession | null> {
 		return this._currentSessionObs;
 	}
 
@@ -104,15 +104,15 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IProductService productService: IProductService,
 	) {
 		super();
-		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this._currentSessionObs)));
-		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
-		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider, this._currentSessionObs)));
-		this._register(textModelService.registerTextModelContentProvider(ChatEditingSnapshotTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider, this._currentSessionObs)));
+		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this.editingSessionsObs)));
+		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver)));
+		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider)));
+		this._register(textModelService.registerTextModelContentProvider(ChatEditingSnapshotTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider)));
 
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
-			if (e.reason === 'cleared' && this._currentSessionObs.get()?.chatSessionId === e.sessionId) {
-				void this._currentSessionObs.get()?.stop();
+			if (e.reason === 'cleared') {
+				this.getEditingSession(e.sessionId)?.stop();
 			}
 		}));
 
@@ -143,7 +143,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const sessionIdToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
 		if (isString(sessionIdToRestore)) {
 			if (this._chatService.getOrRestoreSession(sessionIdToRestore)) {
-				this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
+				this._restoringEditingSession = this.startOrContinueGlobalEditingSession(sessionIdToRestore);
 				this._restoringEditingSession.finally(() => {
 					this._restoringEditingSession = undefined;
 				});
@@ -154,19 +154,13 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}
 	}
 
-	async getOrRestoreEditingSession(): Promise<IChatEditingSession | null> {
-		if (this._restoringEditingSession) {
-			await this._restoringEditingSession;
-		}
-		return this.currentEditingSessionObs.get();
-	}
-
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
+		dispose(this._adhocSessionsObs.get());
 		super.dispose();
 	}
 
-	async startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
+	async startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
 		await this._restoringEditingSession;
 
 		const session = this._currentSessionObs.get();
@@ -215,7 +209,12 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return session;
 	}
 
-	async createAdhocEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
+	getEditingSession(chatSessionId: string): IChatEditingSession | undefined {
+		return this.editingSessionsObs.get()
+			.find(candidate => candidate.chatSessionId === chatSessionId);
+	}
+
+	async createEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
 		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, false, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
 
@@ -436,15 +435,18 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 	readonly label: string = localize('chat', "Chat Editing");
 
 	private readonly _currentEntries = derived<readonly IModifiedFileEntry[]>(this, (r) => {
-		const session = this._session.read(r);
-		if (!session) {
+		const sessions = this._sessions.read(r);
+		if (!sessions) {
 			return [];
 		}
-		const state = session.state.read(r);
-		if (state === ChatEditingSessionState.Disposed) {
-			return [];
+		const result: IModifiedFileEntry[] = [];
+		for (const session of sessions) {
+			if (session.state.read(r) !== ChatEditingSessionState.Disposed) {
+				const entries = session.entries.read(r);
+				result.push(...entries);
+			}
 		}
-		return session.entries.read(r);
+		return result;
 	});
 
 	private readonly _currentlyEditingUris = derived<URI[]>(this, (r) => {
@@ -463,7 +465,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 	);
 
 	constructor(
-		private readonly _session: IObservable<IChatEditingSession | null>,
+		private readonly _sessions: IObservable<readonly IChatEditingSession[]>,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
@@ -495,8 +497,8 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	constructor(
-		private readonly _currentSession: IObservable<ChatEditingSession | null>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService
 	) { }
 
 	canHandleUri(uri: URI): boolean {
@@ -504,7 +506,12 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 	}
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
-		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, this._currentSession);
+
+		const thisSession = derived(this, r => {
+			return this._chatEditingService.editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
+		});
+
+		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession);
 	}
 }
 
@@ -534,6 +541,6 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 	};
 
 	constructor(
-		private readonly _currentSession: IObservable<ChatEditingSession | null>
+		private readonly _currentSession: IObservable<IChatEditingSession | undefined>
 	) { }
 }

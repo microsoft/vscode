@@ -44,7 +44,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const diffEdits = new TextEdit(edits);
 		const text = new TextModelText(textModel);
 
-		return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, model.primaryPosition.get(), inlineEdit.renderExplicitly, inlineEdit.commands, inlineEdit.inlineCompletion);
+		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.renderExplicitly, inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
 	constructor(
@@ -69,7 +69,6 @@ export class InlineEditWithChanges {
 	constructor(
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
-		public readonly isCollapsed: boolean,
 		public readonly cursorPosition: Position,
 		public readonly userJumpedToIt: boolean,
 		public readonly commands: readonly Command[],
@@ -80,7 +79,6 @@ export class InlineEditWithChanges {
 	equals(other: InlineEditWithChanges) {
 		return this.originalText.getValue() === other.originalText.getValue() &&
 			this.edit.equals(other.edit) &&
-			this.isCollapsed === other.isCollapsed &&
 			this.cursorPosition.equals(other.cursorPosition) &&
 			this.userJumpedToIt === other.userJumpedToIt &&
 			this.commands === other.commands &&

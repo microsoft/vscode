@@ -51,8 +51,7 @@ import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
-import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
+import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
@@ -496,7 +495,7 @@ export class AttachContextAction extends Action2 {
 				} else {
 					// file attachment
 					if (chatEditingService) {
-						chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(pick.resource);
+						getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(pick.resource);
 					} else {
 						toAttach.push({
 							id: this._getFileContextId({ resource: pick.resource }),
@@ -521,7 +520,7 @@ export class AttachContextAction extends Action2 {
 					const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
 					if (uri) {
 						if (chatEditingService) {
-							chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(uri);
+							getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(uri);
 						} else {
 							toAttach.push({
 								id: this._getFileContextId({ resource: uri }),
@@ -537,7 +536,7 @@ export class AttachContextAction extends Action2 {
 				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
 				for (const result of searchView.model.searchResult.matches()) {
 					if (chatEditingService) {
-						chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(result.resource);
+						getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(result.resource);
 					} else {
 						toAttach.push({
 							id: this._getFileContextId({ resource: result.resource }),
@@ -576,7 +575,7 @@ export class AttachContextAction extends Action2 {
 					}, []));
 				const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
 				for (const file of selectedFiles ?? []) {
-					chatEditingService?.currentEditingSessionObs.get()?.addFileToWorkingSet(file.value);
+					chatEditingService.getEditingSession(chatSessionId)?.addFileToWorkingSet(file.value);
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
 				const blob = await hostService.getScreenshot();
@@ -678,7 +677,7 @@ export class AttachContextAction extends Action2 {
 		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
 		if (!context || !context.showFilesOnly) {
-			for (const variable of chatVariablesService.getVariables(widget.location)) {
+			for (const variable of chatVariablesService.getVariables()) {
 				if (variable.fullName && (!variable.isSlow || slowSupported)) {
 					quickPickItems.push({
 						kind: 'variable',
@@ -779,7 +778,7 @@ export class AttachContextAction extends Action2 {
 				});
 			}
 		} else if (context.showFilesOnly) {
-			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || chatEditingService.currentEditingSessionObs.get()?.workingSet.size)) {
+			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || (getEditingSession(chatEditingService, widget)?.workingSet.size))) {
 				quickPickItems.push({
 					kind: 'related-files',
 					id: 'related-files',
@@ -853,7 +852,7 @@ export class AttachContextAction extends Action2 {
 				// Avoid attaching the same context twice
 				const attachedContext = widget.attachmentModel.getAttachmentIDs();
 				if (chatEditingService) {
-					for (const [file, state] of chatEditingService.currentEditingSessionObs.get()?.workingSet.entries() ?? []) {
+					for (const [file, state] of getEditingSession(chatEditingService, widget)?.workingSet.entries() ?? []) {
 						if (state.state !== WorkingSetEntryState.Suggested) {
 							attachedContext.add(this._getFileContextId({ resource: file }));
 						}
@@ -949,7 +948,7 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 		.then((files) => {
 			return files.map((file) => {
 				const fileBasename = basename(file);
-				const fileWithoutExtension = fileBasename.replace(PROMPT_SNIPPET_FILE_EXTENSION, '');
+				const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
 				const result: IQuickPickItem & { value: URI } = {
 					type: 'item',
 					label: fileWithoutExtension,
@@ -967,10 +966,10 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 	if (files.length === 0) {
 		const docsQuickPick: IQuickPickItem & { value: URI } = {
 			type: 'item',
-			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how create reusable prompts'),
-			description: PromptFilesConfig.DOCUMENTATION_URL,
-			tooltip: PromptFilesConfig.DOCUMENTATION_URL,
-			value: URI.parse(PromptFilesConfig.DOCUMENTATION_URL),
+			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how to create reusable prompts'),
+			description: DOCUMENTATION_URL,
+			tooltip: DOCUMENTATION_URL,
+			value: URI.parse(DOCUMENTATION_URL),
 		};
 
 		const result = await quickInputService.pick(
@@ -1003,3 +1002,10 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 
 	// if the file selection dialog was dismissed, nothing to do
 };
+
+function getEditingSession(chatEditingService: IChatEditingService, chatWidget: IChatWidget) {
+	if (!chatWidget.viewModel?.sessionId) {
+		return;
+	}
+	return chatEditingService.getEditingSession(chatWidget.viewModel.sessionId);
+}

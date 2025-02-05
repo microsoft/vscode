@@ -17,13 +17,6 @@ declare module 'vscode' {
 		readonly description: string;
 	}
 
-	export class ChatResponseDetectedParticipantPart {
-		participant: string;
-		// TODO@API validate this against statically-declared slash commands?
-		command?: ChatCommand;
-		constructor(participant: string, command?: ChatCommand);
-	}
-
 	export interface ChatVulnerability {
 		title: string;
 		description: string;
@@ -77,7 +70,7 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -175,8 +168,7 @@ declare module 'vscode' {
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri): void;
-		detectedParticipant(participant: string, command?: ChatCommand): void;
-		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
+		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
 		/**
 		 * Show an inline message in the chat view asking the user to confirm an action.
