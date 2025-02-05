@@ -9,7 +9,7 @@ import { basename } from 'path';
 import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
 import { getTokenType } from '../tokens';
 import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
-import { codeTestSuite } from './completions/code.test';
+import { codeSpecOptions, codeTestSuite } from './completions/code.test';
 import { testPaths, type ISuiteSpec } from './helpers';
 import { codeInsidersTestSuite } from './completions/code-insiders.test';
 import { lsTestSuiteSpec } from './completions/upstream/ls.test';
@@ -18,6 +18,8 @@ import { mkdirTestSuiteSpec } from './completions/upstream/mkdir.test';
 import { rmTestSuiteSpec } from './completions/upstream/rm.test';
 import { rmdirTestSuiteSpec } from './completions/upstream/rmdir.test';
 import { touchTestSuiteSpec } from './completions/upstream/touch.test';
+import { osIsWindows } from '../helpers/os';
+import codeCompletionSpec from '../completions/code';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -45,6 +47,26 @@ const testSpecs2: ISuiteSpec[] = [
 	rmdirTestSuiteSpec,
 	touchTestSuiteSpec,
 ];
+
+if (osIsWindows()) {
+	testSpecs2.push({
+		name: 'Handle options extensions on Windows',
+		completionSpecs: [codeCompletionSpec],
+		availableCommands: [
+			'code.bat',
+			'code.cmd',
+			'code.exe',
+			'code.anything',
+		],
+		testSpecs: [
+			{ input: 'code |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.bat |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.cmd |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.exe |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'code.anything |', expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		]
+	});
+}
 
 suite('Terminal Suggest', () => {
 	for (const suiteSpec of testSpecs2) {

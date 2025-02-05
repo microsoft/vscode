@@ -7,8 +7,9 @@ import 'mocha';
 import codeCompletionSpec from '../../completions/code';
 import { testPaths, type ISuiteSpec, type ITestSpec } from '../helpers';
 
+export const codeSpecOptions = ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'];
+
 export function createCodeTestSpecs(executable: string): ITestSpec[] {
-	const codeOptions = ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'];
 	const localeOptions = ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'];
 	const categoryOptions = ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'];
 	const logOptions = ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'];
@@ -25,7 +26,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		...typingTests,
 
 		// Basic arguments
-		{ input: `${executable} |`, expectedCompletions: codeOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} |`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --locale |`, expectedCompletions: localeOptions },
 		{ input: `${executable} --diff |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} --diff ./file1 |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
@@ -40,13 +41,13 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --sync |`, expectedCompletions: syncOptions },
 		{ input: `${executable} --extensions-dir |`, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: `${executable} --list-extensions |`, expectedCompletions: codeOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: `${executable} --show-versions |`, expectedCompletions: codeOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} --list-extensions |`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} --show-versions |`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
 		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions.filter(c => c.startsWith('a')) },
 
 		// Middle of command
-		{ input: `${executable} | --locale`, expectedCompletions: codeOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} | --locale`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 	];
 }
 
