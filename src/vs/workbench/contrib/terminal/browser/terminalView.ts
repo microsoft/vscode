@@ -127,11 +127,11 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}));
 		this._register(this._terminalService.onDidCreateInstance((i) => {
-			i.capabilities.onDidAddCapabilityType(c => {
+			this._register(i.capabilities.onDidAddCapabilityType(c => {
 				if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
 					this._parentDomElement?.classList.add('shell-integration');
 				}
-			});
+			}));
 		}));
 	}
 
