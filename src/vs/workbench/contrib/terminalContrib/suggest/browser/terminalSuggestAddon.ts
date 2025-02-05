@@ -258,6 +258,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
 	}
 
+	private _wasLastInputArrowKey(): boolean {
+		// Never request completions if the last key sequence was up or down as the user was likely
+		// navigating history
+		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/);
+	}
+
 	private _sync(promptInputState: IPromptInputModelState): void {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
@@ -268,9 +274,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
 					if (promptInputState.prefix.match(/[^\s]$/)) {
-						// Never request completions if the last key sequence was up or down as the user was likely
-						// navigating history
-						if (!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/)) {
+						if (!this._wasLastInputArrowKey()) {
 							this.requestCompletions();
 							sent = true;
 						}
@@ -289,8 +293,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					// with git branches in particular
 					this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 				) {
-					this.requestCompletions();
-					sent = true;
+					if (!this._wasLastInputArrowKey()) {
+						this.requestCompletions();
+						sent = true;
+					}
 				}
 				if (!sent) {
 					for (const provider of this._terminalCompletionService.providers) {
@@ -299,8 +305,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						}
 						for (const char of provider.triggerCharacters) {
 							if (prefix?.endsWith(char)) {
-								this.requestCompletions();
-								sent = true;
+								if (!this._wasLastInputArrowKey()) {
+									this.requestCompletions();
+									sent = true;
+								}
 								break;
 							}
 						}
