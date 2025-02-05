@@ -183,7 +183,7 @@ export abstract class Command {
  *
  * @return `true` or a Promise if the command was successfully run. This stops other overrides from being executed.
  */
-export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
+export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<boolean | void>;
 
 interface ICommandImplementationRegistration {
 	priority: number;
@@ -214,7 +214,7 @@ export class MultiCommand extends Command {
 		};
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+	public async runCommand(accessor: ServicesAccessor, args: any): Promise<void> {
 		const logService = accessor.get(ILogService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
@@ -227,12 +227,17 @@ export class MultiCommand extends Command {
 				}
 			}
 			const result = impl.implementation(accessor, args);
-			if (result) {
+			if (result === false) {
+				continue;
+			}
+			const resolvedResult = await result;
+			if (resolvedResult === false) {
+				continue;
+			} else if (resolvedResult === true) {
 				logService.trace(`Command '${this.id}' was handled by '${impl.name}'.`);
-				if (typeof result === 'boolean') {
-					return;
-				}
-				return result;
+				return;
+			} else {
+				return Promise.resolve();
 			}
 		}
 		logService.trace(`The Command '${this.id}' was not handled by any implementation.`);

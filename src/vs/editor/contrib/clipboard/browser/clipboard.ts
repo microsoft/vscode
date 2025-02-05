@@ -178,7 +178,6 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 			return;
 		}
 
-		// When copying with syntax highlighting, need to have the editor focused
 		CopyOptions.forceCopyWithSyntaxHighlighting = true;
 		editor.focus();
 		editor.getContainerDomNode().ownerDocument.execCommand('copy');
@@ -187,35 +186,27 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 }
 
 function registerExecCommandImpl(target: MultiCommand | undefined, browserCommand: 'cut' | 'copy'): void {
-	console.log('registerExecCommandImpl');
 	if (!target) {
 		return;
 	}
 
 	// 1. handle case when focus is in editor.
 	target.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
-		console.log('addImplementation : ', browserCommand);
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
-			// TODO: get copyPasteController, write all of the relevant data into the clipboard service using clipboard.write
 			// Do not execute if there is no selection and empty selection clipboard is off
 			const emptySelectionClipboard = focusedEditor.getOption(EditorOption.emptySelectionClipboard);
 			const selection = focusedEditor.getSelection();
 			if (selection && selection.isEmpty() && !emptySelectionClipboard) {
 				return true;
 			}
-			// Suppose the experimental edit context is enabled and we'd like to execute the cut command
-			// We are not able to use the cut command
 			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
 			if (focusedEditor.getOption(EditorOption.experimentalEditContextEnabled) && browserCommand === 'cut') {
 				// execCommand(copy) works for edit context, but not execCommand(cut).
-				// do the normal copy, but trigger the cut command from the editor
-				console.log('before execCommand : copy');
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
 				focusedEditor.trigger(undefined, Handler.Cut, undefined);
 			} else {
-				console.log('before execCommand : ', browserCommand);
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
 			}
 			return true;
@@ -235,8 +226,7 @@ registerExecCommandImpl(CopyAction, 'copy');
 
 if (PasteAction) {
 	// 1. Paste: handle case when focus is in editor.
-	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
-		console.log('PasteAction.addImplementation');
+	PasteAction.addImplementation(10000, 'code-editor', async (accessor: ServicesAccessor, args: any) => {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 
@@ -246,52 +236,37 @@ if (PasteAction) {
 			// execCommand(paste) does not work with edit context
 			let result: boolean;
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
-			console.log('experimentalEditContextEnabled ', experimentalEditContextEnabled);
 			if (experimentalEditContextEnabled) {
 				// Since we can not call execCommand('paste') on a dom node with edit context set
 				// we added a hidden text area that receives the paste execution
 				// see nativeEditContext.ts for more details
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
-				// Accessing actual native edit context class
 				if (nativeEditContext) {
-					// Text area used for the purpose of pasting into it
 					const textArea = nativeEditContext.textArea;
-					// ignoring the selection change event that will be fired after the paste
 					nativeEditContext.onWillPaste();
-					// focus the text area
 					textArea.focus();
-					console.log('before exec paste of focusedEditor 1');
-					clipboardService.triggerPaste();
+					await clipboardService.triggerPaste();
 					if (textArea.domNode.textContent !== '') {
-						// We just want the event to be fired, the text content can be emptied
 						textArea.domNode.textContent = '';
 						result = true;
 					} else {
 						result = false;
 					}
-					// focus again on the native edit context
 					nativeEditContext.domNode.focus();
 				} else {
 					result = false;
 				}
 			} else {
-				// otherwise directly execute the paste command, where the original text area is focused, and so the paste command is done on the hidden text area
-				clipboardService.triggerPaste();
+				await clipboardService.triggerPaste();
 				result = true;
 			}
 			if (result) {
-				// if the result is true, so pasting worked, then finish the paste
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 			} else if (platform.isWeb) {
-				// Else if the result is false, this could be because we are on web, where execCommand is deprecated
-				// Why do we not use the clipboard service directly?
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
-					// need to call the code in copy/paste controller
 					const clipboardText = await clipboardService.readText();
 					if (clipboardText !== '') {
-						// fetching the text from the instance of the in memory clipboard metadata manager
-						// singleton
 						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
 						let pasteOnNewLine = false;
 						let multicursorText: string[] | null = null;
@@ -312,13 +287,12 @@ if (PasteAction) {
 			}
 			return true;
 		}
-		// if not focused editor, then return false
 		return false;
 	});
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
-	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-		accessor.get(IClipboardService).triggerPaste();
+	PasteAction.addImplementation(0, 'generic-dom', async (accessor: ServicesAccessor, args: any) => {
+		await accessor.get(IClipboardService).triggerPaste();
 		return true;
 	});
 }
