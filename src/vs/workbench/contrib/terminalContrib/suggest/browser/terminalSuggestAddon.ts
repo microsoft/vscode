@@ -23,7 +23,7 @@ import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
-import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
+import { LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
 import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
@@ -34,6 +34,7 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
+import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 
 export interface ISuggestController {
@@ -53,7 +54,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _mostRecentPromptInputState?: IPromptInputModelState;
 	private _currentPromptInputState?: IPromptInputModelState;
-	private _model?: SimpleCompletionModel;
+	private _model?: TerminalCompletionModel;
 
 	private _container?: HTMLElement;
 	private _screen?: HTMLElement;
@@ -245,7 +246,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const model = new SimpleCompletionModel(completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)), lineContext);
+		const model = new TerminalCompletionModel(
+			completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)),
+			lineContext
+		);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -452,7 +456,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		return fontInfo;
 	}
 
-	private _showCompletions(model: SimpleCompletionModel, explicitlyInvoked?: boolean): void {
+	private _showCompletions(model: TerminalCompletionModel, explicitlyInvoked?: boolean): void {
 		if (!this._terminal?.element) {
 			return;
 		}
@@ -673,6 +677,7 @@ class PersistedWidgetSize {
 		this._storageService.remove(this._key, StorageScope.PROFILE);
 	}
 }
+
 export function normalizePathSeparator(path: string, sep: string): string {
 	if (sep === '/') {
 		return path.replaceAll('\\', '/');
