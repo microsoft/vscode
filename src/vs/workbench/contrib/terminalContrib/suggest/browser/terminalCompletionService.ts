@@ -206,8 +206,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore): Promise<ITerminalCompletion[] | undefined> {
-		const useBackslash = resourceRequestConfig.pathSeparator === '\\';
-		if (useBackslash) {
+		const useWindowsStylePath = resourceRequestConfig.pathSeparator === '\\';
+		if (useWindowsStylePath) {
 			// for tests, make sure the right path separator is used
 			promptValue = promptValue.replaceAll(/[\\/]/g, resourceRequestConfig.pathSeparator);
 		}
@@ -229,7 +229,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
 		// they are what triggers changes in the directory.
 		let lastSlashIndex: number;
-		if (useBackslash) {
+		if (useWindowsStylePath) {
 			lastSlashIndex = Math.max(lastWord.lastIndexOf('\\'), lastWord.lastIndexOf('/'));
 		} else {
 			lastSlashIndex = lastWord.lastIndexOf(resourceRequestConfig.pathSeparator);
@@ -239,7 +239,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// this will be `./src/`. This also always ends in the path separator if it is not the empty
 		// string and path separators are normalized on Windows.
 		let lastWordFolder = lastSlashIndex === -1 ? '' : lastWord.slice(0, lastSlashIndex + 1);
-		if (useBackslash) {
+		if (useWindowsStylePath) {
 			lastWordFolder = lastWordFolder.replaceAll('/', '\\');
 		}
 
@@ -266,7 +266,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		// Handle absolute paths differently to avoid adding `./` prefixes
 		// TODO: Deal with git bash case
-		const isAbsolutePath = useBackslash
+		const isAbsolutePath = useWindowsStylePath
 			? /^[a-zA-Z]:[\\\/]/.test(lastWord)
 			: lastWord.startsWith(resourceRequestConfig.pathSeparator);
 
@@ -394,7 +394,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 				// Normalize path separator to `\` on Windows. It should act the exact same as `/` but
 				// suggestions should all use `\`
-				if (useBackslash) {
+				if (useWindowsStylePath) {
 					label = label.replaceAll('/', '\\');
 				}
 
@@ -416,7 +416,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (config === 'absolute' || config === 'relative') {
 					const cdPath = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.get('CDPATH');
 					if (cdPath) {
-						const cdPathEntries = cdPath.split(useBackslash ? ';' : ':');
+						const cdPathEntries = cdPath.split(useWindowsStylePath ? ';' : ':');
 						for (const cdPathEntry of cdPathEntries) {
 							try {
 								const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });

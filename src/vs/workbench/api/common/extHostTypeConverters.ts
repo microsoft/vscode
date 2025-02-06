@@ -58,6 +58,7 @@ import { IChatResponseTextPart, IChatResponsePromptTsxPart } from '../../contrib
 import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostTypes.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
+import { isWindows } from '../../../base/common/platform.js';
 
 export namespace Command {
 
@@ -2904,6 +2905,24 @@ export namespace TerminalQuickFix {
 			return { uri: quickFix.uri };
 		}
 		return converter.toInternal(quickFix, disposables);
+	}
+}
+
+export namespace TerminalCompletionList {
+	export function from(completionList: vscode.TerminalCompletionList, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.TerminalCompletionListDto {
+		return {
+			...completionList,
+			resourceRequestConfig: completionList.resourceRequestConfig ? TerminalResourceRequestConfig.from(completionList.resourceRequestConfig, converter, disposables) : undefined,
+		};
+	}
+}
+
+export namespace TerminalResourceRequestConfig {
+	export function from(resourceRequestConfig: vscode.TerminalResourceRequestConfig, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.TerminalResourceRequestConfigDto {
+		return {
+			...resourceRequestConfig,
+			pathSeparator: isWindows ? '\\' : '/',
+		};
 	}
 }
 
