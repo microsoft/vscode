@@ -8,8 +8,10 @@ import { IProductConfiguration } from '../../../../base/common/product.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
-import { IProcessMainService } from '../../../../platform/process/common/process.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IProcessMainService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { applyZoom } from '../../../../platform/window/electron-sandbox/window.js';
 import { BaseIssueReporterService } from '../browser/baseIssueReporterService.js';
@@ -40,9 +42,11 @@ export class IssueReporter extends BaseIssueReporterService {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueFormService issueFormService: IIssueFormService,
 		@IProcessMainService processMainService: IProcessMainService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IFileService fileService: IFileService,
+		@IFileDialogService fileDialogService: IFileDialogService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService);
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService);
 		this.processMainService = processMainService;
 		this.processMainService.$getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
@@ -90,7 +94,6 @@ export class IssueReporter extends BaseIssueReporterService {
 
 	public override async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
 		if (issueBody.length > MAX_GITHUB_API_LENGTH) {
-			console.error('Issue body is too long.');
 			return false;
 		}
 		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
