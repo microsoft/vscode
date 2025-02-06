@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
-import { TerminalCompletionService, TerminalCompletionItemKind, TerminalResourceRequestConfig, ITerminalCompletion } from '../../browser/terminalCompletionService.js';
+import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert from 'assert';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { ShellEnvDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/shellEnvDetectionCapability.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 

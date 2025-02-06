@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { SimpleCompletionItem, type ISimpleCompletion } from '../../../../../services/suggest/browser/simpleCompletionItem.js';
 import { TerminalCompletionModel } from '../../browser/terminalCompletionModel.js';
 import { LineContext } from '../../../../../services/suggest/browser/simpleCompletionModel.js';
+import { TerminalCompletionItem, type ITerminalCompletion } from '../../browser/terminalCompletionItem.js';
 
-function createItem(options: Partial<ISimpleCompletion>): SimpleCompletionItem {
-	return new SimpleCompletionItem({
+function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionItem {
+	return new TerminalCompletionItem({
 		...options,
 		label: options.label || 'defaultLabel',
 		provider: options.provider || 'defaultProvider',
@@ -18,7 +18,7 @@ function createItem(options: Partial<ISimpleCompletion>): SimpleCompletionItem {
 	});
 }
 
-function createFileItems(...labels: string[]): SimpleCompletionItem[] {
+function createFileItems(...labels: string[]): TerminalCompletionItem[] {
 	return labels.map(label => createItem({ label, isFile: true }));
 }
 
@@ -29,7 +29,7 @@ function createFileItemsModel(...labels: string[]): TerminalCompletionModel {
 	);
 }
 
-function createFolderItems(...labels: string[]): SimpleCompletionItem[] {
+function createFolderItems(...labels: string[]): TerminalCompletionItem[] {
 	return labels.map(label => createItem({ label, isDirectory: true }));
 }
 

@@ -5,19 +5,19 @@
 
 import { isWindows } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
-import type { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { SimpleCompletionModel, type LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
+import type { TerminalCompletionItem } from './terminalCompletionItem.js';
 
-export class TerminalCompletionModel extends SimpleCompletionModel {
+export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompletionItem> {
 	constructor(
-		items: SimpleCompletionItem[],
+		items: TerminalCompletionItem[],
 		lineContext: LineContext
 	) {
 		super(items, lineContext, compareCompletionsFn);
 	}
 }
 
-const compareCompletionsFn = (leadingLineContent: string, a: SimpleCompletionItem, b: SimpleCompletionItem) => {
+const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionItem, b: TerminalCompletionItem) => {
 	// Sort by the score
 	let score = b.score[0] - a.score[0];
 	if (score !== 0) {

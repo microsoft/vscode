@@ -13,24 +13,10 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
-import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
+import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
-
-export enum TerminalCompletionItemKind {
-	File = 0,
-	Folder = 1,
-	Flag = 2,
-	Method = 3,
-	Argument = 4,
-	Alias = 5,
-}
-
-export interface ITerminalCompletion extends ISimpleCompletion {
-	kind?: TerminalCompletionItemKind;
-}
-
 
 /**
  * Represents a collection of {@link CompletionItem completion items} to be presented
