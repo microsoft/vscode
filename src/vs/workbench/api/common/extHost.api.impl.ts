@@ -1454,7 +1454,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
 			},
 			registerChatParticipantDetectionProvider(provider: vscode.ChatParticipantDetectionProvider) {
-				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
 			registerRelatedFilesProvider(provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata) {
