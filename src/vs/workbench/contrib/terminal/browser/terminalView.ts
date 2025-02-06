@@ -126,13 +126,13 @@ export class TerminalViewPane extends ViewPane {
 				this._updateForShellIntegration(this._parentDomElement);
 			}
 		}));
-		this._register(this._terminalService.onDidCreateInstance((i) => {
-			this._register(i.capabilities.onDidAddCapabilityType(c => {
-				if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
-					this._parentDomElement?.classList.add('shell-integration');
-				}
-			}));
-		}));
+		const shellIntegrationDisposable = this._register(new MutableDisposable());
+		shellIntegrationDisposable.value = this._terminalService.onAnyInstanceAddedCapabilityType(c => {
+			if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
+				this._parentDomElement?.classList.add('shell-integration');
+				shellIntegrationDisposable.clear();
+			}
+		});
 	}
 
 	private _updateForShellIntegration(container: HTMLElement) {
