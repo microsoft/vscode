@@ -27,7 +27,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { localize } from '../../../../nls.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { extensionTelemetryLogChannelId, telemetryLogId } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { telemetryLogId } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { toLocalISOString } from '../../../../base/common/date.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
@@ -346,7 +346,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	canSetLogLevel(channel: IOutputChannelDescriptor): boolean {
-		return channel.log && channel.id !== telemetryLogId && channel.id !== extensionTelemetryLogChannelId;
+		return channel.log && channel.id !== telemetryLogId;
 	}
 
 	getLogLevel(channel: IOutputChannelDescriptor): LogLevel | undefined {

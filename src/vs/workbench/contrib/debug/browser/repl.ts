@@ -569,13 +569,13 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replInput.focus();
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override createActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === selectReplCommandId) {
 			const session = (this.tree ? this.tree.getInput() : undefined) ?? this.debugService.getViewModel().focusedSession;
 			return this.instantiationService.createInstance(SelectReplActionViewItem, action, session);
 		}
 
-		return super.getActionViewItem(action);
+		return super.createActionViewItem(action);
 	}
 
 	private get isMultiSessionView(): boolean {

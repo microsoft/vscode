@@ -26,11 +26,15 @@ import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpl
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
-import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
+import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
+import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
+import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -54,6 +58,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _container?: HTMLElement;
 	private _screen?: HTMLElement;
 	private _suggestWidget?: SimpleSuggestWidget;
+	private _cachedFontInfo: ISimpleSuggestWidgetFontInfo | undefined;
 	private _enableWidget: boolean = true;
 	private _pathSeparator: string = sep;
 	private _isFilteringDirectories: boolean = false;
@@ -71,6 +76,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
+	private readonly _shellTypeInit: Promise<void>;
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -78,6 +84,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
+	private readonly _onDidFontConfigurationChange = this._register(new Emitter<void>());
+	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	private _kindToIconMap = new Map<number, ThemeIcon>([
 		[TerminalCompletionItemKind.File, Codicon.file],
@@ -97,11 +105,33 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super();
 
+		// Initialize shell type, including a promise that completions can await for that resolves:
+		// - immediately if shell type
+		// - after a short delay if shell type gets set
+		// - after a long delay if it doesn't get set
 		this.shellType = shellType;
+		if (this.shellType) {
+			this._shellTypeInit = Promise.resolve();
+		} else {
+			const intervalTimer = this._register(new IntervalTimer());
+			const timeoutTimer = this._register(new TimeoutTimer());
+			this._shellTypeInit = new Promise<void>(r => {
+				intervalTimer.cancelAndSet(() => {
+					if (this.shellType) {
+						r();
+					}
+				}, 50);
+				timeoutTimer.cancelAndSet(r, 5000);
+			}).then(() => {
+				this._store.delete(intervalTimer);
+				this._store.delete(timeoutTimer);
+			});
+		}
 
 		this._register(Event.runAndSubscribe(Event.any(
 			this._capabilities.onDidAddCapabilityType,
@@ -125,6 +155,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._promptInputModel = undefined;
 			}
 		}));
+		this._register(this._terminalConfigurationService.onConfigChanged(() => this._cachedFontInfo = undefined));
 	}
 
 	activate(xterm: Terminal): void {
@@ -133,6 +164,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserData = e;
 			this._lastUserDataTimestamp = Date.now();
 		}));
+
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
@@ -146,6 +178,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
+		// Require a shell type for completions. This will wait a short period after launching to
+		// wait for the shell type to initialize. This prevents user requests sometimes getting lost
+		// if requested shortly after the terminal is created.
+		await this._shellTypeInit;
 		if (!this.shellType) {
 			return;
 		}
@@ -335,7 +371,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// requested, but since extensions are expected to allow the client-side to filter, they are
 		// only invalidated when whitespace is encountered.
 		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
-			if (this._currentPromptInputState.cursorIndex === 0 || this._leadingLineContent[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
+			if (this._currentPromptInputState.cursorIndex === 0 || this._currentPromptInputState.value[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
 				this.hideSuggestWidget();
 				return;
 			}
@@ -377,6 +413,45 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 	}
 
+	private _getFontInfo(): ISimpleSuggestWidgetFontInfo {
+		if (this._cachedFontInfo) {
+			return this._cachedFontInfo;
+		}
+
+		const core = (this._terminal as any)._core as IXtermCore;
+		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), core);
+		let lineHeight: number = font.lineHeight;
+		const fontSize: number = font.fontSize;
+		const fontFamily: string = font.fontFamily;
+		const letterSpacing: number = font.letterSpacing;
+		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
+
+		if (lineHeight <= 1) {
+			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
+		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
+			// Values too small to be line heights in pixels are in ems.
+			lineHeight = lineHeight * fontSize;
+		}
+
+		// Enforce integer, minimum constraints
+		lineHeight = Math.round(lineHeight);
+		if (lineHeight < MINIMUM_LINE_HEIGHT) {
+			lineHeight = MINIMUM_LINE_HEIGHT;
+		}
+
+		const fontInfo = {
+			fontSize,
+			lineHeight,
+			fontWeight: fontWeight.toString(),
+			letterSpacing,
+			fontFamily
+		};
+
+		this._cachedFontInfo = fontInfo;
+
+		return fontInfo;
+	}
+
 	private _showCompletions(model: SimpleCompletionModel, explicitlyInvoked?: boolean): void {
 		if (!this._terminal?.element) {
 			return;
@@ -412,6 +487,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
 					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
 				},
+				this._getFontInfo.bind(this),
+				this._onDidFontConfigurationChange.event.bind(this)
 			));
 			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
@@ -420,7 +497,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
-
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily')) {
+					this._onDidFontConfigurationChange.fire();
+				}
+			}
+			));
 			const element = this._terminal?.element?.querySelector('.xterm-helper-textarea');
 			if (element) {
 				this._register(dom.addDisposableListener(dom.getActiveDocument(), 'click', (event) => {

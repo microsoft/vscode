@@ -4,41 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mockService } from './testUtils/mock.js';
 import { randomInt } from '../../../../../../base/common/numbers.js';
 import { PromptFilesConfig } from '../../../common/promptSyntax/config.js';
 import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Mocked mocked instance of {@link IConfigurationService}.
  */
 const createMock = <T>(value: T): IConfigurationService => {
-	const service = new Proxy(
-		{},
-		{
-			get: (_target, key) => {
-				assert.strictEqual(
-					key,
-					'getValue',
-					`Mocked configuration service supports only one method: 'getValue()'.`,
-				);
+	return mockService<IConfigurationService>({
+		getValue(key?: string | IConfigurationOverrides) {
+			assert.strictEqual(
+				key,
+				PromptFilesConfig.CONFIG_KEY,
+				`Mocked service supports only one configuration key: '${PromptFilesConfig.CONFIG_KEY}'.`,
+			);
 
-				return (key: string) => {
-					assert.strictEqual(
-						key,
-						PromptFilesConfig.CONFIG_KEY,
-						`Mocked service supports only one configuration key: '${PromptFilesConfig.CONFIG_KEY}'.`,
-					);
-
-					return value;
-				};
-			},
-		});
-
-	// note! it's ok to `as IConfigurationService` here, because of the runtime checks in the Proxy getter
-	return service as Pick<IConfigurationService, 'getValue'> as IConfigurationService;
+			return value;
+		},
+	});
 };
+
 suite('PromptFilesConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 

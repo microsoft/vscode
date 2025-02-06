@@ -271,9 +271,8 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 					}
 					return c?.hasChanges;
 				});
-				if (changedChildren.length >= 1) {
-					next = gotoNthChild(indexChangedChildren[0]);
-				} else if (changedChildren.length === 0) {
+				// If we have changes and we *had* an error, the whole node should be refreshed.
+				if ((changedChildren.length === 0) || oldCursor.currentNode.hasError) {
 					// walk up again until we get to the first one that's named as unnamed nodes can be too granular
 					while (newCursor.currentNode.parent && !newCursor.currentNode.isNamed && next) {
 						next = gotoParent();
@@ -293,6 +292,8 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 
 					changedRanges.push({ newStartPosition, newEndPosition, oldStartIndex, oldEndIndex, newNodeId: newNode.id, newStartIndex, newEndIndex: newNode.endIndex });
 					next = nextSiblingOrParentSibling();
+				} else if (changedChildren.length >= 1) {
+					next = gotoNthChild(indexChangedChildren[0]);
 				}
 			} else {
 				next = nextSiblingOrParentSibling();

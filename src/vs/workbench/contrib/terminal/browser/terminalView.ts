@@ -292,7 +292,7 @@ export class TerminalViewPane extends ViewPane {
 				}
 			}
 		}
-		return super.getActionViewItem(action, options);
+		return super.createActionViewItem(action, options);
 	}
 
 	private _getDefaultProfileName(): string {
