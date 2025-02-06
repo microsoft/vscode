@@ -43,6 +43,8 @@ export class WebviewEditor extends EditorPane {
 	private _dimension?: DOM.Dimension;
 	private _visible = false;
 	private _isDisposed = false;
+	// MEMBRANE: used for debouncing DOM changes to improve performance when toggling zen-mode
+	private _animationFrame?: number;
 
 	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
@@ -196,11 +198,18 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
-		if (!this._element?.isConnected) {
-			return;
+		// MEMBRANE: debounce DOM changes to improve performance when toggling zen-mode
+		if (this._animationFrame) {
+			$window.cancelAnimationFrame(this._animationFrame);
 		}
-		const rootContainer = this._workbenchLayoutService.getContainer($window, Parts.EDITOR_PART);
-		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
+		this._animationFrame = $window.requestAnimationFrame(() => {
+			this._animationFrame = undefined;
+			if (!this._element?.isConnected) {
+				return;
+			}
+			const rootContainer = this._workbenchLayoutService.getContainer($window, Parts.EDITOR_PART);
+			webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
+		});
 	}
 
 	private trackFocus(webview: IOverlayWebview): IDisposable {

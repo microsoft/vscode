@@ -1387,6 +1387,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const config = getZenModeConfiguration(this.configurationService);
 		const zenModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_EXIT_INFO);
 
+		// MEMBRANE: hard-coded settings when entering zen-mode for the dashboard
+		const activeEditor = this.mainPartEditorService.activeEditor;
+		if (activeEditor?.editorId === 'mainThreadWebview-membrane.dashboard') {
+			config.fullScreen = false;
+			config.centerLayout = false;
+			config.hideActivityBar = true;
+			config.showTabs = 'none';
+			config.silentNotifications = false;
+		}
+
 		// Zen Mode Active
 		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE)) {
 
@@ -1488,9 +1498,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setSideBarHidden(false, true);
 			}
 
-			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, true)) {
-				this.setActivityBarHidden(false, true);
-			}
+			// MEMBRANE: we don't use the activity bar so don't restore it
+			// if (!this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, true)) {
+			// 	this.setActivityBarHidden(false, true);
+			// }
 
 			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, true)) {
 				this.setStatusBarHidden(false, true);
