@@ -29,25 +29,29 @@ export interface IMockFolder extends IMockFilesystemNode {
 }
 
 /**
+ * TODO: @legomushroom
+ */
+type TResolved<T extends IMockFilesystemNode> = T & { uri: URI };
+
+/**
  * Utility to recursively creates provided filesystem structure.
  */
 export class MockFilesystem {
 	constructor(
-		private readonly folders: IMockFolder | IMockFolder[],
+		private readonly folders: IMockFolder[],
 		@IFileService private readonly fileService: IFileService,
 	) { }
 
 	/**
 	 * Starts the mock process.
 	 */
-	public async mock(): Promise<void> {
-		const folder = Array.isArray(this.folders)
-			? this.folders
-			: [this.folders];
-
-		for (const f of folder) {
-			await this.mockFolder(f);
-		}
+	public async mock(): Promise<TResolved<IMockFolder>[]> {
+		return await Promise.all(
+			this.folders
+				.map((folder) => {
+					return this.mockFolder(folder);
+				}),
+		);
 	}
 
 	/**
@@ -56,7 +60,7 @@ export class MockFilesystem {
 	private async mockFolder(
 		folder: IMockFolder,
 		parentFolder?: URI,
-	): Promise<void> {
+	): Promise<TResolved<IMockFolder>> {
 		const folderUri = parentFolder
 			? URI.joinPath(parentFolder, folder.name)
 			: URI.file(folder.name);
@@ -67,16 +71,28 @@ export class MockFilesystem {
 		}
 		await this.fileService.createFolder(folderUri);
 
+		const resolvedChildren: (TResolved<IMockFolder> | TResolved<IMockFile>)[] = [];
 		for (const child of folder.children) {
 			const childUri = URI.joinPath(folderUri, child.name);
 			// create child file
 			if ('contents' in child) {
 				await this.fileService.writeFile(childUri, VSBuffer.fromString(child.contents));
+
+				resolvedChildren.push({
+					...child,
+					uri: childUri,
+				});
+
 				continue;
 			}
 
 			// recursively create child filesystem structure
-			await this.mockFolder(child, folderUri);
+			resolvedChildren.push(await this.mockFolder(child, folderUri));
 		}
+
+		return {
+			...folder,
+			uri: folderUri,
+		};
 	}
 }

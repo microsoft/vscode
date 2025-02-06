@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MockFilesystem } from './testUtils/mockFilesystem.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptFileReference } from '../../../common/promptSyntax/parsers/types.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
@@ -27,27 +27,6 @@ import { ConfigurationService } from '../../../../../../platform/configuration/c
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NonPromptSnippetFile, RecursiveReference, FileOpenFailed } from '../../../common/promptFileReferenceErrors.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-
-/**
- * Represents a file system node.
- */
-interface IFilesystemNode {
-	name: string;
-}
-
-/**
- * Represents a file node.
- */
-interface IFile extends IFilesystemNode {
-	contents: string;
-}
-
-/**
- * Represents a folder node.
- */
-interface IFolder extends IFilesystemNode {
-	children: (IFolder | IFile)[];
-}
 
 /**
  * Represents a file reference with an expected
@@ -80,7 +59,7 @@ class ExpectedReference {
  */
 class TestPromptFileReference extends Disposable {
 	constructor(
-		private readonly fileStructure: IFolder,
+		private readonly fileStructure: IMockFolder[],
 		private readonly rootFileUri: URI,
 		private readonly expectedReferences: ExpectedReference[],
 		@IFileService private readonly fileService: IFileService,
@@ -221,7 +200,7 @@ suite('PromptFileReference (Unix)', function () {
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
-			{
+			[{
 				name: rootFolderName,
 				children: [
 					{
@@ -268,7 +247,7 @@ suite('PromptFileReference (Unix)', function () {
 						],
 					},
 				],
-			},
+			}],
 			/**
 			 * The root file path to start the resolve process from.
 			 */
@@ -336,7 +315,7 @@ suite('PromptFileReference (Unix)', function () {
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
-			{
+			[{
 				name: rootFolderName,
 				children: [
 					{
@@ -384,7 +363,7 @@ suite('PromptFileReference (Unix)', function () {
 						],
 					},
 				],
-			},
+			}],
 			/**
 			 * The root file path to start the resolve process from.
 			 */
