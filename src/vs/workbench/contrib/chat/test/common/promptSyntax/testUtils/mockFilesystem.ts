@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../../base/common/uri.js';
+import { assert } from '../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 
@@ -29,9 +30,9 @@ export interface IMockFolder extends IMockFilesystemNode {
 }
 
 /**
- * TODO: @legomushroom
+ * Type for a mocked file or a folder that has absolute path URI.
  */
-type TResolved<T extends IMockFilesystemNode> = T & { uri: URI };
+type TWithURI<T extends IMockFilesystemNode> = T & { uri: URI };
 
 /**
  * Utility to recursively creates provided filesystem structure.
@@ -45,7 +46,7 @@ export class MockFilesystem {
 	/**
 	 * Starts the mock process.
 	 */
-	public async mock(): Promise<TResolved<IMockFolder>[]> {
+	public async mock(): Promise<TWithURI<IMockFolder>[]> {
 		return await Promise.all(
 			this.folders
 				.map((folder) => {
@@ -56,26 +57,35 @@ export class MockFilesystem {
 
 	/**
 	 * The internal implementation of the filesystem mocking process.
+	 *
+	 * @throws If a folder or file in the filesystem structure already exists.
+	 * 		   This is to prevent subtle errors caused by overwriting existing files.
 	 */
 	private async mockFolder(
 		folder: IMockFolder,
 		parentFolder?: URI,
-	): Promise<TResolved<IMockFolder>> {
+	): Promise<TWithURI<IMockFolder>> {
 		const folderUri = parentFolder
 			? URI.joinPath(parentFolder, folder.name)
 			: URI.file(folder.name);
 
-		// TODO: @legomushroom - throw if file or folder already exists
-		if (await this.fileService.exists(folderUri)) {
-			await this.fileService.del(folderUri);
-		}
+		assert(
+			!(await this.fileService.exists(folderUri)),
+			`Folder '${folderUri.path}' already exists.`,
+		);
+
 		await this.fileService.createFolder(folderUri);
 
-		const resolvedChildren: (TResolved<IMockFolder> | TResolved<IMockFile>)[] = [];
+		const resolvedChildren: (TWithURI<IMockFolder> | TWithURI<IMockFile>)[] = [];
 		for (const child of folder.children) {
 			const childUri = URI.joinPath(folderUri, child.name);
 			// create child file
 			if ('contents' in child) {
+				assert(
+					!(await this.fileService.exists(childUri)),
+					`File '${folderUri.path}' already exists.`,
+				);
+
 				await this.fileService.writeFile(childUri, VSBuffer.fromString(child.contents));
 
 				resolvedChildren.push({
