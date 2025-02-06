@@ -616,7 +616,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	declare readonly _serviceBrand: undefined;
 
 	private readonly extensionsGalleryUrl: string | undefined;
-	private readonly extensionsGallerySearchUrl: string | undefined;
 	private readonly extensionsControlUrl: string | undefined;
 	private readonly extensionUrlTemplate: string | undefined;
 
@@ -635,9 +634,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		const config = productService.extensionsGallery;
-		const isPPEEnabled = config?.servicePPEUrl && configurationService.getValue('_extensionsGallery.enablePPE');
-		this.extensionsGalleryUrl = isPPEEnabled ? config.servicePPEUrl : config?.serviceUrl;
-		this.extensionsGallerySearchUrl = isPPEEnabled ? undefined : config?.searchUrl;
+		this.extensionsGalleryUrl = config?.serviceUrl;
 		this.extensionsControlUrl = config?.controlUrl;
 		this.extensionUrlTemplate = config?.extensionUrlTemplate;
 		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
@@ -1187,7 +1184,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		try {
 			context = await this.requestService.request({
 				type: 'POST',
-				url: this.extensionsGallerySearchUrl && query.criteria.some(c => c.filterType === FilterType.SearchText) ? this.extensionsGallerySearchUrl : this.api('/extensionquery'),
+				url: this.api('/extensionquery'),
 				data,
 				headers
 			}, token);
