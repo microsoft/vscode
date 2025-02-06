@@ -332,42 +332,6 @@
 	width: 70px;
 }
 
-/* Window Control Icons */
-.monaco-workbench .part.titlebar .window-controls-container > .window-icon {
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	height: 100%;
-	width: 46px;
-	font-size: 16px;
-	color: var(--vscode-titleBar-activeForeground);
-}
-
-.monaco-workbench .part.titlebar.inactive .window-controls-container > .window-icon {
-	color: var(--vscode-titleBar-inactiveForeground);
-}
-
-.monaco-workbench .part.titlebar .window-controls-container > .window-icon::before {
-	height: 16px;
-	line-height: 16px;
-}
-
-.monaco-workbench .part.titlebar .window-controls-container > .window-icon:hover {
-	background-color: rgba(255, 255, 255, 0.1);
-}
-
-.monaco-workbench .part.titlebar.light .window-controls-container > .window-icon:hover {
-	background-color: rgba(0, 0, 0, 0.1);
-}
-
-.monaco-workbench .part.titlebar .window-controls-container > .window-icon.window-close:hover {
-	background-color: rgba(232, 17, 35, 0.9);
-}
-
-.monaco-workbench .part.titlebar .window-controls-container .window-icon.window-close:hover {
-	color: white;
-}
-
 /* Action Tool Bar Controls */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	display: none;

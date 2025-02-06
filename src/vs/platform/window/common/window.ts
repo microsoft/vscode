@@ -164,7 +164,6 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
-	readonly experimentalControlOverlay?: boolean;
 }
 
 export interface IDensitySettings {
@@ -247,15 +246,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		return false; // only supported when title bar is custom
 	}
 
-	if (isLinux || isMacintosh) {
-		const setting = configurationService.getValue('window.experimentalControlOverlay');
-		if (typeof setting === 'boolean') {
-			return setting;
-		}
-	}
-
-	// Default to true.
-	return true;
+	return true; // default
 }
 
 export function useNativeFullScreen(configurationService: IConfigurationService): boolean {

@@ -262,21 +262,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return window?.win?.isMaximized() ?? false;
 	}
 
-	async maximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.maximize();
-	}
-
-	async unmaximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.unmaximize();
-	}
-
-	async minimizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.minimize();
-	}
-
 	async moveWindowTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.moveTop();
