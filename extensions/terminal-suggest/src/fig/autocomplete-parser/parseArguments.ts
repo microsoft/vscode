@@ -29,8 +29,8 @@ import {
 	ParsingHistoryError,
 	UpdateStateError,
 } from "./errors.js";
-import { convertSubcommand, initializeDefault } from '../autocomplete-shared';
-const { exec } = require("child_process");
+import { convertSubcommand, initializeDefault } from '../fig-autocomplete-shared';
+import { exec, type ExecException } from 'child_process';
 
 type ArgArrayState = {
 	args: Array<Internal.Arg> | null;
@@ -1107,7 +1107,7 @@ const executeLoginShell = async ({
 	executable: string;
 }): Promise<string> => {
 	return new Promise((resolve, reject) => {
-		exec(`${executable} -c "${command}"`, (error: Error, stdout: string, stderr: string) => {
+		exec(`${executable} -c "${command}"`, (error: ExecException | null, stdout: string, stderr: string) => {
 			if (error) {
 				reject(stderr);
 			} else {

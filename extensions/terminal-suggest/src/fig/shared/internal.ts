@@ -1,4 +1,4 @@
-import { Internal, Metadata } from "../autocomplete-shared";
+import { Internal, Metadata } from "../fig-autocomplete-shared";
 
 export type SpecLocation = Fig.SpecLocation & {
 	diffVersionedFile?: string;
