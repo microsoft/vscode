@@ -74,7 +74,11 @@ export class MockFilesystem {
 			`Folder '${folderUri.path}' already exists.`,
 		);
 
-		await this.fileService.createFolder(folderUri);
+		try {
+			await this.fileService.createFolder(folderUri);
+		} catch (error) {
+			throw new Error(`Failed to create folder '${folderUri.fsPath}': ${error}.`);
+		}
 
 		const resolvedChildren: (TWithURI<IMockFolder> | TWithURI<IMockFile>)[] = [];
 		for (const child of folder.children) {
