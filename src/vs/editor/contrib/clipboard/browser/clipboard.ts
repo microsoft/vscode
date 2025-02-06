@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument, getWindow } from '../../../../base/browser/dom.js';
+import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as nls from '../../../../nls.js';
@@ -18,7 +18,6 @@ import { NativeEditContextRegistry } from '../../../browser/controller/editConte
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
-import { useExperimentalEditContext } from '../../../browser/view.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Handler } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
@@ -203,7 +202,7 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 				return true;
 			}
 			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
-			if (focusedEditor.getOption(EditorOption.experimentalEditContextEnabled) && browserCommand === 'cut') {
+			if (focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled) && browserCommand === 'cut') {
 				// execCommand(copy) works for edit context, but not execCommand(cut).
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
 				focusedEditor.trigger(undefined, Handler.Cut, undefined);
@@ -236,8 +235,8 @@ if (PasteAction) {
 		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
 			let result: boolean;
-			const usingExperimentalEditContext = useExperimentalEditContext(getWindow(focusedEditor.getDomNode()), focusedEditor.getOptions());
-			if (usingExperimentalEditContext) {
+			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
+			if (experimentalEditContextEnabled) {
 				// Since we can not call execCommand('paste') on a dom node with edit context set
 				// we added a hidden text area that receives the paste execution
 				// see nativeEditContext.ts for more details

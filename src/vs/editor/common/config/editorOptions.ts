@@ -1934,6 +1934,22 @@ class EffectiveCursorStyle extends ComputedEditorOption<EditorOption.effectiveCu
 
 //#endregion
 
+//#region effectiveExperimentalEditContext
+
+class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean> {
+
+	constructor() {
+		super(EditorOption.effectiveExperimentalEditContextEnabled);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
+		const editContextSupported = typeof (globalThis as any).EditContext === 'function';
+		return editContextSupported && env.accessibilitySupport !== AccessibilitySupport.Enabled && options.get(EditorOption.experimentalEditContextEnabled);
+	}
+}
+
+//#endregion
+
 //#region fontSize
 
 class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
@@ -5586,7 +5602,8 @@ export const enum EditorOption {
 	wrappingInfo,
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
-	inlineCompletionsAccessibilityVerbose
+	inlineCompletionsAccessibilityVerbose,
+	effectiveExperimentalEditContextEnabled
 }
 
 export const EditorOptions = {
@@ -6415,7 +6432,8 @@ export const EditorOptions = {
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
-	wrappingStrategy: register(new WrappingStrategy())
+	wrappingStrategy: register(new WrappingStrategy()),
+	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled())
 };
 
 type EditorOptionsType = typeof EditorOptions;

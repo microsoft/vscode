@@ -5037,7 +5037,8 @@ declare namespace monaco.editor {
 		wrappingInfo = 152,
 		defaultColorDecorators = 153,
 		colorDecoratorsActivatedOn = 154,
-		inlineCompletionsAccessibilityVerbose = 155
+		inlineCompletionsAccessibilityVerbose = 155,
+		effectiveExperimentalEditContextEnabled = 156
 	}
 
 	export const EditorOptions: {
@@ -5197,6 +5198,7 @@ declare namespace monaco.editor {
 		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
+		effectiveExperimentalEditContextEnabled: IEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;
