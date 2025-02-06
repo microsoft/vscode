@@ -881,11 +881,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
 
 			let actualIndex: number | undefined;
-			if (targetView.contains(editor) && targetView.isSticky(editor)) {
-				// Do not configure an `index` for editors that are sticky in
-				// the target, otherwise there is a chance of losing that state
-				// when the editor is moved.
-				// See https://github.com/microsoft/vscode/issues/239549
+			if (targetView.contains(editor) &&
+				(
+					// Do not configure an `index` for editors that are sticky in
+					// the target, otherwise there is a chance of losing that state
+					// when the editor is moved.
+					// See https://github.com/microsoft/vscode/issues/239549
+					targetView.isSticky(editor) ||
+					// Do not configure an `index` when we are explicitly instructed
+					options?.preserveExistingIndex
+				)
+			) {
+				// leave `index` as `undefined`
 			} else {
 				actualIndex = index;
 				index++;
@@ -917,7 +924,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return result;
 	}
 
-	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): boolean {
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
 		const targetView = this.assertGroupView(target);
 
 		let result = true;
@@ -926,7 +933,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 				continue; // keep target
 			}
 
-			const merged = this.mergeGroup(group, targetView);
+			const merged = this.mergeGroup(group, targetView, options);
 			if (!merged) {
 				result = false;
 			}
