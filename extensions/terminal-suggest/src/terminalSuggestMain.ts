@@ -22,6 +22,7 @@ import { getFriendlyResourcePath } from './helpers/uri';
 import { ArgumentParserResult, parseArguments } from './fig/autocomplete-parser/parseArguments';
 import { getCommand } from './fig/shell-parser/command';
 import { SuggestionFlag } from './fig/shared/utils';
+import completionSpec from './completions/upstream/git';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -48,6 +49,8 @@ export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
+	// TODO@meganrogge fix, why is this not working for git
+	completionSpec
 ];
 for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
