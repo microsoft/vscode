@@ -19,8 +19,9 @@ import { getPwshGlobals } from './shell/pwsh';
 import { getTokenType, TokenType } from './tokens';
 import { PathExecutableCache } from './env/pathExecutableCache';
 import { getFriendlyResourcePath } from './helpers/uri';
-import { parseArguments } from './fig/autocomplete-parser/parseArguments';
+import { ArgumentParserResult, parseArguments } from './fig/autocomplete-parser/parseArguments';
 import { getCommand } from './fig/shell-parser/command';
+import { SuggestionFlag } from './fig/shared/utils';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -112,20 +113,10 @@ export async function activate(context: vscode.ExtensionContext) {
 					}
 				}
 			}
-			// to do figure out spec, pass that in only if it's valid
-			// replacing get options/args from spec with the parsed arguments
-			// to do: items for folders/files
-			// use suggestion flags to determine which to provide
-			const parsedArguments = await parseArguments(
-				getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition),
-				{ environmentVariables: env, currentWorkingDirectory: terminal.shellIntegration!.cwd!.fsPath, sshPrefix: '', currentProcess: terminal.name },
-				codeCompletionSpec,
-			);
-			console.log(parsedArguments);
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, shellType);
-			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, token);
+			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, env, terminal.name, token);
 			if (terminal.shellIntegration?.env) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
 				if (homeDirCompletion && terminal.shellIntegration.env.HOME) {
@@ -245,6 +236,72 @@ export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
+function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]) {
+	const addSuggestions = (parsedArguments: ArgumentParserResult, kind: vscode.TerminalCompletionItemKind) => {
+		switch (kind) {
+			case vscode.TerminalCompletionItemKind.Argument:
+				if (parsedArguments.currentArg?.suggestions) {
+					for (const item of parsedArguments.currentArg.suggestions) {
+						const suggestionLabels = getLabel(item);
+						if (!suggestionLabels) {
+							continue;
+						}
+						for (const suggestionLabel of suggestionLabels) {
+							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: suggestionLabel }, typeof item === 'string' ? item : item.description, undefined, kind));
+						}
+					}
+				}
+				break;
+			case vscode.TerminalCompletionItemKind.Flag:
+				if (parsedArguments.completionObj.options) {
+					for (const item of Object.values(parsedArguments.completionObj.options)) {
+						const suggestionLabels = getLabel(item);
+						if (!suggestionLabels) {
+							continue;
+						}
+						for (const suggestionLabel of suggestionLabels) {
+							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: suggestionLabel }, item.description, undefined, kind));
+						}
+					}
+				}
+				break;
+			case vscode.TerminalCompletionItemKind.Method: {
+				if (parsedArguments.completionObj.subcommands) {
+					for (const item of Object.values(parsedArguments.completionObj.subcommands)) {
+						const suggestionLabels = getLabel(item);
+						if (!suggestionLabels) {
+							continue;
+						}
+						for (const suggestionLabel of suggestionLabels) {
+							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: suggestionLabel }, item.description, undefined, kind));
+						}
+					}
+				}
+				break;
+			}
+		}
+	};
+
+	switch (parsedArguments.suggestionFlags) {
+		case SuggestionFlag.None:
+			break;
+		case SuggestionFlag.Args:
+			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Argument);
+			break;
+		case SuggestionFlag.Subcommands:
+			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Method);
+			break;
+		case SuggestionFlag.Options:
+			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Flag);
+			break;
+		case SuggestionFlag.Any:
+			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Method);
+			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Flag);
+			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Argument);
+			break;
+	}
+}
+
 export async function getCompletionItemsFromSpecs(
 	specs: Fig.Spec[],
 	terminalContext: { commandLine: string; cursorPosition: number },
@@ -252,6 +309,8 @@ export async function getCompletionItemsFromSpecs(
 	prefix: string,
 	tokenType: TokenType,
 	shellIntegrationCwd?: vscode.Uri,
+	env?: Record<string, string>,
+	name?: string,
 	token?: vscode.CancellationToken
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; cwd?: vscode.Uri }> {
 	const items: vscode.TerminalCompletionItem[] = [];
@@ -304,26 +363,35 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
-			if (optionsCompletionResult) {
-				items.push(...optionsCompletionResult.items);
-				filesRequested ||= optionsCompletionResult.filesRequested;
-				foldersRequested ||= optionsCompletionResult.foldersRequested;
-				specificItemsProvided ||= optionsCompletionResult.items.length > 0;
-			}
-			if (!optionsCompletionResult?.isOptionArg) {
-				const argsCompletionResult = handleArguments(specLabel, spec, terminalContext, precedingText);
-				if (argsCompletionResult) {
-					items.push(...argsCompletionResult.items);
-					filesRequested ||= argsCompletionResult.filesRequested;
-					foldersRequested ||= argsCompletionResult.foldersRequested;
-					specificItemsProvided ||= argsCompletionResult.items.length > 0;
+			// to do: items for folders/files
+			if (shellIntegrationCwd && env && name) {
+				const parsedArguments: ArgumentParserResult = await parseArguments(
+					// TODO: pass in aliases
+					getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition),
+					{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd?.fsPath, sshPrefix: '', currentProcess: name },
+					spec,
+				);
+				addSuggestionsFromParsedArguments(parsedArguments, prefix, terminalContext, items);
+			} else {
+				const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
+				if (optionsCompletionResult) {
+					items.push(...optionsCompletionResult.items);
+					filesRequested ||= optionsCompletionResult.filesRequested;
+					foldersRequested ||= optionsCompletionResult.foldersRequested;
+					specificItemsProvided ||= optionsCompletionResult.items.length > 0;
+				}
+				if (!optionsCompletionResult?.isOptionArg) {
+					const argsCompletionResult = handleArguments(specLabel, spec, terminalContext, precedingText);
+					if (argsCompletionResult) {
+						items.push(...argsCompletionResult.items);
+						filesRequested ||= argsCompletionResult.filesRequested;
+						foldersRequested ||= argsCompletionResult.foldersRequested;
+						specificItemsProvided ||= argsCompletionResult.items.length > 0;
+					}
 				}
 			}
 		}
 	}
-
-
 
 	if (tokenType === TokenType.Command) {
 		// Include builitin/available commands in the results
