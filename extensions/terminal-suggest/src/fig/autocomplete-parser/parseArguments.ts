@@ -1,13 +1,13 @@
 // import { filepaths, folders } from "@fig/autocomplete-generators";
-import codeCompletionSpec from '../../../completions/code';
-import * as Internal from "../../shared/src/internal";
+import codeCompletionSpec from '../../completions/code';
+import * as Internal from "../shared/internal";
 import {
 	firstMatchingToken,
 	makeArray,
 	SpecLocationSource,
 	SuggestionFlag,
 	SuggestionFlags,
-} from "../../shared/src/utils";
+} from "../shared/utils";
 // import {
 // 	executeCommand,
 // 	executeLoginShell,
@@ -18,7 +18,7 @@ import {
 import {
 	Command,
 	substituteAlias,
-} from "../../shell-parser";
+} from "../shell-parser";
 // import {
 // 	getSpecPath,
 // 	loadSubcommandCached,
@@ -29,7 +29,7 @@ import {
 	ParsingHistoryError,
 	UpdateStateError,
 } from "./errors.js";
-import { convertSubcommand, initializeDefault } from '../../autocomplete-shared/src';
+import { convertSubcommand, initializeDefault } from '../autocomplete-shared';
 const { exec } = require("child_process");
 
 type ArgArrayState = {

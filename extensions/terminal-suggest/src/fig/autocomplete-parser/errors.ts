@@ -1,4 +1,4 @@
-import { createErrorInstance } from '../../shared/src/errors';
+import { createErrorInstance } from '../shared/errors';
 
 // LoadSpecErrors
 export const MissingSpecError = createErrorInstance("MissingSpecError");

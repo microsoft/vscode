@@ -1,4 +1,4 @@
-import { osIsWindows } from '../../../helpers/os.js';
+import { osIsWindows } from '../../helpers/os.js';
 import { createErrorInstance } from "./errors.js";
 
 // Use bitwise representation of suggestion flags.

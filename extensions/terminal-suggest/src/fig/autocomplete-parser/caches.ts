@@ -1,4 +1,4 @@
-import { Subcommand } from "../../shared/src/internal";
+import { Subcommand } from "../shared/internal";
 
 const allCaches: Array<Map<string, unknown>> = [];
 
