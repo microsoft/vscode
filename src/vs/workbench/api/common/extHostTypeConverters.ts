@@ -2909,16 +2909,16 @@ export namespace TerminalQuickFix {
 }
 
 export namespace TerminalCompletionList {
-	export function from(completionList: vscode.TerminalCompletionList, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.TerminalCompletionListDto {
+	export function from(completionList: vscode.TerminalCompletionList): extHostProtocol.TerminalCompletionListDto {
 		return {
 			...completionList,
-			resourceRequestConfig: completionList.resourceRequestConfig ? TerminalResourceRequestConfig.from(completionList.resourceRequestConfig, converter, disposables) : undefined,
+			resourceRequestConfig: completionList.resourceRequestConfig ? TerminalResourceRequestConfig.from(completionList.resourceRequestConfig) : undefined,
 		};
 	}
 }
 
 export namespace TerminalResourceRequestConfig {
-	export function from(resourceRequestConfig: vscode.TerminalResourceRequestConfig, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.TerminalResourceRequestConfigDto {
+	export function from(resourceRequestConfig: vscode.TerminalResourceRequestConfig): extHostProtocol.TerminalResourceRequestConfigDto {
 		return {
 			...resourceRequestConfig,
 			pathSeparator: isWindows ? '\\' : '/',

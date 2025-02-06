@@ -794,11 +794,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (completions === null || completions === undefined) {
 			return undefined;
 		}
-		const store = new DisposableStore();
 		if (Array.isArray(completions)) {
 			return completions;
 		} else {
-			return TerminalCompletionList.from(completions, this._extHostCommands.converter, store);
+			return TerminalCompletionList.from(completions);
 		}
 	}
 
