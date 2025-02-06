@@ -278,7 +278,6 @@ export class View extends ViewEventHandler {
 
 	private _instantiateEditContext(): AbstractEditContext {
 		const usingExperimentalEditContext = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
-		console.log('usingExperimentalEditContext : ', usingExperimentalEditContext);
 		if (usingExperimentalEditContext) {
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
