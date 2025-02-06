@@ -1,0 +1,60 @@
+name: Sync with Upstream
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs at 00:00 UTC every day
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for all branches and tags
+
+    - name: Configure Git
+      run: |
+        git config --global user.name 'GitHub Action'
+        git config --global user.email 'action@github.com'
+
+    - name: Add Upstream Remote
+      run: |
+        git remote add upstream https://github.com/microsoft/vscode.git
+        git fetch upstream
+
+    - name: Create Sync Branch
+      run: |
+        # Get current date for branch name
+        branch_name="sync/upstream-$(date +%Y-%m-%d)"
+
+        # Check if upstream has new changes
+        if git rev-list HEAD..upstream/main --count > 0; then
+          # Create new branch
+          git checkout -b $branch_name
+
+          # Merge upstream changes
+          git merge upstream/main
+
+          # Push branch
+          git push origin $branch_name
+
+          # Create PR
+          gh pr create \
+            --base main \
+            --head $branch_name \
+            --title "Sync: Upstream Changes $(date +%Y-%m-%d)" \
+            --body "Automated PR to sync changes from upstream VS Code repository"
+
+          # Switch back to main and merge the sync branch
+          git checkout main
+          git merge $branch_name
+          git push origin main
+
+          echo "Changes from upstream were merged successfully"
+        else
+          echo "No new changes from upstream"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
