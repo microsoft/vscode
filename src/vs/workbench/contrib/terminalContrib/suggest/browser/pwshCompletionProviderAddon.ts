@@ -70,10 +70,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	private _enableWidget: boolean = true;
 	isPasting: boolean = false;
 	private _completionsDeferred: DeferredPromise<ITerminalCompletion[] | undefined> | null = null;
-	private readonly _onBell = this._register(new Emitter<void>());
-	readonly onBell = this._onBell.event;
-	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
-	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
+
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
 	private readonly _onDidRequestSendText = this._register(new Emitter<RequestCompletionsSequence>());
@@ -169,6 +166,12 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 		// Only show the suggest widget if the terminal is focused
 		if (!dom.isAncestorOfActiveElement(terminal.element)) {
+			this._resolveCompletions(undefined);
+			return;
+		}
+
+		// No completions
+		if (args.length === 0) {
 			this._resolveCompletions(undefined);
 			return;
 		}
@@ -352,8 +355,7 @@ function rawCompletionToITerminalCompletion(rawCompletion: PwshCompletion, repla
 		provider: PwshCompletionProviderAddon.ID,
 		icon,
 		detail,
-		// HACK: This isn't complete, but we'll remove it soon
-		kind: rawCompletion.ResultType === 3 ? TerminalCompletionItemKind.File : TerminalCompletionItemKind.Folder,
+		kind: pwshTypeToKindMap[rawCompletion.ResultType],
 		isKeyword: rawCompletion.ResultType === 12,
 		replacementIndex,
 		replacementLength
@@ -369,6 +371,7 @@ function getIcon(resultType: number, customIconId?: string): ThemeIcon {
 	}
 	return pwshTypeToIconMap[resultType] ?? Codicon.symbolText;
 }
+
 
 
 /**
@@ -410,3 +413,19 @@ const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 	13: Codicon.symbolKeyword
 };
 
+const pwshTypeToKindMap: { [type: string]: TerminalCompletionItemKind | undefined } = {
+	0: undefined,
+	1: undefined,
+	2: TerminalCompletionItemKind.Method,
+	3: TerminalCompletionItemKind.File,
+	4: TerminalCompletionItemKind.Folder,
+	5: TerminalCompletionItemKind.Argument,
+	6: TerminalCompletionItemKind.Method,
+	7: TerminalCompletionItemKind.Argument,
+	8: undefined,
+	9: undefined,
+	10: undefined,
+	11: undefined,
+	12: undefined,
+	13: undefined,
+};
