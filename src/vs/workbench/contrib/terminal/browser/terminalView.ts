@@ -251,6 +251,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override getActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		this._disposableStore.clear();
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
@@ -260,7 +261,6 @@ export class TerminalViewPane extends ViewPane {
 						super(action.id, action.label, action.class, action.enabled);
 						this.checked = action.checked;
 						this.tooltip = action.tooltip;
-						this._register(action);
 					}
 					override async run() {
 						const instance = that._terminalGroupService.activeInstance;
@@ -275,12 +275,12 @@ export class TerminalViewPane extends ViewPane {
 				return this._disposableStore.add(new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) }));
 			}
 			case TerminalCommandId.SwitchTerminal: {
-				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
+				return this._disposableStore.add(this._instantiationService.createInstance(SwitchTerminalActionViewItem, action));
 			}
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
 					const actions = getFlatContextMenuActions(this._singleTabMenu.getActions({ shouldForwardArgs: true }));
-					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
+					return this._disposableStore.add(this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions));
 				}
 			}
 			case TerminalCommandId.New: {

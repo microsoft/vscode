@@ -166,8 +166,10 @@ export class TerminalEditor extends EditorPane {
 			case TerminalCommandId.CreateTerminalEditor: {
 				if (action instanceof MenuItemAction) {
 					const location = { viewColumn: ACTIVE_GROUP };
+					this._disposableStore.clear();
 					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
 					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
+					this._disposableStore.add(button);
 					return button;
 				}
 			}
