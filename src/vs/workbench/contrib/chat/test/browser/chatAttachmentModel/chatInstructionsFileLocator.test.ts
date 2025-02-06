@@ -65,13 +65,6 @@ suite('ChatInstructionsFileLocator', () => {
 		initService.stub(IFileService, fileService);
 	});
 
-
-	// const mockToWorkspaceFolder = (folder: IMockFolder): IWorkspaceFolder => {
-	// 	return mockObject<IWorkspaceFolder>({
-	// 		uri: fileSystemProvider.root.with({ path: folder.name }),
-	// 	});
-	// };
-
 	/**
 	 * Create a new instance of {@link ChatInstructionsFileLocator} with provided mocked
 	 * values for configuration and workspace services.
@@ -99,11 +92,11 @@ suite('ChatInstructionsFileLocator', () => {
 		return initService.createInstance(ChatInstructionsFileLocator);
 	};
 
-	suite('empty workspace', () => {
+	suite('• empty workspace', () => {
 		const EMPTY_WORKSPACE: string[] = [];
 
-		suite('empty filesystem', () => {
-			test('no config value', async () => {
+		suite('• empty filesystem', () => {
+			test('• no config value', async () => {
 				const locator = await createPromptsLocator(undefined, EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
@@ -113,7 +106,7 @@ suite('ChatInstructionsFileLocator', () => {
 				);
 			});
 
-			test('object config value', async () => {
+			test('• object config value', async () => {
 				const locator = await createPromptsLocator({
 					'/Users/legomushroom/repos/prompts/': true,
 					'/tmp/prompts/': false,
@@ -126,7 +119,7 @@ suite('ChatInstructionsFileLocator', () => {
 				);
 			});
 
-			test('array config value', async () => {
+			test('• array config value', async () => {
 				const locator = await createPromptsLocator([
 					'relative/path/to/prompts/',
 					'/abs/path',
@@ -139,7 +132,7 @@ suite('ChatInstructionsFileLocator', () => {
 				);
 			});
 
-			test('null config value', async () => {
+			test('• null config value', async () => {
 				const locator = await createPromptsLocator(null, EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
@@ -149,7 +142,7 @@ suite('ChatInstructionsFileLocator', () => {
 				);
 			});
 
-			test('string config value', async () => {
+			test('• string config value', async () => {
 				const locator = await createPromptsLocator('/etc/hosts/prompts', EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
@@ -160,9 +153,9 @@ suite('ChatInstructionsFileLocator', () => {
 			});
 		});
 
-		suite('non-empty filesystem', () => {
-			suite('boolean config value', () => {
-				test('true', async () => {
+		suite('• non-empty filesystem', () => {
+			suite('• boolean config value', () => {
+				test('• true', async () => {
 					const locator = await createPromptsLocator(
 						true,
 						EMPTY_WORKSPACE,
@@ -203,7 +196,7 @@ suite('ChatInstructionsFileLocator', () => {
 					);
 				});
 
-				test('false', async () => {
+				test('• false', async () => {
 					const locator = await createPromptsLocator(
 						false,
 						EMPTY_WORKSPACE,
@@ -245,7 +238,7 @@ suite('ChatInstructionsFileLocator', () => {
 				});
 			});
 
-			test('object config value', async () => {
+			test('• object config value', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -299,7 +292,7 @@ suite('ChatInstructionsFileLocator', () => {
 				);
 			});
 
-			test('array config value', async () => {
+			test('• array config value', async () => {
 				const locator = await createPromptsLocator(
 					[
 						'/var/prompts',
@@ -354,9 +347,9 @@ suite('ChatInstructionsFileLocator', () => {
 		});
 	});
 
-	suite('single-root workspace', () => {
-		suite('non-empty filesystem', () => {
-			test('object config value', async () => {
+	suite('• single-root workspace', () => {
+		suite('• non-empty filesystem', () => {
+			test('• object config value', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -437,7 +430,7 @@ suite('ChatInstructionsFileLocator', () => {
 				);
 			});
 
-			test('array config value', async () => {
+			test('• array config value', async () => {
 				const locator = await createPromptsLocator(
 					[
 						'/Users/legomushroom/repos/prompts',
@@ -516,8 +509,8 @@ suite('ChatInstructionsFileLocator', () => {
 				);
 			});
 
-			suite('string config value', () => {
-				test('relative path', async () => {
+			suite('• string config value', () => {
+				test('• relative path', async () => {
 					const locator = await createPromptsLocator(
 						'.github/prompts',
 						[
@@ -576,7 +569,7 @@ suite('ChatInstructionsFileLocator', () => {
 					);
 				});
 
-				test('absolute path', async () => {
+				test('• absolute path', async () => {
 					const locator = await createPromptsLocator(
 						'/Users/legomushroom/test/prompts',
 						[
@@ -652,10 +645,10 @@ suite('ChatInstructionsFileLocator', () => {
 		});
 	});
 
-	suite('multi-root workspace', () => {
-		suite('non-empty filesystem', () => {
-			suite('object config value', () => {
-				test('without top-level `.github` folder', async () => {
+	suite('• multi-root workspace', () => {
+		suite('• non-empty filesystem', () => {
+			suite('• object config value', () => {
+				test('• without top-level `.github` folder', async () => {
 					const locator = await createPromptsLocator(
 						{
 							'/Users/legomushroom/repos/prompts': true,
@@ -775,7 +768,7 @@ suite('ChatInstructionsFileLocator', () => {
 					);
 				});
 
-				test('with top-level `.github` folder', async () => {
+				test('• with top-level `.github` folder', async () => {
 					const locator = await createPromptsLocator(
 						{
 							'/Users/legomushroom/repos/prompts': true,
@@ -899,8 +892,8 @@ suite('ChatInstructionsFileLocator', () => {
 				});
 			});
 
-			suite('array config value', () => {
-				test('without top-level `copilot` folder', async () => {
+			suite('• array config value', () => {
+				test('• without top-level `copilot` folder', async () => {
 					const locator = await createPromptsLocator(
 						[
 							'/Users/legomushroom/repos/prompts',
@@ -1037,7 +1030,7 @@ suite('ChatInstructionsFileLocator', () => {
 					);
 				});
 
-				test('with top-level `copilot` folder', async () => {
+				test('• with top-level `copilot` folder', async () => {
 					const locator = await createPromptsLocator(
 						[
 							'/Users/legomushroom/repos/prompts',
@@ -1178,9 +1171,9 @@ suite('ChatInstructionsFileLocator', () => {
 				});
 			});
 
-			suite('string config value', () => {
-				suite('absolute path', () => {
-					test('without top-level `copilot` folder', async () => {
+			suite('• string config value', () => {
+				suite('• absolute path', () => {
+					test('• without top-level `copilot` folder', async () => {
 						const locator = await createPromptsLocator(
 							'/tmp/prompts/',
 							[
@@ -1325,7 +1318,7 @@ suite('ChatInstructionsFileLocator', () => {
 						);
 					});
 
-					test('with top-level `.github` folder', async () => {
+					test('• with top-level `.github` folder', async () => {
 						const locator = await createPromptsLocator(
 							'/Users/legomushroom/repos/prompts',
 							[
@@ -1455,8 +1448,8 @@ suite('ChatInstructionsFileLocator', () => {
 					});
 				});
 
-				suite('relative path', () => {
-					test('without top-level `my-prompts` folder', async () => {
+				suite('• relative path', () => {
+					test('• without top-level `my-prompts` folder', async () => {
 						const locator = await createPromptsLocator(
 							'my-prompts',
 							[
@@ -1611,7 +1604,7 @@ suite('ChatInstructionsFileLocator', () => {
 						);
 					});
 
-					test('with top-level `my-prompts` folder', async () => {
+					test('• with top-level `my-prompts` folder', async () => {
 						const locator = await createPromptsLocator(
 							'my-prompts',
 							[
