@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
-import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionModel.js';
+import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 

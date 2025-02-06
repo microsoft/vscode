@@ -21,7 +21,7 @@ import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../pla
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import type { ITerminalCompletion } from './terminalCompletionModel.js';
+import type { ITerminalCompletion } from './terminalCompletionItem.js';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TerminalCompletionItem, TerminalCompletionModel, type ITerminalCompletion } from '../../browser/terminalCompletionModel.js';
+import { TerminalCompletionModel } from '../../browser/terminalCompletionModel.js';
 import { LineContext } from '../../../../../services/suggest/browser/simpleCompletionModel.js';
+import { TerminalCompletionItem, type ITerminalCompletion } from '../../browser/terminalCompletionItem.js';
 
 function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionItem {
 	return new TerminalCompletionItem({

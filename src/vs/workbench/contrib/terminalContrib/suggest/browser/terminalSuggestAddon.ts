@@ -33,7 +33,8 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
-import { TerminalCompletionItem, TerminalCompletionItemKind, TerminalCompletionModel } from './terminalCompletionModel.js';
+import { TerminalCompletionModel } from './terminalCompletionModel.js';
+import { TerminalCompletionItem, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 
 export interface ISuggestController {
