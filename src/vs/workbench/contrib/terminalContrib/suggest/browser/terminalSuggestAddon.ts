@@ -582,7 +582,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const completion = suggestion.item.completion;
 		let completionText = completion.label;
-		if ((completion.kind === TerminalCompletionItemKind.Folder || completion.isFile) && completionText.includes(' ')) {
+		if ((completion.kind === TerminalCompletionItemKind.Folder || completion.isFileOverride) && completionText.includes(' ')) {
 			// Escape spaces in files or folders so they're valid paths
 			completionText = completionText.replaceAll(' ', '\\ ');
 		}
@@ -600,7 +600,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 				case 'exactMatchIgnoreExtension': {
 					runOnEnter = replacementText.toLowerCase() === completionText.toLowerCase();
-					if (completion.isFile) {
+					if (completion.isFileOverride) {
 						runOnEnter ||= replacementText.toLowerCase() === completionText.toLowerCase().replace(/\.[^\.]+$/, '');
 					}
 					break;

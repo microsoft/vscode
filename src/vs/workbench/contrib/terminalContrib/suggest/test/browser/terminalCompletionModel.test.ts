@@ -20,7 +20,7 @@ function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionIt
 }
 
 function createFileItems(...labels: string[]): TerminalCompletionItem[] {
-	return labels.map(label => createItem({ label, isFile: true, kind: TerminalCompletionItemKind.File }));
+	return labels.map(label => createItem({ label, kind: TerminalCompletionItemKind.File }));
 }
 
 function createFileItemsModel(...labels: string[]): TerminalCompletionModel {

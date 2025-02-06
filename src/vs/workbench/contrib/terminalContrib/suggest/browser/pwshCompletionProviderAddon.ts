@@ -354,7 +354,6 @@ function rawCompletionToITerminalCompletion(rawCompletion: PwshCompletion, repla
 		detail,
 		// HACK: This isn't complete, but we'll remove it soon
 		kind: rawCompletion.ResultType === 3 ? TerminalCompletionItemKind.File : TerminalCompletionItemKind.Folder,
-		isFile: rawCompletion.ResultType === 3,
 		isKeyword: rawCompletion.ResultType === 12,
 		replacementIndex,
 		replacementLength
