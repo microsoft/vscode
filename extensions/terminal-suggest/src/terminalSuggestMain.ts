@@ -236,48 +236,29 @@ export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
-function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]) {
-	const addSuggestions = (parsedArguments: ArgumentParserResult, kind: vscode.TerminalCompletionItemKind) => {
-		switch (kind) {
-			case vscode.TerminalCompletionItemKind.Argument:
-				if (parsedArguments.currentArg?.suggestions) {
-					for (const item of parsedArguments.currentArg.suggestions) {
-						const suggestionLabels = getLabel(item);
-						if (!suggestionLabels) {
-							continue;
-						}
-						for (const suggestionLabel of suggestionLabels) {
-							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: suggestionLabel }, typeof item === 'string' ? item : item.description, undefined, kind));
-						}
-					}
-				}
-				break;
-			case vscode.TerminalCompletionItemKind.Flag:
-				if (parsedArguments.completionObj.options) {
-					for (const item of Object.values(parsedArguments.completionObj.options)) {
-						const suggestionLabels = getLabel(item);
-						if (!suggestionLabels) {
-							continue;
-						}
-						for (const suggestionLabel of suggestionLabels) {
-							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: suggestionLabel }, item.description, undefined, kind));
-						}
-					}
-				}
-				break;
-			case vscode.TerminalCompletionItemKind.Method: {
-				if (parsedArguments.completionObj.subcommands) {
-					for (const item of Object.values(parsedArguments.completionObj.subcommands)) {
-						const suggestionLabels = getLabel(item);
-						if (!suggestionLabels) {
-							continue;
-						}
-						for (const suggestionLabel of suggestionLabels) {
-							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: suggestionLabel }, item.description, undefined, kind));
-						}
-					}
-				}
-				break;
+export type SpecArg = Fig.Arg | Fig.Suggestion | Fig.Option | string;
+
+export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]) {
+	const addSuggestions = (specArgs: SpecArg[] | undefined, kind: vscode.TerminalCompletionItemKind) => {
+		if (!specArgs) {
+			return;
+		}
+		for (const item of specArgs) {
+			const suggestionLabels = getLabel(item);
+			if (!suggestionLabels) {
+				continue;
+			}
+			for (const label of suggestionLabels) {
+				items.push(
+					createCompletionItem(
+						terminalContext.cursorPosition,
+						prefix,
+						{ label },
+						typeof item === 'string' ? item : item.description,
+						undefined,
+						kind
+					)
+				);
 			}
 		}
 	};
@@ -286,18 +267,18 @@ function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParserResult
 		case SuggestionFlag.None:
 			break;
 		case SuggestionFlag.Args:
-			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Argument);
+			addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument);
 			break;
 		case SuggestionFlag.Subcommands:
-			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Method);
+			addSuggestions(Object.values(parsedArguments.completionObj.subcommands), vscode.TerminalCompletionItemKind.Method);
 			break;
 		case SuggestionFlag.Options:
-			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Flag);
+			addSuggestions(Object.values(parsedArguments.completionObj.options), vscode.TerminalCompletionItemKind.Flag);
 			break;
 		case SuggestionFlag.Any:
-			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Method);
-			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Flag);
-			addSuggestions(parsedArguments, vscode.TerminalCompletionItemKind.Argument);
+			addSuggestions(Object.values(parsedArguments.completionObj.subcommands), vscode.TerminalCompletionItemKind.Method);
+			addSuggestions(Object.values(parsedArguments.completionObj.options), vscode.TerminalCompletionItemKind.Flag);
+			addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument);
 			break;
 	}
 }
