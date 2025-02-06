@@ -23,7 +23,6 @@ import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/commo
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
 import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
 
 /**
  * @deprecated
@@ -2169,13 +2168,6 @@ export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	}
 }
 
-export interface ITerminalCompletionProvider {
-	id: string;
-	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<TerminalCompletionItem[] | TerminalCompletionList<TerminalCompletionItem> | undefined>;
-	triggerCharacters?: string[];
-	isBuiltin?: boolean;
-}
 /**
  * Represents a collection of {@link CompletionItem completion items} to be presented
  * in the editor.
