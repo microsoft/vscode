@@ -28,6 +28,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { localize } from '../../../../nls.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { TerminalCommandId } from '../../terminal/common/terminal.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -86,6 +87,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
@@ -118,7 +120,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService);
+		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService, this.logService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
@@ -206,7 +208,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	}
 }
 
-function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
+function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService, logService: ILogService) {
 	if (environmentService.skipWelcome) {
 		return false;
 	}
@@ -217,6 +219,10 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
 			return welcomeEnabled.value;
 		}
+	}
+
+	if (startupEditor.value !== startupEditor.userRemoteValue) {
+		logService.info(`Startup editor is configured to be "${startupEditor.value}". This setting will be overridden by "${startupEditor.userRemoteValue}".`);
 	}
 
 	return startupEditor.value === 'welcomePage'
