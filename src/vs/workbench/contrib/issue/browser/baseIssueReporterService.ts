@@ -35,7 +35,8 @@ const MAX_URL_LENGTH = 7500;
 // Github API and issues on web has a limit of 65536. If extension data is too large, we will allow users to downlaod and attach it as a file.
 // We round down to be safe.
 // ref https://github.com/github/issues/issues/12858
-const MAX_EXTENSION_DATA_LENGTH = 55000;
+
+const MAX_EXTENSION_DATA_LENGTH = 60000;
 
 interface SearchResult {
 	html_url: string;
