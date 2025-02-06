@@ -145,8 +145,20 @@ suite('PromptFilesConfig', () => {
 				);
 
 				assert.strictEqual(
+					PromptFilesConfig.getValue(createMock('/Absolute/path/to/folder')),
+					'/Absolute/path/to/folder',
+					'Must read correct value.',
+				);
+
+				assert.strictEqual(
 					PromptFilesConfig.getValue(createMock('./relative-path/to/folder')),
 					'./relative-path/to/folder',
+					'Must read correct value.',
+				);
+
+				assert.strictEqual(
+					PromptFilesConfig.getValue(createMock('./relative-path/To/folder')),
+					'./relative-path/To/folder',
 					'Must read correct value.',
 				);
 
@@ -157,8 +169,20 @@ suite('PromptFilesConfig', () => {
 				);
 
 				assert.strictEqual(
+					PromptFilesConfig.getValue(createMock('.github/Prompts')),
+					'.github/Prompts',
+					'Must read correct value.',
+				);
+
+				assert.strictEqual(
 					PromptFilesConfig.getValue(createMock('/abs/path/to/file.prompt.md')),
 					'/abs/path/to/file.prompt.md',
+					'Must read correct value.',
+				);
+
+				assert.strictEqual(
+					PromptFilesConfig.getValue(createMock('/Abs/Path/To/File.prompt.md')),
+					'/Abs/Path/To/File.prompt.md',
 					'Must read correct value.',
 				);
 			});

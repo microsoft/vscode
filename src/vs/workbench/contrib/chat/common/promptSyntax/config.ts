@@ -145,7 +145,7 @@ export namespace PromptFilesConfig {
 				return asBoolean(cleanValue);
 			}
 
-			return cleanValue;
+			return configValue.trim();
 		}
 
 		if (typeof configValue === 'boolean') {
