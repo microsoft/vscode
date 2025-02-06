@@ -250,7 +250,7 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalTabbedView?.layout(width, height);
 	}
 
-	override getActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+	override createActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		this._disposableStore.clear();
 		switch (action.id) {
 			case TerminalCommandId.Split: {
