@@ -2922,6 +2922,7 @@ export namespace TerminalResourceRequestConfig {
 		return {
 			...resourceRequestConfig,
 			pathSeparator: isWindows ? '\\' : '/',
+			cwd: resourceRequestConfig.cwd ? URI.revive(resourceRequestConfig.cwd) : undefined,
 		};
 	}
 }

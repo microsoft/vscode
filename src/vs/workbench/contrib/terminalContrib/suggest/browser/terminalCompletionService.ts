@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/path.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -62,7 +62,7 @@ export class TerminalCompletionList<ITerminalCompletion> {
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
-	cwd?: URI;
+	cwd?: UriComponents;
 	pathSeparator: string;
 	env?: { [key: string]: string | null | undefined };
 }
