@@ -64,7 +64,7 @@ function getData(
 // 	];
 // }
 
-suite("shell-parser fixtures", () => {
+suite("fig/shell-parser/ fixtures", () => {
 	const fixturesPath = path.join(__dirname, "../../../../fixtures/shell-parser");
 	const fixtures = fs.readdirSync(fixturesPath);
 	for (const fixture of fixtures) {

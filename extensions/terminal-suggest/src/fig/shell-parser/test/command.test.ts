@@ -1,7 +1,7 @@
 import { deepStrictEqual } from 'node:assert';
 import { getCommand, Command } from "../command";
 
-suite("shell-parser getCommand", () => {
+suite("fig/shell-parser/ getCommand", () => {
 	const aliases = {
 		woman: "man",
 		quote: "'q'",
