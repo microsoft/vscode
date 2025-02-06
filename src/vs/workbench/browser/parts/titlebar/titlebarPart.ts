@@ -663,14 +663,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			if (this.editorActionsEnabled && this.editorService.activeEditor !== undefined) {
 				const context: IEditorCommandsContext = { groupId: this.editorGroupsContainer.activeGroup.id };
 
-				this.actionToolBar.actionRunner = new EditorCommandsContextActionRunner(context);
+				this.actionToolBar.actionRunner = this.editorToolbarMenuDisposables.add(new EditorCommandsContextActionRunner(context));
 				this.actionToolBar.context = context;
-				this.editorToolbarMenuDisposables.add(this.actionToolBar.actionRunner);
 			} else {
-				this.actionToolBar.actionRunner = new ActionRunner();
+				this.actionToolBar.actionRunner = this.editorToolbarMenuDisposables.add(new ActionRunner());
 				this.actionToolBar.context = undefined;
-
-				this.editorToolbarMenuDisposables.add(this.actionToolBar.actionRunner);
 			}
 		}
 
