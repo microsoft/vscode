@@ -1,5 +1,4 @@
 import { Internal, Metadata } from "../autocomplete-shared";
-import type { Result } from "./fuzzysort";
 
 export type SpecLocation = Fig.SpecLocation & {
 	diffVersionedFile?: string;
@@ -20,7 +19,7 @@ export type Suggestion<ArgT = Metadata.ArgMeta> = Override<
 		// Generator information to determine whether suggestion should be filtered.
 		generator?: Fig.Generator;
 		getQueryTerm?: (x: string) => string;
-		fuzzyMatchData?: (Result | null)[];
+		// fuzzyMatchData?: (Result | null)[];
 		originalType?: SuggestionType;
 	}
 >;
