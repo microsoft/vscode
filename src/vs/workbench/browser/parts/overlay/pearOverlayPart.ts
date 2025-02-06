@@ -21,8 +21,8 @@ import { URI } from "../../../../base/common/uri.js";
 import { ExtensionIdentifier } from "../../../../platform/extensions/common/extensions.js";
 import { IEditorGroupsService } from "../../../../workbench/services/editor/common/editorGroupsService.js";
 
-const PEAROVERLAY_ID = "pearai.pearAIChatView";
-const PEAR_OVERLAY_TITLE = "pearai.pearOverlay";
+const PEARAI_CHAT_ID = "pearai.chatView";
+const PEAR_OVERLAY_TITLE = "pearai.overlayView";
 
 export class PearOverlayPart extends Part {
 	static readonly ID = "workbench.parts.pearoverlay";
@@ -71,7 +71,7 @@ export class PearOverlayPart extends Part {
 
 	private async initialize() {
 		const extensionDescription: WebviewExtensionDescription = {
-			id: new ExtensionIdentifier(PEAROVERLAY_ID),
+			id: new ExtensionIdentifier(PEARAI_CHAT_ID),
 			location: URI.parse(""),
 		};
 		// 1. create an IOverlayWebview
@@ -122,7 +122,7 @@ export class PearOverlayPart extends Part {
 		// 3. ask the webviewViewService to connect our webviewView to the webviewViewProvider, PearInventoryPanel
 		const source = new CancellationTokenSource(); // todo add to disposables
 		await this._webviewViewService.resolve(
-			PEAROVERLAY_ID,
+			PEARAI_CHAT_ID,
 			this.webviewView!,
 			source.token,
 		);
