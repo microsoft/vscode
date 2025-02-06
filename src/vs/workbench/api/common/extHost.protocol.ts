@@ -2448,7 +2448,7 @@ export class TerminalCompletionListDto<T extends TerminalCompletionItem = Termin
 export interface TerminalResourceRequestConfigDto {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
-	cwd?: UriComponents;
+	cwd?: URI;
 	pathSeparator: string;
 }
 
