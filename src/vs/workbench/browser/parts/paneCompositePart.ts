@@ -412,13 +412,31 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			case CompositeBarPosition.BOTTOM: newCompositeBarContainer = this.createFooterArea(); break;
 		}
 		if (isCompositeBarVisible) {
-
 			if (this.paneCompositeBarContainer || this.paneCompositeBar.value || !newCompositeBarContainer) {
 				throw new Error('Invalid composite bar state when creating the new composite bar');
 			}
 
 			newCompositeBarContainer.classList.add('has-composite-bar');
+
+			// Add our icon group before the composite bar
+			const iconGroup = $('.icon-group');
+			const icons = ['bell', 'comment', 'gear', 'globe'];
+
+			// Create custom SVG icon
+			const customSvgIcon = $('span');
+			customSvgIcon.classList.add('custom-bell-icon');
+			iconGroup.appendChild(customSvgIcon);
+
+			// Add remaining Codicon icons
+			icons.slice(1).forEach(iconName => {
+				const iconElement = $('span');
+				iconElement.classList.add('codicon', `codicon-${iconName}`);
+				iconGroup.appendChild(iconElement);
+			});
+
 			this.paneCompositeBarContainer = prepend(newCompositeBarContainer, $('.composite-bar-container'));
+			prepend(newCompositeBarContainer, iconGroup);
+
 			this.paneCompositeBar.value = this.createCompositeBar();
 			this.paneCompositeBar.value.create(this.paneCompositeBarContainer);
 

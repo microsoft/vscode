@@ -24,7 +24,13 @@
 
 .monaco-workbench .part.auxiliarybar > .title {
 	background-color: var(--vscode-sideBarTitle-background);
+	/* border: 1px solid red; */
+	padding: 0px;
+	margin-top: 12px;
+	margin-left: 12px;
+	margin-right: 12px;
 }
+
 
 .monaco-workbench .part.auxiliarybar > .title > .title-label {
 	flex: 1;
@@ -37,6 +43,66 @@
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container {
 	flex: 1;
 }
+
+.monaco-workbench .part.auxiliarybar .icon-group {
+    display: flex;
+    padding: 4px 8px;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+	/* border: 1px solid; */
+    border-radius: 6px;
+    /* background: linear-gradient(to bottom, #202122, #1a1b1c); */
+    /* box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset; */
+	border-radius: 10px;
+	background: #161718;
+	box-shadow: 0px 0px 0px 1px rgba(255, 255, 255, 0.25) inset;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .codicon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.8;
+	border-radius: 6px;
+	border: 1px solid rgba(255, 255, 255, 0.50);
+	/* background: linear-gradient(180deg, #AFF349 0%, #1B9400 100%); */
+	fill: linear-gradient(180deg, #AFF349 0%, #1B9400 100%);
+	box-shadow: 0px 0px 48px 8px #AFF349;
+	color: #E9FFC7;
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .codicon:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    opacity: 1;
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .custom-bell-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.50);
+    background: linear-gradient(180deg, #AFF349 0%, #1B9400 100%);
+    box-shadow: 0px 0px 48px 8px #AFF349;
+    background-image: url('../../../media/inventory-chat-icon.svg');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 16px;
+}
+
+.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar {
+	display: none;
+}
+
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus,
 .monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus {
