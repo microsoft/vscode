@@ -22,7 +22,6 @@ import { IOutlineModelService } from '../../../../../editor/contrib/documentSymb
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -835,7 +834,6 @@ class VariableCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
-		@IConfigurationService configService: IConfigurationService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService
 	) {
 		super();

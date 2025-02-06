@@ -91,6 +91,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IPromptSyntaxService } from '../common/promptSyntax/service/types.js';
 import { PromptSyntaxService } from '../common/promptSyntax/service/promptSyntaxService.js';
+import { BuiltinVariablesContribution } from './variables/variables.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -392,6 +393,7 @@ registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingSta
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatQuotasStatusBarEntry.ID, ChatQuotasStatusBarEntry, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(BuiltinVariablesContribution.ID, BuiltinVariablesContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.BlockRestore);
 
 registerChatActions();

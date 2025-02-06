@@ -12,7 +12,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { createMatches } from '../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export function getAriaId(index: number): string {
 	return `simple-suggest-aria-id-${index}`;
@@ -60,7 +59,7 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 
 	readonly templateId = 'suggestion';
 
-	constructor(private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo, @IConfigurationService private readonly _configurationService: IConfigurationService) {
+	constructor(private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo, private readonly _onDidFontConfigurationChange: Event<void>) {
 	}
 
 	dispose(): void {
@@ -114,13 +113,7 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 		};
 
 		configureFont();
-
-		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily') || e.affectsConfiguration('editor.lineHeight') || e.affectsConfiguration('editor.fontWeight')) {
-				configureFont();
-			}
-		}));
-
+		this._disposables.add(this._onDidFontConfigurationChange(() => configureFont()));
 		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, disposables };
 	}
 

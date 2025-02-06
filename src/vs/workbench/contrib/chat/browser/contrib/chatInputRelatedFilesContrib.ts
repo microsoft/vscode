@@ -51,12 +51,12 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 
 		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), CancellationToken.None)
 			.then((files) => {
-				if (!files?.length) {
+				if (!files?.length || !widget.viewModel?.sessionId) {
 					return;
 				}
 
-				const currentEditingSession = this.chatEditingService.globalEditingSessionObs.get();
-				if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get().length) {
+				const currentEditingSession = this.chatEditingService.getEditingSession(widget.viewModel.sessionId);
+				if (!currentEditingSession || currentEditingSession.entries.get().length) {
 					return; // Might have disposed while we were calculating
 				}
 

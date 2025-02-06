@@ -33,7 +33,7 @@ const _allApiProposals = {
 	},
 	chatParticipantPrivate: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatParticipantPrivate.d.ts',
-		version: 2
+		version: 3
 	},
 	chatProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatProvider.d.ts',

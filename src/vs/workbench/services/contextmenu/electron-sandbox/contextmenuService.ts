@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -179,11 +179,10 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 	}
 
 	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, submenuIds = new Set<string>()): IContextMenuItem[] {
-		const actionRunner = delegate.actionRunner || new ActionRunner();
-		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide, submenuIds)));
+		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, onHide, submenuIds)));
 	}
 
-	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, actionRunner: IActionRunner, onHide: () => void, submenuIds: Set<string>): IContextMenuItem | undefined {
+	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, onHide: () => void, submenuIds: Set<string>): IContextMenuItem | undefined {
 		// Separator
 		if (entry instanceof Separator) {
 			return { type: 'separator' };
@@ -226,7 +225,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					onHide();
 
 					// Run action which will close the menu
-					this.runAction(actionRunner, entry, delegate, event);
+					this.runAction(entry, delegate, event);
 				}
 			};
 
@@ -247,16 +246,19 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private async runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): Promise<void> {
+	private async runAction(actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): Promise<void> {
 		if (!delegate.skipTelemetry) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 		}
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : undefined;
 
-		const runnable = actionRunner.run(actionToRun, context);
 		try {
-			await runnable;
+			if (delegate.actionRunner) {
+				await delegate.actionRunner.run(actionToRun, context);
+			} else if (actionToRun.enabled) {
+				await actionToRun.run(context);
+			}
 		} catch (error) {
 			this.notificationService.error(error);
 		}

@@ -17,7 +17,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorController.js';
@@ -252,7 +252,7 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class UndoChatEditInteractionAction extends Action2 {
+	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.undoEdit',
@@ -270,17 +270,12 @@ export function registerNewChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const chatEditingService = accessor.get(IChatEditingService);
-			const currentEditingSession = chatEditingService.globalEditingSession;
-			if (!currentEditingSession) {
-				return;
-			}
-			await currentEditingSession.undoInteraction();
+		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
+			await editingSession.undoInteraction();
 		}
 	});
 
-	registerAction2(class RedoChatEditInteractionAction extends Action2 {
+	registerAction2(class RedoChatEditInteractionAction extends EditingSessionAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
@@ -298,13 +293,8 @@ export function registerNewChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const chatEditingService = accessor.get(IChatEditingService);
-			const currentEditingSession = chatEditingService.globalEditingSession;
-			if (!currentEditingSession) {
-				return;
-			}
-			await currentEditingSession.redoInteraction();
+		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
+			await editingSession.redoInteraction();
 		}
 	});
 

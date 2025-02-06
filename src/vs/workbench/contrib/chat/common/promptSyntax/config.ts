@@ -153,9 +153,11 @@ export namespace PromptFilesConfig {
 		}
 
 		if (Array.isArray(configValue)) {
-			return configValue.filter((item) => {
-				return typeof item === 'string';
+			const cleanArray = configValue.filter((item) => {
+				return typeof item === 'string' && !!item.trim();
 			});
+
+			return Object.freeze(cleanArray);
 		}
 
 		// note! this would be also true for `null` and `array`,

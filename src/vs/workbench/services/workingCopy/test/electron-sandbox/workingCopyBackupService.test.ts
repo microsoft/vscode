@@ -58,7 +58,7 @@ const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	sqmId: 'testSqmId',
 	devDeviceId: 'testdevDeviceId',
 	logLevel: LogLevel.Error,
-	loggers: { global: [], window: [] },
+	loggers: [],
 	mainPid: 0,
 	appRoot: '',
 	userEnv: {},

@@ -106,7 +106,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 	) {
 		super();
 
-		this.languageService.completionProvider.register(LANGUAGE_SELECTOR, this);
+		this._register(this.languageService.completionProvider.register(LANGUAGE_SELECTOR, this));
 	}
 
 	/**

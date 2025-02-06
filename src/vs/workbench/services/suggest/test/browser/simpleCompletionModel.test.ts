@@ -92,8 +92,7 @@ suite('SimpleCompletionModel', function () {
 			assertItems(createFolderItemsModel(...initial), expected);
 		});
 
-		// #239532 Failing on CI not locally?
-		test.skip('should handle many files and folders correctly', function () {
+		test('should handle many files and folders correctly', function () {
 			// This is VS Code's root directory with some python items added that have special
 			// sorting
 			const items = [
@@ -158,8 +157,6 @@ suite('SimpleCompletionModel', function () {
 				'.configurations',
 				'CONTRIBUTING.md',
 				'.devcontainer',
-				'.npmrc',
-				'.gitignore',
 				'.editorconfig',
 				'eslint.config.js',
 				'.eslint-ignore',
@@ -168,13 +165,15 @@ suite('SimpleCompletionModel', function () {
 				'.gitattributes',
 				'.git-blame-ignore-revs',
 				'.github',
+				'.gitignore',
 				'gulpfile.js',
 				'LICENSE.txt',
 				'.lsifrc.json',
-				'.nvmrc',
 				'.mailmap',
 				'.mention-bot',
 				'node_modules',
+				'.npmrc',
+				'.nvmrc',
 				'out',
 				'package.json',
 				'package-lock.json',
