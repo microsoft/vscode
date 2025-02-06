@@ -118,9 +118,6 @@ export class InlineChatController implements IEditorContribution {
 	protected readonly _onDidEnterState = this._store.add(new Emitter<State>());
 	readonly onDidEnterState = this._onDidEnterState.event;
 
-	private readonly _onWillStartSession = this._store.add(new Emitter<void>());
-	readonly onWillStartSession = this._onWillStartSession.event;
-
 	get chatWidget() {
 		return this._ui.value.widget.chatWidget;
 	}
@@ -266,7 +263,6 @@ export class InlineChatController implements IEditorContribution {
 				this._editor.setSelection(options.initialSelection);
 			}
 			this._stashedSession.clear();
-			this._onWillStartSession.fire();
 			this._currentRun = this._nextState(State.CREATE_SESSION, options);
 			await this._currentRun;
 
