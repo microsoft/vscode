@@ -86,15 +86,13 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		}));
 
 		const shouldBeReadOnly = derived(this, r => {
-			const editor = editorObs.read(r);
-			if (!editor) {
+			const editorUri = editorObs.read(r)?.getModel()?.uri;
+			if (!editorUri) {
 				return false;
 			}
-			const value = this._chatEditingService.globalEditingSessionObs.read(r);
-			if (!value || value.state.read(r) !== ChatEditingSessionState.StreamingEdits) {
-				return false;
-			}
-			return value.entries.read(r).some(e => isEqual(e.modifiedURI, editor.getModel()?.uri));
+			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+			const session = sessions.find(s => s.entries.read(r).some(e => isEqual(e.modifiedURI, editorUri)));
+			return session?.state.read(r) === ChatEditingSessionState.StreamingEdits;
 		});
 
 

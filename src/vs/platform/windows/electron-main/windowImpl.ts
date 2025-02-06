@@ -1121,10 +1121,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			home: this.userDataProfilesService.profilesHome
 		};
 		configuration.logLevel = this.loggerMainService.getLogLevel();
-		configuration.loggers = {
-			window: this.loggerMainService.getRegisteredLoggers(this.id),
-			global: this.loggerMainService.getRegisteredLoggers()
-		};
+		configuration.loggers = this.loggerMainService.getGlobalLoggers();
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });

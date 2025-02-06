@@ -191,9 +191,9 @@ export function isChatEditingActionContext(thing: unknown): thing is IChatEditin
 	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
 }
 
-export function getMultiDiffSourceUri(): URI {
+export function getMultiDiffSourceUri(session: IChatEditingSession): URI {
 	return URI.from({
 		scheme: CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME,
-		path: '',
+		authority: session.chatSessionId,
 	});
 }

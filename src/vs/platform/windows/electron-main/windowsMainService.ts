@@ -1496,10 +1496,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToWait: options.filesToOpen?.filesToWait,
 
 			logLevel: this.loggerService.getLogLevel(),
-			loggers: {
-				window: [],
-				global: this.loggerService.getRegisteredLoggers()
-			},
+			loggers: this.loggerService.getGlobalLoggers(),
 			logsPath: this.environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
 
 			product,
@@ -1583,10 +1580,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
 			}
-			configuration.loggers = {
-				global: configuration.loggers.global,
-				window: currentWindowConfig?.loggers.window ?? configuration.loggers.window
-			};
+			configuration.loggers = configuration.loggers;
 		}
 
 		// Update window identifier and session now
