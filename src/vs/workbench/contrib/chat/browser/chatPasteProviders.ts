@@ -2,28 +2,39 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { createFileDataTransferItem, createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../base/common/mime.js';
+import { basename } from '../../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ChatInputPart } from './chatInputPart.js';
-import { IChatWidgetService } from './chat.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { localize } from '../../../../nls.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
-import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { Mimes } from '../../../../base/common/mime.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { basename } from '../../../../base/common/resources.js';
+import { localize } from '../../../../nls.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatWidgetService } from './chat.js';
+import { ChatInputPart } from './chatInputPart.js';
 import { resizeImage } from './imageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
+
+enum CopyFilesSettings {
+	Never = 'never',
+	MediaFiles = 'mediaFiles',
+}
+
+export enum MediaKind {
+	Image = 1,
+	Video,
+	Audio
+}
+
 
 interface SerializedCopyData {
 	readonly uri: UriComponents;
@@ -90,12 +101,16 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			tempDisplayName = `${displayName} ${appendValue}`;
 		}
 
+		const fileReference = await this.createFileForMedia(imageItem, mimeType, CopyFilesSettings.MediaFiles, token);
+		if (token.isCancellationRequested || !fileReference) {
+			return;
+		}
 		const scaledImageData = await resizeImage(currClipboard);
 		if (token.isCancellationRequested || !scaledImageData) {
 			return;
 		}
 
-		const scaledImageContext = await getImageAttachContext(scaledImageData, mimeType, token, tempDisplayName);
+		const scaledImageContext = await getImageAttachContext(scaledImageData, mimeType, token, tempDisplayName, fileReference);
 		if (token.isCancellationRequested || !scaledImageContext) {
 			return;
 		}
@@ -111,9 +126,40 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		const edit = createCustomPasteEdit(model, scaledImageContext, mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
 		return createEditSession(edit);
 	}
+
+	private async createFileForMedia(
+		dataTransfer: IDataTransferItem,
+		mimeType: string,
+		copyIntoWorkspace: CopyFilesSettings,
+		token: CancellationToken,
+	): Promise<URI | undefined> {
+		const file = dataTransfer.asFile();
+		if (!file) {
+			return;
+		}
+
+		if (file.uri) {
+			// check if already exists or not
+		}
+
+		const data = file.data();
+		const virtualUri = URI.from({
+			scheme: 'untitled',
+			path: '/virtual-file.txt'
+		});
+
+		const newFile = createFileDataTransferItem(file.name, virtualUri, async () => await data);
+		const createdFile = newFile.asFile();
+
+		if (!createdFile) {
+			return;
+		}
+
+		return createdFile.uri;
+	}
 }
 
-async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string): Promise<IChatRequestVariableEntry | undefined> {
+async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string, resource: URI): Promise<IChatRequestVariableEntry | undefined> {
 	const imageHash = await imageToHash(data);
 	if (token.isCancellationRequested) {
 		return undefined;
@@ -126,7 +172,8 @@ async function getImageAttachContext(data: Uint8Array, mimeType: string, token: 
 		isImage: true,
 		icon: Codicon.fileMedia,
 		isDynamic: true,
-		mimeType
+		mimeType,
+		references: [{ reference: resource, kind: 'reference' }]
 	};
 }
 
