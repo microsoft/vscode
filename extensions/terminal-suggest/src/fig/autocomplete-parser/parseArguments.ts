@@ -1,5 +1,4 @@
 // import { filepaths, folders } from "@fig/autocomplete-generators";
-import codeCompletionSpec from '../../completions/code';
 import * as Internal from "../shared/internal";
 import {
 	firstMatchingToken,
@@ -784,8 +783,8 @@ export const initialParserState = getResultFromState(
 const parseArgumentsCached = async (
 	command: Command,
 	context: Fig.ShellContext,
+	spec: Fig.Spec,
 	// authClient: AuthClient,
-	specLocations?: Internal.SpecLocation[],
 	isParsingHistory?: boolean,
 	startIndex = 0,
 	// localconsole: console.console = console,
@@ -797,8 +796,6 @@ const parseArgumentsCached = async (
 	let tokens = currentCommand.tokens.slice(startIndex);
 	// const tokenText = tokens.map((token) => token.text);
 
-	// TODO: Fill this in the with actual one (replace specLocations)
-	const spec = codeCompletionSpec; // null!;
 	const specPath: Fig.SpecLocation = { type: 'global', name: 'fake' };
 
 	// tokenTest[0] is the command and the spec they need
@@ -1120,6 +1117,7 @@ const executeLoginShell = async ({
 export const parseArguments = async (
 	command: Command | null,
 	context: Fig.ShellContext,
+	spec: Fig.Spec,
 	// authClient: AuthClient,
 	isParsingHistory = false,
 	// localconsole: console.console = console,
@@ -1152,7 +1150,7 @@ export const parseArguments = async (
 		command,
 		context,
 		// authClient,
-		undefined,
+		spec,
 		isParsingHistory,
 		0,
 	);

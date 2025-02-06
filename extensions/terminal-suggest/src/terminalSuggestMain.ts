@@ -116,7 +116,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			// replacing get options/args from spec with the parsed arguments
 			// to do: items for folders/files
 			// use suggestion flags to determine which to provide
-			const parsedArguments = await parseArguments(getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition), { environmentVariables: env, currentWorkingDirectory: terminal.shellIntegration!.cwd!.fsPath, sshPrefix: '', currentProcess: terminal.name });
+			const parsedArguments = await parseArguments(
+				getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition),
+				{ environmentVariables: env, currentWorkingDirectory: terminal.shellIntegration!.cwd!.fsPath, sshPrefix: '', currentProcess: terminal.name },
+				codeCompletionSpec,
+			);
 			console.log(parsedArguments);
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
