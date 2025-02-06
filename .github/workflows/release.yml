@@ -1,0 +1,69 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            output: win32
+            arch: x64
+          - os: macos-latest
+            output: darwin
+            arch: x64
+          - os: ubuntu-latest
+            output: linux
+            arch: x64
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.18.1'
+
+    - name: Install dependencies
+      run: |
+        npm install
+        npm install -g gulp-cli
+
+    - name: Build VS Code
+      run: npm run compile
+
+    - name: Create Package
+      run: npm run gulp -- "vscode-${{ matrix.output }}-${{ matrix.arch }}"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: vscode-${{ matrix.output }}
+        path: '.build/vscode-*'
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v3
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ github.event.inputs.version }}
+        name: Release v${{ github.event.inputs.version }}
+        draft: false
+        prerelease: false
+        files: |
+          vscode-*/vscode-*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -14,6 +14,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { WebUIEditorInput } from './webuiEditorInput.js';
+import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 // Register service with exact decorator name and eager instantiation
 registerSingleton(IWebUIService, WebUIWorkbenchService, InstantiationType.Eager);
@@ -27,7 +29,12 @@ class OpenWebUIAction extends Action2 {
 				original: 'Open AI Chat'
 			},
 			category: 'Developer',
-			f1: true
+			f1: true,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyK,
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: undefined
+			}
 		});
 	}
 
