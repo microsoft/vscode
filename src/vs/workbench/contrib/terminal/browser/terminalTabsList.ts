@@ -10,7 +10,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from './terminal.js';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from './terminal.js';
 import { localize } from '../../../../nls.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -51,7 +51,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { getColorForSeverity } from './terminalStatusList.js';
 import { TerminalContextActionRunner } from './terminalContextMenu.js';
 import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 const $ = DOM.$;
 
@@ -250,10 +249,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		private readonly _labels: ResourceLabels,
 		private readonly _getSelection: () => ITerminalInstance[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@IHoverService private readonly _hoverService: IHoverService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IListService private readonly _listService: IListService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -268,22 +265,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			supportHighlights: true,
 			supportDescriptionHighlights: true,
 			supportIcons: true,
-			hoverDelegate: {
-				delay: 0,
-				showHover: options => {
-					return this._hoverService.showDelayedHover({
-						...options,
-						actions: context.hoverActions,
-						target: element,
-						appearance: {
-							showPointer: true
-						},
-						position: {
-							hoverPosition: this._terminalConfigurationService.config.tabs.location === 'left' ? HoverPosition.RIGHT : HoverPosition.LEFT
-						}
-					}, { groupId: 'terminal-tabs-list' });
-				}
-			}
 		});
 
 		const actionsContainer = DOM.append(label.element, $('.actions'));
