@@ -79,6 +79,7 @@ import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataPro
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
+import { TelemetryLogAppender } from '../../platform/telemetry/common/telemetryLogAppender.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -161,7 +162,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		}
 
 		const config: ITelemetryServiceConfig = {
-			appenders: [oneDsAppender],
+			appenders: [oneDsAppender, new TelemetryLogAppender('', true, loggerService, environmentService, productService)],
 			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, 'remoteAgent'),
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};

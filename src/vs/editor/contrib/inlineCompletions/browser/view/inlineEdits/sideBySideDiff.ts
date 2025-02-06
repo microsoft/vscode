@@ -110,19 +110,19 @@ const ENABLE_OVERFLOW = false;
 export class InlineEditsSideBySideDiff extends Disposable implements IInlineEditsView {
 
 	// This is an approximation and should be improved by using the real parameters used bellow
-	static fitsInsideViewport(editor: ICodeEditor, edit: InlineEditWithChanges, reader: IReader): boolean {
+	static fitsInsideViewport(editor: ICodeEditor, edit: InlineEditWithChanges, originalDisplayRange: LineRange, reader: IReader): boolean {
 		const editorObs = observableCodeEditor(editor);
 		const editorWidth = editorObs.layoutInfoWidth.read(reader);
 		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
-		const editorVerticalScrollBar = editor.getLayoutInfo().verticalScrollbarWidth;
+		const editorVerticalScrollbar = editor.getLayoutInfo().verticalScrollbarWidth;
 		const w = editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 
-		const maxOriginalContent = maxContentWidthInRange(editorObs, edit.originalLineRange, undefined/* do not reconsider on each layout info change */);
+		const maxOriginalContent = maxContentWidthInRange(editorObs, originalDisplayRange, undefined/* do not reconsider on each layout info change */);
 		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, line.length * w), 0);
 		const endOfEditorPadding = 20; // padding after last line of editor
 		const editorsPadding = edit.modifiedLineRange.length <= edit.originalLineRange.length ? PADDING * 3 + endOfEditorPadding : 60 + endOfEditorPadding * 2;
 
-		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollBar;
+		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollbar;
 	}
 
 	private readonly _editorObs = observableCodeEditor(this._editor);

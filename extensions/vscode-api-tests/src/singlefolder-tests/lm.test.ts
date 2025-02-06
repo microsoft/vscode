@@ -139,11 +139,12 @@ suite('lm', function () {
 		}
 	});
 
-	test('LanguageModelError instance is not thrown to extensions#235322', async function () {
+	// SKIPPED until Feb 6 2025
+	test.skip('LanguageModelError instance is not thrown to extensions#235322 (SYNC)', async function () {
 
 		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
-			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
-				throw vscode.LanguageModelError.Blocked('You have been blocked');
+			provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+				throw vscode.LanguageModelError.Blocked('You have been blocked SYNC');
 			},
 			async provideTokenCount(_text, _token) {
 				return 1;
@@ -153,17 +154,41 @@ suite('lm', function () {
 		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
 		assert.strictEqual(models.length, 1);
 
-		let output = '';
-
 		try {
-			const response = await models[0].sendRequest([vscode.LanguageModelChatMessage.User('Hello')]);
-			assert.ok(response);
+			await models[0].sendRequest([vscode.LanguageModelChatMessage.User('Hello')]);
+			assert.ok(false, 'EXPECTED error');
+		} catch (error) {
+			assert.ok(error instanceof vscode.LanguageModelError);
+			assert.strictEqual(error.message, 'You have been blocked SYNC');
+		}
+	});
+
+	test('LanguageModelError instance is not thrown to extensions#235322 (ASYNC)', async function () {
+
+		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
+			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+				throw vscode.LanguageModelError.Blocked('You have been blocked ASYNC');
+			},
+			async provideTokenCount(_text, _token) {
+				return 1;
+			}
+		}, testProviderOptions));
+
+		const models = await vscode.lm.selectChatModels({ id: 'test-lm' });
+		assert.strictEqual(models.length, 1);
+
+
+		const response = await models[0].sendRequest([vscode.LanguageModelChatMessage.User('Hello')]);
+		assert.ok(response);
+
+		let output = '';
+		try {
 			for await (const thing of response.text) {
 				output += thing;
 			}
 		} catch (error) {
 			assert.ok(error instanceof vscode.LanguageModelError);
-			assert.strictEqual(error.message, 'You have been blocked');
+			assert.strictEqual(error.message, 'You have been blocked ASYNC');
 		}
 		assert.strictEqual(output, '');
 	});

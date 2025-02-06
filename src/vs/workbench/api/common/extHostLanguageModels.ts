@@ -220,30 +220,34 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			this._proxy.$reportResponsePart(requestId, { index: fragment.index, part });
 		});
 
-		let p: Promise<any>;
+		let value: any;
 
-		if (data.provider.provideLanguageModelResponse2) {
+		try {
+			if (data.provider.provideLanguageModelResponse2) {
+				value = data.provider.provideLanguageModelResponse2(
+					messages.map(typeConvert.LanguageModelChatMessage.to),
+					options,
+					ExtensionIdentifier.toKey(from),
+					progress,
+					token
+				);
 
-			p = Promise.resolve(data.provider.provideLanguageModelResponse2(
-				messages.map(typeConvert.LanguageModelChatMessage.to),
-				options,
-				ExtensionIdentifier.toKey(from),
-				progress,
-				token
-			));
+			} else {
+				value = data.provider.provideLanguageModelResponse(
+					messages.map(typeConvert.LanguageModelChatMessage.to),
+					options,
+					ExtensionIdentifier.toKey(from),
+					progress,
+					token
+				);
+			}
 
-		} else {
-
-			p = Promise.resolve(data.provider.provideLanguageModelResponse(
-				messages.map(typeConvert.LanguageModelChatMessage.to),
-				options,
-				ExtensionIdentifier.toKey(from),
-				progress,
-				token
-			));
+		} catch (err) {
+			// synchronously failed
+			throw err;
 		}
 
-		p.then(() => {
+		Promise.resolve(value).then(() => {
 			this._proxy.$reportResponseDone(requestId, undefined);
 		}, err => {
 			this._proxy.$reportResponseDone(requestId, transformErrorForSerialization(err));
@@ -391,7 +395,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				// error'ing here means that the request could NOT be started/made, e.g. wrong model, no access, etc, but
 				// later the response can fail as well. Those failures are communicated via the stream-object
 				this._pendingRequest.delete(requestId);
-				throw error;
+				throw extHostTypes.LanguageModelError.tryDeserialize(error) ?? error;
 			}
 
 			return res.apiObject;

@@ -1927,8 +1927,14 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
-		const args = ['push', '--delete', remoteName, tagName];
+	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
+		const args = ['push', remoteName, '--delete'];
+
+		if (options?.force) {
+			args.push('--force');
+		}
+
+		args.push(refName);
 		await this.exec(args);
 	}
 
@@ -2753,7 +2759,7 @@ export class Repository {
 				return {
 					type: RefType.Head,
 					name: branchName,
-					upstream: upstream ? {
+					upstream: upstream !== '' && status !== '[gone]' ? {
 						name: upstreamRef ? upstreamRef.substring(11) : upstream.substring(index + 1),
 						remote: remoteName ? remoteName : upstream.substring(0, index)
 					} : undefined,
