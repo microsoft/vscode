@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri } from 'vscode';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRemoteConsoleLog } from '../../../base/common/console.js';
@@ -2449,7 +2448,7 @@ export class TerminalCompletionListDto<T extends TerminalCompletionItem = Termin
 export interface TerminalResourceRequestConfigDto {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
-	cwd?: Uri;
+	cwd?: UriComponents;
 	pathSeparator: string;
 }
 
