@@ -234,9 +234,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// - Using `\` or `/` will request new completions. It's important that this only occurs
 		//   when a directory is present, if not completions like git branches could be requested
 		//   which leads to flickering
-		this._isFilteringDirectories = completions.some(e => e.isDirectory);
+		this._isFilteringDirectories = completions.some(e => e.kind === TerminalCompletionItemKind.Folder);
 		if (this._isFilteringDirectories) {
-			const firstDir = completions.find(e => e.isDirectory);
+			const firstDir = completions.find(e => e.kind === TerminalCompletionItemKind.Folder);
 			this._pathSeparator = firstDir?.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
@@ -582,7 +582,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const completion = suggestion.item.completion;
 		let completionText = completion.label;
-		if ((completion.isDirectory || completion.isFile) && completionText.includes(' ')) {
+		if ((completion.kind === TerminalCompletionItemKind.Folder || completion.isFile) && completionText.includes(' ')) {
 			// Escape spaces in files or folders so they're valid paths
 			completionText = completionText.replaceAll(' ', '\\ ');
 		}

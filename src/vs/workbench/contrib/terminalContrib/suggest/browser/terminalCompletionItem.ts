@@ -17,19 +17,16 @@ export enum TerminalCompletionItemKind {
 }
 
 export interface ITerminalCompletion extends ISimpleCompletion {
-
-	kind?: TerminalCompletionItemKind;
+	/**
+	 * The kind of terminal completion item.
+	 */
+	kind: TerminalCompletionItemKind;
 
 	/**
 	 * Whether the completion is a file. Files with the same score will be sorted against each other
 	 * first by extension length and then certain extensions will get a boost based on the OS.
 	 */
 	isFile?: boolean;
-
-	/**
-	 * Whether the completion is a directory.
-	 */
-	isDirectory?: boolean;
 
 	/**
 	 * Whether the completion is a keyword.
@@ -80,11 +77,11 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 			}
 		}
 
-		if (completion.isFile || completion.isDirectory) {
+		if (completion.isFile || completion.kind === TerminalCompletionItemKind.Folder) {
 			if (isWindows) {
 				this.labelLowNormalizedPath = this.labelLow.replaceAll('\\', '/');
 			}
-			if (completion.isDirectory) {
+			if (completion.kind === TerminalCompletionItemKind.Folder) {
 				this.labelLowNormalizedPath = this.labelLowNormalizedPath.replace(/\/$/, '');
 			}
 			this.underscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
