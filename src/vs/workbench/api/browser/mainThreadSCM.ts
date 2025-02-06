@@ -97,7 +97,6 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-
 	private readonly _onDidChangeResources = new Emitter<void>();
 	readonly onDidChangeResources = this._onDidChangeResources.event;
 
@@ -598,7 +597,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositories.delete(handle);
 	}
 
-	async $registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean, string /*contextKey*/][], splices: SCMRawResourceSplices[]): Promise<void> {
+	async $registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean, string /*contextValue*/][], splices: SCMRawResourceSplices[]): Promise<void> {
 		await this._repositoryBarriers.get(sourceControlHandle)?.wait();
 		const repository = this._repositories.get(sourceControlHandle);
 
