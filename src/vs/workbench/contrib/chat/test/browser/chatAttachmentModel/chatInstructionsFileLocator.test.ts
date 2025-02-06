@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { basename } from '../../../../../../base/common/resources.js';
 import { PromptFilesConfig } from '../../../common/promptSyntax/config.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
@@ -18,7 +19,6 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { basename } from '../../../../../../base/common/resources.js';
 
 /**
  * Mocked mocked instance of {@link IConfigurationService}.
@@ -559,7 +559,7 @@ suite('ChatInstructionsFileLocator', () => {
 										children: [
 											{
 												name: 'default-github.prompt.md',
-												contents: 'oh hi, bot!',
+												contents: 'oh hi, raw-bot!',
 											},
 										],
 									},
@@ -574,6 +574,1200 @@ suite('ChatInstructionsFileLocator', () => {
 						],
 						'Must find correct prompts.',
 					);
+				});
+
+				test('absolute path', async () => {
+					const locator = await createPromptsLocator(
+						'/Users/legomushroom/test/prompts',
+						[
+							'/Users/legomushroom/test/vscode',
+						],
+						[
+							{
+								name: '/Users/legomushroom/test/prompts',
+								children: [
+									{
+										name: 'test.prompt.md',
+										contents: 'Hello, World!',
+									},
+									{
+										name: 'refactor-tests.prompt.md',
+										contents: 'some file content goes here',
+									},
+								],
+							},
+							{
+								name: '/tmp/prompts',
+								children: [
+									{
+										name: 'translate.to-rust.prompt.md',
+										contents: 'some more random file contents',
+									},
+								],
+							},
+							{
+								name: '/absolute/path/prompts',
+								children: [
+									{
+										name: 'some-prompt-file.prompt.md',
+										contents: 'hey hey hey',
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/test/vscode',
+								children: [
+									{
+										name: '.copilot/prompts',
+										children: [
+											{
+												name: 'default.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'default.prompt.md',
+												contents: 'oh hi, bot!',
+											},
+										],
+									},
+								],
+							},
+						]);
+
+					assert.deepStrictEqual(
+						await locator.listFiles([]),
+						[
+							URI.file('/Users/legomushroom/test/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/test/prompts/refactor-tests.prompt.md'),
+						],
+						'Must find correct prompts.',
+					);
+				});
+			});
+		});
+	});
+
+	suite('multi-root workspace', () => {
+		suite('non-empty filesystem', () => {
+			suite('object config value', () => {
+				test('without top-level `.github` folder', async () => {
+					const locator = await createPromptsLocator(
+						{
+							'/Users/legomushroom/repos/prompts': true,
+							'/tmp/prompts/': true,
+							'/absolute/path/prompts': false,
+							'.copilot/prompts': false,
+							'.github/prompts': true,
+						},
+						[
+							'/Users/legomushroom/repos/vscode',
+							'/Users/legomushroom/repos/node',
+						],
+						[
+							{
+								name: '/Users/legomushroom/repos/prompts',
+								children: [
+									{
+										name: 'test.prompt.md',
+										contents: 'Hello, World!',
+									},
+									{
+										name: 'refactor-tests.prompt.md',
+										contents: 'some file content goes here',
+									},
+								],
+							},
+							{
+								name: '/tmp/prompts',
+								children: [
+									{
+										name: 'translate.to-rust.prompt.md',
+										contents: 'some more random file contents',
+									},
+								],
+							},
+							{
+								name: '/absolute/path/prompts',
+								children: [
+									{
+										name: 'some-prompt-file.prompt.md',
+										contents: 'hey hey hey',
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/repos/vscode',
+								children: [
+									{
+										name: '.copilot/prompts',
+										children: [
+											{
+												name: 'prompt1.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'default.prompt.md',
+												contents: 'oh hi, bot!',
+											},
+										],
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/repos/node',
+								children: [
+									{
+										name: '.copilot/prompts',
+										children: [
+											{
+												name: 'prompt5.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'refactor-static-classes.prompt.md',
+												contents: 'file contents',
+											},
+										],
+									},
+								],
+							},
+							// note! this folder is not part of the workspace, so prompt files are `ignored`
+							{
+								name: '/Users/legomushroom/repos/.github/prompts',
+								children: [
+									{
+										name: 'prompt-name.prompt.md',
+										contents: 'oh hi, robot!',
+									},
+									{
+										name: 'name-of-the-prompt.prompt.md',
+										contents: 'oh hi, raw bot!',
+									},
+								],
+							},
+						]);
+
+					assert.deepStrictEqual(
+						await locator.listFiles([]),
+						[
+							URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+							URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
+							URI.file('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
+						],
+						'Must find correct prompts.',
+					);
+				});
+
+				test('with top-level `.github` folder', async () => {
+					const locator = await createPromptsLocator(
+						{
+							'/Users/legomushroom/repos/prompts': true,
+							'/tmp/prompts/': true,
+							'/absolute/path/prompts': false,
+							'.copilot/prompts': false,
+							'.github/prompts': true,
+						},
+						[
+							'/Users/legomushroom/repos/vscode',
+							'/Users/legomushroom/repos/node',
+							'/var/shared/prompts/.github',
+						],
+						[
+							{
+								name: '/Users/legomushroom/repos/prompts',
+								children: [
+									{
+										name: 'test.prompt.md',
+										contents: 'Hello, World!',
+									},
+									{
+										name: 'refactor-tests.prompt.md',
+										contents: 'some file content goes here',
+									},
+								],
+							},
+							{
+								name: '/tmp/prompts',
+								children: [
+									{
+										name: 'translate.to-rust.prompt.md',
+										contents: 'some more random file contents',
+									},
+								],
+							},
+							{
+								name: '/absolute/path/prompts',
+								children: [
+									{
+										name: 'some-prompt-file.prompt.md',
+										contents: 'hey hey hey',
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/repos/vscode',
+								children: [
+									{
+										name: '.copilot/prompts',
+										children: [
+											{
+												name: 'prompt1.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'default.prompt.md',
+												contents: 'oh hi, bot!',
+											},
+										],
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/repos/node',
+								children: [
+									{
+										name: '.copilot/prompts',
+										children: [
+											{
+												name: 'prompt5.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'refactor-static-classes.prompt.md',
+												contents: 'file contents',
+											},
+										],
+									},
+								],
+							},
+							// note! this folder is part of the workspace, so prompt files are `included`
+							{
+								name: '/var/shared/prompts/.github/prompts',
+								children: [
+									{
+										name: 'prompt-name.prompt.md',
+										contents: 'oh hi, robot!',
+									},
+									{
+										name: 'name-of-the-prompt.prompt.md',
+										contents: 'oh hi, raw bot!',
+									},
+								],
+							},
+						]);
+
+					assert.deepStrictEqual(
+						await locator.listFiles([]),
+						[
+							URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+							URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
+							URI.file('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
+							URI.file('/var/shared/prompts/.github/prompts/prompt-name.prompt.md'),
+							URI.file('/var/shared/prompts/.github/prompts/name-of-the-prompt.prompt.md'),
+						],
+						'Must find correct prompts.',
+					);
+				});
+			});
+
+			suite('array config value', () => {
+				test('without top-level `copilot` folder', async () => {
+					const locator = await createPromptsLocator(
+						[
+							'/Users/legomushroom/repos/prompts',
+							'/tmp/prompts/',
+							'copilot/PROMPTS/',
+						],
+						[
+							'/Users/legomushroom/repos/vscode',
+							'/Users/legomushroom/repos/node',
+						],
+						[
+							{
+								name: '/Users/legomushroom/repos/prompts',
+								children: [
+									{
+										name: 'test.prompt.md',
+										contents: 'Hello, World!',
+									},
+									{
+										name: 'refactor-tests.prompt.md',
+										contents: 'some file content goes here',
+									},
+								],
+							},
+							{
+								name: '/tmp/prompts',
+								children: [
+									{
+										name: 'translate.to-rust.prompt.md',
+										contents: 'some more random file contents',
+									},
+								],
+							},
+							{
+								name: '/absolute/path/prompts',
+								children: [
+									{
+										name: 'some-prompt-file.prompt.md',
+										contents: 'hey hey hey',
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/repos/vscode',
+								children: [
+									{
+										name: 'copilot/PROMPTS',
+										children: [
+											{
+												name: 'prompt1.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+											{
+												name: 'prompt2.prompt.md',
+												contents: 'oh hi, raw boot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'default.prompt.md',
+												contents: 'oh hi, bot!',
+											},
+										],
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/repos/node',
+								children: [
+									{
+										name: 'copilot/PROMPTS',
+										children: [
+											{
+												name: 'Build-Constructed-Structures.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'refactor-static-classes.prompt.md',
+												contents: 'file contents',
+											},
+										],
+									},
+								],
+							},
+							// note! this folder is not part of the workspace, so prompt files are `ignored`
+							{
+								name: '/Users/legomushroom/repos/copilot/PROMPTS',
+								children: [
+									{
+										name: 'prompt-name.prompt.md',
+										contents: 'oh hi, robot!',
+									},
+									{
+										name: 'name-of-the-prompt.prompt.md',
+										contents: 'oh hi, raw bot!',
+									},
+								],
+							},
+							// note! this folder is not part of the workspace, so prompt files are `ignored`
+							{
+								name: '/Users/legomushroom/repos/.github/prompts',
+								children: [
+									{
+										name: 'prompt-name-22.prompt.md',
+										contents: 'oh hi, robot!',
+									},
+									{
+										name: 'name-of-the-prompt-56.prompt.md',
+										contents: 'oh hi, raw bot!',
+									},
+								],
+							},
+						]);
+
+					assert.deepStrictEqual(
+						await locator.listFiles([]),
+						[
+							URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+							URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/copilot/PROMPTS/prompt1.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/copilot/PROMPTS/prompt2.prompt.md'),
+							URI.file('/Users/legomushroom/repos/node/copilot/PROMPTS/Build-Constructed-Structures.prompt.md'),
+						],
+						'Must find correct prompts.',
+					);
+				});
+
+				test('with top-level `copilot` folder', async () => {
+					const locator = await createPromptsLocator(
+						[
+							'/Users/legomushroom/repos/prompts',
+							'/tmp/prompts/',
+							'copilot/PROMPTS/',
+						],
+						[
+							'/Users/legomushroom/repos/vscode',
+							'/Users/legomushroom/repos/node',
+							'/Users/legomushroom/repos/copilot/',
+						],
+						[
+							{
+								name: '/Users/legomushroom/repos/prompts',
+								children: [
+									{
+										name: 'test.prompt.md',
+										contents: 'Hello, World!',
+									},
+									{
+										name: 'refactor-tests.prompt.md',
+										contents: 'some file content goes here',
+									},
+								],
+							},
+							{
+								name: '/tmp/prompts',
+								children: [
+									{
+										name: 'translate.to-rust.prompt.md',
+										contents: 'some more random file contents',
+									},
+								],
+							},
+							{
+								name: '/absolute/path/prompts',
+								children: [
+									{
+										name: 'some-prompt-file.prompt.md',
+										contents: 'hey hey hey',
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/repos/vscode',
+								children: [
+									{
+										name: 'copilot/PROMPTS',
+										children: [
+											{
+												name: 'prompt1.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+											{
+												name: 'prompt2.prompt.md',
+												contents: 'oh hi, raw boot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'default.prompt.md',
+												contents: 'oh hi, bot!',
+											},
+										],
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/repos/node',
+								children: [
+									{
+										name: 'copilot/PROMPTS',
+										children: [
+											{
+												name: 'Build-Constructed-Structures.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'refactor-static-classes.prompt.md',
+												contents: 'file contents',
+											},
+										],
+									},
+								],
+							},
+							// note! this folder is not part of the workspace, so prompt files are `included`
+							{
+								name: '/Users/legomushroom/repos/copilot/PROMPTS',
+								children: [
+									{
+										name: 'prompt-name.tests.prompt.md',
+										contents: 'oh hi, robot!',
+									},
+									{
+										name: 'name-of-the-prompt.tests.prompt.md',
+										contents: 'oh hi, raw bot!',
+									},
+								],
+							},
+							// note! this folder is not part of the workspace, so prompt files are `ignored`
+							{
+								name: '/Users/legomushroom/repos/.github/prompts',
+								children: [
+									{
+										name: 'prompt-name-22.prompt.md',
+										contents: 'oh hi, robot!',
+									},
+									{
+										name: 'name-of-the-prompt-56.prompt.md',
+										contents: 'oh hi, raw bot!',
+									},
+								],
+							},
+						]);
+
+					assert.deepStrictEqual(
+						await locator.listFiles([]),
+						[
+							URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+							URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/copilot/PROMPTS/prompt1.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/copilot/PROMPTS/prompt2.prompt.md'),
+							URI.file('/Users/legomushroom/repos/node/copilot/PROMPTS/Build-Constructed-Structures.prompt.md'),
+							URI.file('/Users/legomushroom/repos/copilot/PROMPTS/prompt-name.tests.prompt.md'),
+							URI.file('/Users/legomushroom/repos/copilot/PROMPTS/name-of-the-prompt.tests.prompt.md'),
+						],
+						'Must find correct prompts.',
+					);
+				});
+			});
+
+			suite('string config value', () => {
+				suite('absolute path', () => {
+					test('without top-level `copilot` folder', async () => {
+						const locator = await createPromptsLocator(
+							'/tmp/prompts/',
+							[
+								'/Users/legomushroom/repos/vscode',
+								'/Users/legomushroom/repos/node',
+							],
+							[
+								{
+									name: '/Users/legomushroom/repos/prompts',
+									children: [
+										{
+											name: 'test.prompt.md',
+											contents: 'Hello, World!',
+										},
+										{
+											name: 'refactor-tests.prompt.md',
+											contents: 'some file content goes here',
+										},
+									],
+								},
+								{
+									name: '/tmp/prompts',
+									children: [
+										{
+											name: 'translate.to-go.prompt.md',
+											contents: 'some more random file contents',
+										},
+										{
+											name: 'find-mean-error-rate.prompt.md',
+											contents: 'random file contents',
+										},
+										{
+											name: '.github',
+											children: [
+												{
+													name: 'prompts',
+													children: [
+														{
+															name: 'github-prompt.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+													],
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/absolute/path/prompts',
+									children: [
+										{
+											name: 'some-prompt-file.prompt.md',
+											contents: 'hey hey hey',
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/vscode',
+									children: [
+										{
+											name: 'copilot/PROMPTS',
+											children: [
+												{
+													name: 'prompt1.prompt.md',
+													contents: 'oh hi, robot!',
+												},
+												{
+													name: 'prompt2.prompt.md',
+													contents: 'oh hi, raw boot!',
+												},
+											],
+										},
+										{
+											name: '.github/prompts',
+											children: [
+												{
+													name: 'default.prompt.md',
+													contents: 'oh hi, bot!',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/node',
+									children: [
+										{
+											name: 'copilot/PROMPTS',
+											children: [
+												{
+													name: 'Build-Constructed-Structures.prompt.md',
+													contents: 'oh hi, robot!',
+												},
+											],
+										},
+										{
+											name: '.github/prompts',
+											children: [
+												{
+													name: 'refactor-static-classes.prompt.md',
+													contents: 'file contents',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/copilot/PROMPTS',
+									children: [
+										{
+											name: 'prompt-name.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+										{
+											name: 'name-of-the-prompt.prompt.md',
+											contents: 'oh hi, raw bot!',
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/.github/prompts',
+									children: [
+										{
+											name: 'prompt-name-22.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+										{
+											name: 'name-of-the-prompt-56.prompt.md',
+											contents: 'oh hi, raw bot!',
+										},
+									],
+								},
+							]);
+
+						assert.deepStrictEqual(
+							await locator.listFiles([]),
+							[
+								URI.file('/tmp/prompts/translate.to-go.prompt.md'),
+								URI.file('/tmp/prompts/find-mean-error-rate.prompt.md'),
+							],
+							'Must find correct prompts.',
+						);
+					});
+
+					test('with top-level `.github` folder', async () => {
+						const locator = await createPromptsLocator(
+							'/Users/legomushroom/repos/prompts',
+							[
+								'/Users/legomushroom/repos/vscode',
+								'/Users/legomushroom/repos/node',
+								'/Users/legomushroom/repos/.github/',
+							],
+							[
+								{
+									name: '/Users/legomushroom/repos/prompts',
+									children: [
+										{
+											name: 'test.file.prompt.md',
+											contents: 'Hello, World!',
+										},
+										{
+											name: 'refactor-tests.file.prompt.md',
+											contents: 'some file content goes here',
+										},
+									],
+								},
+								{
+									name: '/tmp/prompts',
+									children: [
+										{
+											name: 'translate.to-rust.prompt.md',
+											contents: 'some more random file contents',
+										},
+									],
+								},
+								{
+									name: '/absolute/path/prompts',
+									children: [
+										{
+											name: 'some-prompt-file.prompt.md',
+											contents: 'hey hey hey',
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/vscode',
+									children: [
+										{
+											name: 'copilot/PROMPTS',
+											children: [
+												{
+													name: 'prompt1.prompt.md',
+													contents: 'oh hi, robot!',
+												},
+												{
+													name: 'prompt2.prompt.md',
+													contents: 'oh hi, raw boot!',
+												},
+											],
+										},
+										{
+											name: '.github/prompts',
+											children: [
+												{
+													name: 'default.prompt.md',
+													contents: 'oh hi, bot!',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/node',
+									children: [
+										{
+											name: '.copilot/PROMPTS',
+											children: [
+												{
+													name: 'Build-Constructed-Structures.prompt.md',
+													contents: 'oh hi, robot!',
+												},
+											],
+										},
+										{
+											name: '.github/prompts',
+											children: [
+												{
+													name: 'refactor-static-classes.prompt.md',
+													contents: 'file contents',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/copilot/PROMPTS',
+									children: [
+										{
+											name: 'prompt-name.tests.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+										{
+											name: 'name-of-the-prompt.tests.prompt.md',
+											contents: 'oh hi, raw bot!',
+										},
+									],
+								},
+								// note! this folder is not part of the workspace, so prompt files are `ignored`
+								{
+									name: '/Users/legomushroom/repos/.github/prompts',
+									children: [
+										{
+											name: 'prompt-name-22.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+										{
+											name: 'name-of-the-prompt-56.prompt.md',
+											contents: 'oh hi, raw bot!',
+										},
+									],
+								},
+							]);
+
+						assert.deepStrictEqual(
+							await locator.listFiles([]),
+							[
+								URI.file('/Users/legomushroom/repos/prompts/test.file.prompt.md'),
+								URI.file('/Users/legomushroom/repos/prompts/refactor-tests.file.prompt.md'),
+							],
+							'Must find correct prompts.',
+						);
+					});
+				});
+
+				suite('relative path', () => {
+					test('without top-level `my-prompts` folder', async () => {
+						const locator = await createPromptsLocator(
+							'my-prompts',
+							[
+								'/Users/legomushroom/repos/vscode',
+								'/Users/legomushroom/repos/node',
+							],
+							[
+								{
+									name: '/Users/legomushroom/repos/prompts',
+									children: [
+										{
+											name: 'test.prompt.md',
+											contents: 'Hello, World!',
+										},
+										{
+											name: 'refactor-tests.prompt.md',
+											contents: 'some file content goes here',
+										},
+									],
+								},
+								{
+									name: '/tmp/prompts',
+									children: [
+										{
+											name: 'translate.to-go.prompt.md',
+											contents: 'some more random file contents',
+										},
+										{
+											name: 'find-mean-error-rate.prompt.md',
+											contents: 'random file contents',
+										},
+										{
+											name: '.github',
+											children: [
+												{
+													name: 'prompts',
+													children: [
+														{
+															name: 'github-prompt.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+													],
+												},
+											],
+										},
+										{
+											name: 'my-prompts',
+											children: [
+												{
+													name: 'github-prompt.prompt.md',
+													contents: 'oh hi, bot!',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/absolute/path/prompts',
+									children: [
+										{
+											name: 'some-prompt-file.prompt.md',
+											contents: 'hey hey hey',
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/vscode',
+									children: [
+										{
+											name: 'my-prompts',
+											children: [
+												{
+													name: 'prompt1.prompt.md',
+													contents: 'oh hi, robot!',
+												},
+												{
+													name: 'prompt2.prompt.md',
+													contents: 'oh hi, raw boot!',
+												},
+											],
+										},
+										{
+											name: '.github/prompts',
+											children: [
+												{
+													name: 'default.prompt.md',
+													contents: 'oh hi, bot!',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/node',
+									children: [
+										{
+											name: 'my-prompts',
+											children: [
+												{
+													name: 'Build-Constructed-Structures.prompt.md',
+													contents: 'oh hi, robot!',
+												},
+											],
+										},
+										{
+											name: '.github/prompts',
+											children: [
+												{
+													name: 'refactor-static-classes.prompt.md',
+													contents: 'file contents',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/my-prompts',
+									children: [
+										{
+											name: 'prompt-name.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+										{
+											name: 'name-of-the-prompt.prompt.md',
+											contents: 'oh hi, raw bot!',
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/.github/prompts',
+									children: [
+										{
+											name: 'prompt-name-22.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+										{
+											name: 'name-of-the-prompt-56.prompt.md',
+											contents: 'oh hi, raw bot!',
+										},
+									],
+								},
+							]);
+
+						assert.deepStrictEqual(
+							await locator.listFiles([]),
+							[
+								URI.file('/Users/legomushroom/repos/vscode/my-prompts/prompt1.prompt.md'),
+								URI.file('/Users/legomushroom/repos/vscode/my-prompts/prompt2.prompt.md'),
+								URI.file('/Users/legomushroom/repos/node/my-prompts/Build-Constructed-Structures.prompt.md'),
+							],
+							'Must find correct prompts.',
+						);
+					});
+
+					test('with top-level `my-prompts` folder', async () => {
+						const locator = await createPromptsLocator(
+							'my-prompts',
+							[
+								'/Users/legomushroom/repos/vscode',
+								'/Users/legomushroom/repos/node',
+								'/Users/legomushroom/repos/my-prompts',
+							],
+							[
+								{
+									name: '/Users/legomushroom/repos/prompts',
+									children: [
+										{
+											name: 'test.prompt.md',
+											contents: 'Hello, World!',
+										},
+										{
+											name: 'refactor-tests.prompt.md',
+											contents: 'some file content goes here',
+										},
+									],
+								},
+								{
+									name: '/tmp/prompts',
+									children: [
+										{
+											name: 'translate.to-go.prompt.md',
+											contents: 'some more random file contents',
+										},
+										{
+											name: 'find-mean-error-rate.prompt.md',
+											contents: 'random file contents',
+										},
+										{
+											name: '.github',
+											children: [
+												{
+													name: 'prompts',
+													children: [
+														{
+															name: 'github-prompt.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+													],
+												},
+											],
+										},
+										{
+											name: 'my-prompts',
+											children: [
+												{
+													name: 'github-prompt.prompt.md',
+													contents: 'oh hi, bot!',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/absolute/path/prompts',
+									children: [
+										{
+											name: 'some-prompt-file.prompt.md',
+											contents: 'hey hey hey',
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/vscode',
+									children: [
+										{
+											name: 'my-prompts',
+											children: [
+												{
+													name: 'prompt1.prompt.md',
+													contents: 'oh hi, robot!',
+												},
+												{
+													name: 'prompt2.prompt.md',
+													contents: 'oh hi, raw boot!',
+												},
+											],
+										},
+										{
+											name: '.github/prompts',
+											children: [
+												{
+													name: 'default.prompt.md',
+													contents: 'oh hi, bot!',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/node',
+									children: [
+										{
+											name: 'my-prompts',
+											children: [
+												{
+													name: 'Build-Constructed-Structures.prompt.md',
+													contents: 'oh hi, robot!',
+												},
+											],
+										},
+										{
+											name: '.github/prompts',
+											children: [
+												{
+													name: 'refactor-static-classes.prompt.md',
+													contents: 'file contents',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/my-prompts',
+									children: [
+										{
+											name: 'prompt.name.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+										{
+											name: 'name.of.the.prompt.md',
+											contents: 'oh hi, raw bot! why sad?',
+										},
+									],
+								},
+								{
+									name: '/Users/legomushroom/repos/.github/prompts',
+									children: [
+										{
+											name: 'prompt-name-22.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+										{
+											name: 'name-of-the-prompt-56.prompt.md',
+											contents: 'oh hi, raw bot!',
+										},
+									],
+								},
+							]);
+
+						assert.deepStrictEqual(
+							await locator.listFiles([]),
+							[
+								URI.file('/Users/legomushroom/repos/vscode/my-prompts/prompt1.prompt.md'),
+								URI.file('/Users/legomushroom/repos/vscode/my-prompts/prompt2.prompt.md'),
+								URI.file('/Users/legomushroom/repos/node/my-prompts/Build-Constructed-Structures.prompt.md'),
+								URI.file('/Users/legomushroom/repos/my-prompts/prompt.name.prompt.md'),
+								URI.file('/Users/legomushroom/repos/my-prompts/name.of.the.prompt.md'),
+							],
+							'Must find correct prompts.',
+						);
+					});
 				});
 			});
 		});
