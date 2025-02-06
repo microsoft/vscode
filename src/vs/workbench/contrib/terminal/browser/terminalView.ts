@@ -250,7 +250,7 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalTabbedView?.layout(width, height);
 	}
 
-	override getActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+	override createActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
@@ -292,7 +292,7 @@ export class TerminalViewPane extends ViewPane {
 				}
 			}
 		}
-		return super.getActionViewItem(action, options);
+		return super.createActionViewItem(action, options);
 	}
 
 	/**
