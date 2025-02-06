@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { LineContext, SimpleCompletionModel } from '../../browser/simpleCompletionModel.js';
-import { SimpleCompletionItem, type ISimpleCompletion } from '../../browser/simpleCompletionItem.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { SimpleCompletionItem, type ISimpleCompletion } from '../../../../../services/suggest/browser/simpleCompletionItem.js';
+import { TerminalCompletionModel } from '../../browser/terminalCompletionModel.js';
+import { LineContext } from '../../../../../services/suggest/browser/simpleCompletionModel.js';
 
 function createItem(options: Partial<ISimpleCompletion>): SimpleCompletionItem {
 	return new SimpleCompletionItem({
@@ -21,8 +22,8 @@ function createFileItems(...labels: string[]): SimpleCompletionItem[] {
 	return labels.map(label => createItem({ label, isFile: true }));
 }
 
-function createFileItemsModel(...labels: string[]): SimpleCompletionModel {
-	return new SimpleCompletionModel(
+function createFileItemsModel(...labels: string[]): TerminalCompletionModel {
+	return new TerminalCompletionModel(
 		createFileItems(...labels),
 		new LineContext('', 0)
 	);
@@ -32,31 +33,31 @@ function createFolderItems(...labels: string[]): SimpleCompletionItem[] {
 	return labels.map(label => createItem({ label, isDirectory: true }));
 }
 
-function createFolderItemsModel(...labels: string[]): SimpleCompletionModel {
-	return new SimpleCompletionModel(
+function createFolderItemsModel(...labels: string[]): TerminalCompletionModel {
+	return new TerminalCompletionModel(
 		createFolderItems(...labels),
 		new LineContext('', 0)
 	);
 }
 
-function assertItems(model: SimpleCompletionModel, labels: string[]): void {
+function assertItems(model: TerminalCompletionModel, labels: string[]): void {
 	assert.deepStrictEqual(model.items.map(i => i.completion.label), labels);
 	assert.strictEqual(model.items.length, labels.length); // sanity check
 }
 
-suite('SimpleCompletionModel', function () {
+suite('TerminalCompletionModel', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	let model: SimpleCompletionModel;
+	let model: TerminalCompletionModel;
 
 	test('should handle an empty list', function () {
-		model = new SimpleCompletionModel([], new LineContext('', 0));
+		model = new TerminalCompletionModel([], new LineContext('', 0));
 
 		assert.strictEqual(model.items.length, 0);
 	});
 
 	test('should handle a list with one item', function () {
-		model = new SimpleCompletionModel([
+		model = new TerminalCompletionModel([
 			createItem({ label: 'a' }),
 		], new LineContext('', 0));
 
@@ -65,7 +66,7 @@ suite('SimpleCompletionModel', function () {
 	});
 
 	test('should sort alphabetically', function () {
-		model = new SimpleCompletionModel([
+		model = new TerminalCompletionModel([
 			createItem({ label: 'b' }),
 			createItem({ label: 'z' }),
 			createItem({ label: 'a' }),
@@ -90,7 +91,7 @@ suite('SimpleCompletionModel', function () {
 			'.\\.eslintrc',
 			'.\\resources\\',
 		];
-		model = new SimpleCompletionModel(initial.map(e => (createItem({ label: e }))), new LineContext('s', 0));
+		model = new TerminalCompletionModel(initial.map(e => (createItem({ label: e }))), new LineContext('s', 0));
 
 		assertItems(model, expected);
 	});
@@ -164,7 +165,7 @@ suite('SimpleCompletionModel', function () {
 					'tsfmt.json',
 				)
 			];
-			const model = new SimpleCompletionModel(items, new LineContext('', 0));
+			const model = new TerminalCompletionModel(items, new LineContext('', 0));
 			assertItems(model, [
 				'.build',
 				'build',

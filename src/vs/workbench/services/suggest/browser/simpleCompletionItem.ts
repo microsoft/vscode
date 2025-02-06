@@ -37,10 +37,12 @@ export interface ISimpleCompletion {
 	 * first by extension length and then certain extensions will get a boost based on the OS.
 	 */
 	isFile?: boolean;
+
 	/**
 	 * Whether the completion is a directory.
 	 */
 	isDirectory?: boolean;
+
 	/**
 	 * Whether the completion is a keyword.
 	 */
