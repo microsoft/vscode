@@ -145,8 +145,20 @@ suite('PromptFilesConfig', () => {
 				);
 
 				assert.strictEqual(
+					PromptFilesConfig.getValue(createMock('/Absolute/path/to/folder')),
+					'/Absolute/path/to/folder',
+					'Must read correct value.',
+				);
+
+				assert.strictEqual(
 					PromptFilesConfig.getValue(createMock('./relative-path/to/folder')),
 					'./relative-path/to/folder',
+					'Must read correct value.',
+				);
+
+				assert.strictEqual(
+					PromptFilesConfig.getValue(createMock('./relative-path/To/folder')),
+					'./relative-path/To/folder',
 					'Must read correct value.',
 				);
 
@@ -157,8 +169,20 @@ suite('PromptFilesConfig', () => {
 				);
 
 				assert.strictEqual(
+					PromptFilesConfig.getValue(createMock('.github/Prompts')),
+					'.github/Prompts',
+					'Must read correct value.',
+				);
+
+				assert.strictEqual(
 					PromptFilesConfig.getValue(createMock('/abs/path/to/file.prompt.md')),
 					'/abs/path/to/file.prompt.md',
+					'Must read correct value.',
+				);
+
+				assert.strictEqual(
+					PromptFilesConfig.getValue(createMock('/Abs/Path/To/File.prompt.md')),
+					'/Abs/Path/To/File.prompt.md',
 					'Must read correct value.',
 				);
 			});
@@ -192,14 +216,18 @@ suite('PromptFilesConfig', () => {
 					PromptFilesConfig.getValue(createMock([
 						'/absolute/path/to/folder',
 						'./relative-path/to/folder',
+						'./another-Relative/Path/to/folder',
 						'.github/prompts',
 						'/abs/path/to/file.prompt.md',
+						'/ABS/path/to/prompts/',
 					])),
 					[
 						'/absolute/path/to/folder',
 						'./relative-path/to/folder',
+						'./another-Relative/Path/to/folder',
 						'.github/prompts',
 						'/abs/path/to/file.prompt.md',
+						'/ABS/path/to/prompts/',
 					],
 					'Must read correct value.',
 				);
@@ -215,7 +243,7 @@ suite('PromptFilesConfig', () => {
 							randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
 						],
 						'',
-						'./scripts/build.sh',
+						'./scripts/BUILD.sh',
 						randomBoolean(),
 						'/home/user/Documents/report.v1.pdf',
 						'tmp/.cache/.session.lock',
@@ -228,7 +256,7 @@ suite('PromptFilesConfig', () => {
 						randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
 						'\t\t',
 						'/opt/app/data/config.yaml',
-						'./.config/subfolder.file',
+						'./.config/Subfolder.file',
 						undefined,
 						'/usr/share/man/man1/bash.1',
 						null,
@@ -236,13 +264,13 @@ suite('PromptFilesConfig', () => {
 					[
 						'/usr/local/bin/.hidden-tool',
 						'../config/.env.example',
-						'./scripts/build.sh',
+						'./scripts/BUILD.sh',
 						'/home/user/Documents/report.v1.pdf',
 						'tmp/.cache/.session.lock',
 						'/var/log/backup.2025-02-05.log',
 						'../.git/hooks/pre-commit.sample',
 						'/opt/app/data/config.yaml',
-						'./.config/subfolder.file',
+						'./.config/Subfolder.file',
 						'/usr/share/man/man1/bash.1',
 					],
 					'Must read correct value.',
@@ -289,11 +317,11 @@ suite('PromptFilesConfig', () => {
 					PromptFilesConfig.getValue(createMock({
 						'/root/.bashrc': true,
 						'../../folder/.hidden-folder/config.xml': true,
-						'/srv/www/public_html/.htaccess': true,
-						'../../another.folder/.weird_file.log': true,
+						'/srv/www/Public_html/.htaccess': true,
+						'../../another.folder/.WEIRD_FILE.log': true,
 						'./folder.name/file.name': true,
 						'/media/external/backup.tar.gz': true,
-						'/media/external/.secret.backup': true,
+						'/Media/external/.secret.backup': true,
 						'../relative/path.to.file': true,
 						'./folderName.with.dots/more.dots.extension': true,
 						'some/folder.with.dots/another.file': true,
@@ -303,11 +331,11 @@ suite('PromptFilesConfig', () => {
 					[
 						'/root/.bashrc',
 						'../../folder/.hidden-folder/config.xml',
-						'/srv/www/public_html/.htaccess',
-						'../../another.folder/.weird_file.log',
+						'/srv/www/Public_html/.htaccess',
+						'../../another.folder/.WEIRD_FILE.log',
 						'./folder.name/file.name',
 						'/media/external/backup.tar.gz',
-						'/media/external/.secret.backup',
+						'/Media/external/.secret.backup',
 						'../relative/path.to.file',
 						'./folderName.with.dots/more.dots.extension',
 						'some/folder.with.dots/another.file',
@@ -328,7 +356,7 @@ suite('PromptFilesConfig', () => {
 						'../.local/bin/script.sh': true,
 						'/usr/local/share/.fonts/CustomFont.otf': '',
 						'../../development/branch.name/some.test': true,
-						'/home/user/.ssh/config': true,
+						'/Home/user/.ssh/config': true,
 						'./hidden.dir/.subhidden': '\f',
 						'/tmp/.temp.folder/cache.db': true,
 						'/opt/software/v3.2.1/build.log': '  ',
@@ -348,7 +376,7 @@ suite('PromptFilesConfig', () => {
 						'../assets/img/logo.v2.png',
 						'../.local/bin/script.sh',
 						'../../development/branch.name/some.test',
-						'/home/user/.ssh/config',
+						'/Home/user/.ssh/config',
 						'/tmp/.temp.folder/cache.db',
 						'./scripts/.old.build.sh',
 					],
@@ -361,11 +389,11 @@ suite('PromptFilesConfig', () => {
 					PromptFilesConfig.getValue(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
-						'../assets/img/logo.v2.png': '',
+						'../assets/IMG/logo.v2.png': '',
 						'/mnt/storage/video.archive/episode.01.mkv': false,
 						'/usr/local/share/.fonts/CustomFont.otf': '',
 						'./hidden.dir/.subhidden': '\f',
-						'/opt/software/v3.2.1/build.log': '  ',
+						'/opt/Software/v3.2.1/build.log': '  ',
 						'/var/data/datafile.2025-02-05.json': '\n',
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
@@ -433,9 +461,9 @@ suite('PromptFilesConfig', () => {
 					const value = PromptFilesConfig.getValue(createMock({
 						'/etc/hostname.backup': '\t\n\t',
 						'./run.tests.bat': '\v',
-						'/mnt/storage/video.archive/episode.02.mkv': false,
+						'/mnt/Storage/video.archive/episode.02.mkv': false,
 						'/usr/local/share/.fonts/CustomFont.ttf': '',
-						'./hidden.dir/.subhiddenfile': '\f',
+						'./hidden.dir/.SUBHIDDENFILE': '\f',
 						'/opt/software/v3.2.1/build.log.old': '  ',
 						'': true,
 						'/var/data/datafile.2025-03-05.json': '\n',
