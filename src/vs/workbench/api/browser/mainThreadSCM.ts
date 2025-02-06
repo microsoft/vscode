@@ -102,6 +102,11 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
 
+	private _contextValue: string | undefined;
+	get contextValue(): string | undefined {
+		return this._contextValue;
+	}
+
 	constructor(
 		private readonly sourceControlHandle: number,
 		private readonly handle: number,
@@ -110,7 +115,6 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public label: string,
 		public id: string,
 		public readonly multiDiffEditorEnableViewChanges: boolean,
-		public contextValue: string | undefined,
 		private readonly _uriIdentService: IUriIdentityService
 	) { }
 
@@ -140,7 +144,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	}
 
 	$updateGroupContextValue(contextValue: string): void {
-		this.contextValue = contextValue || undefined;
+		this._contextValue = contextValue || undefined;
 		this._onDidChange.fire();
 	}
 }
@@ -358,8 +362,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 	}
 
-	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean, string /*contextValue*/][]): void {
-		const groups = _groups.map(([handle, id, label, features, multiDiffEditorEnableViewChanges, contextValue]) => {
+	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][]): void {
+		const groups = _groups.map(([handle, id, label, features, multiDiffEditorEnableViewChanges]) => {
 			const group = new MainThreadSCMResourceGroup(
 				this.handle,
 				handle,
@@ -368,7 +372,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				label,
 				id,
 				multiDiffEditorEnableViewChanges,
-				contextValue || undefined,
 				this._uriIdentService
 			);
 
@@ -597,7 +600,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositories.delete(handle);
 	}
 
-	async $registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean, string /*contextValue*/][], splices: SCMRawResourceSplices[]): Promise<void> {
+	async $registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): Promise<void> {
 		await this._repositoryBarriers.get(sourceControlHandle)?.wait();
 		const repository = this._repositories.get(sourceControlHandle);
 
