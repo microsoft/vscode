@@ -140,7 +140,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	}
 
 	$updateGroupContextValue(contextValue: string): void {
-		this.contextValue = contextValue;
+		this.contextValue = contextValue || undefined;
 		this._onDidChange.fire();
 	}
 }
@@ -368,7 +368,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				label,
 				id,
 				multiDiffEditorEnableViewChanges,
-				contextValue,
+				contextValue || undefined,
 				this._uriIdentService
 			);
 

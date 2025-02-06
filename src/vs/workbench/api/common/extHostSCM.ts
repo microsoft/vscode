@@ -781,7 +781,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				this.#proxy.$unregisterGroup(this.handle, group.handle);
 			});
 
-			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges, group.contextValue ?? '']);
+			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges, '']);
 
 			const snapshot = group._takeResourceStateSnapshot();
 
