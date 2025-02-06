@@ -286,7 +286,6 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', async (accessor: ServicesAccessor, args: any) => {
-		console.log('generic paste');
 		await accessor.get(IClipboardService).triggerPaste();
 		return true;
 	});
