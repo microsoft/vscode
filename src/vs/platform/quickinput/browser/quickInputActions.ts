@@ -199,3 +199,15 @@ registerQuickPickCommandAndKeybindingRule(
 	},
 	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
 );
+
+// Toggle hover command
+registerQuickPickCommandAndKeybindingRule(
+	{
+		id: 'quickInput.toggleHover',
+		primary: ctrlKeyMod | KeyCode.Space,
+		handler: accessor => {
+			const quickInputService = accessor.get(IQuickInputService);
+			quickInputService.toggleHover();
+		}
+	}
+);
