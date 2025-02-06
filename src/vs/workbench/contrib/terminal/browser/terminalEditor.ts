@@ -27,7 +27,8 @@ import { openContextMenu } from './terminalContextMenu.js';
 import { ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ITerminalProfile, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 
 export class TerminalEditor extends EditorPane {
 
@@ -43,6 +44,8 @@ export class TerminalEditor extends EditorPane {
 	private readonly _instanceMenu: IMenu;
 
 	private _cancelContextMenu: boolean = false;
+
+	private readonly _newDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
 
 	private readonly _disposableStore = this._register(new DisposableStore());
 
@@ -65,6 +68,7 @@ export class TerminalEditor extends EditorPane {
 		super(terminalEditorId, group, telemetryService, themeService, storageService);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
+		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -147,6 +151,11 @@ export class TerminalEditor extends EditorPane {
 		}));
 	}
 
+	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
+		const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
+		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
+	}
+
 	layout(dimension: dom.Dimension): void {
 		const instance = this._editorInput?.terminalInstance;
 		if (instance) {
@@ -163,12 +172,14 @@ export class TerminalEditor extends EditorPane {
 
 	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
-			case TerminalCommandId.CreateTerminalEditor: {
+			case TerminalCommandId.CreateTerminalEditorSameGroup: {
 				if (action instanceof MenuItemAction) {
 					const location = { viewColumn: ACTIVE_GROUP };
+					this._disposableStore.clear();
 					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
-					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
-					return button;
+					this._newDropdown.value = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
+					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
+					return this._newDropdown.value;
 				}
 			}
 		}
