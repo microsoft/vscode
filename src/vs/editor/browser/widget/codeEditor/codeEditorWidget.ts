@@ -1581,6 +1581,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
+	// Changing the view zones for all of the interested parties
 	public changeViewZones(callback: (accessor: editorBrowser.IViewZoneChangeAccessor) => void): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
