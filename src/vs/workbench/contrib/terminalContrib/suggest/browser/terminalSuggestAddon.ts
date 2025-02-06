@@ -34,6 +34,7 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
+import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -74,6 +75,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
+	private readonly _shellTypeInit: Promise<void>;
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -107,7 +109,28 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	) {
 		super();
 
+		// Initialize shell type, including a promise that completions can await for that resolves:
+		// - immediately if shell type
+		// - after a short delay if shell type gets set
+		// - after a long delay if it doesn't get set
 		this.shellType = shellType;
+		if (this.shellType) {
+			this._shellTypeInit = Promise.resolve();
+		} else {
+			const intervalTimer = this._register(new IntervalTimer());
+			const timeoutTimer = this._register(new TimeoutTimer());
+			this._shellTypeInit = new Promise<void>(r => {
+				intervalTimer.cancelAndSet(() => {
+					if (this.shellType) {
+						r();
+					}
+				}, 50);
+				timeoutTimer.cancelAndSet(r, 5000);
+			}).then(() => {
+				this._store.delete(intervalTimer);
+				this._store.delete(timeoutTimer);
+			});
+		}
 
 		this._register(Event.runAndSubscribe(Event.any(
 			this._capabilities.onDidAddCapabilityType,
@@ -139,6 +162,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserData = e;
 			this._lastUserDataTimestamp = Date.now();
 		}));
+
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
@@ -152,6 +176,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
+		// Require a shell type for completions. This will wait a short period after launching to
+		// wait for the shell type to initialize. This prevents user requests sometimes getting lost
+		// if requested shortly after the terminal is created.
+		await this._shellTypeInit;
 		if (!this.shellType) {
 			return;
 		}
