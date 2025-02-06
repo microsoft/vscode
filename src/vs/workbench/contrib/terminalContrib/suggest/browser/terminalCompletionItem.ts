@@ -17,19 +17,17 @@ export enum TerminalCompletionItemKind {
 }
 
 export interface ITerminalCompletion extends ISimpleCompletion {
-
+	/**
+	 * The kind of terminal completion item.
+	 */
 	kind?: TerminalCompletionItemKind;
 
 	/**
-	 * Whether the completion is a file. Files with the same score will be sorted against each other
-	 * first by extension length and then certain extensions will get a boost based on the OS.
+	 * A flag that can be used to override the kind check and treat this completion as a file when
+	 * it comes to sorting. For some pwsh completions come through as methods despite being files,
+	 * this makes sure they're sorted correctly.
 	 */
-	isFile?: boolean;
-
-	/**
-	 * Whether the completion is a directory.
-	 */
-	isDirectory?: boolean;
+	isFileOverride?: boolean;
 
 	/**
 	 * Whether the completion is a keyword.
@@ -68,7 +66,7 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 		this.labelLowExcludeFileExt = this.labelLow;
 		this.labelLowNormalizedPath = this.labelLow;
 
-		if (completion.isFile) {
+		if (isFile(completion)) {
 			if (isWindows) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
 			}
@@ -80,14 +78,18 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 			}
 		}
 
-		if (completion.isFile || completion.isDirectory) {
+		if (isFile(completion) || completion.kind === TerminalCompletionItemKind.Folder) {
 			if (isWindows) {
 				this.labelLowNormalizedPath = this.labelLow.replaceAll('\\', '/');
 			}
-			if (completion.isDirectory) {
+			if (completion.kind === TerminalCompletionItemKind.Folder) {
 				this.labelLowNormalizedPath = this.labelLowNormalizedPath.replace(/\/$/, '');
 			}
 			this.underscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
 		}
 	}
+}
+
+function isFile(completion: ITerminalCompletion): boolean {
+	return !!(completion.kind === TerminalCompletionItemKind.File || completion.isFileOverride);
 }

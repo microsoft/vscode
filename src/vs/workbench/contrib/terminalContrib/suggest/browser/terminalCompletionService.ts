@@ -166,9 +166,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
-			for (const completion of completionItems) {
-				completion.isFile ??= completion.kind === TerminalCompletionItemKind.File || (shellType === GeneralShellType.PowerShell && completion.kind === TerminalCompletionItemKind.Method && completion.replacementIndex === 0);
-				completion.isDirectory ??= completion.kind === TerminalCompletionItemKind.Folder;
+			if (shellType === GeneralShellType.PowerShell) {
+				for (const completion of completionItems) {
+					completion.isFileOverride ??= completion.kind === TerminalCompletionItemKind.Method && completion.replacementIndex === 0;
+				}
 			}
 			if (provider.isBuiltin) {
 				//TODO: why is this needed?
@@ -243,8 +244,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					label: lastWordFolder,
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
 					detail: getFriendlyPath(resolvedFolder, resourceRequestConfig.pathSeparator),
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
@@ -278,8 +277,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					label: lastWordFolder,
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
 					detail: getFriendlyPath(lastWordResource, resourceRequestConfig.pathSeparator),
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
@@ -314,8 +311,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					provider,
 					kind,
 					detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind),
-					isDirectory: child.isDirectory,
-					isFile: child.isFile,
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
 				});
@@ -342,8 +337,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					label: lastWordFolder.length === 0 ? '.' : lastWordFolder,
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
-					isDirectory: true,
-					isFile: false,
 					detail: getFriendlyPath(cwd, resourceRequestConfig.pathSeparator),
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
@@ -392,8 +385,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					provider,
 					kind,
 					detail: getFriendlyPath(stat.resource, resourceRequestConfig.pathSeparator, kind),
-					isDirectory,
-					isFile: kind === TerminalCompletionItemKind.File,
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
 				});
@@ -421,8 +412,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 											label,
 											provider,
 											kind: TerminalCompletionItemKind.Folder,
-											isDirectory: child.isDirectory,
-											isFile: child.isFile,
 											detail,
 											replacementIndex: cursorPosition - lastWord.length,
 											replacementLength: lastWord.length
@@ -450,8 +439,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
 					detail: getFriendlyPath(parentDir, resourceRequestConfig.pathSeparator),
-					isDirectory: true,
-					isFile: false,
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: lastWord.length
 				});

@@ -6,11 +6,12 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TerminalCompletionModel } from '../../browser/terminalCompletionModel.js';
 import { LineContext } from '../../../../../services/suggest/browser/simpleCompletionModel.js';
-import { TerminalCompletionItem, type ITerminalCompletion } from '../../browser/terminalCompletionItem.js';
+import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from '../../browser/terminalCompletionItem.js';
 
 function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionItem {
 	return new TerminalCompletionItem({
 		...options,
+		kind: options.kind ?? TerminalCompletionItemKind.Method,
 		label: options.label || 'defaultLabel',
 		provider: options.provider || 'defaultProvider',
 		replacementIndex: options.replacementIndex || 0,
@@ -19,7 +20,7 @@ function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionIt
 }
 
 function createFileItems(...labels: string[]): TerminalCompletionItem[] {
-	return labels.map(label => createItem({ label, isFile: true }));
+	return labels.map(label => createItem({ label, kind: TerminalCompletionItemKind.File }));
 }
 
 function createFileItemsModel(...labels: string[]): TerminalCompletionModel {
@@ -30,7 +31,7 @@ function createFileItemsModel(...labels: string[]): TerminalCompletionModel {
 }
 
 function createFolderItems(...labels: string[]): TerminalCompletionItem[] {
-	return labels.map(label => createItem({ label, isDirectory: true }));
+	return labels.map(label => createItem({ label, kind: TerminalCompletionItemKind.Folder }));
 }
 
 function createFolderItemsModel(...labels: string[]): TerminalCompletionModel {
