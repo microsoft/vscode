@@ -435,9 +435,16 @@ class SendToChatEditingAction extends EditingSessionAction {
 		}
 
 		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
+		if (!editingWidget.viewModel?.sessionId) {
+			return;
+		}
+		const chatEditingSession = chatEditingService.getEditingSession(editingWidget.viewModel.sessionId);
+		if (!chatEditingSession) {
+			return;
+		}
 		for (const attachment of widget.attachmentModel.attachments) {
 			if (attachment.isFile && URI.isUri(attachment.value)) {
-				chatEditingService.globalEditingSessionObs.get()?.addFileToWorkingSet(attachment.value);
+				chatEditingSession.addFileToWorkingSet(attachment.value);
 			} else {
 				editingWidget.attachmentModel.addContext(attachment);
 			}
