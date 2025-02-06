@@ -200,7 +200,8 @@ registerQuickPickCommandAndKeybindingRule(
 	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
 );
 
-// Toggle hover command
+//#region Toggle Hover
+
 registerQuickPickCommandAndKeybindingRule(
 	{
 		id: 'quickInput.toggleHover',
@@ -211,3 +212,5 @@ registerQuickPickCommandAndKeybindingRule(
 		}
 	}
 );
+
+//#endregion
