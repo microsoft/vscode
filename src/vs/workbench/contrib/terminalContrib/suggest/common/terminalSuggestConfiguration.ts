@@ -66,7 +66,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		properties: {},
 		default: {
 			'terminal-suggest': true,
-			'pwsh-shell-integration': false,
+			'pwsh-shell-integration': true,
 		},
 		tags: ['preview'],
 	},
