@@ -18,7 +18,7 @@ import {
 import {
 	Command,
 	substituteAlias,
-} from "../../shell-parser/src";
+} from "../../shell-parser";
 // import {
 // 	getSpecPath,
 // 	loadSubcommandCached,

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { parse } from "../src/parser";
+import { parse } from "../parser";
 import { strictEqual } from 'node:assert';
 
 function parseCommand(command: string): string {

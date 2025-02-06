@@ -1,5 +1,5 @@
 import { deepStrictEqual } from 'node:assert';
-import { getCommand, Command } from "../src/command";
+import { getCommand, Command } from "../command";
 
 suite("shell-parser getCommand", () => {
 	const aliases = {

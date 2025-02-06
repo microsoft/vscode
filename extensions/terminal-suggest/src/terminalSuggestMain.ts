@@ -20,7 +20,7 @@ import { getTokenType, TokenType } from './tokens';
 import { PathExecutableCache } from './env/pathExecutableCache';
 import { getFriendlyResourcePath } from './helpers/uri';
 import { parseArguments } from './fig/autocomplete-parser/src/parseArguments';
-import { getCommand } from './fig/shell-parser/src/command';
+import { getCommand } from './fig/shell-parser/command';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
