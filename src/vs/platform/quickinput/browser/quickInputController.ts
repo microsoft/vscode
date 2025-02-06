@@ -262,6 +262,11 @@ export class QuickInputController extends Disposable {
 			if (this.endOfQuickInputBoxContext.get() !== value) {
 				this.endOfQuickInputBoxContext.set(value);
 			}
+			// Allow screenreaders to read what's in the input
+			// Note: this works for arrow keys and selection changes,
+			// but not for deletions since that often triggers a
+			// change in the list.
+			inputBox.removeAttribute('aria-activedescendant');
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
@@ -313,14 +318,13 @@ export class QuickInputController extends Disposable {
 							selectors.push('.quick-input-html-widget');
 						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
-						if (event.shiftKey && event.target === stops[0]) {
-							// Clear the focus from the list in order to allow
-							// screen readers to read operations in the input box.
-							dom.EventHelper.stop(event, true);
-							list.clearFocus();
-						} else if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
+						if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
 							dom.EventHelper.stop(event, true);
 							stops[0].focus();
+						}
+						if (event.shiftKey && dom.isAncestor(event.target, stops[0])) {
+							dom.EventHelper.stop(event, true);
+							stops[stops.length - 1].focus();
 						}
 					}
 					break;
