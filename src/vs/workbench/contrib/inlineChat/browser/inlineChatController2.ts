@@ -9,7 +9,7 @@ import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -18,6 +18,7 @@ import { observableCodeEditor } from '../../../../editor/browser/observableCodeE
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -55,6 +56,8 @@ export class InlineChatController2 implements IEditorContribution {
 	private readonly _showWidgetOverrideObs = observableValue(this, false);
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
+
+	private readonly _currentSession: IObservable<IInlineChatSession2 | undefined>;
 
 	get widget(): EditorBasedInlineChatWidget {
 		return this._zone.value.widget;
@@ -123,7 +126,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessions.onDidChangeSessions);
 
-		const sessionObs = derived(r => {
+		this._currentSession = derived(r => {
 			sessionsSignal.read(r);
 			const model = editorObs.model.read(r);
 			const value = model && _inlineChatSessions.getSession2(model.uri);
@@ -132,7 +135,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 
 		this._store.add(autorunWithStore((r, store) => {
-			const session = sessionObs.read(r);
+			const session = this._currentSession.read(r);
 
 			if (!session) {
 				ctxHasSession.set(undefined);
@@ -148,7 +151,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._store.add(autorunWithStore((r, store) => {
 
-			const session = sessionObs.read(r);
+			const session = this._currentSession.read(r);
 			const isActive = this._isActiveController.read(r);
 
 			if (!session || !isActive) {
@@ -199,7 +202,7 @@ export class InlineChatController2 implements IEditorContribution {
 		this._store.add(autorun(r => {
 
 			const overlay = ChatEditorOverlayController.get(_editor)!;
-			const session = sessionObs.read(r);
+			const session = this._currentSession.read(r);
 			const model = editorObs.model.read(r);
 			if (!session || !model) {
 				overlay.hide();
@@ -230,12 +233,17 @@ export class InlineChatController2 implements IEditorContribution {
 		this._showWidgetOverrideObs.set(!value, undefined);
 	}
 
-	markActiveController() {
-		this._isActiveController.set(true, undefined);
+
+	getWidgetPosition(): Position | undefined {
+		return this._zone.rawValue?.position;
 	}
 
 	focus() {
 		this._zone.rawValue?.widget.focus();
+	}
+
+	markActiveController() {
+		this._isActiveController.set(true, undefined);
 	}
 
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
@@ -265,6 +273,11 @@ export class InlineChatController2 implements IEditorContribution {
 
 		const rejected = session.editingSession.getEntry(uri)?.state.get() === WorkingSetEntryState.Rejected;
 		return !rejected;
+	}
+
+	acceptSession() {
+		const value = this._currentSession.get();
+		value?.editingSession.accept();
 	}
 }
 

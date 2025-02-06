@@ -470,7 +470,7 @@ suite('InlineChatController', function () {
 
 		editor.executeEdits('test', [EditOperation.insert(model.getFullModelRange().getEndPosition(), 'MANUAL')]);
 
-		ctrl.finishExistingSession();
+		ctrl.acceptSession();
 		await r;
 		assert.ok(model.getValue().includes('GENERATED'));
 		assert.ok(model.getValue().includes('MANUAL'));
@@ -509,7 +509,7 @@ suite('InlineChatController', function () {
 		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'PROMPT_2');
-		ctrl.finishExistingSession();
+		ctrl.acceptSession();
 		await r;
 	});
 
@@ -558,7 +558,7 @@ suite('InlineChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'drei-eins-');
 
-		ctrl.finishExistingSession();
+		ctrl.acceptSession();
 		await r;
 
 	});
