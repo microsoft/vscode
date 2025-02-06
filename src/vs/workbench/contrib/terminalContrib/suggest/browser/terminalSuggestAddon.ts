@@ -370,7 +370,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Originally this was to the left of the initial position that the completions were
 		// requested, but since extensions are expected to allow the client-side to filter, they are
 		// only invalidated when whitespace is encountered.
-		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
+		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length && this._currentPromptInputState.cursorIndex > 0) {
 			if (this._currentPromptInputState.cursorIndex === 0 || this._currentPromptInputState.value[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
 				this.hideSuggestWidget();
 				return;
