@@ -80,7 +80,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _shutdownWindowCount?: number;
 
 	private _editable: { instance: ITerminalInstance; data: IEditableData } | undefined;
-	private _instanceDisposeListeners: Map<ITerminalInstance, DisposableStore> = new Map();
 
 	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 
@@ -847,10 +846,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}));
 		instanceDisposables.add(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		instanceDisposables.add(instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e)));
-		this._instanceDisposeListeners.set(instance, instanceDisposables);
-		this._register(instance.onDisposed(() => {
-			this._instanceDisposeListeners.delete(instance);
+		const disposeListener = this._register(instance.onDisposed(() => {
 			instanceDisposables.dispose();
+			this._store.delete(disposeListener);
 		}));
 	}
 
