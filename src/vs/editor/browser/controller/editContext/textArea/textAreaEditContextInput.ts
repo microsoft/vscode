@@ -349,7 +349,6 @@ export class TextAreaInput extends Disposable {
 		// --- Clipboard operations
 
 		this._register(this._textArea.onCut((e) => {
-			console.log('onCut of TextAreaInput');
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
@@ -359,12 +358,10 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
-			console.log('onCopy of TextAreaInput');
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
-			console.log('onPaste of TextAreaInput');
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');

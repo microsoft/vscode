@@ -308,7 +308,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
-			console.log('paste of TextAreaEditContext');
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
 			let mode: string | null = null;
@@ -317,15 +316,10 @@ export class TextAreaEditContext extends AbstractEditContext {
 				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
 				mode = e.metadata.mode;
 			}
-			console.log('e.text : ', e.text);
-			console.log('pasteOnNewLine : ', pasteOnNewLine);
-			console.log('multicursorText : ', multicursorText);
-			console.log('mode : ', mode);
 			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {
-			console.log('cut of TextAreaEditContext');
 			this._viewController.cut();
 		}));
 

@@ -245,20 +245,14 @@ if (PasteAction) {
 					const textArea = nativeEditContext.textArea;
 					nativeEditContext.onWillPaste();
 					textArea.focus();
-					await clipboardService.triggerPaste();
-					if (textArea.domNode.textContent !== '') {
-						textArea.domNode.textContent = '';
-						result = true;
-					} else {
-						result = false;
-					}
+					result = await clipboardService.triggerPaste();
+					textArea.domNode.textContent = '';
 					nativeEditContext.domNode.focus();
 				} else {
 					result = false;
 				}
 			} else {
-				await clipboardService.triggerPaste();
-				result = true;
+				result = await clipboardService.triggerPaste();
 			}
 			if (result) {
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
@@ -292,6 +286,7 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', async (accessor: ServicesAccessor, args: any) => {
+		console.log('generic paste');
 		await accessor.get(IClipboardService).triggerPaste();
 		return true;
 	});

@@ -13,9 +13,9 @@ export interface IClipboardService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Trigger the paste.
+	 * Trigger the paste. Returns whether the paste operation was successful.
 	 */
-	triggerPaste(): Promise<void>;
+	triggerPaste(): Promise<boolean>;
 
 	/**
 	 * Writes text to the system clipboard.

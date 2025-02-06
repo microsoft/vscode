@@ -40,24 +40,21 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// copied resources: since we keep resources in memory
 		// and not in the clipboard, we have to invalidate
 		// that state when the user copies other data.
-		// If we detect copying to the clipboard, then clear the memory
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
 			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResourcesState()));
 		}, { window: mainWindow, disposables: this._store }));
 	}
 
-	async triggerPaste(): Promise<void> {
-		getActiveDocument().execCommand('paste');
+	async triggerPaste(): Promise<boolean> {
+		return getActiveDocument().execCommand('paste');
 	}
 
 	async readImage(): Promise<Uint8Array> {
-		console.log('readImage of BrowserClipboardService');
 		try {
 			const clipboardItems = await navigator.clipboard.read();
 			const clipboardItem = clipboardItems[0];
 
 			const supportedImageTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/tiff', 'image/bmp'];
-			// we only read specific types of images
 			const mimeType = supportedImageTypes.find(type => clipboardItem.types.includes(type));
 
 			if (mimeType) {
@@ -123,7 +120,6 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	async writeText(text: string, type?: string): Promise<void> {
 
-		console.log('writeText of BrowserClipboardService');
 		// Clear resources given we are writing text
 		this.clearResourcesState();
 
@@ -155,11 +151,9 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	private fallbackWriteText(text: string): void {
-		console.log('fallbackWriteText');
 		const activeDocument = getActiveDocument();
 		const activeElement = activeDocument.activeElement;
 
-		// Appending a temporary text area, setting the value of the text area, copying the content by executing the command and then removing it
 		const textArea: HTMLTextAreaElement = activeDocument.body.appendChild($('textarea', { 'aria-hidden': true }));
 		textArea.style.height = '1px';
 		textArea.style.width = '1px';
@@ -179,7 +173,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	async readText(type?: string): Promise<string> {
-		console.log('readText of BrowserClipboardService');
+
 		// With type: only in-memory is supported
 		if (type) {
 			return this.mapTextToType.get(type) || '';
@@ -217,9 +211,6 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
-
-			// ClipboardItem comes from the dom library
-			// defininig our own mime type
 			await getActiveWindow().navigator.clipboard.write([
 				new ClipboardItem({
 					[`web ${vscodeResourcesMime}`]: new Blob([

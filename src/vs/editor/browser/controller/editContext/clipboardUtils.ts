@@ -49,14 +49,10 @@ export class InMemoryClipboardMetadataManager {
 	}
 
 	public set(lastCopiedValue: string, data: ClipboardStoredMetadata): void {
-		console.log('set in InMemoryClipboardMetadataManager');
-		console.log('lastCopiedValue: ', lastCopiedValue);
-		console.log('data: ', data);
 		this._lastState = { lastCopiedValue, data };
 	}
 
 	public get(pastedText: string): ClipboardStoredMetadata | null {
-		console.log('get in InMemoryClipboardMetadataManager, pastedText: ', pastedText);
 		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
 			// match!
 			return this._lastState.data;
@@ -93,8 +89,6 @@ interface InMemoryClipboardMetadata {
 export const ClipboardEventUtils = {
 
 	getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
-		console.log('getTextData');
-		console.log('clipboardData : ', clipboardData);
 		const text = clipboardData.getData(Mimes.text);
 		let metadata: ClipboardStoredMetadata | null = null;
 		const rawmetadata = clipboardData.getData('vscode-editor-data');
@@ -113,17 +107,10 @@ export const ClipboardEventUtils = {
 			const files: File[] = Array.prototype.slice.call(clipboardData.files, 0);
 			return [files.map(file => file.name).join('\n'), null];
 		}
-		console.log('text: ', text);
-		console.log('metadata: ', metadata);
 		return [text, metadata];
 	},
 
 	setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
-		console.log('setTextData');
-		console.log('clipboardData: ', clipboardData);
-		console.log('text: ', text);
-		console.log('html: ', html);
-		console.log('metadata: ', metadata);
 		clipboardData.setData(Mimes.text, text);
 		if (typeof html === 'string') {
 			clipboardData.setData('text/html', html);

@@ -20,28 +20,25 @@ export class NativeClipboardService implements IClipboardService {
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) { }
 
-	async triggerPaste(): Promise<void> {
-		this.nativeHostService.triggerPaste();
+	async triggerPaste(): Promise<boolean> {
+		await this.nativeHostService.triggerPaste();
+		return true;
 	}
 
 	async readImage(): Promise<Uint8Array> {
-		console.log('readImage of NativeClipboardService');
 		return this.nativeHostService.readImage();
 	}
 
 	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
-		console.log('writeText of NativeClipboardService');
 		return this.nativeHostService.writeClipboardText(text, type);
 	}
 
 	async readText(type?: 'selection' | 'clipboard'): Promise<string> {
-		console.log('readText of NativeClipboardService');
 		return this.nativeHostService.readClipboardText(type);
 	}
 
 	async readFindText(): Promise<string> {
 		if (isMacintosh) {
-			console.log('readFindText of NativeClipboardService');
 			return this.nativeHostService.readClipboardFindText();
 		}
 
@@ -50,7 +47,6 @@ export class NativeClipboardService implements IClipboardService {
 
 	async writeFindText(text: string): Promise<void> {
 		if (isMacintosh) {
-			console.log('writeFindText of NativeClipboardService');
 			return this.nativeHostService.writeClipboardFindText(text);
 		}
 	}

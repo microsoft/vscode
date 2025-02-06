@@ -733,7 +733,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Clipboard
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
-		console.log('readClipboardText of NativeHostMainService');
 		return clipboard.readText(type);
 	}
 
@@ -743,37 +742,30 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async readImage(): Promise<Uint8Array> {
-		console.log('readImage of NativeHostMainService');
 		return clipboard.readImage().toPNG();
 	}
 
 	async writeClipboardText(windowId: number | undefined, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
-		console.log('writeClipboardText of NativeHostMainService');
 		return clipboard.writeText(text, type);
 	}
 
 	async readClipboardFindText(windowId: number | undefined,): Promise<string> {
-		console.log('readClipboardFindText of NativeHostMainService');
 		return clipboard.readFindText();
 	}
 
 	async writeClipboardFindText(windowId: number | undefined, text: string): Promise<void> {
-		console.log('writeClipboardFindText of NativeHostMainService');
 		return clipboard.writeFindText(text);
 	}
 
 	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard'): Promise<void> {
-		console.log('writeClipboardBuffer of NativeHostMainService');
 		return clipboard.writeBuffer(format, Buffer.from(buffer.buffer), type);
 	}
 
 	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<VSBuffer> {
-		console.log('readClipboardBuffer of NativeHostMainService');
 		return VSBuffer.wrap(clipboard.readBuffer(format));
 	}
 
 	async hasClipboard(windowId: number | undefined, format: string, type?: 'selection' | 'clipboard'): Promise<boolean> {
-		console.log('hasClipboard of NativeHostMainService');
 		return clipboard.has(format, type);
 	}
 
