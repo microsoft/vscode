@@ -55,7 +55,6 @@ import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
-	private readonly _singleTabActionViewItem: MutableDisposable<SingleTerminalTabActionViewItem> = this._register(new MutableDisposable());
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _isInitialized: boolean = false;
 	/**
@@ -280,12 +279,8 @@ export class TerminalViewPane extends ViewPane {
 			}
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
-					if (this._singleTabActionViewItem.value) {
-						return this._singleTabActionViewItem.value;
-					}
 					const actions = getFlatContextMenuActions(this._singleTabMenu.getActions({ shouldForwardArgs: true }));
-					this._singleTabActionViewItem.value = this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
-					return this._singleTabActionViewItem.value;
+					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
 				break;
 			}
