@@ -116,7 +116,6 @@ export class InlineChatController implements IEditorContribution {
 
 	private readonly _messages = this._store.add(new Emitter<Message>());
 	protected readonly _onDidEnterState = this._store.add(new Emitter<State>());
-	readonly onDidEnterState = this._onDidEnterState.event;
 
 	get chatWidget() {
 		return this._ui.value.widget.chatWidget;
@@ -253,7 +252,11 @@ export class InlineChatController implements IEditorContribution {
 
 	private _currentRun?: Promise<void>;
 
-	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
+	async run(options: InlineChatRunOptions | undefined = {}): Promise<boolean> {
+
+		let lastState: State | undefined;
+		const d = this._onDidEnterState.event(e => lastState = e);
+
 		try {
 			this.finishExistingSession();
 			if (this._currentRun) {
@@ -277,7 +280,10 @@ export class InlineChatController implements IEditorContribution {
 
 		} finally {
 			this._currentRun = undefined;
+			d.dispose();
 		}
+
+		return lastState !== State.CANCEL;
 	}
 
 	// ---- state machine
