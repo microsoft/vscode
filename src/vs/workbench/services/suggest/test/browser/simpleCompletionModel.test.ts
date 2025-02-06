@@ -77,6 +77,24 @@ suite('SimpleCompletionModel', function () {
 		assert.strictEqual(model.items[2].completion.label, 'z');
 	});
 
+	test('fuzzy matching', () => {
+		const initial = [
+			'.\\.eslintrc',
+			'.\\resources\\',
+			'.\\scripts\\',
+			'.\\src\\',
+		];
+		const expected = [
+			'.\\scripts\\',
+			'.\\src\\',
+			'.\\.eslintrc',
+			'.\\resources\\',
+		];
+		model = new SimpleCompletionModel(initial.map(e => (createItem({ label: e }))), new LineContext('s', 0));
+
+		assertItems(model, expected);
+	});
+
 	suite('files and folders', () => {
 		test('should deprioritize files that start with underscore', function () {
 			const initial = ['_a', 'a', 'z'];
@@ -92,8 +110,7 @@ suite('SimpleCompletionModel', function () {
 			assertItems(createFolderItemsModel(...initial), expected);
 		});
 
-		// #239532 Failing on CI not locally?
-		test.skip('should handle many files and folders correctly', function () {
+		test('should handle many files and folders correctly', function () {
 			// This is VS Code's root directory with some python items added that have special
 			// sorting
 			const items = [
@@ -158,8 +175,6 @@ suite('SimpleCompletionModel', function () {
 				'.configurations',
 				'CONTRIBUTING.md',
 				'.devcontainer',
-				'.npmrc',
-				'.gitignore',
 				'.editorconfig',
 				'eslint.config.js',
 				'.eslint-ignore',
@@ -168,13 +183,15 @@ suite('SimpleCompletionModel', function () {
 				'.gitattributes',
 				'.git-blame-ignore-revs',
 				'.github',
+				'.gitignore',
 				'gulpfile.js',
 				'LICENSE.txt',
 				'.lsifrc.json',
-				'.nvmrc',
 				'.mailmap',
 				'.mention-bot',
 				'node_modules',
+				'.npmrc',
+				'.nvmrc',
 				'out',
 				'package.json',
 				'package-lock.json',

@@ -778,14 +778,6 @@ impl ConnectionManager {
 			cmd.arg("--server-data-dir");
 			cmd.arg(a);
 		}
-		if let Some(a) = &args.args.user_data_dir {
-			cmd.arg("--user-data-dir");
-			cmd.arg(a);
-		}
-		if let Some(a) = &args.args.extensions_dir {
-			cmd.arg("--extensions-dir");
-			cmd.arg(a);
-		}
 		if args.args.without_connection_token {
 			cmd.arg("--without-connection-token");
 		}

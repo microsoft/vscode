@@ -101,8 +101,9 @@ export class SimpleCompletionItem {
 			if (isWindows) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
 			}
+			// Don't include dotfiles as extensions when sorting
 			const extIndex = this.labelLow.lastIndexOf('.');
-			if (extIndex !== -1) {
+			if (extIndex > 0) {
 				this.labelLowExcludeFileExt = this.labelLow.substring(0, extIndex);
 				this.fileExtLow = this.labelLow.substring(extIndex + 1);
 			}

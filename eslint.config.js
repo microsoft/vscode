@@ -219,7 +219,6 @@ export default tseslint.config(
 				{
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
-						'src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts',
 						'src/vs/platform/configuration/test/common/configuration.test.ts',
 						'src/vs/platform/opener/test/common/opener.test.ts',
 						'src/vs/platform/registry/test/common/platform.test.ts',

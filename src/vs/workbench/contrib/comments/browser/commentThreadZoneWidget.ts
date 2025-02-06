@@ -502,7 +502,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 
 			const capture = StableEditorScrollState.capture(this.editor);
-			this._relayout(computedLinesNumber, true);
+			this._relayout(computedLinesNumber);
 			capture.restore(this.editor);
 		}
 	}

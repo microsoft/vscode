@@ -456,17 +456,22 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _lineContainsContinuationPrompt(lineText: string): boolean {
-		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt));
+		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt.trimEnd()));
 	}
 
 	private _getContinuationPromptCellWidth(line: IBufferLine, lineText: string): number {
-		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt)) {
+		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt.trimEnd())) {
 			return 0;
 		}
 		let buffer = '';
 		let x = 0;
+		let cell: IBufferCell | undefined;
 		while (buffer !== this._continuationPrompt) {
-			buffer += line.getCell(x++)!.getChars();
+			cell = line.getCell(x++);
+			if (!cell) {
+				break;
+			}
+			buffer += cell.getChars();
 		}
 		return x;
 	}

@@ -82,6 +82,7 @@ import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from 
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatEditorOverlayController } from './chatEditing/chatEditingEditorOverlay.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
+import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
 import { PromptFilesConfig } from '../common/promptSyntax/config.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
@@ -90,6 +91,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IPromptSyntaxService } from '../common/promptSyntax/service/types.js';
 import { PromptSyntaxService } from '../common/promptSyntax/service/promptSyntaxService.js';
+import { BuiltinVariablesContribution } from './variables/variables.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -349,7 +351,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				}
 
 				const variables = [
-					...chatVariablesService.getVariables(ChatAgentLocation.Panel),
+					...chatVariablesService.getVariables(),
 					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
 				];
 				const variableText = variables
@@ -391,6 +393,7 @@ registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingSta
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatQuotasStatusBarEntry.ID, ChatQuotasStatusBarEntry, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(BuiltinVariablesContribution.ID, BuiltinVariablesContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.BlockRestore);
 
 registerChatActions();
