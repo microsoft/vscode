@@ -412,15 +412,15 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroupLabel(this._sourceControlHandle, this.handle, label);
 	}
 
-	private _contextValue: string = '';
-	get contextValue(): string {
+	private _contextValue: string | undefined;
+	get contextValue(): string | undefined {
 		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
 		return this._contextValue;
 	}
-	set contextValue(contextValue: string) {
+	set contextValue(contextValue: string | undefined) {
 		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
 		this._contextValue = contextValue;
-		this._proxy.$updateGroupContextValue(this._sourceControlHandle, this.handle, contextValue);
+		this._proxy.$updateGroupContextValue(this._sourceControlHandle, this.handle, contextValue ?? '');
 	}
 
 	private _hideWhenEmpty: boolean | undefined = undefined;
@@ -781,7 +781,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				this.#proxy.$unregisterGroup(this.handle, group.handle);
 			});
 
-			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges, group.contextValue]);
+			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges, group.contextValue ?? '']);
 
 			const snapshot = group._takeResourceStateSnapshot();
 
