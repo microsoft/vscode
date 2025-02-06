@@ -78,6 +78,24 @@ suite('TerminalCompletionModel', function () {
 		assert.strictEqual(model.items[2].completion.label, 'z');
 	});
 
+	test('fuzzy matching', () => {
+		const initial = [
+			'.\\.eslintrc',
+			'.\\resources\\',
+			'.\\scripts\\',
+			'.\\src\\',
+		];
+		const expected = [
+			'.\\scripts\\',
+			'.\\src\\',
+			'.\\.eslintrc',
+			'.\\resources\\',
+		];
+		model = new TerminalCompletionModel(initial.map(e => (createItem({ label: e }))), new LineContext('s', 0));
+
+		assertItems(model, expected);
+	});
+
 	suite('files and folders', () => {
 		test('should deprioritize files that start with underscore', function () {
 			const initial = ['_a', 'a', 'z'];

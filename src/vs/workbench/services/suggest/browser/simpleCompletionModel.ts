@@ -29,7 +29,10 @@ export class SimpleCompletionModel {
 	private _stats?: ISimpleCompletionStats;
 	private _filteredItems?: SimpleCompletionItem[];
 	private _refilterKind: Refilter = Refilter.All;
-	private _fuzzyScoreOptions: FuzzyScoreOptions | undefined = FuzzyScoreOptions.default;
+	private _fuzzyScoreOptions: FuzzyScoreOptions | undefined = {
+		...FuzzyScoreOptions.default,
+		firstMatchCanBeWeak: true
+	};
 
 	// TODO: Pass in options
 	private _options: {
