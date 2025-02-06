@@ -26,7 +26,7 @@ export class BuiltinVariablesContribution extends Disposable implements IWorkben
 		super();
 
 		const terminalSelectionVar = instantiationService.createInstance(TerminalSelectionVariable);
-		varsService.registerVariable({
+		this._register(varsService.registerVariable({
 			id: 'copilot.terminalSelection',
 			name: 'terminalSelection',
 			fullName: localize('termSelection', "Terminal Selection"),
@@ -34,10 +34,10 @@ export class BuiltinVariablesContribution extends Disposable implements IWorkben
 			icon: Codicon.terminal,
 		}, async (messageText: string, arg: string | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined> => {
 			return await terminalSelectionVar.resolve(token);
-		});
+		}));
 
 		const terminalLastCommandVar = instantiationService.createInstance(TerminalLastCommandVariable);
-		varsService.registerVariable({
+		this._register(varsService.registerVariable({
 			id: 'copilot.terminalLastCommand',
 			name: 'terminalLastCommand',
 			fullName: localize('terminalLastCommand', "Terminal Last Command"),
@@ -45,7 +45,7 @@ export class BuiltinVariablesContribution extends Disposable implements IWorkben
 			icon: Codicon.terminal,
 		}, async (messageText: string, arg: string | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined> => {
 			return await terminalLastCommandVar.resolve(token);
-		});
+		}));
 	}
 }
 
