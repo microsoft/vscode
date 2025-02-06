@@ -105,8 +105,6 @@ export class SimpleSuggestWidget extends Disposable {
 	readonly onDidFocus: Event<ISimpleSelectedSuggestion> = this._onDidFocus.event;
 	private readonly _onDidBlurDetails = this._register(new Emitter<FocusEvent>());
 	readonly onDidBlurDetails = this._onDidBlurDetails.event;
-	private readonly _onDidFontConfigurationChange = this._register(new Emitter<void>());
-	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	get list(): List<SimpleCompletionItem> { return this._list; }
 
@@ -116,6 +114,8 @@ export class SimpleSuggestWidget extends Disposable {
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
 		private readonly _options: IWorkbenchSuggestWidgetOptions,
+		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
+		private readonly _onDidFontConfigurationChange: Event<void>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -126,7 +126,6 @@ export class SimpleSuggestWidget extends Disposable {
 		this.element = this._register(new ResizableHTMLElement());
 		this.element.domNode.classList.add('workbench-suggest-widget');
 		this._container.appendChild(this.element.domNode);
-
 		this._ctxSuggestWidgetHasFocusedSuggestion = SimpleSuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 
 		class ResizeState {
@@ -179,7 +178,7 @@ export class SimpleSuggestWidget extends Disposable {
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !_configurationService.getValue('editor.suggest.showIcons'));
 		applyIconStyle();
 
-		const renderer = new SimpleSuggestWidgetItemRenderer(this._getFontInfo.bind(this), this._configurationService);
+		const renderer = new SimpleSuggestWidgetItemRenderer(this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this));
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = this._register(new List('SuggestWidget', this._listElement, {
@@ -228,7 +227,7 @@ export class SimpleSuggestWidget extends Disposable {
 
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 
-		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo.bind(this), this.onDidFontConfigurationChange));
+		const details: SimpleSuggestDetailsWidget = this._register(instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this)));
 		this._register(details.onDidClose(() => this.toggleDetails()));
 		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
 		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
@@ -242,17 +241,14 @@ export class SimpleSuggestWidget extends Disposable {
 		this._register(this._list.onTap(e => this._onListMouseDownOrTap(e)));
 		this._register(this._list.onDidChangeFocus(e => this._onListFocus(e)));
 		this._register(this._list.onDidChangeSelection(e => this._onListSelection(e)));
+		this._register(this._onDidFontConfigurationChange(() => {
+			if (this._completionModel) {
+				this._list.splice(0, this._completionModel.items.length, this._completionModel!.items);
+			}
+		}));
 		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.suggest.showIcons')) {
 				applyIconStyle();
-			}
-			if (this._completionModel && (
-				e.affectsConfiguration('editor.fontSize') ||
-				e.affectsConfiguration('editor.lineHeight') ||
-				e.affectsConfiguration('editor.fontWeight') ||
-				e.affectsConfiguration('editor.fontFamily'))) {
-				this._list.splice(0, this._completionModel.items.length, this._completionModel!.items);
-				this._onDidFontConfigurationChange.fire();
 			}
 			if (_options.statusBarMenuId && _options.showStatusBarSettingId && e.affectsConfiguration(_options.showStatusBarSettingId)) {
 				const showStatusBar: boolean = _configurationService.getValue(_options.showStatusBarSettingId);
@@ -770,31 +766,6 @@ export class SimpleSuggestWidget extends Disposable {
 		if (this._isDetailsVisible()) {
 			this._details.placeAtAnchor(this.element.domNode);
 		}
-	}
-
-	private _getFontInfo(): ISimpleSuggestWidgetFontInfo {
-		let lineHeight: number = this._configurationService.getValue('editor.lineHeight');
-		const fontSize: number = this._configurationService.getValue('editor.fontSize');
-		const fontFamily: string = this._configurationService.getValue('editor.fontFamily');
-		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
-		const letterSpacing: number = this._configurationService.getValue('editor.letterSpacing');
-
-		if (lineHeight <= 1) {
-			// Scale so icon shows by default
-			lineHeight = fontSize < 16 ? Math.ceil(fontSize * 1.5) : fontSize;
-		} else if (lineHeight <= 8) {
-			lineHeight = fontSize * lineHeight;
-		}
-
-		const fontInfo = {
-			fontSize,
-			lineHeight,
-			fontWeight: fontWeight.toString(),
-			letterSpacing,
-			fontFamily
-		};
-
-		return fontInfo;
 	}
 
 	private _getLayoutInfo() {

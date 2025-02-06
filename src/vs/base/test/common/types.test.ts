@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import * as types from '../../common/types.js';
-import { assertDefined, assertOneOf } from '../../common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { assertDefined, assertOneOf, typeCheck } from '../../common/types.js';
 
 suite('Types', () => {
 
@@ -306,14 +306,6 @@ suite('Types', () => {
 
 	suite('assertOneOf', () => {
 		suite('success', () => {
-			/**
-			 * Simple type check function to compile-time validate
-			 * type of passed argument.
-			 */
-			function typeCheck<T extends unknown>(thing: T): T {
-				return thing;
-			}
-
 			suite('string', () => {
 				test('type', () => {
 					assert.doesNotThrow(() => {
