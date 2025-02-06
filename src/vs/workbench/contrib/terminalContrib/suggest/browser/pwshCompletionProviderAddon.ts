@@ -49,8 +49,6 @@ const enum Constants {
 const enum RequestCompletionsSequence {
 	Contextual = '\x1b[24~e', // F12,e
 	Global = '\x1b[24~f', // F12,f
-	Git = '\x1b[24~g', // F12,g
-	Code = '\x1b[24~h' // F12,h
 }
 
 export class PwshCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
@@ -60,8 +58,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	static readonly ID = 'pwsh-shell-integration';
 	static cachedPwshCommands: Set<ITerminalCompletion>;
 	readonly shellTypes = [GeneralShellType.PowerShell];
-	private _codeCompletionsRequested: boolean = false;
-	private _gitCompletionsRequested: boolean = false;
 	private _lastUserDataTimestamp: number = 0;
 	private _terminal?: Terminal;
 	private _mostRecentCompletion?: ITerminalCompletion;
@@ -249,16 +245,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	}
 
 	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
-		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
-		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
-			this._onDidRequestSendText.fire(RequestCompletionsSequence.Code);
-			this._codeCompletionsRequested = true;
-		}
-		if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
-			this._onDidRequestSendText.fire(RequestCompletionsSequence.Git);
-			this._gitCompletionsRequested = true;
-		}
-
 		// Request global pwsh completions if there are none cached
 		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
 			this._onDidRequestSendText.fire(RequestCompletionsSequence.Global);
