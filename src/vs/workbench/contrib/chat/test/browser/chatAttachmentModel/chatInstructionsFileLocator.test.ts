@@ -18,6 +18,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { basename } from '../../../../../../base/common/resources.js';
 
 /**
  * Mocked mocked instance of {@link IConfigurationService}.
@@ -77,31 +78,29 @@ suite('ChatInstructionsFileLocator', () => {
 	 */
 	const createPromptsLocator = async (
 		configValue: unknown,
-		workspaceFolders: IWorkspaceFolder[],
+		workspaceFolderPaths: string[],
 		filesystem: IMockFolder[],
 	): Promise<ChatInstructionsFileLocator> => {
-		const mockFilesystem = initService.createInstance(MockFilesystem, filesystem);
-		await mockFilesystem.mock();
-		// const workspaceFolders = filesystem.map((folder) => {
-		// 	return mockObject<IWorkspaceFolder>(folder);
-		// 	// TODO: @legomushroom - remove?
-		// 	// return {
-		// 	// 	...folder,
-		// 	// 	index,
-		// 	// 	toResource(relativePath: string) {
-		// 	// 		return extUri.resolvePath(folder.uri, relativePath);
-		// 	// 	},
-		// 	// };
-		// });
+		await (initService.createInstance(MockFilesystem, filesystem)).mock();
 
 		initService.stub(IConfigurationService, mockConfigService(configValue));
+
+		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
+			const uri = URI.file(path);
+
+			return mockObject<IWorkspaceFolder>({
+				uri,
+				name: basename(uri),
+				index,
+			});
+		});
 		initService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
 
 		return initService.createInstance(ChatInstructionsFileLocator);
 	};
 
 	suite('empty workspace', () => {
-		const EMPTY_WORKSPACE: IWorkspaceFolder[] = [];
+		const EMPTY_WORKSPACE: string[] = [];
 
 		suite('empty filesystem', () => {
 			test('no config value', async () => {
@@ -139,15 +138,119 @@ suite('ChatInstructionsFileLocator', () => {
 					'No prompts must be found.',
 				);
 			});
+
+			test('null config value', async () => {
+				const locator = await createPromptsLocator(null, EMPTY_WORKSPACE, []);
+
+				assert.deepStrictEqual(
+					await locator.listFiles([]),
+					[],
+					'No prompts must be found.',
+				);
+			});
+
+			test('string config value', async () => {
+				const locator = await createPromptsLocator('/etc/hosts/prompts', EMPTY_WORKSPACE, []);
+
+				assert.deepStrictEqual(
+					await locator.listFiles([]),
+					[],
+					'No prompts must be found.',
+				);
+			});
 		});
 
 		suite('non-empty filesystem', () => {
+			suite('boolean config value', () => {
+				test('true', async () => {
+					const locator = await createPromptsLocator(
+						true,
+						EMPTY_WORKSPACE,
+						[
+							{
+								name: '/vsl/files/pmts',
+								children: [
+									{
+										name: 'file.prompt.md',
+										contents: 'some more random file contents',
+									},
+								],
+							},
+							{
+								name: '/abs/prompts/files/misc',
+								children: [
+									{
+										name: 'another.prompt.md',
+										contents: 'hey hey hey',
+									},
+								],
+							},
+							{
+								name: '/.github/prompts',
+								children: [
+									{
+										name: 'my-prompt.prompt.md',
+										contents: 'oh hi',
+									},
+								],
+							},
+						]);
+
+					assert.deepStrictEqual(
+						await locator.listFiles([]),
+						[],
+						'Must find correct prompts.',
+					);
+				});
+
+				test('false', async () => {
+					const locator = await createPromptsLocator(
+						false,
+						EMPTY_WORKSPACE,
+						[
+							{
+								name: '/vsl/pmts/files',
+								children: [
+									{
+										name: 'omt.prompt.md',
+										contents: 'some more random file contents',
+									},
+								],
+							},
+							{
+								name: '/var/lib/prompts.shared',
+								children: [
+									{
+										name: 'smt.prompt.md',
+										contents: 'hey hey hey',
+									},
+								],
+							},
+							{
+								name: '/.github/prompts',
+								children: [
+									{
+										name: 'default.prompt.md',
+										contents: 'oh hi',
+									},
+								],
+							},
+						]);
+
+					assert.deepStrictEqual(
+						await locator.listFiles([]),
+						[],
+						'Must find correct prompts.',
+					);
+				});
+			});
+
 			test('object config value', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
 						'/tmp/prompts/': true,
-						'/absolut/path/prompts': false,
+						'/absolute/path/prompts': false,
 						'.copilot/prompts': true,
 					},
 					EMPTY_WORKSPACE,
@@ -175,7 +278,7 @@ suite('ChatInstructionsFileLocator', () => {
 							],
 						},
 						{
-							name: '/absolut/path/prompts',
+							name: '/absolute/path/prompts',
 							children: [
 								{
 									name: 'some-prompt-file.prompt.md',
@@ -194,6 +297,284 @@ suite('ChatInstructionsFileLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+			});
+
+			test('array config value', async () => {
+				const locator = await createPromptsLocator(
+					[
+						'/var/prompts',
+						'/usr/local/prompts/',
+						'.github/prompts',
+					],
+					EMPTY_WORKSPACE,
+					[
+						{
+							name: '/var/prompts',
+							children: [
+								{
+									name: 'alpha.prompt.md',
+									contents: 'Hello, World!',
+								},
+								{
+									name: 'beta.prompt.md',
+									contents: 'some file content goes here',
+								},
+							],
+						},
+						{
+							name: '/usr/local/prompts',
+							children: [
+								{
+									name: 'gamma.prompt.md',
+									contents: 'some more random file contents',
+								},
+							],
+						},
+						{
+							name: '/data/prompts',
+							children: [
+								{
+									name: 'some-prompt-file.prompt.md',
+									contents: 'hey hey hey',
+								},
+							],
+						},
+					]);
+
+				assert.deepStrictEqual(
+					await locator.listFiles([]),
+					[
+						URI.file('/var/prompts/alpha.prompt.md'),
+						URI.file('/var/prompts/beta.prompt.md'),
+						URI.file('/usr/local/prompts/gamma.prompt.md'),
+					],
+					'Must find correct prompts.',
+				);
+			});
+		});
+	});
+
+	suite('single-root workspace', () => {
+		suite('non-empty filesystem', () => {
+			test('object config value', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'/Users/legomushroom/repos/prompts': true,
+						'/tmp/prompts/': true,
+						'/absolute/path/prompts': false,
+						'.copilot/prompts': true,
+						'.github/prompts': false,
+					},
+					[
+						'/Users/legomushroom/repos/vscode',
+					],
+					[
+						{
+							name: '/Users/legomushroom/repos/prompts',
+							children: [
+								{
+									name: 'test.prompt.md',
+									contents: 'Hello, World!',
+								},
+								{
+									name: 'refactor-tests.prompt.md',
+									contents: 'some file content goes here',
+								},
+							],
+						},
+						{
+							name: '/tmp/prompts',
+							children: [
+								{
+									name: 'translate.to-rust.prompt.md',
+									contents: 'some more random file contents',
+								},
+							],
+						},
+						{
+							name: '/absolute/path/prompts',
+							children: [
+								{
+									name: 'some-prompt-file.prompt.md',
+									contents: 'hey hey hey',
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/vscode',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'default.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'default.prompt.md',
+											contents: 'oh hi, bot!',
+										},
+									],
+								},
+							],
+						},
+					]);
+
+				assert.deepStrictEqual(
+					await locator.listFiles([]),
+					[
+						URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+						URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+						URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
+						URI.file('/Users/legomushroom/repos/vscode/.copilot/prompts/default.prompt.md'),
+					],
+					'Must find correct prompts.',
+				);
+			});
+
+			test('array config value', async () => {
+				const locator = await createPromptsLocator(
+					[
+						'/Users/legomushroom/repos/prompts',
+						'/tmp/prompts/',
+						'.copilot/prompts',
+					],
+					[
+						'/Users/legomushroom/repos/vscode',
+					],
+					[
+						{
+							name: '/Users/legomushroom/repos/prompts',
+							children: [
+								{
+									name: 'test.prompt.md',
+									contents: 'Hello, World!',
+								},
+								{
+									name: 'refactor-tests.prompt.md',
+									contents: 'some file content goes here',
+								},
+							],
+						},
+						{
+							name: '/tmp/prompts',
+							children: [
+								{
+									name: 'translate.to-rust.prompt.md',
+									contents: 'some more random file contents',
+								},
+							],
+						},
+						{
+							name: '/absolute/path/prompts',
+							children: [
+								{
+									name: 'some-prompt-file.prompt.md',
+									contents: 'hey hey hey',
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/vscode',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'default.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'default.prompt.md',
+											contents: 'oh hi, bot!',
+										},
+									],
+								},
+							],
+						},
+					]);
+
+				assert.deepStrictEqual(
+					await locator.listFiles([]),
+					[
+						URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+						URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+						URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
+						URI.file('/Users/legomushroom/repos/vscode/.copilot/prompts/default.prompt.md'),
+					],
+					'Must find correct prompts.',
+				);
+			});
+
+			suite('string config value', () => {
+				test('relative path', async () => {
+					const locator = await createPromptsLocator(
+						'.github/prompts',
+						[
+							'/Users/legomushroom/test/vscode',
+						],
+						[
+							{
+								name: '/tmp/prompts',
+								children: [
+									{
+										name: 'translate.to-rust.prompt.md',
+										contents: 'some more random file contents',
+									},
+								],
+							},
+							{
+								name: '/absolute/path/prompts',
+								children: [
+									{
+										name: 'some-prompt-file.prompt.md',
+										contents: 'hey hey hey',
+									},
+								],
+							},
+							{
+								name: '/Users/legomushroom/test/vscode',
+								children: [
+									{
+										name: '.copilot/prompts',
+										children: [
+											{
+												name: 'default.prompt.md',
+												contents: 'oh hi, robot!',
+											},
+										],
+									},
+									{
+										name: '.github/prompts',
+										children: [
+											{
+												name: 'default-github.prompt.md',
+												contents: 'oh hi, bot!',
+											},
+										],
+									},
+								],
+							},
+						]);
+
+					assert.deepStrictEqual(
+						await locator.listFiles([]),
+						[
+							URI.file('/Users/legomushroom/test/vscode/.github/prompts/default-github.prompt.md'),
+						],
+						'Must find correct prompts.',
+					);
+				});
 			});
 		});
 	});

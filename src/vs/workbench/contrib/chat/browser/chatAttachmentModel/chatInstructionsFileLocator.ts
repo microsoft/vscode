@@ -117,8 +117,8 @@ export class ChatInstructionsFileLocator {
 		exclude: ReadonlySet<string>,
 	): Promise<readonly URI[]> {
 		const results = await this.fileService.resolveAll(
-			locations.map((location) => {
-				return { resource: location };
+			locations.map((resource) => {
+				return { resource };
 			}),
 		);
 
