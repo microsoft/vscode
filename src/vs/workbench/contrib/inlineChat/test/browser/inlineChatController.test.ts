@@ -68,7 +68,7 @@ import { IChatEditingService, IChatEditingSession } from '../../../chat/common/c
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 
@@ -163,7 +163,6 @@ suite('InlineChatController', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IChatEditingService, new class extends mock<IChatEditingService>() {
-				override globalEditingSessionObs: IObservable<IChatEditingSession | null> = observableValue(this, null);
 				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
