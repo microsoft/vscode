@@ -57,6 +57,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _container?: HTMLElement;
 	private _screen?: HTMLElement;
 	private _suggestWidget?: SimpleSuggestWidget;
+	private _cachedFontInfo: ISimpleSuggestWidgetFontInfo | undefined;
 	private _enableWidget: boolean = true;
 	private _pathSeparator: string = sep;
 	private _isFilteringDirectories: boolean = false;
@@ -131,6 +132,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._promptInputModel = undefined;
 			}
 		}));
+		this._register(this._terminalConfigurationService.onConfigChanged(() => this._cachedFontInfo = undefined));
 	}
 
 	activate(xterm: Terminal): void {
@@ -384,7 +386,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _getFontInfo(): ISimpleSuggestWidgetFontInfo {
-		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
+		if (this._cachedFontInfo) {
+			return this._cachedFontInfo;
+		}
+
+		const core = (this._terminal as any)._core as IXtermCore;
+		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), core);
 		let lineHeight: number = font.lineHeight;
 		const fontSize: number = font.fontSize;
 		const fontFamily: string = font.fontFamily;
@@ -411,6 +418,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			letterSpacing,
 			fontFamily
 		};
+
+		this._cachedFontInfo = fontInfo;
 
 		return fontInfo;
 	}
