@@ -245,7 +245,7 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 	let filesRequested = false;
 	let foldersRequested = false;
 
-	const addSuggestions = (specArgs: SpecArg[] | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
+	const addSuggestions = (specArgs: SpecArg[] | Record<string, SpecArg> | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
 		if (kind === vscode.TerminalCompletionItemKind.Argument && parsedArguments?.currentArg?.generators) {
 			const generators = parsedArguments.currentArg.generators;
 			for (const generator of generators) {
@@ -262,12 +262,27 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 			return { filesRequested, foldersRequested };
 		}
 
-		for (const item of specArgs) {
-			const suggestionLabels = getLabel(item);
-			if (!suggestionLabels) {
-				continue;
+		if (Array.isArray(specArgs)) {
+			for (const item of specArgs) {
+				const suggestionLabels = getLabel(item);
+				if (!suggestionLabels) {
+					continue;
+				}
+				for (const label of suggestionLabels) {
+					items.push(
+						createCompletionItem(
+							terminalContext.cursorPosition,
+							prefix,
+							{ label },
+							typeof item === 'string' ? item : item.description,
+							undefined,
+							kind
+						)
+					);
+				}
 			}
-			for (const label of suggestionLabels) {
+		} else {
+			for (const [label, item] of Object.entries(specArgs)) {
 				items.push(
 					createCompletionItem(
 						terminalContext.cursorPosition,
@@ -286,10 +301,10 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 		addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument, parsedArguments);
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Subcommands) {
-		addSuggestions(Object.values(parsedArguments.completionObj.subcommands), vscode.TerminalCompletionItemKind.Method);
+		addSuggestions(parsedArguments.completionObj.subcommands, vscode.TerminalCompletionItemKind.Method);
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Options) {
-		addSuggestions(Object.values(parsedArguments.completionObj.options), vscode.TerminalCompletionItemKind.Flag);
+		addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag);
 	}
 
 	return { filesRequested, foldersRequested };
