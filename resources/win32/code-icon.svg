@@ -1,0 +1,38 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Gradient Background -->
+    <defs>
+        <linearGradient id="bg-gradient" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#6E44FF"/>
+            <stop offset="50%" stop-color="#4CA2FF"/>
+            <stop offset="100%" stop-color="#44FFB2"/>
+        </linearGradient>
+    </defs>
+
+    <!-- Modern Rounded Square Background -->
+    <rect x="40" y="40" width="176" height="176" rx="48"
+          fill="url(#bg-gradient)"
+          stroke="white"
+          stroke-width="8"/>
+
+    <!-- Inner Design Frame -->
+    <rect x="68" y="68" width="120" height="120" rx="24"
+          stroke="white"
+          stroke-width="4"
+          fill="none"/>
+
+    <!-- Sharp Code Elements -->
+    <path d="M100 108L80 128L100 148"
+          stroke="white"
+          stroke-width="12"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+    <path d="M156 108L176 128L156 148"
+          stroke="white"
+          stroke-width="12"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+
+    <!-- Clean Central Element -->
+    <circle cx="128" cy="128" r="8"
+            fill="white"/>
+</svg>
