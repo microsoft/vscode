@@ -282,24 +282,16 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 		}
 	};
 
-	switch (parsedArguments.suggestionFlags) {
-		case SuggestionFlag.None:
-			break;
-		case SuggestionFlag.Args:
-			addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument, parsedArguments);
-			break;
-		case SuggestionFlag.Subcommands:
-			addSuggestions(Object.values(parsedArguments.completionObj.subcommands), vscode.TerminalCompletionItemKind.Method);
-			break;
-		case SuggestionFlag.Options:
-			addSuggestions(Object.values(parsedArguments.completionObj.options), vscode.TerminalCompletionItemKind.Flag);
-			break;
-		case SuggestionFlag.Any:
-			addSuggestions(Object.values(parsedArguments.completionObj.subcommands), vscode.TerminalCompletionItemKind.Method);
-			addSuggestions(Object.values(parsedArguments.completionObj.options), vscode.TerminalCompletionItemKind.Flag);
-			addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument, parsedArguments);
-			break;
+	if (parsedArguments.suggestionFlags & SuggestionFlag.Args) {
+		addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument, parsedArguments);
 	}
+	if (parsedArguments.suggestionFlags & SuggestionFlag.Subcommands) {
+		addSuggestions(Object.values(parsedArguments.completionObj.subcommands), vscode.TerminalCompletionItemKind.Method);
+	}
+	if (parsedArguments.suggestionFlags & SuggestionFlag.Options) {
+		addSuggestions(Object.values(parsedArguments.completionObj.options), vscode.TerminalCompletionItemKind.Flag);
+	}
+
 	return { filesRequested, foldersRequested };
 }
 
