@@ -70,7 +70,6 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 		{ input: 'ls |', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: 'ls -|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
-		// Filtering options should request all options so client side can filter
 		{ input: 'ls -a|', expectedCompletions: allOptions },
 
 		// Duplicate option
