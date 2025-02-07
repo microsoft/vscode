@@ -24,7 +24,7 @@ jobs:
       run: npm install
 
     - name: Build installer (Windows)
-      run: npm run package -- --win
+      run: npm run vscode-win32-x64
 
     - name: Create release
       id: create_release
