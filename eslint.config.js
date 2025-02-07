@@ -268,7 +268,6 @@ export default tseslint.config(
 			'local/vscode-dts-cancellation': 'warn',
 			'local/vscode-dts-use-export': 'warn',
 			'local/vscode-dts-use-thenable': 'warn',
-			'local/vscode-dts-region-comments': 'warn',
 			'local/vscode-dts-vscode-in-comments': 'warn',
 			'local/vscode-dts-provider-naming': [
 				'warn',
