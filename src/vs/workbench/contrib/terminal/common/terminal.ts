@@ -480,7 +480,7 @@ export const enum TerminalCommandId {
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	StartVoice = 'workbench.action.terminal.startVoice',
 	StopVoice = 'workbench.action.terminal.stopVoice',
-	RerunTaskTerminal = 'workbench.action.terminal.rerunTaskTerminal',
+	RerunTask = 'workbench.action.terminal.rerunTask',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -536,6 +536,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.Toggle,
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
+	TerminalCommandId.RerunTask,
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',

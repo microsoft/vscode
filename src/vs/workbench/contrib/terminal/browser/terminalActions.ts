@@ -1437,9 +1437,10 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.RerunTaskTerminal,
-		title: localize2('workbench.action.terminal.rerunTaskTerminal', 'Rerun Task Terminal'),
-		precondition: sharedWhenClause.terminalAvailable,
+		id: TerminalCommandId.RerunTask,
+		icon: Codicon.debugRestart,
+		title: localize2('workbench.action.terminal.rerunTaskTerminal', 'Rerun Task'),
+		precondition: ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.taskTerminalActive),
 		run: async (c, accessor, args) => {
 			const terminalService = accessor.get(ITerminalService);
 			const taskSystem = accessor.get(ITaskService);
@@ -1448,9 +1449,21 @@ export function registerTerminalActions() {
 			if (instance) {
 				const task = await taskSystem.getTaskForTerminal(instance.instanceId);
 				if (task) {
-					await taskSystem.run(task);
+					const result = await taskSystem.terminate(task);
+					if (result.success) {
+						await taskSystem.run(task);
+					}
 				}
 			}
+		},
+		menu: [{ id: MenuId.TerminalTabContext }, { id: MenuId.TerminalInstanceContext }],
+		keybinding: {
+			when: TerminalContextKeys.focus,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
+			mac: {
+				primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
+			},
+			weight: KeybindingWeight.EditorContrib
 		}
 	});
 }

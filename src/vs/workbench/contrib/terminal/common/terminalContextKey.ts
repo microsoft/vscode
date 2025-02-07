@@ -135,6 +135,9 @@ export namespace TerminalContextKeys {
 	/** Whether shell integration is enabled in the active terminal. This only considers full VS Code shell integration. */
 	export const terminalShellIntegrationEnabled = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalShellIntegrationEnabled, false, localize('terminalShellIntegrationEnabled', "Whether shell integration is enabled in the active terminal"));
 
+	/** Whether the active terminal is a task terminal. */
+	export const taskTerminalActive = new RawContextKey<boolean>('taskTerminalActive', false, localize('taskTerminalActive', "Whether the active terminal is a task terminal."));
+
 	export const shouldShowViewInlineActions = ContextKeyExpr.and(
 		ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 		ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
