@@ -349,7 +349,7 @@ export class WindowTitle extends Disposable {
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
-		const editorTabDecorations = editor?.resource ? this.decorationsService.getDecoration(editor.resource, true)?.tooltip : undefined;
+		const editorStateInformation = editor?.resource ? this.decorationsService.getDecoration(editor.resource, true)?.tooltip : undefined;
 
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
@@ -384,7 +384,7 @@ export class WindowTitle extends Disposable {
 			remoteName,
 			profileName,
 			focusedView,
-			editorTabDecorations,
+			editorStateInformation,
 			separator: { label: separator }
 		});
 	}
