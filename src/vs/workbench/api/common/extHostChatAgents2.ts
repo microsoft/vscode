@@ -945,12 +945,6 @@ class ExtHostChatAgent {
 			get requester() {
 				return that._requester;
 			},
-			set supportsSlowReferences(v) {
-				// TODO API
-			},
-			get supportsSlowReferences() {
-				return false;
-			},
 			dispose() {
 				disposed = true;
 				that._followupProvider = undefined;
