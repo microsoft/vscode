@@ -18,7 +18,7 @@ class Node<E> {
 	}
 }
 
-export class LinkedList<E> {
+export class LinkedList345<E> {
 
 	private _first: Node<E> = Node.Undefined;
 	private _last: Node<E> = Node.Undefined;
