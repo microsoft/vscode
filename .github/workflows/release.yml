@@ -21,7 +21,7 @@ jobs:
         node-version: '20.18.1'
 
     - name: Install dependencies
-      run: npm install
+      run: npm ci
 
     - name: Install gulp
       run: npm install -g gulp
