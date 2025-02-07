@@ -1449,6 +1449,8 @@ export function registerTerminalActions() {
 			if (instance) {
 				const task = await taskSystem.getTaskForTerminal(instance.instanceId);
 				if (task) {
+					// send ctrl+D to the terminal to kill the demon
+					await instance.sendText('\x04', true);
 					const result = await taskSystem.terminate(task);
 					if (result.success) {
 						await taskSystem.run(task);
