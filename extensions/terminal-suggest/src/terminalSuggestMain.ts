@@ -397,20 +397,18 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			if (shellIntegrationCwd) {
-				const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition);
+			const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition);
+			if (command && shellIntegrationCwd) {
 				const parsedArguments: ArgumentParserResult = await parseArguments(
 					// TODO: pass in aliases
 					command,
 					{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd?.fsPath, sshPrefix: '', currentProcess: name },
 					spec,
 				);
-				if (command) {
-					const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, items);
-					if (completionItemResult) {
-						filesRequested ||= completionItemResult.filesRequested;
-						foldersRequested ||= completionItemResult.foldersRequested;
-					}
+				const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, items);
+				if (completionItemResult) {
+					filesRequested ||= completionItemResult.filesRequested;
+					foldersRequested ||= completionItemResult.foldersRequested;
 				}
 			} else {
 				const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
