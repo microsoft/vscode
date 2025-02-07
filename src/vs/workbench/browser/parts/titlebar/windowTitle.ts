@@ -78,6 +78,7 @@ export class WindowTitle extends Disposable {
 	}
 
 	private title: string | undefined;
+
 	private titleIncludesFocusedView: boolean = false;
 	private titleIncludesEditorState: boolean = false;
 
@@ -178,6 +179,8 @@ export class WindowTitle extends Disposable {
 				this.activeEditorListeners.add(textEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
 			}
 		}
+
+		// Apply listener for decorations to track editor state
 		if (this.titleIncludesEditorState) {
 			this.activeEditorListeners.add(this.decorationsService.onDidChangeDecorations(() => this.titleUpdater.schedule()));
 		}
@@ -357,7 +360,7 @@ export class WindowTitle extends Disposable {
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
-		const activeEditorState = editor?.resource ? this.decorationsService.getDecoration(editor.resource, true)?.tooltip : undefined;
+		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
 
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
