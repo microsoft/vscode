@@ -1279,10 +1279,11 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._store.add(autorunWithStore((r, store) => {
 
+			const model = editorObs.model.read(r);
 			const session = this._currentSession.read(r);
 			const isActive = this._isActiveController.read(r);
 
-			if (!session || !isActive) {
+			if (!session || !isActive || !model) {
 				visibleSessionObs.set(undefined, undefined);
 				return;
 			}
@@ -1291,11 +1292,34 @@ export class InlineChatController2 implements IEditorContribution {
 			const showShowUntil = this._showWidgetOverrideObs.read(r);
 			const hasNoRequests = chatModel.getRequests().length === 0;
 
+
+			const responseListener = store.add(new MutableDisposable());
+
 			store.add(chatModel.onDidChange(e => {
 				if (e.kind === 'addRequest') {
 					transaction(tx => {
 						this._showWidgetOverrideObs.set(false, tx);
 						visibleSessionObs.set(undefined, tx);
+					});
+					const { response } = e.request;
+					if (!response) {
+						return;
+					}
+					responseListener.value = response.onDidChange(async e => {
+
+						if (!response.isComplete) {
+							return;
+						}
+
+						const shouldShow = response.isCanceled // cancelled
+							|| response.result?.errorDetails // errors
+							|| !response.response.value.find(part => part.kind === 'textEditGroup'
+								&& part.edits.length > 0
+								&& isEqual(part.uri, model.uri)); // NO edits for file
+
+						if (shouldShow) {
+							visibleSessionObs.set(session, undefined);
+						}
 					});
 				}
 			}));
