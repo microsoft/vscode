@@ -522,3 +522,7 @@
 .monaco-workbench .xterm.terminal.hide {
 	visibility: hidden;
 }
+
+.monaco-workbench .tabs-list .action-label.codicon.codicon-debug-restart {
+	color: inherit !important;
+}

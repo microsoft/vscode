@@ -640,9 +640,6 @@ class TerminalThemeIconStyle extends Themable {
 					`{ color: ${color} !important; }`
 				);
 			}
-			// Override debug's restart icon color
-			css += `.monaco-workbench .action-label.codicon.codicon-debug-restart` +
-				`{color: inherit !important;}`;
 		}
 
 		this._styleElement.textContent = css;
