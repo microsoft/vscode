@@ -30,9 +30,7 @@ export class Editors {
 		while (retries < 10) {
 			await this.code.waitAndClick(`.tabs-container div.tab[data-resource-name$="${fileName}"]`);
 			try {
-				await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+1' : 'ctrl+1', async () => {
-					await this.waitForEditorFocus(fileName, 50 /* 50 retries * 100ms delay = 5s */);
-				});
+				await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+1' : 'ctrl+1', () => this.waitForEditorFocus(fileName, 50 /* 50 retries * 100ms delay = 5s */));
 				return;
 			} catch (e) {
 				error = e;
