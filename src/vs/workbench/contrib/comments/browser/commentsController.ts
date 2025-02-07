@@ -742,7 +742,7 @@ export class CommentController implements IEditorContribution {
 
 	public collapseAll(): void {
 		for (const widget of this._commentWidgets) {
-			widget.collapse();
+			widget.collapse(true);
 		}
 	}
 
@@ -1136,7 +1136,7 @@ export class CommentController implements IEditorContribution {
 			const existingCommentsAtLine = this.getCommentsAtLine(commentRange);
 			if (existingCommentsAtLine.length) {
 				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
-				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand(true));
+				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse(true) : widget => widget.expand(true));
 				this.processNextThreadToAdd();
 				return;
 			} else {

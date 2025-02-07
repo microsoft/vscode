@@ -93,6 +93,7 @@ export default (): string => `
 				${sendExtensionData}
 				<span id="ext-loading" hidden></span>
 				<span class="ext-parens" hidden>(</span><a href="#" class="showInfo" id="extension-id">${escape(localize('show', "show"))}</a><span class="ext-parens" hidden>)</span>
+				<a id="extension-data-download">${escape(localize('downloadExtensionData', "Download Extension Data"))}</a>
 			</label>
 			<pre class="block-info" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}" style="white-space: pre-wrap; user-select: text;">
 				<!-- To be dynamically filled -->

@@ -13,10 +13,10 @@ export const enum TerminalSuggestSettingId {
 	QuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
-	BuiltinCompletions = 'terminal.integrated.suggest.builtinCompletions',
 	WindowsExecutableExtensions = 'terminal.integrated.suggest.windowsExecutableExtensions',
 	Providers = 'terminal.integrated.suggest.providers',
 	ShowStatusBar = 'terminal.integrated.suggest.showStatusBar',
+	CdPath = 'terminal.integrated.suggest.cdPath',
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
@@ -45,10 +45,6 @@ export interface ITerminalSuggestConfiguration {
 	quickSuggestions: boolean;
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
-	builtinCompletions: {
-		'pwshCode': boolean;
-		'pwshGit': boolean;
-	};
 	providers: {
 		'terminal-suggest': boolean;
 		'pwsh-shell-integration': boolean;
@@ -58,33 +54,35 @@ export interface ITerminalSuggestConfiguration {
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSuggestSettingId.Enabled]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
+		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
+		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.Providers]: {
 		restricted: true,
-		markdownDescription: localize('suggest.providers', "Controls which providers are enabled for terminal suggestions."),
+		markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
 		type: 'object',
 		properties: {},
 		default: {
 			'terminal-suggest': true,
-			'pwsh-shell-integration': false,
+			'pwsh-shell-integration': true,
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
 		type: 'boolean',
 		default: true,
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
 		restricted: true,
 		markdownDescription: localize('suggest.suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters."),
 		type: 'boolean',
 		default: true,
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
@@ -98,25 +96,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
 		default: 'ignore',
-	},
-	[TerminalSuggestSettingId.BuiltinCompletions]: {
-		restricted: true,
-		markdownDescription: localize('suggest.builtinCompletions', "Controls which built-in completions are activated. This setting can cause conflicts if custom shell completions are configured in the shell profile."),
-		type: 'object',
-		properties: {
-			'pwshCode': {
-				description: localize('suggest.builtinCompletions.pwshCode', 'Custom PowerShell argument completers will be registered for VS Code\'s `code` and `code-insiders` CLIs. This is currently very basic and always suggests flags and subcommands without checking context.'),
-				type: 'boolean'
-			},
-			'pwshGit': {
-				description: localize('suggest.builtinCompletions.pwshGit', 'Custom PowerShell argument completers will be registered for the `git` CLI.'),
-				type: 'boolean'
-			},
-		},
-		default: {
-			pwshCode: true,
-			pwshGit: true,
-		}
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {
 		restricted: true,
@@ -125,14 +105,26 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		),
 		type: 'object',
 		default: {},
-		tags: ['experimental'],
+		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.ShowStatusBar]: {
 		restricted: true,
 		markdownDescription: localize('suggest.showStatusBar', "Controls whether the terminal suggestions status bar should be shown."),
 		type: 'boolean',
 		default: true,
-		tags: ['experimental'],
+		tags: ['preview']
+	},
+	[TerminalSuggestSettingId.CdPath]: {
+		restricted: true,
+		markdownDescription: localize('suggest.cdPath', "Controls whether to enable $CDPATH support which exposes children of the folders in the $CDPATH variable regardless of the current working directory. $CDPATH is expected to be semi colon-separated on Windows and colon-separated on other platforms."),
+		enum: ['off', 'relative', 'absolute'],
+		markdownEnumDescriptions: [
+			localize('suggest.cdPath.off', "Disable the feature."),
+			localize('suggest.cdPath.relative', "Enable the feature and use relative paths."),
+			localize('suggest.cdPath.absolute', "Enable the feature and use absolute paths. This is useful when the shell doesn't natively support `$CDPATH`."),
+		],
+		default: 'absolute',
+		tags: ['preview']
 	},
 };
 

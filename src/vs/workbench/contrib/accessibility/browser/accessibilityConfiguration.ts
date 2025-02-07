@@ -63,7 +63,7 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
 	Walkthrough = 'accessibility.verbosity.walkthrough',
-	SourceControl = 'accessibility.verbosity.scm'
+	SourceControl = 'accessibility.verbosity.sourceControl'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -188,6 +188,10 @@ const configuration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
 			type: 'boolean',
 			default: true
+		},
+		[AccessibilityVerbositySettingId.SourceControl]: {
+			description: localize('verbosity.scm', 'Provide information about how to access the source control accessibility help menu when the input is focused.'),
+			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
 			'description': localize('accessibility.signalOptions.volume', "The volume of the sounds in percent (0-100)."),

@@ -149,22 +149,29 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	async acquireTokenInteractive(request: InteractiveRequest): Promise<AuthenticationResult> {
 		this._logger.debug(`[acquireTokenInteractive] [${this._clientId}] [${this._authority}] [${request.scopes?.join(' ')}] loopbackClientOverride: ${request.loopbackClient ? 'true' : 'false'}`);
-		const result = await window.withProgress(
+		return await window.withProgress(
 			{
 				location: ProgressLocation.Notification,
 				cancellable: true,
 				title: l10n.t('Signing in to Microsoft...')
 			},
-			(_process, token) => this._sequencer.queue(() => raceCancellationAndTimeoutError(
-				this._pca.acquireTokenInteractive(request),
-				token,
-				1000 * 60 * 5
-			))
+			(_process, token) => this._sequencer.queue(async () => {
+				const result = await raceCancellationAndTimeoutError(
+					this._pca.acquireTokenInteractive(request),
+					token,
+					1000 * 60 * 5
+				);
+				if (this._isBrokerAvailable) {
+					await this._accountAccess.setAllowedAccess(result.account!, true);
+				}
+				// Force an update so that the account cache is updated.
+				// TODO:@TylerLeonhardt The problem is, we use the sequencer for
+				// change events but we _don't_ use it for the accounts cache.
+				// We should probably use it for the accounts cache as well.
+				await this._update();
+				return result;
+			})
 		);
-		if (this._isBrokerAvailable) {
-			await this._accountAccess.setAllowedAccess(result.account!, true);
-		}
-		return result;
 	}
 
 	/**

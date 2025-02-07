@@ -12,6 +12,7 @@ import { LineSource, renderLines, RenderOptions } from '../../../../../browser/w
 import { diffAddDecoration } from '../../../../../browser/widget/diffEditor/registrations.contribution.js';
 import { applyViewZones, IObservableViewZone } from '../../../../../browser/widget/diffEditor/utils.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
+import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { Range } from '../../../../../common/core/range.js';
 import { AbstractText } from '../../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
@@ -36,6 +37,8 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 
 	readonly isHovered = constObservable(false);
 
+	private readonly _tokenizationFinished = modelTokenizationFinished(this._modifiedTextModel);
+
 	constructor(
 		private readonly _originalEditor: ICodeEditor,
 		private readonly _state: IObservable<IOriginalEditorInlineDiffViewState | undefined>,
@@ -55,8 +58,6 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 
 		const editor = observableCodeEditor(this._originalEditor);
 
-		const tokenizationFinished = modelTokenizationFinished(_modifiedTextModel);
-
 		const originalViewZones = derived(this, (reader) => {
 			const originalModel = editor.model.read(reader);
 			if (!originalModel) { return []; }
@@ -73,7 +74,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 					continue;
 				}
 
-				tokenizationFinished.read(reader); // Update view-zones once tokenization completes
+				this._tokenizationFinished.read(reader); // Update view-zones once tokenization completes
 
 				const source = new LineSource(diff.modified.mapToLineArray(l => this._modifiedTextModel.tokenization.getLineTokens(l)));
 
@@ -214,21 +215,41 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 					}
 					if (useInlineDiff) {
 						const insertedText = modified.getValueOfRange(i.modifiedRange);
-						originalDecorations.push({
-							range: Range.fromPositions(i.originalRange.getEndPosition()),
-							options: {
-								description: 'inserted-text',
-								before: {
-									content: insertedText,
-									inlineClassName: classNames(
-										'inlineCompletions-char-insert',
-										i.modifiedRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline'
-									),
-								},
-								zIndex: 2,
-								showIfCollapsed: true,
-							}
-						});
+						// when the injected text becomes long, the editor will split it into multiple spans
+						// to be able to get the border around the start and end of the text, we need to split it into multiple segments
+						const textSegments = insertedText.length > 3 ?
+							[
+								{ text: insertedText.slice(0, 1), extraClasses: ['start'], offsetRange: new OffsetRange(i.modifiedRange.startColumn - 1, i.modifiedRange.startColumn) },
+								{ text: insertedText.slice(1, -1), extraClasses: [], offsetRange: new OffsetRange(i.modifiedRange.startColumn, i.modifiedRange.endColumn - 2) },
+								{ text: insertedText.slice(-1), extraClasses: ['end'], offsetRange: new OffsetRange(i.modifiedRange.endColumn - 2, i.modifiedRange.endColumn - 1) }
+							] :
+							[
+								{ text: insertedText, extraClasses: ['start', 'end'], offsetRange: new OffsetRange(i.modifiedRange.startColumn - 1, i.modifiedRange.endColumn) }
+							];
+
+						// Tokenization
+						this._tokenizationFinished.read(reader); // reconsider when tokenization is finished
+						const lineTokens = this._modifiedTextModel.tokenization.getLineTokens(i.modifiedRange.startLineNumber);
+
+						for (const { text, extraClasses, offsetRange } of textSegments) {
+							originalDecorations.push({
+								range: Range.fromPositions(i.originalRange.getEndPosition()),
+								options: {
+									description: 'inserted-text',
+									before: {
+										tokens: lineTokens.getTokensInRange(offsetRange),
+										content: text,
+										inlineClassName: classNames(
+											'inlineCompletions-char-insert',
+											i.modifiedRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
+											...extraClasses // include extraClasses for additional styling if provided
+										),
+									},
+									zIndex: 2,
+									showIfCollapsed: true,
+								}
+							});
+						}
 					}
 				}
 			}

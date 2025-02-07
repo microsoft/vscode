@@ -27,7 +27,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -108,7 +108,7 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 					const context = this._context;
 					if (isCodeBlockActionContext(context) && context.codemapperUri) {
 						const label = labelService.getUriLabel(context.codemapperUri, { relative: true });
-						return localize('interactive.applyInEditorWithURL.label', "Apply in {0}", label);
+						return localize('interactive.applyInEditorWithURL.label', "Apply to {0}", label);
 					}
 					return super.getTooltip();
 				}
@@ -575,6 +575,7 @@ export function registerChatCodeCompareBlockActions() {
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
+			const instaService = accessor.get(IInstantiationService);
 			const editorService = accessor.get(ICodeEditorService);
 
 			const item = context.edit;
@@ -598,13 +599,10 @@ export function registerChatCodeCompareBlockActions() {
 
 			const editorToApply = await editorService.openCodeEditor({ resource: item.uri }, null);
 			if (editorToApply) {
-				const inlineChatController = InlineChatController.get(editorToApply);
-				if (inlineChatController) {
-					editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
-					inlineChatController.reviewEdits(textEdits, CancellationToken.None);
-					response.setEditApplied(item, 1);
-					return true;
-				}
+				editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
+				instaService.invokeFunction(reviewEdits, editorToApply, textEdits, CancellationToken.None);
+				response.setEditApplied(item, 1);
+				return true;
 			}
 			return false;
 		}

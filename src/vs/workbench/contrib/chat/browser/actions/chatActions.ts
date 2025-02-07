@@ -139,7 +139,7 @@ class OpenChatGlobalAction extends Action2 {
 			}
 		}
 		if (opts?.variableIds && opts.variableIds.length > 0) {
-			const actualVariables = chatVariablesService.getVariables(ChatAgentLocation.Panel);
+			const actualVariables = chatVariablesService.getVariables();
 			for (const actualVariable of actualVariables) {
 				if (opts.variableIds.includes(actualVariable.id)) {
 					chatWidget.attachmentModel.addContext({
@@ -335,7 +335,7 @@ class ChatAddAction extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
 		id: 'update.showCurrentReleaseNotes',
-		title: localize2('chat.releaseNotes.label', "Explore New Features"),
+		title: localize2('chat.releaseNotes.label', "Show Release Notes"),
 	},
 	when: ContextKeyExpr.equals('view', ChatViewId)
 });

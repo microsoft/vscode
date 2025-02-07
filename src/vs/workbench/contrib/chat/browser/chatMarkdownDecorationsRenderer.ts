@@ -250,7 +250,7 @@ export class ChatMarkdownDecorationsRenderer {
 		}
 
 		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data));
-		this.chatMarkdownAnchorService.register(inlineAnchor);
+		store.add(this.chatMarkdownAnchorService.register(inlineAnchor));
 	}
 
 	private renderResourceWidget(name: string, args: IDecorationWidgetArgs | undefined, store: DisposableStore): HTMLElement {

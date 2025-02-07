@@ -43,6 +43,7 @@ export class GhostTextView extends Disposable {
 			extraClasses?: string[];
 			syntaxHighlightingEnabled: boolean;
 		}>,
+		private readonly _shouldKeepCursorStable: boolean,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
@@ -151,9 +152,15 @@ export class GhostTextView extends Disposable {
 					minReservedLineCount: uiState.additionalReservedLineCount,
 					targetTextModel: uiState.targetTextModel,
 				} : undefined;
-			})
+			}),
+			this._shouldKeepCursorStable
 		)
 	);
+
+	public readonly height = derived(this, reader => {
+		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
+		return lineHeight + (this.additionalLinesWidget.viewZoneHeight.read(reader) ?? 0);
+	});
 
 	public ownsViewZone(viewZoneId: string): boolean {
 		return this.additionalLinesWidget.viewZoneId === viewZoneId;
@@ -231,6 +238,9 @@ export class AdditionalLinesWidget extends Disposable {
 	private _viewZoneInfo: { viewZoneId: string; heightInLines: number; lineNumber: number } | undefined;
 	public get viewZoneId(): string | undefined { return this._viewZoneInfo?.viewZoneId; }
 
+	private _viewZoneHeight = observableValue<undefined | number>('viewZoneHeight', undefined);
+	public get viewZoneHeight(): IObservable<number | undefined> { return this._viewZoneHeight; }
+
 	private readonly editorOptionsChanged = observableSignalFromEvent('editorOptionChanged', Event.filter(
 		this.editor.onDidChangeConfiguration,
 		e => e.hasChanged(EditorOption.disableMonospaceOptimizations)
@@ -249,7 +259,8 @@ export class AdditionalLinesWidget extends Disposable {
 			lineNumber: number;
 			additionalLines: LineData[];
 			minReservedLineCount: number;
-		} | undefined>
+		} | undefined>,
+		private readonly shouldKeepCursorStable: boolean
 	) {
 		super();
 
@@ -303,7 +314,10 @@ export class AdditionalLinesWidget extends Disposable {
 			afterLineNumber: afterLineNumber,
 			heightInLines: heightInLines,
 			domNode,
-			afterColumnAffinity: PositionAffinity.Right
+			afterColumnAffinity: PositionAffinity.Right,
+			onComputedHeight: (height: number) => {
+				this._viewZoneHeight.set(height, undefined); // TODO: can a transaction be used to avoid flickering?
+			}
 		});
 
 		this.keepCursorStable(afterLineNumber, heightInLines);
@@ -318,10 +332,15 @@ export class AdditionalLinesWidget extends Disposable {
 			this.keepCursorStable(this._viewZoneInfo.lineNumber, -this._viewZoneInfo.heightInLines);
 
 			this._viewZoneInfo = undefined;
+			this._viewZoneHeight.set(undefined, undefined);
 		}
 	}
 
 	private keepCursorStable(lineNumber: number, heightInLines: number): void {
+		if (!this.shouldKeepCursorStable) {
+			return;
+		}
+
 		const cursorLineNumber = this.editor.getSelection()?.getStartPosition()?.lineNumber;
 		if (cursorLineNumber !== undefined && lineNumber < cursorLineNumber) {
 			this.editor.setScrollTop(this.editor.getScrollTop() + heightInLines * this.editor.getOption(EditorOption.lineHeight));

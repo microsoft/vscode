@@ -2,24 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { ChatEditorController, ctxHasEditorModification, ctxReviewModeEnabled } from './chatEditorController.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '../common/chatEditingService.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditContext.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { ChatEditorController, ctxHasEditorModification, ctxReviewModeEnabled } from './chatEditingEditorController.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService } from '../../common/chatEditingService.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
+import { ctxNotebookHasEditorModification } from '../../../notebook/browser/contrib/chatEdit/notebookChatEditContext.js';
+import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
+import { IListService } from '../../../../../platform/list/browser/listService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -37,8 +41,11 @@ abstract class NavigateAction extends Action2 {
 				primary: next
 					? KeyMod.Alt | KeyCode.F5
 					: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
-				weight: KeybindingWeight.EditorContrib,
-				when: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), EditorContextKeys.focus),
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification),
+					EditorContextKeys.focus
+				),
 			},
 			f1: true,
 			menu: {
@@ -131,7 +138,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -209,7 +216,7 @@ class RejectHunkAction extends EditorAction2 {
 			id: 'chatEditor.action.undoHunk',
 			title: localize2('undo', 'Discard this Change'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.discard,
 			f1: true,
 			keybinding: {
@@ -235,7 +242,7 @@ class AcceptHunkAction extends EditorAction2 {
 			id: 'chatEditor.action.acceptHunk',
 			title: localize2('acceptHunk', 'Accept this Change'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.check,
 			f1: true,
 			keybinding: {
@@ -265,7 +272,7 @@ class OpenDiffAction extends EditorAction2 {
 				condition: EditorContextKeys.inDiffEditor,
 				icon: Codicon.goToFile,
 			},
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.diffSingle,
 			keybinding: {
 				when: EditorContextKeys.focus,
@@ -317,6 +324,53 @@ export class ReviewChangesAction extends EditorAction2 {
 	}
 }
 
+
+// --- multi file diff
+
+abstract class MultiDiffAcceptDiscardAction extends Action2 {
+
+	constructor(readonly accept: boolean) {
+		super({
+			id: accept ? 'chatEditing.multidiff.acceptAllFiles' : 'chatEditing.multidiff.discardAllFiles',
+			title: accept ? localize('accept3', 'Accept All Edits') : localize('discard3', 'Discard All Edits'),
+			icon: accept ? Codicon.check : Codicon.discard,
+			menu: {
+				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
+				id: MenuId.EditorTitle,
+				order: accept ? 0 : 1,
+				group: 'navigation',
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const chatEditingService = accessor.get(IChatEditingService);
+		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const listService = accessor.get(IListService);
+
+		const resolvedContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
+
+		const groupContext = resolvedContext.groupedEditors[0];
+		if (!groupContext) {
+			return;
+		}
+
+		const editor = groupContext.editors[0];
+		if (!(editor instanceof MultiDiffEditorInput) || !editor.resource) {
+			return;
+		}
+
+		const session = chatEditingService.getEditingSession(editor.resource.authority);
+		if (this.accept) {
+			await session?.accept();
+		} else {
+			await session?.reject();
+		}
+	}
+}
+
+
 export function registerChatEditorActions() {
 	registerAction2(class NextAction extends NavigateAction { constructor() { super(true); } });
 	registerAction2(class PrevAction extends NavigateAction { constructor() { super(false); } });
@@ -326,6 +380,9 @@ export function registerChatEditorActions() {
 	registerAction2(RejectAction);
 	registerAction2(RejectHunkAction);
 	registerAction2(OpenDiffAction);
+
+	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(true); } });
+	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(false); } });
 
 	MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
 		command: {
