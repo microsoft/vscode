@@ -1,1 +1,1 @@
-export const auxiliaryBarAllowedViewContainerIDs = ['workbench.view.extension.PearAI'];
+export const auxiliaryBarAllowedViewContainerIDs = ['workbench.view.extension.pearai', 'workbench.view.extension.pearai-roo-cline'];
