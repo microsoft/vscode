@@ -8,14 +8,14 @@
 AppId={#AppId}
 AppName={#NameLong}
 AppVerName={#NameVersion}
-AppPublisher=Microsoft Corporation
-AppPublisherURL=https://code.visualstudio.com/
-AppSupportURL=https://code.visualstudio.com/
-AppUpdatesURL=https://code.visualstudio.com/
+AppPublisher=EthicalCoder
+AppPublisherURL=https://ethicalcode.com/
+AppSupportURL=https://ethicalcode.com/
+AppUpdatesURL=https://ethicalcode.com/
 DefaultGroupName={#NameLong}
 AllowNoIcons=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=VSCodeSetup
+OutputBaseFilename=EthicalCoderSetup
 Compression=lzma
 SolidCompression=yes
 AppMutex={code:GetAppMutex}
@@ -92,7 +92,6 @@ Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
 Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\resources\app"; Flags: ignoreversion
 #ifdef AppxPackageFullname
 Source: "appx\*"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater and QualityIsInsiders

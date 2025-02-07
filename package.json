@@ -1,9 +1,9 @@
 {
-  "name": "code-oss-dev",
+  "name": "ethicalcoder-dev",
   "version": "1.98.0",
   "distro": "41de7f370f100ee0374fe780e73a995803da6a9c",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "EthicalCoder"
   },
   "license": "MIT",
   "main": "./out/main.js",
@@ -179,6 +179,7 @@
     "gulp-sourcemaps": "^3.0.0",
     "gulp-svgmin": "^4.1.0",
     "gulp-untar": "^0.0.7",
+    "gulp-watch": "^5.0.1",
     "husky": "^0.13.1",
     "innosetup": "6.0.5",
     "istanbul-lib-coverage": "^3.2.0",
@@ -236,5 +237,18 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
+  },
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "webui.endpoint": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Endpoint URL for the Open WebUI interface",
+          "pattern": "^https?://.*",
+          "patternErrorMessage": "Must be a valid HTTP/HTTPS URL"
+        }
+      }
+    }
   }
 }

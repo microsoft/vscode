@@ -8,6 +8,7 @@ import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWork
 import { WebUIMessage, IResponseMessage, IInitializeMessage } from '../common/webuiProtocol.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class WebUIWorkbenchService implements IWebUIService {
 	readonly _serviceBrand: undefined;
@@ -15,13 +16,15 @@ export class WebUIWorkbenchService implements IWebUIService {
 	constructor(
 		@IWebviewWorkbenchService private readonly webviewWorkbenchService: IWebviewWorkbenchService,
 		@ILogService private readonly logService: ILogService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.logService.info('[WebUI] Service constructed');
 	}
 
 	async openChat(options?: WebUIOptions): Promise<void> {
 		this.logService.info('[WebUI] openChat called');
+		const endpoint = this.configurationService.getValue<string>('webui.endpoint') || 'http://localhost:3000';
 		try {
 			this.logService.info('[WebUI] Creating webview...');
 			const webviewInput = this.webviewWorkbenchService.openWebview(
@@ -97,8 +100,8 @@ export class WebUIWorkbenchService implements IWebUIService {
 						<meta http-equiv="Content-Security-Policy" content="
 							default-src 'none';
 							script-src 'unsafe-inline' 'unsafe-eval';
-							connect-src http://localhost:3000;
-							frame-src http://localhost:3000;
+							connect-src ${endpoint};
+							frame-src ${endpoint};
 							style-src 'unsafe-inline';">
 						<meta name="viewport" content="width=device-width, initial-scale=1.0">
 						<style>
@@ -124,7 +127,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 						</script>
 					</head>
 					<body>
-						<iframe src="http://localhost:3000"></iframe>
+						<iframe src="${endpoint}"></iframe>
 					</body>
 				</html>`);
 			this.logService.info('WebUIWorkbenchService: HTML content set');
