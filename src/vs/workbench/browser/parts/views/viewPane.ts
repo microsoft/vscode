@@ -581,10 +581,12 @@ export abstract class ViewPane extends Pane implements IView {
 			this.titleContainerHover?.update(calculatedTitle);
 		}
 
+		const ariaLabel = this._getAriaLabel(calculatedTitle);
 		if (this.iconContainer) {
 			this.iconContainerHover?.update(calculatedTitle);
-			this.iconContainer.setAttribute('aria-label', this._getAriaLabel(calculatedTitle));
+			this.iconContainer.setAttribute('aria-label', ariaLabel);
 		}
+		this.ariaHeaderLabel = this.getAriaHeaderLabel(ariaLabel);
 
 		this._title = title;
 		this._onDidChangeTitleArea.fire();
