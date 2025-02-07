@@ -582,12 +582,15 @@ export class StopSessionAction2 extends AbstractInline2ChatAction {
 			id: 'inlineChat2.stop',
 			title: localize2('stop', "Stop"),
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_HAS_SESSION.isEqualTo('empty'), CTX_INLINE_CHAT_VISIBLE),
-			keybinding: {
+			precondition: CTX_INLINE_CHAT_VISIBLE,
+			keybinding: [{
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Escape,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KeyI]
-			},
+			}, {
+				when: CTX_HAS_SESSION.isEqualTo('empty'),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
+			}],
 		});
 	}
 

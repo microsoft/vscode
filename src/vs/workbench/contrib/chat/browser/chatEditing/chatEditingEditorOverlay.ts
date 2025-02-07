@@ -11,7 +11,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatEditingSession, IModifiedFileEntry } from '../../common/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
 import { $, addDisposableGenericMouseMoveListener, append, EventLike, reset } from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -46,7 +45,6 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IEditorService editorService: IEditorService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IChatService private readonly _chatService: IChatService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
