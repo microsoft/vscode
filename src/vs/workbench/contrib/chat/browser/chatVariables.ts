@@ -36,22 +36,16 @@ export class ChatVariablesService implements IChatVariablesService {
 				}
 			});
 
-		const resolvedAttachedContext: IChatRequestVariableEntry[] = [];
-		attachedContextVariables
-			?.forEach((attachment, i) => {
-				if (attachment.isDynamic || attachment.isTool) {
-					resolvedAttachedContext[i] = attachment;
-				}
-			});
-
 		// Make array not sparse
 		resolvedVariables = coalesce<IChatRequestVariableEntry>(resolvedVariables);
 
 		// "reverse", high index first so that replacement is simple
 		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
 
-		// resolvedAttachedContext is a sparse array
-		resolvedVariables.push(...coalesce(resolvedAttachedContext));
+		if (attachedContextVariables) {
+			// attachments not in the prompt
+			resolvedVariables.push(...attachedContextVariables);
+		}
 
 
 		return {

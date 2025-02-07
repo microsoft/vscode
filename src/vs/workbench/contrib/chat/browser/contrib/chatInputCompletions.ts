@@ -34,9 +34,10 @@ import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
@@ -824,3 +825,56 @@ function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatCompleti
 	const startToCompletionWordStart = new Range(1, 1, rangeResult.replace.startLineNumber, rangeResult.replace.startColumn);
 	return !!model.getValueInRange(startToCompletionWordStart).match(/^\s*$/);
 }
+
+class ToolCompletions extends Disposable {
+
+	private static readonly VariableNameDef = new RegExp(`(?<=^|\\s)${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
+
+	constructor(
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService
+	) {
+		super();
+
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'chatVariables',
+			triggerCharacters: [chatVariableLeader],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget) {
+					return null;
+				}
+
+				const range = computeCompletionRanges(model, position, ToolCompletions.VariableNameDef, true);
+				if (!range) {
+					return null;
+				}
+
+				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
+				const usedToolNames = new Set(usedTools.map(v => v.toolName));
+				const toolItems: CompletionItem[] = [];
+				toolItems.push(...Array.from(toolsService.getTools())
+					.filter(t => t.canBeReferencedInPrompt)
+					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
+					.map((t): CompletionItem => {
+						const withLeader = `${chatVariableLeader}${t.toolReferenceName}`;
+						return {
+							label: withLeader,
+							range,
+							insertText: withLeader + ' ',
+							documentation: t.userDescription,
+							kind: CompletionItemKind.Text,
+							sortText: 'z'
+						};
+					}));
+
+				return {
+					suggestions: toolItems
+				};
+			}
+		}));
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ToolCompletions, LifecyclePhase.Eventually);

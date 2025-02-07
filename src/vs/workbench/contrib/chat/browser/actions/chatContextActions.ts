@@ -49,7 +49,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
-import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
@@ -71,7 +71,7 @@ export function registerChatContextActions() {
  * We fill the quickpick with these types, and enable some quick access providers
  */
 type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem |
-	IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
+	IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
 	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IPromptInstructionsQuickPickItem;
 
 /**
@@ -164,11 +164,6 @@ interface IToolQuickPickItem extends IQuickPickItem {
 	id: string;
 	name?: string;
 	icon?: ThemeIcon;
-}
-
-interface IVariableQuickPickItem extends IQuickPickItem {
-	kind: 'variable';
-	variable: IChatVariableData;
 }
 
 interface IQuickAccessQuickPickItem extends IQuickPickItem {
@@ -626,16 +621,6 @@ export class AttachContextAction extends Action2 {
 						isDynamic: true,
 						isImage: true
 					});
-				} else if (attachmentPick.kind === 'variable') {
-					// All other dynamic variables and static variables
-					toAttach.push({
-						range: undefined,
-						id: pick.id ?? '',
-						value: undefined,
-						fullName: pick.label,
-						name: attachmentPick.variable.name,
-						icon: attachmentPick.variable.icon
-					});
 				}
 			}
 		}
@@ -651,7 +636,6 @@ export class AttachContextAction extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatAgentService = accessor.get(IChatAgentService);
-		const chatVariablesService = accessor.get(IChatVariablesService);
 		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
@@ -675,18 +659,6 @@ export class AttachContextAction extends Action2 {
 
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
 		if (!context || !context.showFilesOnly) {
-			for (const variable of chatVariablesService.getVariables()) {
-				if (variable.fullName) {
-					quickPickItems.push({
-						kind: 'variable',
-						variable,
-						label: variable.fullName,
-						id: variable.id,
-						iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
-					});
-				}
-			}
-
 			if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
 				const imageData = await clipboardService.readImage();
 				if (isImage(imageData)) {
