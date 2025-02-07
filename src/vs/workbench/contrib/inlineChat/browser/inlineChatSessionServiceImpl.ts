@@ -337,7 +337,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const chatModel = this._chatService.startSession(ChatAgentLocation.EditingSession, token);
 
-		const editingSession = await this._chatEditingService.createAdhocEditingSession(chatModel.sessionId);
+		const editingSession = await this._chatEditingService.createEditingSession(chatModel.sessionId);
 		editingSession.addFileToWorkingSet(uri);
 
 		const store = new DisposableStore();
@@ -350,9 +350,18 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		store.add(chatModel);
 
 		store.add(autorun(r => {
-			const entry = editingSession.readEntry(uri, r);
-			const state = entry?.state.read(r);
-			if (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected) {
+
+			const entries = editingSession.entries.read(r);
+			if (entries.length === 0) {
+				return;
+			}
+
+			const allSettled = entries.every(entry => {
+				const state = entry.state.read(r);
+				return state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected;
+			});
+
+			if (allSettled) {
 				// self terminate
 				store.dispose();
 			}

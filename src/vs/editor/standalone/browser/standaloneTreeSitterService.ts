@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Parser } from '@vscode/tree-sitter-wasm';
+import type * as Parser from '@vscode/tree-sitter-wasm';
 import { Event } from '../../../base/common/event.js';
 import { ITextModel } from '../../common/model.js';
 import { ITextModelTreeSitter, ITreeSitterParseResult, ITreeSitterParserService, TreeUpdateEvent } from '../../common/services/treeSitterParserService.js';

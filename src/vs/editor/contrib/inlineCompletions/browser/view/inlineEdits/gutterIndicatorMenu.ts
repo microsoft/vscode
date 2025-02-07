@@ -61,7 +61,7 @@ export class GutterIndicatorMenuContent {
 				...c.map(c => option(createOptionArgs({ id: c.id, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments }))),
 				separator()
 			] : []),
-			option(createOptionArgs({ id: 'settings', title: localize('settings', "Settings"), icon: Codicon.gear, commandId: 'workbench.action.openSettings', commandArgs: ['inlineSuggest.edits'] })),
+			option(createOptionArgs({ id: 'settings', title: localize('settings', "Settings"), icon: Codicon.gear, commandId: 'workbench.action.openSettings', commandArgs: ['@tag:nextEditSuggestions'] })),
 		]);
 	}
 

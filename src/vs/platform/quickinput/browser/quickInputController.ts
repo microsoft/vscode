@@ -31,7 +31,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Platform, platform } from '../../../base/common/platform.js';
-import { TitleBarSetting, TitlebarStyle } from '../../window/common/window.js';
+import { getTitleBarStyle, TitlebarStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
 
 const $ = dom.$;
@@ -262,6 +262,11 @@ export class QuickInputController extends Disposable {
 			if (this.endOfQuickInputBoxContext.get() !== value) {
 				this.endOfQuickInputBoxContext.set(value);
 			}
+			// Allow screenreaders to read what's in the input
+			// Note: this works for arrow keys and selection changes,
+			// but not for deletions since that often triggers a
+			// change in the list.
+			inputBox.removeAttribute('aria-activedescendant');
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
@@ -313,21 +318,14 @@ export class QuickInputController extends Disposable {
 							selectors.push('.quick-input-html-widget');
 						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
-						if (event.shiftKey && event.target === stops[0]) {
-							// Clear the focus from the list in order to allow
-							// screen readers to read operations in the input box.
-							dom.EventHelper.stop(event, true);
-							list.clearFocus();
-						} else if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
+						if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
 							dom.EventHelper.stop(event, true);
 							stops[0].focus();
 						}
-					}
-					break;
-				case KeyCode.Space:
-					if (event.ctrlKey) {
-						dom.EventHelper.stop(event, true);
-						this.getUI().list.toggleHover();
+						if (event.shiftKey && dom.isAncestor(event.target, stops[0])) {
+							dom.EventHelper.stop(event, true);
+							stops[stops.length - 1].focus();
+						}
 					}
 					break;
 			}
@@ -762,6 +760,12 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
+	toggleHover() {
+		if (this.isVisible() && this.controller instanceof QuickPick) {
+			this.getUI().list.toggleHover();
+		}
+	}
+
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
 		if (this.isVisible() && this.getUI().list.displayed) {
 			this.getUI().list.focus(next ? QuickPickFocus.Next : QuickPickFocus.Previous);
@@ -919,7 +923,7 @@ class QuickInputDragAndDropController extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		const customTitleBar = this.configurationService.getValue<TitlebarStyle>(TitleBarSetting.TITLE_BAR_STYLE) === TitlebarStyle.CUSTOM;
+		const customTitleBar = getTitleBarStyle(this.configurationService) === TitlebarStyle.CUSTOM;
 
 		// Do not allow the widget to overflow or underflow window controls.
 		// Use CSS calculations to avoid having to force layout with `.clientWidth`

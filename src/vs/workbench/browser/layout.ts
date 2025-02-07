@@ -580,7 +580,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (
 			isWeb ||
 			isWindows || 											// not working well with zooming (border often not visible)
-			useWindowControlsOverlay(this.configurationService) || 	// not working with WCO (border cannot draw over the overlay)
+			(
+				(isWindows || isLinux) &&
+				useWindowControlsOverlay(this.configurationService)	// Windows/Linux: not working with WCO (border cannot draw over the overlay)
+			) ||
 			hasNativeTitlebar(this.configurationService)
 		) {
 			return;
@@ -2479,7 +2482,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 
 		type StartupLayoutEventClassification = {
-			owner: 'sbatten';
+			owner: 'benibenj';
 			comment: 'Information about the layout of the workbench during statup';
 			activityBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether or the not the activity bar is visible' };
 			sideBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether or the not the primary side bar is visible' };

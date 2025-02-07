@@ -183,7 +183,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontLigaturesFeatureSettings]: {
 			markdownDescription: localize('terminal.integrated.fontLigatures.featureSettings', "Controls what font feature settings are used when ligatures are enabled, in the format of the `font-feature-settings` CSS property. Some examples which may be valid depending on the font:") + '\n\n- ' + [
 				`\`"calt" off, "ss03"\``,
-				`\`"liga" on"\``,
+				`\`"liga" on\``,
 				`\`"calt" off, "dlig" on\``
 			].join('\n- '),
 			type: 'string',

@@ -65,6 +65,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 		if (!file.contents) {
 			host.removeScriptSnapshot(file.path);
+			delete lastBuildVersion[normalize(file.path)];
 		} else {
 			host.addScriptSnapshot(file.path, new VinylScriptSnapshot(file));
 		}

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/razor/commit/39159764277f3c80a786d8872eba7730da3d7ef0",
+	"version": "https://github.com/dotnet/razor/commit/9b1e979b6c3fe7cfbe30f595b9b0994d20bd482c",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
 	"injections": {
@@ -1635,6 +1635,9 @@
 			"patterns": [
 				{
 					"include": "source.cs#switch-label"
+				},
+				{
+					"include": "#csharp-code-block"
 				},
 				{
 					"include": "#razor-codeblock-body"
