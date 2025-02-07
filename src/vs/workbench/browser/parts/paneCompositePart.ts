@@ -420,18 +420,32 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 			// Add our icon group before the composite bar
 			const iconGroup = $('.icon-group');
-			const icons = ['bell', 'comment', 'gear', 'globe'];
 
-			// Create custom SVG icon
-			const customSvgIcon = $('span');
-			customSvgIcon.classList.add('custom-bell-icon');
-			iconGroup.appendChild(customSvgIcon);
+			const icons = [
+				{ icon: 'inventory-chat-icon', label: 'Chat' },
+				{ icon: 'inventory-creator-icon', label: 'Creator' },
+				{ icon: 'inventory-search-icon', label: 'Search' },
+				{ icon: 'inventory-memory-icon', label: 'Memory' }
+			];
 
-			// Add remaining Codicon icons
-			icons.slice(1).forEach(iconName => {
+			icons.forEach(({ icon, label }) => {
+				// Main container
+				const container = $('span');
+				container.classList.add('icon-container');
+
+				// Icon element
 				const iconElement = $('span');
-				iconElement.classList.add('codicon', `codicon-${iconName}`);
-				iconGroup.appendChild(iconElement);
+				iconElement.classList.add('icon-element', icon); // Add specific icon class
+
+				// Label element
+				const labelElement = $('span');
+				labelElement.classList.add('icon-label');
+				labelElement.textContent = label;
+
+				// Append in order
+				container.appendChild(iconElement);
+				container.appendChild(labelElement);
+				iconGroup.appendChild(container);
 			});
 
 			this.paneCompositeBarContainer = prepend(newCompositeBarContainer, $('.composite-bar-container'));

@@ -47,56 +47,64 @@
 .monaco-workbench .part.auxiliarybar .icon-group {
     display: flex;
     padding: 4px 8px;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     gap: 8px;
-	/* border: 1px solid; */
-    border-radius: 6px;
-    /* background: linear-gradient(to bottom, #202122, #1a1b1c); */
-    /* box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset; */
-	border-radius: 10px;
-	background: #161718;
-	box-shadow: 0px 0px 0px 1px rgba(255, 255, 255, 0.25) inset;
-	overflow: hidden;
+    border-radius: 12px;
+    background: #161718;
+    box-shadow: 0px 0px 0px 1px rgba(255, 255, 255, 0.25) inset;
+    overflow: hidden;
 }
 
-.monaco-workbench .part.auxiliarybar .icon-group .codicon {
+/* Main container for each icon */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container {
     width: 24px;
     height: 24px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    border-radius: 4px;
     cursor: pointer;
-    opacity: 0.8;
-	border-radius: 6px;
-	border: 1px solid rgba(255, 255, 255, 0.50);
-	/* background: linear-gradient(180deg, #AFF349 0%, #1B9400 100%); */
-	fill: linear-gradient(180deg, #AFF349 0%, #1B9400 100%);
-	box-shadow: 0px 0px 48px 8px #AFF349;
-	color: #E9FFC7;
+    border-radius: 8px;
+    position: relative;
+    transition: width 0.3s ease;
+    padding: 0;
+    overflow: hidden;
 }
 
-.monaco-workbench .part.auxiliarybar .icon-group .codicon:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    opacity: 1;
-}
-
-.monaco-workbench .part.auxiliarybar .icon-group .custom-bell-icon {
+/* Icon element */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-element {
     width: 24px;
     height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.50);
-    background: linear-gradient(180deg, #AFF349 0%, #1B9400 100%);
-    box-shadow: 0px 0px 48px 8px #AFF349;
-    background-image: url('../../../media/inventory-chat-icon.svg');
     background-repeat: no-repeat;
     background-position: center;
     background-size: 16px;
+    flex-shrink: 0;
+    position: absolute;
+    left: 0;
+}
+
+/* Label element */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-label {
+    position: absolute;
+    left: 28px; /* 24px (icon width) + 4px margin */
+    white-space: nowrap;
+    color: #E9FFC7;
+}
+
+/* Hover and active states with specific widths for each label */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-chat-icon):hover {
+    width: 70px; /* Adjusted for "Chat" */
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-creator-icon):hover {
+    width: 80px; /* Adjusted for "Creator" */
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-search-icon):hover {
+    width: 75px; /* Adjusted for "Search" */
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-memory-icon):hover {
+    width: 85px; /* Adjusted for "Memory" */
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar {
@@ -159,4 +167,55 @@
 
 .monaco-workbench .auxiliarybar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
 	max-width: 150px;
+}
+
+/* Icon specific styles with their unique backgrounds */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-chat-icon) {
+    background: linear-gradient(180deg, #AFF349 0%, #1B9400 100%);
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-creator-icon) {
+    background: linear-gradient(180deg, #FF71BD 0%, #CD237E 100%);
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-search-icon) {
+    background: linear-gradient(180deg, #12D4CD 0%, #008972 100%);
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-memory-icon) {
+    background: linear-gradient(180deg, #9169FF 0%, #582BD3 100%);
+}
+
+/* Icon images */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-element.inventory-chat-icon {
+    background-image: url('../../../media/inventory-chat-icon.svg');
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-element.inventory-creator-icon {
+    background-image: url('../../../media/inventory-creator-icon.svg');
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-element.inventory-search-icon {
+    background-image: url('../../../media/inventory-search-icon.svg');
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-element.inventory-memory-icon {
+    background-image: url('../../../media/inventory-memory-icon.svg');
+}
+
+/* Update hover glow colors to match their backgrounds */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-chat-icon):hover {
+    box-shadow: 0px 0px 48px 8px rgba(175, 243, 73, 0.3);
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-creator-icon):hover {
+    box-shadow: 0px 0px 48px 8px rgba(255, 113, 189, 0.3);
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-search-icon):hover {
+    box-shadow: 0px 0px 48px 8px rgba(18, 212, 205, 0.3);
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-memory-icon):hover {
+    box-shadow: 0px 0px 48px 8px rgba(145, 105, 255, 0.3);
 }
