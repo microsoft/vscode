@@ -634,12 +634,15 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
-				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
+				// exclude status icons (file-icon) and inline action icons (trashcan, horizontalSplit, debugRestart)
 				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
+					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):not(.codicon-debug-restart)` +
 					`{ color: ${color} !important; }`
 				);
 			}
+			// Override debug's restart icon color
+			css += `.monaco-workbench .action-label.codicon.codicon-debug-restart` +
+				`{color: inherit !important;}`;
 		}
 
 		this._styleElement.textContent = css;
