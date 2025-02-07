@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
+import { IChatVariableData, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;
@@ -27,10 +27,6 @@ export class MockChatVariablesService implements IChatVariablesService {
 	}
 
 	attachContext(name: string, value: unknown, location: ChatAgentLocation): void {
-		throw new Error('Method not implemented.');
-	}
-
-	resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue> {
 		throw new Error('Method not implemented.');
 	}
 }

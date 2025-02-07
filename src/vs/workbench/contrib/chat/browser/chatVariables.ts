@@ -15,7 +15,7 @@ import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart, ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatContentReference } from '../common/chatService.js';
-import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
+import { IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
@@ -86,15 +86,6 @@ export class ChatVariablesService implements IChatVariablesService {
 		return {
 			variables: resolvedVariables,
 		};
-	}
-
-	async resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined> {
-		const data = this._resolver.get(variableName.toLowerCase());
-		if (!data) {
-			return undefined;
-		}
-
-		return (await data.resolver(promptText, undefined, model, progress, token));
 	}
 
 	getVariables(): Iterable<Readonly<IChatVariableData>> {

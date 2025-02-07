@@ -38,7 +38,7 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
-	getVariables(): Iterable<Readonly<IChatVariableData>>;
+	// getVariables(): Iterable<Readonly<IChatVariableData>>;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
 	attachContext(name: string, value: string | URI | Location | unknown, location: ChatAgentLocation): void;
 
@@ -46,7 +46,6 @@ export interface IChatVariablesService {
 	 * Resolves all variables that occur in `prompt`
 	 */
 	resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData>;
-	resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined>;
 }
 
 export interface IDynamicVariable {
