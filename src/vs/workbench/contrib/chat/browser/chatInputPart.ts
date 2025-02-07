@@ -10,6 +10,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
@@ -17,6 +18,7 @@ import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../..
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { ToggleMenuAction } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Promises } from '../../../../base/common/async.js';
@@ -840,7 +842,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate, { hoverDelegate: options.hoverDelegate, keybinding: options.keybinding ?? undefined });
 					}
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ToggleAgentActionViewItem, action, options as IMenuEntryActionViewItemOptions);
+					return this.instantiationService.createInstance(ToggleAgentActionViewItem, action);
 				}
 
 				return undefined;
@@ -1719,73 +1721,44 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
-class ToggleAgentActionViewItem extends MenuEntryActionViewItem {
+class ToggleAgentActionViewItem extends DropdownMenuActionViewItem {
 	private readonly agentStateActions: IAction[];
 
 	constructor(
 		action: MenuItemAction,
-		options: IMenuEntryActionViewItemOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAccessibilityService _accessibilityService: IAccessibilityService
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		options.keybindingNotRenderedWithLabel = true;
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
+		const toggleMenuAction = new ToggleMenuAction(() => this.show(), action.label);
 
-		this.agentStateActions = [
+		const agentStateActions = [
 			{
-				...this.action,
+				...action,
 				id: 'agentMode',
 				label: localize('chat.agentMode', "Agent"),
 				class: undefined,
 				enabled: true,
-				run: () => this.action.run({ agentMode: true } satisfies IToggleAgentModeArgs)
+				run: () => action.run({ agentMode: true } satisfies IToggleAgentModeArgs)
 			},
 			{
-				...this.action,
+				...action,
 				id: 'normalMode',
 				label: localize('chat.normalMode', "Edit"),
 				class: undefined,
 				enabled: true,
-				checked: !this.action.checked,
-				run: () => this.action.run({ agentMode: false } satisfies IToggleAgentModeArgs)
+				checked: !action.checked,
+				run: () => action.run({ agentMode: false } satisfies IToggleAgentModeArgs)
 			},
 		];
+
+		super(toggleMenuAction, agentStateActions, contextMenuService);
+		this.agentStateActions = agentStateActions;
+		this._register(toggleMenuAction);
 	}
 
-	override async onClick(event: MouseEvent): Promise<void> {
-		this._openContextMenu();
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('chat-modelPicker-item');
-
-		// TODO@roblourens this should be a DropdownMenuActionViewItem, but we can't customize how it's rendered yet.
-		this._register(dom.addDisposableListener(container, dom.EventType.KEY_UP, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				this._openContextMenu();
-			}
-		}));
-	}
-
-	protected override updateLabel(): void {
-		if (this.label) {
-			const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
-			dom.reset(this.label, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
-		}
-	}
-
-	private _openContextMenu() {
-		if (this.action.enabled) {
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => this.element!,
-				getActions: () => this.agentStateActions
-			});
-		}
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		element.classList.add('chat-modelPicker-item');
+		const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
+		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
+		return null;
 	}
 }

@@ -73,31 +73,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
 			this.element = append(el, $('a.action-label'));
-
-			let classNames: string[] = [];
-
-			if (typeof this.options.classNames === 'string') {
-				classNames = this.options.classNames.split(/\s+/g).filter(s => !!s);
-			} else if (this.options.classNames) {
-				classNames = this.options.classNames;
-			}
-
-			// todo@aeschli: remove codicon, should come through `this.options.classNames`
-			if (!classNames.find(c => c === 'icon')) {
-				classNames.push('codicon');
-			}
-
-			this.element.classList.add(...classNames);
-
-			this.element.setAttribute('role', 'button');
-			this.element.setAttribute('aria-haspopup', 'true');
-			this.element.setAttribute('aria-expanded', 'false');
-			if (this._action.label) {
-				this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.element, this._action.label));
-			}
-			this.element.ariaLabel = this._action.label || '';
-
-			return null;
+			return this.renderLabel(this.element);
 		};
 
 		const isActionsArray = Array.isArray(this.menuActionsOrProvider);
@@ -136,6 +112,33 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 		this.updateTooltip();
 		this.updateEnabled();
+	}
+
+	protected renderLabel(element: HTMLElement): IDisposable | null {
+		let classNames: string[] = [];
+
+		if (typeof this.options.classNames === 'string') {
+			classNames = this.options.classNames.split(/\s+/g).filter(s => !!s);
+		} else if (this.options.classNames) {
+			classNames = this.options.classNames;
+		}
+
+		// todo@aeschli: remove codicon, should come through `this.options.classNames`
+		if (!classNames.find(c => c === 'icon')) {
+			classNames.push('codicon');
+		}
+
+		element.classList.add(...classNames);
+
+		element.setAttribute('role', 'button');
+		element.setAttribute('aria-haspopup', 'true');
+		element.setAttribute('aria-expanded', 'false');
+		if (this._action.label) {
+			this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), element, this._action.label));
+		}
+		element.ariaLabel = this._action.label || '';
+
+		return null;
 	}
 
 	protected override getTooltip(): string | undefined {
