@@ -108,14 +108,12 @@ export const createArgState = (args?: Internal.Arg[]): ArgArrayState => {
 
 			let updatedGenerator: Fig.Generator | undefined;
 			// TODO: Pass templates out as a result
-			if (templateArray.includes("filepaths")) {
-				updatedGenerator = { template: 'filepaths' };
-			}
-			if (templateArray.includes("folders")) {
-				updatedGenerator = { template: 'folders' };
-			}
 			if (templateArray.includes("filepaths") && templateArray.includes("folders")) {
 				updatedGenerator = { template: ['filepaths', 'folders'] };
+			} else if (templateArray.includes("filepaths")) {
+				updatedGenerator = { template: 'filepaths' };
+			} else if (templateArray.includes("folders")) {
+				updatedGenerator = { template: 'folders' };
 			}
 
 			if (updatedGenerator && typeof generator !== 'string' && generator.filterTemplateSuggestions) {
