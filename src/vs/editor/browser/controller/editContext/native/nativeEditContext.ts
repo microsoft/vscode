@@ -85,19 +85,13 @@ export class NativeEditContext extends AbstractEditContext {
 		this._parent = overflowGuardContainer.domNode;
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
-		this._focusTracker = this._register(new FocusTracker(context, this.domNode.domNode, (newFocusValue: boolean) => {
+		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
 			if (newFocusValue) {
 				this._selectionChangeListener.value = this._setSelectionChangeListener(viewController);
 				this._screenReaderSupport.setIgnoreSelectionChangeTime('onFocus');
 			} else {
 				this._selectionChangeListener.value = undefined;
 			}
-			console.log('focus tracker');
-			console.log('uri : ', context.viewModel.model.uri);
-			console.log('domNode : ', this.domNode.domNode);
-			console.log('newFocusValue : ', newFocusValue);
-			const activeElement = getActiveWindow().document.activeElement;
-			console.log('activeElement : ', activeElement);
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
@@ -575,7 +569,6 @@ export class NativeEditContext extends AbstractEditContext {
 			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
 			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
 			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
-			console.log('newSelection : ', newSelection);
 			viewController.setSelection(newSelection);
 		});
 	}
