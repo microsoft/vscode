@@ -22,28 +22,24 @@ export class PearAIViewDescriptorService extends ViewDescriptorService implement
         super(instantiationService, contextKeyService, storageService, extensionService, telemetryService, loggerService);
 	}
 
-
   override moveViewContainerToLocation(
     viewContainer: ViewContainer,
     location: ViewContainerLocation,
   ): void {
+    const isAllowed = () => {
+        return auxiliaryBarAllowedViewContainerIDs.some(id => viewContainer.id.includes(id));
+    };
 
-    // Prevent other views to move into aux bar
-    if (
-      location === ViewContainerLocation.AuxiliaryBar &&
-      !auxiliaryBarAllowedViewContainerIDs.includes(viewContainer.id)
-    ) {
+    // Prevent non-allowed containers from moving to AuxiliaryBar
+    if (location === ViewContainerLocation.AuxiliaryBar && !isAllowed()) {
       return;
     }
 
-    // Prevent PearAI integrations to move out of aux bar
-    if (
-      location !== ViewContainerLocation.AuxiliaryBar &&
-      auxiliaryBarAllowedViewContainerIDs.includes(viewContainer.id)
-    ) {
+    // Prevent PearAI integrations from moving out of AuxiliaryBar
+    if (location !== ViewContainerLocation.AuxiliaryBar && isAllowed()) {
       return;
     }
+
     super.moveViewContainerToLocation(viewContainer, location);
   }
 }
-
