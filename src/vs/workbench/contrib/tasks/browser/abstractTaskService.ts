@@ -2956,6 +2956,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._reRunTaskCommand();
 	}
 
+	restart(task: Task): Promise<void> {
+		return this._restart(task);
+	}
+
 	private _reRunTaskCommand(): void {
 
 		ProblemMatcherRegistry.onReady().then(() => {

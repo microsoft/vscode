@@ -1445,16 +1445,10 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const taskSystem = accessor.get(ITaskService);
 			const instance = args as ITerminalInstance ?? terminalService.activeInstance;
-
 			if (instance) {
 				const task = await taskSystem.getTaskForTerminal(instance.instanceId);
 				if (task) {
-					// send ctrl+D to the terminal to kill the demon
-					await instance.sendText('\x04', true);
-					const result = await taskSystem.terminate(task);
-					if (result.success) {
-						await taskSystem.run(task);
-					}
+					await taskSystem.restart(task);
 				} else {
 					// This is a single run task, just rerun it
 					taskSystem.rerun();

@@ -79,6 +79,7 @@ export interface ITaskService {
 	tasks(filter?: ITaskFilter): Promise<Task[]>;
 	getTaskForTerminal(instanceId: number): Promise<Task | undefined>;
 	rerun(): void;
+	restart(task: Task): Promise<void>;
 	/**
 	 * Gets tasks currently known to the task system. Unlike {@link tasks},
 	 * this does not activate extensions or prompt for workspace trust.
