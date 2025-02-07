@@ -57,6 +57,10 @@ export interface IChatReferenceListItem extends IChatContentReference {
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
 
+export interface IChatCollapsibleListOptions {
+	expandedWhenEmptyResponse?: boolean;
+}
+
 export class ChatCollapsibleListContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
@@ -70,6 +74,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		labelOverride: string | undefined,
 		context: IChatContentPartRenderContext,
 		contentReferencesListPool: CollapsibleListPool,
+		options: IChatCollapsibleListOptions,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -83,7 +88,13 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1));
 		const iconElement = $('.chat-used-context-icon');
-		const icon = (element: IChatResponseViewModel) => element.usedReferencesExpanded ? Codicon.chevronDown : Codicon.chevronRight;
+		const isExpanded = () =>
+			element.usedReferencesExpanded ?? (
+				options.expandedWhenEmptyResponse && element.response.value.length === 0
+			);
+		const icon = (element: IChatResponseViewModel) => {
+			return isExpanded() ? Codicon.chevronDown : Codicon.chevronRight;
+		};
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 		const buttonElement = $('.chat-used-context-label', undefined);
 
@@ -100,15 +111,15 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		this.domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 		collapseButton.element.prepend(iconElement);
-		this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
-		this.domNode.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+		this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
+		this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
 		this._register(collapseButton.onDidClick(() => {
 			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
-			element.usedReferencesExpanded = !element.usedReferencesExpanded;
+			element.usedReferencesExpanded = !isExpanded();
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
-			this.domNode.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+			this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
 			this._onDidChangeHeight.fire();
-			this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
+			this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
 		}));
 
 		const ref = this._register(contentReferencesListPool.get());
