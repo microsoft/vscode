@@ -13,7 +13,7 @@ import { IURITransformer, transformOutgoingURIs } from '../../base/common/uriIpc
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterEqualsExpr, ContextKeyGreaterExpr, ContextKeyInExpr, ContextKeyNotEqualsExpr, ContextKeyNotExpr, ContextKeyNotInExpr, ContextKeyRegexExpr, ContextKeySmallerEqualsExpr, ContextKeySmallerExpr, IContextKeyExprMapper } from '../../platform/contextkey/common/contextkey.js';
 import { IExtensionGalleryService, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
-import { ExtensionInstallationError, ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
+import { FailedExtensionInstallationError, ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { IExtensionsScannerService, toExtensionDescription } from '../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ExtensionType, IExtensionDescription } from '../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -71,9 +71,9 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 					return { extensions: [], installOptions: {} };
 				}, error => {
 					_logService.error(error);
-					if (error instanceof ExtensionInstallationError) {
-						_logService.error(`Failed installing extensions`);
-						return { extensions: error.failed, installOptions: {} };
+					if (error instanceof FailedExtensionInstallationError) {
+						_logService.error(`Failure while installing extensions`);
+						return { extensions: error.failed, installOptions };
 					}
 					return { extensions: [], installOptions: {} };
 				});
@@ -317,7 +317,13 @@ export class RemoteExtensionsScannerChannel implements IServerChannel {
 	async call(context: any, command: string, args?: any): Promise<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (command) {
-			case 'whenExtensionsReady': return this.service.whenExtensionsReady(); // TODO: Need to do some serialization stuff here?
+			case 'whenExtensionsReady': {
+				const failed = await this.service.whenExtensionsReady();
+				return {
+					extensions: failed.extensions.map(e => typeof e === 'string' ? e : uriTransformer.transformOutgoing(e)),
+					installOptions: failed.installOptions
+				};
+			}
 			case 'scanExtensions': {
 				const language = args[0];
 				const profileLocation = args[1] ? URI.revive(uriTransformer.transformIncoming(args[1])) : undefined;
