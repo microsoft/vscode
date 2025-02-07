@@ -110,12 +110,15 @@ export const createArgState = (args?: Internal.Arg[]): ArgArrayState => {
 			// TODO: Pass templates out as a result
 			if (templateArray.includes("filepaths")) {
 				// TODO@meganrogge
-				// updatedGenerator = filepaths;
+				updatedGenerator = { template: 'filepaths' };
 			} else if (templateArray.includes("folders")) {
 				// updatedGenerator = folders;
+				// arg.filesRequested = true;
+				// arg.foldersRequested = true;
+				updatedGenerator = { template: 'folders' };
 			}
 
-			if (updatedGenerator && generator.filterTemplateSuggestions) {
+			if (updatedGenerator && typeof generator !== 'string' && generator.filterTemplateSuggestions) {
 				updatedGenerator.filterTemplateSuggestions =
 					generator.filterTemplateSuggestions;
 			}

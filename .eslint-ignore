@@ -9,6 +9,7 @@
 **/extensions/ipynb/notebook-out/**
 **/extensions/markdown-language-features/media/**
 **/extensions/terminal-suggest/src/fig/**
+**/extensions/terminal-suggest/src/completions/**
 **/extensions/markdown-language-features/notebook-out/**
 **/extensions/markdown-math/notebook-out/**
 **/extensions/notebook-renderers/renderer-out/index.js

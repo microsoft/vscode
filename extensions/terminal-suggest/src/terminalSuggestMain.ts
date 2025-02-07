@@ -241,11 +241,27 @@ export function asArray<T>(x: T | T[]): T[] {
 
 export type SpecArg = Fig.Arg | Fig.Suggestion | Fig.Option | string;
 
-export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]) {
-	const addSuggestions = (specArgs: SpecArg[] | undefined, kind: vscode.TerminalCompletionItemKind) => {
-		if (!specArgs) {
-			return;
+export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]): { filesRequested: boolean; foldersRequested: boolean } | undefined {
+	let filesRequested = false;
+	let foldersRequested = false;
+
+	const addSuggestions = (specArgs: SpecArg[] | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
+		if (kind === vscode.TerminalCompletionItemKind.Argument && parsedArguments?.currentArg?.generators) {
+			const generators = parsedArguments.currentArg.generators;
+			for (const generator of generators) {
+				if (generator.template === 'filepaths') {
+					filesRequested = true;
+					foldersRequested = true;
+					continue;
+				} else if (generator.template === 'folders') {
+					foldersRequested = true;
+				}
+			}
 		}
+		if (!specArgs) {
+			return { filesRequested, foldersRequested };
+		}
+
 		for (const item of specArgs) {
 			const suggestionLabels = getLabel(item);
 			if (!suggestionLabels) {
@@ -270,7 +286,7 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 		case SuggestionFlag.None:
 			break;
 		case SuggestionFlag.Args:
-			addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument);
+			addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument, parsedArguments);
 			break;
 		case SuggestionFlag.Subcommands:
 			addSuggestions(Object.values(parsedArguments.completionObj.subcommands), vscode.TerminalCompletionItemKind.Method);
@@ -281,9 +297,10 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 		case SuggestionFlag.Any:
 			addSuggestions(Object.values(parsedArguments.completionObj.subcommands), vscode.TerminalCompletionItemKind.Method);
 			addSuggestions(Object.values(parsedArguments.completionObj.options), vscode.TerminalCompletionItemKind.Flag);
-			addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument);
+			addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument, parsedArguments);
 			break;
 	}
+	return { filesRequested, foldersRequested };
 }
 
 export async function getCompletionItemsFromSpecs(
@@ -355,7 +372,9 @@ export async function getCompletionItemsFromSpecs(
 					{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd?.fsPath, sshPrefix: '', currentProcess: name },
 					spec,
 				);
-				addSuggestionsFromParsedArguments(parsedArguments, prefix, terminalContext, items);
+				const requestResult = addSuggestionsFromParsedArguments(parsedArguments, prefix, terminalContext, items);
+				filesRequested ||= requestResult?.filesRequested ?? false;
+				foldersRequested ||= requestResult?.foldersRequested ?? false;
 			} else {
 				const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
 				if (optionsCompletionResult) {
@@ -387,15 +406,6 @@ export async function getCompletionItemsFromSpecs(
 		}
 		filesRequested = true;
 		foldersRequested = true;
-	} else {
-		const shouldShowResourceCompletions =
-			!specificItemsProvided &&
-			!filesRequested &&
-			!foldersRequested;
-		if (shouldShowResourceCompletions) {
-			filesRequested = true;
-			foldersRequested = true;
-		}
 	}
 
 	let cwd: vscode.Uri | undefined;
