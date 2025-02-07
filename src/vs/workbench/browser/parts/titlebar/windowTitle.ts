@@ -79,6 +79,7 @@ export class WindowTitle extends Disposable {
 
 	private title: string | undefined;
 	private titleIncludesFocusedView: boolean = false;
+	private titleIncludesEditorStateInfo: boolean = false;
 
 	private readonly editorService: IEditorService;
 
@@ -104,6 +105,7 @@ export class WindowTitle extends Disposable {
 		this.windowId = targetWindow.vscodeWindowId;
 
 		this.updateTitleIncludesFocusedView();
+		this.updateTitleIncludesEditorStateInfo();
 		this.registerListeners();
 	}
 
@@ -125,7 +127,6 @@ export class WindowTitle extends Disposable {
 				this.titleUpdater.schedule();
 			}
 		}));
-		this._register(this.decorationsService.onDidChangeDecorations(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -141,6 +142,11 @@ export class WindowTitle extends Disposable {
 	private updateTitleIncludesFocusedView(): void {
 		const titleTemplate = this.configurationService.getValue<unknown>(WindowSettingNames.title);
 		this.titleIncludesFocusedView = typeof titleTemplate === 'string' && titleTemplate.includes('${focusedView}');
+	}
+
+	private updateTitleIncludesEditorStateInfo(): void {
+		const titleTemplate = this.configurationService.getValue<unknown>(WindowSettingNames.title);
+		this.titleIncludesEditorStateInfo = typeof titleTemplate === 'string' && titleTemplate.includes('${editorStateInfo}');
 	}
 
 	private onActiveEditorChange(): void {
@@ -172,6 +178,9 @@ export class WindowTitle extends Disposable {
 				this.activeEditorListeners.add(textEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
 				this.activeEditorListeners.add(textEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
 			}
+		}
+		if (this.titleIncludesEditorStateInfo) {
+			this.activeEditorListeners.add(this.decorationsService.onDidChangeDecorations(() => this.titleUpdater.schedule()));
 		}
 	}
 
