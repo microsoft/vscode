@@ -145,7 +145,6 @@ export async function detectPackageManager(folder: Uri, extensionContext?: Exten
 	const { name, multipleLockFilesDetected: multiplePMDetected } = await findPreferredPM(folder.fsPath);
 	const neverShowWarning = 'npm.multiplePMWarning.neverShow';
 	if (showWarning && multiplePMDetected && extensionContext && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
-		// todo: add text for npm.scriptRunner?
 		const multiplePMWarning = l10n.t('Using {0} as the preferred package manager. Found multiple lockfiles for {1}.  To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".', name, folder.fsPath);
 		const neverShowAgain = l10n.t("Do not show again");
 		const learnMore = l10n.t("Learn more");
