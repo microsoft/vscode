@@ -444,7 +444,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 				// Append in order
 				container.appendChild(iconElement);
-				container.appendChild(labelElement);
+				// container.appendChild(labelElement);
 				iconGroup.appendChild(container);
 			});
 
