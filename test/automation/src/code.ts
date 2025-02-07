@@ -129,8 +129,8 @@ export class Code {
 		return await this.driver.stopTracing(name, persist);
 	}
 
-	async dispatchKeybinding(keybinding: string): Promise<void> {
-		await this.driver.dispatchKeybinding(keybinding);
+	async dispatchKeybinding(keybinding: string, acceptFn: (result: void) => Promise<boolean> | boolean, retryCount?: number, retryInterval?: number): Promise<void> {
+		return await this.poll<void>(() => this.driver.dispatchKeybinding(keybinding), acceptFn, `dispatch keybinding '${keybinding}'`, retryCount, retryInterval);
 	}
 
 	async didFinishLoad(): Promise<void> {
@@ -218,8 +218,24 @@ export class Code {
 		);
 	}
 
+	async isTextContent(selector: string, accept: (result: string) => boolean, textContent?: string): Promise<boolean> {
+		accept = accept || (result => textContent !== undefined ? textContent === result : !!result);
+		const elements = await this.driver.getElements(selector);
+		let element;
+		if (elements.length > 0) {
+			element = elements[0].textContent;
+		} else {
+			throw new Error('Element not found for textContent');
+		}
+		return accept!(typeof element === 'string' ? element : '');
+	}
+
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
 		await this.poll(() => this.driver.click(selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
+	}
+
+	async click(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
+		await this.driver.click(selector, xoffset, yoffset);
 	}
 
 	async waitForSetValue(selector: string, value: string): Promise<void> {
@@ -235,7 +251,11 @@ export class Code {
 	}
 
 	async waitForActiveElement(selector: string, retryCount: number = 200): Promise<void> {
-		await this.poll(() => this.driver.isActiveElement(selector), r => r, `is active element '${selector}'`, retryCount);
+		await this.poll(() => this.isActiveElement(selector), r => r, `is active element '${selector}'`, retryCount);
+	}
+
+	async isActiveElement(selector: string): Promise<boolean> {
+		return this.driver.isActiveElement(selector);
 	}
 
 	async waitForTitle(accept: (title: string) => boolean): Promise<void> {
@@ -246,8 +266,19 @@ export class Code {
 		await this.poll(() => this.driver.typeInEditor(selector, text), () => true, `type in editor '${selector}'`);
 	}
 
+	async typeInEditor(selector: string, text: string): Promise<void> {
+		return await this.driver.typeInEditor(selector, text);
+	}
+
 	async waitForEditorSelection(selector: string, accept: (selection: { selectionStart: number; selectionEnd: number }) => boolean): Promise<void> {
 		await this.poll(() => this.driver.getEditorSelection(selector), accept, `get editor selection '${selector}'`);
+	}
+
+	async getEditorSelection(selector: string): Promise<{
+		selectionStart: number;
+		selectionEnd: number;
+	}> {
+		return await this.driver.getEditorSelection(selector);
 	}
 
 	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {
@@ -280,7 +311,7 @@ export class Code {
 
 	private async poll<T>(
 		fn: () => Promise<T>,
-		acceptFn: (result: T) => boolean,
+		acceptFn: (result: T) => Promise<boolean> | boolean,
 		timeoutMessage: string,
 		retryCount = 200,
 		retryInterval = 100 // millis
@@ -300,7 +331,7 @@ export class Code {
 			let result;
 			try {
 				result = await fn();
-				if (acceptFn(result)) {
+				if (await acceptFn(result)) {
 					return result;
 				} else {
 					lastError = 'Did not pass accept function';

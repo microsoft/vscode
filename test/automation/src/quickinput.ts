@@ -21,6 +21,10 @@ export class QuickInput {
 		await this.code.waitForActiveElement(QuickInput.QUICK_INPUT_INPUT, retryCount);
 	}
 
+	async isQuickInputOpened(): Promise<boolean> {
+		return this.code.isActiveElement(QuickInput.QUICK_INPUT_INPUT);
+	}
+
 	async type(value: string): Promise<void> {
 		await this.code.waitForSetValue(QuickInput.QUICK_INPUT_INPUT, value);
 	}
@@ -34,7 +38,7 @@ export class QuickInput {
 	}
 
 	async closeQuickInput(): Promise<void> {
-		await this.code.dispatchKeybinding('escape');
+		await this.code.dispatchKeybinding('escape', this.isQuickInputOpened);
 		await this.waitForQuickInputClosed();
 	}
 
@@ -46,14 +50,21 @@ export class QuickInput {
 		await this.code.waitForElement(QuickInput.QUICK_INPUT, r => !!r && r.attributes.style.indexOf('display: none;') !== -1);
 	}
 
+	async isQuickInputClosed(): Promise<boolean> {
+		const element = await this.code.getElement(QuickInput.QUICK_INPUT_INPUT);
+		return !!element && element.attributes.style.indexOf('display: none;') !== -1;
+	}
+
 	async selectQuickInputElement(index: number, keepOpen?: boolean): Promise<void> {
 		await this.waitForQuickInputOpened();
 		for (let from = 0; from < index; from++) {
-			await this.code.dispatchKeybinding('down');
+			await this.code.dispatchKeybinding('down', () => true);
 		}
-		await this.code.dispatchKeybinding('enter');
-		if (!keepOpen) {
-			await this.waitForQuickInputClosed();
-		}
+		await this.code.dispatchKeybinding('enter', () => {
+			if (!keepOpen) {
+				return this.isQuickInputClosed();
+			}
+			return true;
+		}, 1);
 	}
 }

@@ -58,13 +58,15 @@ export class Debug extends Viewlet {
 	}
 
 	async openDebugViewlet(): Promise<any> {
+		const acceptFn = async () => {
+			const debugView = await this.code.getElement(DEBUG_VIEW);
+			return !!debugView;
+		};
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+d');
+			await this.code.dispatchKeybinding('cmd+shift+d', acceptFn);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+d');
+			await this.code.dispatchKeybinding('ctrl+shift+d', acceptFn);
 		}
-
-		await this.code.waitForElement(DEBUG_VIEW);
 	}
 
 	async configure(): Promise<any> {
@@ -79,9 +81,12 @@ export class Debug extends Viewlet {
 	}
 
 	async startDebugging(): Promise<number> {
-		await this.code.dispatchKeybinding('f5');
-		await this.code.waitForElement(PAUSE);
-		await this.code.waitForElement(DEBUG_STATUS_BAR);
+		const acceptFn = async () => {
+			const pauseButton = await this.code.getElement(PAUSE);
+			const debugStatusBar = await this.code.getElement(DEBUG_STATUS_BAR);
+			return !!pauseButton && !!debugStatusBar;
+		};
+		await this.code.dispatchKeybinding('f5', acceptFn);
 		const portPrefix = 'Port: ';
 
 		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
@@ -135,9 +140,11 @@ export class Debug extends Viewlet {
 
 		// Wait for the keys to be picked up by the editor model such that repl evaluates what just got typed
 		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
-		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
-			elements => !!elements.length && accept(elements[elements.length - 1].textContent));
+		const acceptFn = async () => {
+			const evaluationResult = await this.code.getElements(CONSOLE_EVALUATION_RESULT, false);
+			return !!evaluationResult && !!evaluationResult.length && accept(evaluationResult[evaluationResult.length - 1].textContent);
+		};
+		await this.code.dispatchKeybinding('enter', acceptFn);
 	}
 
 	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count

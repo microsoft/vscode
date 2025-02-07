@@ -27,7 +27,7 @@ export class Notebook {
 	}
 
 	async focusNextCell() {
-		await this.code.dispatchKeybinding('down');
+		await this.code.dispatchKeybinding('down', () => true);
 	}
 
 	async focusFirstCell() {
@@ -35,7 +35,7 @@ export class Notebook {
 	}
 
 	async editCell() {
-		await this.code.dispatchKeybinding('enter');
+		await this.code.dispatchKeybinding('enter', () => true);
 	}
 
 	async stopEditingCell() {

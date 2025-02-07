@@ -255,8 +255,6 @@ export class PlaywrightDriver {
 				await this.page.keyboard.up(keysDown.pop()!);
 			}
 		}
-
-		await this.wait(100);
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {

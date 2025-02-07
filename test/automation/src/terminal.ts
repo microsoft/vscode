@@ -82,8 +82,7 @@ export class Terminal {
 		const keepOpen = commandId === TerminalCommandId.Join;
 		await this.quickaccess.runCommand(commandId, { keepOpen });
 		if (keepOpen) {
-			await this.code.dispatchKeybinding('enter');
-			await this.quickinput.waitForQuickInputClosed();
+			await this.code.dispatchKeybinding('enter', this.quickinput.isQuickInputClosed);
 		}
 		switch (commandId) {
 			case TerminalCommandId.Show:
@@ -117,11 +116,10 @@ export class Terminal {
 			await this.quickinput.type(value);
 		} else if (commandId === TerminalCommandIdWithValue.Rename) {
 			// Reset
-			await this.code.dispatchKeybinding('Backspace');
+			await this.code.dispatchKeybinding('Backspace', () => true);
 		}
 		await this.code.wait(100);
-		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
-		await this.quickinput.waitForQuickInputClosed();
+		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter', this.quickinput.isQuickInputClosed);
 		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
 			await this._waitForTerminal();
 		}
@@ -130,7 +128,7 @@ export class Terminal {
 	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
 		if (!skipEnter) {
-			await this.code.dispatchKeybinding('enter');
+			await this.code.dispatchKeybinding('enter', () => true);
 		}
 	}
 
