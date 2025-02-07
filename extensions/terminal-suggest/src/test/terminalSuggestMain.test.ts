@@ -97,7 +97,9 @@ suite('Terminal Suggest', () => {
 						availableCommands.map(c => { return { label: c }; }),
 						prefix,
 						getTokenType(terminalContext, undefined),
-						testPaths.cwd
+						testPaths.cwd,
+						{},
+						'testName'
 					);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested);

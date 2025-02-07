@@ -309,9 +309,9 @@ export async function getCompletionItemsFromSpecs(
 	availableCommands: ICompletionResource[],
 	prefix: string,
 	tokenType: TokenType,
-	shellIntegrationCwd?: vscode.Uri,
-	env?: Record<string, string>,
-	name?: string,
+	shellIntegrationCwd: vscode.Uri | undefined,
+	env: Record<string, string>,
+	name: string,
 	token?: vscode.CancellationToken
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; cwd?: vscode.Uri }> {
 	const items: vscode.TerminalCompletionItem[] = [];
@@ -364,8 +364,7 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			// to do: items for folders/files
-			if (shellIntegrationCwd && env && name) {
+			if (shellIntegrationCwd) {
 				const parsedArguments: ArgumentParserResult = await parseArguments(
 					// TODO: pass in aliases
 					getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition),
