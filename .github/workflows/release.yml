@@ -1,85 +1,52 @@
-name: Build and Release
+name: Build and Release Installer
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version'
+        description: 'Version (e.g., v1.0.0)'
         required: true
-        default: '1.0.0'
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-        include:
-          - os: windows-latest
-            output: win32
-            arch: x64
-          - os: macos-latest
-            output: darwin
-            arch: x64
-          - os: ubuntu-latest
-            output: linux
-            arch: x64
-      fail-fast: false  # Continue with other builds even if one fails
+  build-and-release:
+    runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4  # Updated to v4
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
       with:
-        node-version: '20.18.1'
-        cache: 'npm'  # Enable npm caching
+        node-version: '14'
 
     - name: Install dependencies
-      run: |
-        npm install
-        npm install -g gulp-cli
-      continue-on-error: false
+      run: npm install
 
-    - name: Build VS Code
-      run: npm run compile
-      continue-on-error: false
+    - name: Build installer (Windows)
+      run: npm run package -- --win
 
-    - name: Create Package
-      run: npm run gulp -- "vscode-${{ matrix.output }}-${{ matrix.arch }}"
-      continue-on-error: false
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4  # Updated to v4
-      with:
-        name: vscode-${{ matrix.output }}
-        path: '.build/vscode-*'
-        retention-days: 1  # Only keep artifacts for 1 day
-        if-no-files-found: error
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/download-artifact@v4  # Updated to v4
-      with:
-        path: artifacts
-        merge-multiple: true
-
-    - name: List artifacts
-      run: ls -R artifacts/
-      shell: bash
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v2  # Updated to v2
-      with:
-        tag_name: v${{ github.event.inputs.version }}
-        name: Release v${{ github.event.inputs.version }}
-        draft: false
-        prerelease: false
-        files: artifacts/vscode-*/vscode-*
-        fail_on_unmatched_files: true
+    - name: Create release
+      id: create_release
+      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.event.inputs.version }}
+        release_name: 'Release ${{ github.event.inputs.version }}'
+        draft: false
+        prerelease: false
+
+    - name: Upload installer to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: .\out\vscode-win32-x64-${{ github.event.inputs.version }}.exe
+        asset_name: vscode-win32-x64-${{ github.event.inputs.version }}.exe
+        asset_content_type: application/octet-stream
+
+    - name: Clean up
+      run: |
+        rm -rf .\out
