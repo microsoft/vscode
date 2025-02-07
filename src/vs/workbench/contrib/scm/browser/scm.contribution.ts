@@ -72,7 +72,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 }, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
-const containerTitle = localize('source control view container title', "Source Control");
+const containerTitle = localize('source control view', "Source Control");
 
 viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 	content: localize('no open repo', "No source control providers registered."),
@@ -96,8 +96,9 @@ viewsRegistry.registerViewWelcomeContent(HISTORY_VIEW_PANE_ID, {
 
 viewsRegistry.registerViews([{
 	id: REPOSITORIES_VIEW_PANE_ID,
-	name: localize2('source control repositories', "Workspace Repositories"),
 	containerTitle,
+	name: localize2('scmRepositories', "Repositories"),
+	singleViewPaneContainerTitle: localize('source control repositories', "Source Control Repositories"),
 	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
 	canToggleVisibility: true,
 	hideByDefault: true,
@@ -111,8 +112,9 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
-	name: localize2('source control view', 'Repository'),
 	containerTitle,
+	name: localize2('scmChanges', 'Changes'),
+	singleViewPaneContainerTitle: containerTitle,
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
@@ -134,8 +136,9 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: HISTORY_VIEW_PANE_ID,
-	name: localize2('source control history', "Graph"),
 	containerTitle,
+	name: localize2('scmGraph', "Graph"),
+	singleViewPaneContainerTitle: localize('source control graph', "Source Control Graph"),
 	ctorDescriptor: new SyncDescriptor(SCMHistoryViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
