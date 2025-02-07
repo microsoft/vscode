@@ -102,10 +102,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
 
-	private _contextValue: string | undefined;
-	get contextValue(): string | undefined {
-		return this._contextValue;
-	}
+	get contextValue(): string | undefined { return this.features.contextValue; }
 
 	constructor(
 		private readonly sourceControlHandle: number,
@@ -140,11 +137,6 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	$updateGroupLabel(label: string): void {
 		this.label = label;
-		this._onDidChange.fire();
-	}
-
-	$updateGroupContextValue(contextValue: string): void {
-		this._contextValue = contextValue || undefined;
 		this._onDidChange.fire();
 	}
 }
@@ -403,16 +395,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		group.$updateGroupLabel(label);
 	}
 
-	$updateGroupContextValue(handle: number, contextValue: string): void {
-		const group = this._groupsByHandle[handle];
-
-		if (!group) {
-			return;
-		}
-
-		group.$updateGroupContextValue(contextValue);
-	}
-
 	$spliceGroupResourceStates(splices: SCMRawResourceSplices[]): void {
 		for (const [groupHandle, groupSlices] of splices) {
 			const group = this._groupsByHandle[groupHandle];
@@ -635,18 +617,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateGroupLabel(groupHandle, label);
-	}
-
-	async $updateGroupContextValue(sourceControlHandle: number, groupHandle: number, contextValue: string): Promise<void> {
-		await this._repositoryBarriers.get(sourceControlHandle)?.wait();
-		const repository = this._repositories.get(sourceControlHandle);
-
-		if (!repository) {
-			return;
-		}
-
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$updateGroupContextValue(groupHandle, contextValue);
 	}
 
 	async $spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): Promise<void> {
