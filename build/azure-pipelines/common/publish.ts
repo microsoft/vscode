@@ -16,7 +16,7 @@ import cp from 'child_process';
 import os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
-import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';
+import { BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';
 import jws from 'jws';
 import { clearInterval, setInterval } from 'node:timers';
 
