@@ -15,6 +15,139 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
+/**
+ * TODO: @legomushroom
+ */
+interface IBase {
+	resource: URI;
+	name: string;
+	isFile: boolean;
+	isDirectory: boolean;
+	isSymbolicLink: boolean;
+}
+
+/**
+ * TODO: @legomushroom
+ */
+interface IExpectedFile extends IBase {
+	contents: string;
+}
+
+/**
+ * TODO: @legomushroom
+ */
+interface IExpectedFolder extends IBase {
+	children: (IExpectedFolder | IExpectedFile)[];
+}
+
+/**
+ * Validates that file at {@link filePath} has expected attributes.
+ */
+const validateFile = async (
+	filePath: string,
+	expectedFile: IExpectedFile,
+	fileService: IFileService,
+) => {
+	const readFile = await fileService.resolve(URI.file(filePath));
+
+	assert.strictEqual(
+		readFile.name,
+		expectedFile.name,
+		`File '${filePath}' must have correct 'name'.`,
+	);
+
+	assert.deepStrictEqual(
+		readFile.resource,
+		expectedFile.resource,
+		'File must have correct `URI`.',
+	);
+
+	assert.strictEqual(
+		readFile.isFile,
+		expectedFile.isFile,
+		'File must have correct `isFile` value.',
+	);
+
+	assert.strictEqual(
+		readFile.isDirectory,
+		expectedFile.isDirectory,
+		'File must have correct `isDirectory` value.',
+	);
+
+	assert.strictEqual(
+		readFile.isSymbolicLink,
+		expectedFile.isSymbolicLink,
+		'File must have correct `isSymbolicLink` value.',
+	);
+
+	assert.strictEqual(
+		readFile.children,
+		undefined,
+		'File must not have children.',
+	);
+
+	// TODO: @legomushroom - add folder/file path to all asserts
+	const fileContents = await fileService.readFile(readFile.resource);
+	assert.strictEqual(
+		fileContents.value.toString(),
+		expectedFile.contents,
+		`File '${expectedFile.resource.fsPath}' must have correct contents.`,
+	);
+};
+
+/**
+ * Validates that folder at {@link folderPath} has expected attributes.
+ */
+const validateFolder = async (
+	folderPath: string,
+	expectedFolder: IExpectedFolder,
+	fileService: IFileService,
+) => {
+	const readFolder = await fileService.resolve(URI.file(folderPath));
+
+	assert.strictEqual(
+		readFolder.name,
+		expectedFolder.name,
+		'Folder must have correct `name`.',
+	);
+
+	assert.deepStrictEqual(
+		readFolder.resource,
+		expectedFolder.resource,
+		'Folder must have correct `URI`.',
+	);
+
+	assert.strictEqual(
+		readFolder.isFile,
+		expectedFolder.isFile,
+		'Folder must have correct `isFile` value.',
+	);
+
+	assert.strictEqual(
+		readFolder.isDirectory,
+		expectedFolder.isDirectory,
+		'Folder must have correct `isDirectory` value.',
+	);
+
+	assert.strictEqual(
+		readFolder.isSymbolicLink,
+		expectedFolder.isSymbolicLink,
+		'Folder must have correct `isSymbolicLink` value.',
+	);
+
+
+	assertDefined(
+		readFolder.children,
+		'Folder must have children.',
+	);
+
+	assert.strictEqual(
+		readFolder.children.length,
+		expectedFolder.children.length,
+		'Folder must have correct number of children.',
+	);
+};
+
 suite('MockFilesystem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -67,6 +200,23 @@ suite('MockFilesystem', () => {
 		 * Validate files and folders next.
 		 */
 
+		await validateFolder(
+			'/root/folder',
+			{
+				resource: URI.file('/root/folder'),
+				name: 'folder',
+				isFile: false,
+				isDirectory: true,
+				isSymbolicLink: false,
+				children: [
+					// TODO: @legomushroom - add real children
+					{} as any,
+					{} as any,
+				],
+			},
+			fileService,
+		);
+
 		const rootFolder = await fileService.resolve(URI.file('/root/folder'));
 
 		assertDefined(
@@ -74,143 +224,132 @@ suite('MockFilesystem', () => {
 			'Root folder must have children.',
 		);
 
-		assert.strictEqual(
-			rootFolder.name,
-			'folder',
-			'Root folder must have correct name.',
-		);
-		assert.strictEqual(
-			rootFolder.children.length,
-			2,
-			'Root folder must have correct number of children.',
-		);
-
-		assert.deepStrictEqual(
-			rootFolder.resource,
-			URI.file('/root/folder'),
-			'Root folder must have correct URI.',
-		);
-
 		const file = rootFolder.children[0];
 
-		assert.strictEqual(
-			file.children,
-			undefined,
-			'file.txt must not have children.',
+		await validateFile(
+			'/root/folder/file.txt',
+			{
+				resource: URI.file('/root/folder/file.txt'),
+				name: 'file.txt',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'contents',
+			},
+			fileService,
 		);
 
-		assert.strictEqual(
-			file.name,
-			'file.txt',
-			'File must have the correct name.',
-		);
-
-		assert(
-			file.isFile,
-			'File must be a file.',
-		);
-
-		assert(
-			!file.isDirectory,
-			'File must not be a directory.',
-		);
-
-		assert(
-			!file.isSymbolicLink,
-			'File must not be a symbolic link.',
-		);
-
-		assert.deepStrictEqual(
-			file.resource,
-			URI.file('/root/folder/file.txt'),
-			'File must have correct URI.',
-		);
-
-		const fileContents = await fileService.readFile(file.resource);
-
-		assert.strictEqual(
-			fileContents.value.toString(),
-			'contents',
-			'File must have correct contents.',
+		await validateFile(
+			file.resource.fsPath,
+			{
+				resource: URI.file('/root/folder/file.txt'),
+				name: 'file.txt',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'contents',
+			},
+			fileService,
 		);
 
 		const subfolder = await fileService.resolve(URI.file('/root/folder/Subfolder'));
+
+		await validateFolder(
+			'/root/folder/Subfolder',
+			{
+				resource: URI.file('/root/folder/Subfolder'),
+				name: 'Subfolder',
+				isFile: false,
+				isDirectory: true,
+				isSymbolicLink: false,
+				children: [
+					// TODO: @legomushroom - add real children
+					{} as any,
+					{} as any,
+					{} as any,
+				],
+			},
+			fileService,
+		);
 
 		assertDefined(
 			subfolder.children,
 			'Subfolder must have children.',
 		);
 
-		assert.strictEqual(
-			subfolder.name,
-			'Subfolder',
-			'Subfolder must have correct name.',
+		await validateFile(
+			'/root/folder/Subfolder/test.ts',
+			{
+				resource: URI.file('/root/folder/Subfolder/test.ts'),
+				name: 'test.ts',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'other contents',
+			},
+			fileService,
+		);
+		await validateFile(
+			subfolder.children[0].resource.fsPath,
+			{
+				resource: URI.file('/root/folder/Subfolder/test.ts'),
+				name: 'test.ts',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'other contents',
+			},
+			fileService,
 		);
 
-		assert(
-			file.isFile,
-			'Subfolder must be a file.',
+		await validateFile(
+			'/root/folder/Subfolder/file.test.ts',
+			{
+				resource: URI.file('/root/folder/Subfolder/file.test.ts'),
+				name: 'file.test.ts',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'hello test',
+			},
+			fileService,
+		);
+		await validateFile(
+			subfolder.children[1].resource.fsPath,
+			{
+				resource: URI.file('/root/folder/Subfolder/file.test.ts'),
+				name: 'file.test.ts',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'hello test',
+			},
+			fileService,
 		);
 
-		assert(
-			!file.isDirectory,
-			'Subfolder must not be a directory.',
+		await validateFile(
+			'/root/folder/Subfolder/.file-2.TEST.ts',
+			{
+				resource: URI.file('/root/folder/Subfolder/.file-2.TEST.ts'),
+				name: '.file-2.TEST.ts',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'test hello',
+			},
+			fileService,
 		);
-
-		assert(
-			!file.isSymbolicLink,
-			'Subfolder must not be a symbolic link.',
-		);
-
-		assert.strictEqual(
-			subfolder.children.length,
-			3,
-			'Subfolder folder must have correct number of children.',
-		);
-
-		assert.deepStrictEqual(
-			subfolder.resource,
-			URI.file('/root/folder/Subfolder'),
-			'Subfolder folder must have correct URI.',
-		);
-
-		assert.strictEqual(
-			subfolder.children[0].name,
-			'test.ts',
-			'Subfolder child1 must have the correct name.',
-		);
-
-		assert.strictEqual(
-			subfolder.children[1].name,
-			'file.test.ts',
-			'Subfolder child2 must have the correct name.',
-		);
-
-		assert.strictEqual(
-			subfolder.children[2].name,
-			'.file-2.TEST.ts',
-			'Subfolder child3 must have the correct name.',
-		);
-
-		const file1 = await fileService.readFile(URI.file('/root/folder/Subfolder/test.ts'));
-		assert.strictEqual(
-			file1.value.toString(),
-			'other contents',
-			'File1 must have correct contents.',
-		);
-
-		const file2 = await fileService.readFile(URI.file('/root/folder/Subfolder/file.test.ts'));
-		assert.strictEqual(
-			file2.value.toString(),
-			'hello test',
-			'File2 must have correct contents.',
-		);
-
-		const file3 = await fileService.readFile(URI.file('/root/folder/Subfolder/.file-2.TEST.ts'));
-		assert.strictEqual(
-			file3.value.toString(),
-			'test hello',
-			'File3 must have correct contents.',
+		await validateFile(
+			subfolder.children[2].resource.fsPath,
+			{
+				resource: URI.file('/root/folder/Subfolder/.file-2.TEST.ts'),
+				name: '.file-2.TEST.ts',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'test hello',
+			},
+			fileService,
 		);
 	});
 });
