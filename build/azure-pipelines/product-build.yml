@@ -136,6 +136,8 @@ variables:
     value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME
     value: vscodeesrp
+  - name: VSCODE_STAGING_BLOB_STATIC_WEBSITE_HOSTNAME
+    value: vscodeesrp.z6.web.core.windows.net
   - name: PRSS_CDN_URL
     value: https://vscode.download.prss.microsoft.com/dbazure/download
   - name: VSCODE_ESRP_SERVICE_CONNECTION_ID

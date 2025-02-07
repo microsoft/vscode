@@ -360,14 +360,15 @@ class ESRPReleaseService {
 	async createRelease(version: string, filePath: string, friendlyFileName: string) {
 		const correlationId = crypto.randomUUID();
 		const blobClient = this.containerClient.getBlockBlobClient(correlationId);
+		const blobUrl = `https://${e('VSCODE_STAGING_BLOB_STATIC_WEBSITE_HOSTNAME')}/${correlationId}`;
 
-		this.log(`Uploading ${filePath} to ${blobClient.url}`);
+		this.log(`Uploading ${filePath} to ${blobUrl}`);
 		await blobClient.uploadFile(filePath);
 		this.log('Uploaded blob successfully');
 
 		try {
 			this.log(`Submitting release for ${version}: ${filePath}`);
-			const submitReleaseResult = await this.submitRelease(version, filePath, friendlyFileName, correlationId, blobClient);
+			const submitReleaseResult = await this.submitRelease(version, filePath, friendlyFileName, correlationId, blobUrl);
 
 			this.log(`Successfully submitted release ${submitReleaseResult.operationId}. Polling for completion...`);
 
@@ -396,7 +397,7 @@ class ESRPReleaseService {
 			this.log('Successfully created release:', releaseDetails.files[0].fileDownloadDetails![0].downloadUrl);
 			return releaseDetails.files[0].fileDownloadDetails![0].downloadUrl;
 		} finally {
-			this.log(`Deleting blob ${blobClient.url}`);
+			this.log(`Deleting blob ${blobUrl}`);
 			await blobClient.delete();
 			this.log('Deleted blob successfully');
 		}
@@ -407,7 +408,7 @@ class ESRPReleaseService {
 		filePath: string,
 		friendlyFileName: string,
 		correlationId: string,
-		blobClient: BlobClient
+		blobUrl: string
 	): Promise<ReleaseSubmitResponse> {
 		const size = fs.statSync(filePath).size;
 		const hash = await hashStream('sha256', fs.createReadStream(filePath));
@@ -443,11 +444,11 @@ class ESRPReleaseService {
 			files: [{
 				name: path.basename(filePath),
 				friendlyFileName,
-				tenantFileLocation: blobClient.url,
+				tenantFileLocation: blobUrl,
 				tenantFileLocationType: 'AzureBlob',
 				sourceLocation: {
 					type: 'azureBlob',
-					blobUrl: blobClient.url
+					blobUrl
 				},
 				hashType: 'sha256',
 				hash: Array.from(hash),
@@ -868,9 +869,7 @@ async function processArtifact(
 		if (res.status === 200) {
 			log(`Already released and provisioned: ${url}`);
 		} else {
-			const stagingContainerClient = blobServiceClient.getContainerClient('staging');
-			await stagingContainerClient.createIfNotExists();
-
+			const stagingContainerClient = blobServiceClient.getContainerClient('$web');
 			const releaseService = await ESRPReleaseService.create(
 				log,
 				e('RELEASE_TENANT_ID'),
