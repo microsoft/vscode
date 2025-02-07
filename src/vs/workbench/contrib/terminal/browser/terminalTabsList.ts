@@ -510,10 +510,12 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
 			}))
 		];
-		if (instance.shellLaunchConfig.type === 'Task') {
-			actions.push(this._register(new Action(TerminalCommandId.RerunTask, terminalStrings.rerunTask.value, ThemeIcon.asClassName(Codicon.debugRestart), true, async () => {
-				this._runForSelectionOrInstance(instance, e => this._commandService.executeCommand(TerminalCommandId.RerunTask, instance));
-			})));
+		if (instance.shellLaunchConfig.tabActions) {
+			for (const action of instance.shellLaunchConfig.tabActions) {
+				actions.push(this._register(new Action(action.id, action.label, action.icon ? ThemeIcon.asClassName(action.icon) : undefined, true, async () => {
+					this._runForSelectionOrInstance(instance, e => this._commandService.executeCommand(action.id, instance));
+				})));
+			}
 		}
 		// TODO: Cache these in a way that will use the correct instance
 		template.actionBar.clear();

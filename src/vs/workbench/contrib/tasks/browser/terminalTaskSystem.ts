@@ -44,7 +44,7 @@ import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrde
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/browser/terminalEscapeSequences.js';
 import { TerminalProcessExtHostProxy } from '../../terminal/browser/terminalProcessExtHostProxy.js';
-import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from '../../terminal/common/terminal.js';
+import { ITerminalProfileResolverService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../terminal/common/terminal.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IOutputService } from '../../../services/output/common/output.js';
@@ -1110,7 +1110,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				env: { ...defaultProfile.env },
 				icon,
 				color: task.configurationProperties.icon?.color || undefined,
-				waitOnExit
+				waitOnExit,
+				tabActions: [{ id: TerminalCommandId.RerunTask, label: nls.localize('rerunTask', 'Rerun Task'), icon: Codicon.debugRestart }],
 			};
 			let shellSpecified: boolean = false;
 			const shellOptions: IShellConfiguration | undefined = task.command.options && task.command.options.shell;

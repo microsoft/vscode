@@ -635,6 +635,17 @@ export interface IShellLaunchConfig {
 	 * Create a terminal without shell integration even when it's enabled
 	 */
 	ignoreShellIntegration?: boolean;
+
+	/**
+	 * Actions to include inline on hover of the terminal tab. E.g. the "Rerun task" action
+	 */
+	tabActions?: ITerminalTabAction[];
+}
+
+interface ITerminalTabAction {
+	id: string;
+	label: string;
+	icon?: ThemeIcon;
 }
 
 export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
