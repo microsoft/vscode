@@ -22,10 +22,9 @@ import { activeContrastBorder } from '../../../../../platform/theme/common/color
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
-import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
-import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
+import { ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -35,6 +34,7 @@ import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/brows
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
 import { TerminalCompletionModel } from './terminalCompletionModel.js';
+import { TerminalCompletionItem, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 
 export interface ISuggestController {
@@ -43,7 +43,7 @@ export interface ISuggestController {
 	selectPreviousPageSuggestion(): void;
 	selectNextSuggestion(): void;
 	selectNextPageSuggestion(): void;
-	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
+	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
 	hideSuggestWidget(): void;
 }
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
@@ -58,7 +58,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _container?: HTMLElement;
 	private _screen?: HTMLElement;
-	private _suggestWidget?: SimpleSuggestWidget;
+	private _suggestWidget?: SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
 	private _cachedFontInfo: ISimpleSuggestWidgetFontInfo | undefined;
 	private _enableWidget: boolean = true;
 	private _pathSeparator: string = sep;
@@ -234,9 +234,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// - Using `\` or `/` will request new completions. It's important that this only occurs
 		//   when a directory is present, if not completions like git branches could be requested
 		//   which leads to flickering
-		this._isFilteringDirectories = completions.some(e => e.isDirectory);
+		this._isFilteringDirectories = completions.some(e => e.kind === TerminalCompletionItemKind.Folder);
 		if (this._isFilteringDirectories) {
-			const firstDir = completions.find(e => e.isDirectory);
+			const firstDir = completions.find(e => e.kind === TerminalCompletionItemKind.Folder);
 			this._pathSeparator = firstDir?.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
@@ -247,7 +247,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new TerminalCompletionModel(
-			completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)),
+			completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c)),
 			lineContext
 		);
 		if (token.isCancellationRequested) {
@@ -481,7 +481,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 
-	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
+	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem> {
 		if (!this._suggestWidget) {
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
@@ -493,7 +493,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				},
 				this._getFontInfo.bind(this),
 				this._onDidFontConfigurationChange.event.bind(this)
-			));
+			)) as any as SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
 			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
 				listInactiveFocusOutline: activeContrastBorder
@@ -548,7 +548,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.selectNextPage();
 	}
 
-	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>, respectRunOnEnter?: boolean): void {
+	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>, respectRunOnEnter?: boolean): void {
 		if (!suggestion) {
 			suggestion = this._suggestWidget?.getFocusedItem();
 		}
@@ -582,7 +582,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const completion = suggestion.item.completion;
 		let completionText = completion.label;
-		if ((completion.isDirectory || completion.isFile) && completionText.includes(' ')) {
+		if ((completion.kind === TerminalCompletionItemKind.Folder || completion.isFileOverride) && completionText.includes(' ')) {
 			// Escape spaces in files or folders so they're valid paths
 			completionText = completionText.replaceAll(' ', '\\ ');
 		}
@@ -600,7 +600,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 				case 'exactMatchIgnoreExtension': {
 					runOnEnter = replacementText.toLowerCase() === completionText.toLowerCase();
-					if (completion.isFile) {
+					if (completion.isFileOverride) {
 						runOnEnter ||= replacementText.toLowerCase() === completionText.toLowerCase().replace(/\.[^\.]+$/, '');
 					}
 					break;

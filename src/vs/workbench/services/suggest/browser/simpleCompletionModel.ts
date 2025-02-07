@@ -25,9 +25,9 @@ const enum Refilter {
 	Incr = 2
 }
 
-export class SimpleCompletionModel {
+export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 	private _stats?: ISimpleCompletionStats;
-	private _filteredItems?: SimpleCompletionItem[];
+	private _filteredItems?: T[];
 	private _refilterKind: Refilter = Refilter.All;
 	private _fuzzyScoreOptions: FuzzyScoreOptions | undefined = {
 		...FuzzyScoreOptions.default,
@@ -40,13 +40,13 @@ export class SimpleCompletionModel {
 	} = {};
 
 	constructor(
-		private readonly _items: SimpleCompletionItem[],
+		private readonly _items: T[],
 		private _lineContext: LineContext,
-		private readonly _rawCompareFn?: (leadingLineContent: string, a: SimpleCompletionItem, b: SimpleCompletionItem) => number,
+		private readonly _rawCompareFn?: (leadingLineContent: string, a: T, b: T) => number,
 	) {
 	}
 
-	get items(): SimpleCompletionItem[] {
+	get items(): T[] {
 		this._ensureCachedState();
 		return this._filteredItems!;
 	}
@@ -87,7 +87,7 @@ export class SimpleCompletionModel {
 
 		// incrementally filter less
 		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
-		const target: SimpleCompletionItem[] = [];
+		const target: T[] = [];
 
 		// picks a score function based on the number of
 		// items that we have to score/filter and based on the

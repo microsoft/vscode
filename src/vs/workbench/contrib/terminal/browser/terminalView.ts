@@ -126,13 +126,13 @@ export class TerminalViewPane extends ViewPane {
 				this._updateForShellIntegration(this._parentDomElement);
 			}
 		}));
-		this._register(this._terminalService.onDidCreateInstance((i) => {
-			i.capabilities.onDidAddCapabilityType(c => {
-				if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
-					this._parentDomElement?.classList.add('shell-integration');
-				}
-			});
-		}));
+		const shellIntegrationDisposable = this._register(new MutableDisposable());
+		shellIntegrationDisposable.value = this._terminalService.onAnyInstanceAddedCapabilityType(c => {
+			if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
+				this._parentDomElement?.classList.add('shell-integration');
+				shellIntegrationDisposable.clear();
+			}
+		});
 	}
 
 	private _updateForShellIntegration(container: HTMLElement) {
@@ -251,6 +251,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override createActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		this._disposableStore.clear();
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
@@ -260,7 +261,6 @@ export class TerminalViewPane extends ViewPane {
 						super(action.id, action.label, action.class, action.enabled);
 						this.checked = action.checked;
 						this.tooltip = action.tooltip;
-						this._register(action);
 					}
 					override async run() {
 						const instance = that._terminalGroupService.activeInstance;
@@ -271,21 +271,22 @@ export class TerminalViewPane extends ViewPane {
 						return;
 					}
 				};
-				return new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) });
+				this._disposableStore.add(panelOnlySplitAction);
+				return this._disposableStore.add(new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) }));
 			}
 			case TerminalCommandId.SwitchTerminal: {
-				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
+				return this._disposableStore.add(this._instantiationService.createInstance(SwitchTerminalActionViewItem, action));
 			}
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
 					const actions = getFlatContextMenuActions(this._singleTabMenu.getActions({ shouldForwardArgs: true }));
 					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
+				break;
 			}
 			case TerminalCommandId.New: {
 				if (action instanceof MenuItemAction) {
-					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
-					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
+					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
 					this._newDropdown.value = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate }, this._contextMenuService, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
 					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 					return this._newDropdown.value;
@@ -293,17 +294,6 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}
 		return super.createActionViewItem(action, options);
-	}
-
-	/**
-	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
-	 */
-	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
-		this._disposableStore.clear();
-		if (dropdownAction instanceof Action) {
-			this._disposableStore.add(dropdownAction);
-		}
-		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._disposableStore.add(a));
 	}
 
 	private _getDefaultProfileName(): string {
@@ -321,8 +311,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
-		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
-		this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
+		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
 		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 

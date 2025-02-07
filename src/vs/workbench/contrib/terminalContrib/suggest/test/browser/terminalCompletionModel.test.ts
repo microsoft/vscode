@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { SimpleCompletionItem, type ISimpleCompletion } from '../../../../../services/suggest/browser/simpleCompletionItem.js';
 import { TerminalCompletionModel } from '../../browser/terminalCompletionModel.js';
 import { LineContext } from '../../../../../services/suggest/browser/simpleCompletionModel.js';
+import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from '../../browser/terminalCompletionItem.js';
 
-function createItem(options: Partial<ISimpleCompletion>): SimpleCompletionItem {
-	return new SimpleCompletionItem({
+function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionItem {
+	return new TerminalCompletionItem({
 		...options,
+		kind: options.kind ?? TerminalCompletionItemKind.Method,
 		label: options.label || 'defaultLabel',
 		provider: options.provider || 'defaultProvider',
 		replacementIndex: options.replacementIndex || 0,
@@ -18,8 +19,8 @@ function createItem(options: Partial<ISimpleCompletion>): SimpleCompletionItem {
 	});
 }
 
-function createFileItems(...labels: string[]): SimpleCompletionItem[] {
-	return labels.map(label => createItem({ label, isFile: true }));
+function createFileItems(...labels: string[]): TerminalCompletionItem[] {
+	return labels.map(label => createItem({ label, kind: TerminalCompletionItemKind.File }));
 }
 
 function createFileItemsModel(...labels: string[]): TerminalCompletionModel {
@@ -29,8 +30,8 @@ function createFileItemsModel(...labels: string[]): TerminalCompletionModel {
 	);
 }
 
-function createFolderItems(...labels: string[]): SimpleCompletionItem[] {
-	return labels.map(label => createItem({ label, isDirectory: true }));
+function createFolderItems(...labels: string[]): TerminalCompletionItem[] {
+	return labels.map(label => createItem({ label, kind: TerminalCompletionItemKind.Folder }));
 }
 
 function createFolderItemsModel(...labels: string[]): TerminalCompletionModel {
