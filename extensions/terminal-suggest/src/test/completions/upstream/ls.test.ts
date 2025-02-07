@@ -66,7 +66,6 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 
 		// Basic options
 		// TODO: The spec wants file paths and folders (which seems like it should only be folders),
-		//       but neither are requested https://github.com/microsoft/vscode/issues/239606
 		{ input: 'ls |', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: 'ls -|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
