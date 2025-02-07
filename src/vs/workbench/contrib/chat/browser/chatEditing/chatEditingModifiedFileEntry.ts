@@ -180,7 +180,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			modelService.createModel(
 				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.doc.createSnapshot()),
 				languageService.createById(this.doc.getLanguageId()),
-				ChatEditingTextModelContentProvider.getFileURI(this.entryId, this.modifiedURI.path),
+				ChatEditingTextModelContentProvider.getFileURI(_telemetryInfo.sessionId, this.entryId, this.modifiedURI.path),
 				false
 			)
 		);
@@ -270,7 +270,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(requestId, this.modifiedURI.path),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			originalToCurrentEdit: this._edit,
@@ -293,16 +293,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	acceptStreamingEditsStart(tx: ITransaction) {
 		this._resetEditsState(tx);
+		this._autoAcceptCtrl.get()?.cancel();
 	}
 
-	acceptStreamingEditsEnd(tx: ITransaction) {
+	async acceptStreamingEditsEnd(tx: ITransaction) {
 		this._resetEditsState(tx);
-	}
-
-	private _resetEditsState(tx: ITransaction): void {
-		this._isCurrentlyBeingModifiedObs.set(false, tx);
-		this._rewriteRatioObs.set(0, tx);
-		this._clearCurrentEditLineDecoration();
+		await this._diffOperation;
 
 		// AUTO accept mode
 		if (!this.reviewMode.get() && !this._autoAcceptCtrl.get()) {
@@ -331,6 +327,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			};
 			update();
 		}
+	}
+
+	private _resetEditsState(tx: ITransaction): void {
+		this._isCurrentlyBeingModifiedObs.set(false, tx);
+		this._rewriteRatioObs.set(0, tx);
+		this._clearCurrentEditLineDecoration();
 	}
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {

@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from '../../../../../nls.js';
+import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from './constants.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
- * Configuration helper for the `prompt snippets` feature.
- * @see {@link PROMPT_FILES_CONFIG_KEY} and {@link PROMPT_FILES_DEFAULT_LOCATION}
+ * Configuration helper for the `prompt files` feature.
+ * @see {@link CONFIG_KEY} and {@link DEFAULT_LOCATION}
  *
  * ### Functions
  *
@@ -18,28 +20,53 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * ### Configuration Examples
  *
  * Enable the feature, using defaults for prompt files source folder locations
- * (see {@link PROMPT_FILES_DEFAULT_LOCATION}):
+ * (see {@link DEFAULT_LOCATION}):
  * ```json
  * {
- *   "chat.experimental.prompt-snippets": true,
+ *   "chat.promptFiles": true,
  * }
  * ```
  *
  * Enable the feature, specifying a single prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.prompt-snippets": '.copilot/prompts',
+ *   "chat.promptFiles": '.github/prompts',
  * }
  * ```
  *
  * Enable the feature, specifying multiple prompt files source folder location:
  * ```json
  * {
- *   "chat.experimental.prompt-snippets": [
- *     '.copilot/prompts',
- *     '.github/prompts',
- *     '/Users/legomushroom/repos/prompts',
+ *   "chat.promptFiles": {
+ *     ".github/prompts" : true,
+ *     ".copilot/prompts" : false,
+ *     "/Users/legomushroom/repos/prompts" : true,
+ *   },
+ * }
+ * ```
+ *
+ * Enable the feature, specifying multiple prompt files source folder location:
+ * ```json
+ * {
+ *   "chat.promptFiles": [
+ *     ".github/prompts",
+ *     ".copilot/prompts",
+ *     "/Users/legomushroom/repos/prompts",
  *   ],
+ * }
+ * ```
+ *
+ * The "array" case is similar to the "object" one, but there is one difference.
+ * At the time of writing, configuration settings with the `array` value cannot
+ * be merged into a single entry when the setting is specified in both the user
+ * and the workspace settings. On the other hand, the "object" case is provides
+ * flexibility - the settings are combined into a single object.
+ *
+ * Enable the feature, using defaults for prompt files source folder locations
+ * (see {@link DEFAULT_LOCATION}):
+ * ```json
+ * {
+ *   "chat.promptFiles": {},
  * }
  * ```
  *
@@ -50,17 +77,28 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * - `undefined`/`null`: feature is disabled
  * - `boolean`:
  *   - `true`: feature is enabled, prompt files source folder locations
- *             fallback to {@link PROMPT_FILES_DEFAULT_LOCATION}
+ *             fallback to {@link DEFAULT_LOCATION}
  *   - `false`: feature is disabled
  * - `string`:
  *   - values that can be mapped to `boolean`(`"true"`, `"FALSE", "TrUe"`, etc.)
- *     are treated as `boolean` above
+ *     are treated the same as the `boolean` case above
  *   - any other `non-empty` string value is treated as a single prompt files source folder path
+ *   - `empty` string value is treated the same as the `undefined`/`null` case above
+ * - `object`:
+ *   - expects the { "string": `boolean` } pairs, where the `string` is a path and the `boolean`
+ *     is a flag that defines if the source folder location is enable or disabled
+ *   - value of a record in the object can also be a `string`:
+ *     - if the string can be clearly mapped to a `boolean` (e.g., `"true"`, `"FALSE", "TrUe"`, etc.),
+ *       it is treated as `boolean` value
+ *     - any other string value is treated as `false` and is effectively ignored
+ *   - if the record key is an `empty` string, it is ignored
+ *   - if the resulting object is empty, the feature is considered `enabled`, prompt files source
+ *     folder locations fallback to {@link DEFAULT_LOCATION}
  * - `array`:
  *   - `string` items in the array are treated as prompt files source folder paths
  *   - all `non-string` items in the array are `ignored`
- *   - if the resulting array is empty, the feature is considered `enabled`, prompt files source
- *     folder locations fallback to defaults (see {@linkcode PROMPT_FILES_DEFAULT_LOCATION})
+ *   - if the resulting array is empty, the feature is considered `enabled`, prompt files
+ *     source folder locations fallback to {@link DEFAULT_LOCATION}
  *
  * ### File Paths Resolution
  *
@@ -74,53 +112,68 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  */
 export namespace PromptFilesConfig {
 	/**
-	 * Configuration key for the `prompt snippets` feature (also
-	 * known as `prompt snippets`, `prompt instructions`, etc.).
+	 * Configuration key for the `prompt files` feature (also
+	 * known as `prompt files`, `prompt instructions`, etc.).
 	 */
-	const PROMPT_FILES_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
+	export const CONFIG_KEY: string = 'chat.promptFiles';
 
 	/**
 	 * Default prompt instructions source folder paths.
 	 */
-	const PROMPT_FILES_DEFAULT_LOCATION = ['.copilot/prompts', '.github/prompts'];
+	const DEFAULT_LOCATION = Object.freeze(['.github/prompts']);
 
 	/**
-	 * Get value of the `prompt snippets` configuration setting.
+	 * Get value of the `prompt files` configuration setting.
 	 */
 	export const getValue = (
 		configService: IConfigurationService,
 	): string | readonly string[] | boolean | undefined => {
-		const value = configService.getValue(PROMPT_FILES_CONFIG_KEY);
+		const configValue = configService.getValue(CONFIG_KEY);
 
-		if (value === undefined || value === null) {
+		if (configValue === undefined || configValue === null) {
 			return undefined;
 		}
 
-		if (typeof value === 'string') {
-			const cleanValue = value.trim().toLowerCase();
-			if (cleanValue === 'true') {
-				return true;
-			}
+		if (typeof configValue === 'string') {
+			const trimmedValue = configValue.trim();
+			const lowercasedValue = trimmedValue.toLowerCase();
 
-			if (cleanValue === 'false') {
-				return false;
-			}
-
-			if (!cleanValue) {
+			if (!lowercasedValue) {
 				return undefined;
 			}
 
-			return value;
+			if (asBoolean(lowercasedValue) !== undefined) {
+				return asBoolean(lowercasedValue);
+			}
+
+			return trimmedValue;
 		}
 
-		if (typeof value === 'boolean') {
-			return value;
+		if (typeof configValue === 'boolean') {
+			return configValue;
 		}
 
-		if (Array.isArray(value)) {
-			return value.filter((item) => {
-				return typeof item === 'string';
+		if (Array.isArray(configValue)) {
+			const cleanArray = configValue.filter((item) => {
+				return typeof item === 'string' && !!item.trim();
 			});
+
+			return Object.freeze(cleanArray);
+		}
+
+		// note! this would be also true for `null` and `array`,
+		// 		 but those cases are already handled above
+		if (typeof configValue === 'object') {
+			const paths: string[] = [];
+
+			for (const [path, value] of Object.entries(configValue)) {
+				const cleanPath = path.trim();
+				if (asBoolean(value) && cleanPath) {
+					paths.push(cleanPath);
+				}
+			}
+
+			return Object.freeze(paths);
 		}
 
 		return undefined;
@@ -139,7 +192,7 @@ export namespace PromptFilesConfig {
 
 	/**
 	 * Gets the source folder locations for prompt files.
-	 * Defaults to {@link PROMPT_FILES_DEFAULT_LOCATION}.
+	 * Defaults to {@link DEFAULT_LOCATION}.
 	 */
 	export const sourceLocations = (
 		configService: IConfigurationService,
@@ -147,21 +200,79 @@ export namespace PromptFilesConfig {
 		const value = getValue(configService);
 
 		if (value === undefined) {
-			return PROMPT_FILES_DEFAULT_LOCATION;
+			return DEFAULT_LOCATION;
 		}
 
 		if (typeof value === 'string') {
-			return [value];
+			return Object.freeze([value]);
 		}
 
-		if (Array.isArray(value)) {
-			if (value.length !== 0) {
-				return value;
-			}
-
-			return PROMPT_FILES_DEFAULT_LOCATION;
+		if (Array.isArray(value) && value.length !== 0) {
+			return value;
 		}
 
-		return PROMPT_FILES_DEFAULT_LOCATION;
+		return DEFAULT_LOCATION;
 	};
+
+	const usageExample1 = nls.localize(
+		`chat.promptFiles.config.description.example1`,
+		"Enable with the default location of the prompt files (`{0}`):\n{1}",
+		DEFAULT_LOCATION[0],
+		`\`\`\`json\n{\n  "${CONFIG_KEY}": true,\n}\n\`\`\``,
+	);
+	const usageExample2 = nls.localize(
+		`chat.promptFiles.config.description.example2`,
+		"Specify custom location(s) of the prompt files:\n{0}",
+		`\`\`\`json\n{\n  "${CONFIG_KEY}": {\n    ".github/prompts": true,\n    "/Users/vscode/prompts": true,\n}\n\`\`\``,
+	);
+
+	/**
+	 * Configuration setting description to use in the settings UI.
+	 */
+	export const CONFIG_DESCRIPTION = nls.localize(
+		'chat.promptFiles.config.description',
+		"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nSet to `true` or use the `{ \"/path/to/folder\": boolean }` notation to specify a different path (or a couple of them). Relative paths are resolved from the root folder(s) of your workspace, and the default value of `{2}` is used if no other paths provided.\n#### Examples\n{3}\n{4}",
+		PROMPT_FILE_EXTENSION,
+		DOCUMENTATION_URL,
+		DEFAULT_LOCATION[0],
+		usageExample1,
+		usageExample2,
+	);
+
+	/**
+	 * Configuration setting title to use in the settings UI.
+	 */
+	export const CONFIG_TITLE = nls.localize(
+		`chat.promptFiles.config.title`,
+		"Prompt Files",
+	);
+}
+
+/**
+ * Helper to parse an input value of `any` type into a boolean.
+ *
+ * @param value - input value to parse
+ * @returns `true` if the value is a boolean `true` or a string that can
+ * 			be clearly mapped to a boolean (e.g., `"true"`, `"TRUE"`, `"FaLSe"`, etc.),
+ * 			`undefined` for rest of the values
+ */
+function asBoolean(value: any): boolean | undefined {
+	if (typeof value === 'boolean') {
+		return value;
+	}
+
+	if (typeof value === 'string') {
+		const cleanValue = value.trim().toLowerCase();
+		if (cleanValue === 'true') {
+			return true;
+		}
+
+		if (cleanValue === 'false') {
+			return false;
+		}
+
+		return undefined;
+	}
+
+	return undefined;
 }

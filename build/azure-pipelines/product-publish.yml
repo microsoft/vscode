@@ -26,6 +26,8 @@ steps:
   - pwsh: |
       npm ci
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
   - download: current

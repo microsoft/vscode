@@ -21,6 +21,10 @@ import { QuickDiffModel, IQuickDiffModelService } from './quickDiffModel.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { autorun, autorunWithStore, observableFromEvent } from '../../../../base/common/observable.js';
+
+export const quickDiffDecorationCount = new RawContextKey<number>('quickDiffDecorationCount', 0);
 
 class QuickDiffDecorator extends Disposable {
 
@@ -166,7 +170,7 @@ class QuickDiffDecorator extends Disposable {
 
 	override dispose(): void {
 		if (this.decorationsCollection) {
-			this.decorationsCollection?.clear();
+			this.decorationsCollection.clear();
 		}
 		this.decorationsCollection = undefined;
 		this.quickDiffModelRef.dispose();
@@ -182,6 +186,10 @@ interface QuickDiffWorkbenchControllerViewState {
 export class QuickDiffWorkbenchController extends Disposable implements IWorkbenchContribution {
 
 	private enabled = false;
+	private readonly quickDiffDecorationCount: IContextKey<number>;
+
+	private readonly activeEditor = observableFromEvent(this,
+		this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor);
 
 	// Resource URI -> Code Editor Id -> Decoration (Disposable)
 	private readonly decorators = new ResourceMap<DisposableMap<string>>();
@@ -194,9 +202,12 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickDiffModelService private readonly quickDiffModelService: IQuickDiffModelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.stylesheet = domStylesheetsJs.createStyleSheet(undefined, undefined, this._store);
+
+		this.quickDiffDecorationCount = quickDiffDecorationCount.bindTo(contextKeyService);
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));
@@ -266,6 +277,9 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 
 		this.transientDisposables.add(Event.any(this.editorService.onDidCloseEditor, this.editorService.onDidVisibleEditorsChange)(() => this.onEditorsChanged()));
 		this.onEditorsChanged();
+
+		this.onDidActiveEditorChange();
+
 		this.enabled = true;
 	}
 
@@ -275,6 +289,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		}
 
 		this.transientDisposables.clear();
+		this.quickDiffDecorationCount.set(0);
 
 		for (const [uri, decoratorMap] of this.decorators.entries()) {
 			decoratorMap.dispose();
@@ -282,6 +297,37 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		}
 
 		this.enabled = false;
+	}
+
+	private onDidActiveEditorChange(): void {
+		this.transientDisposables.add(autorunWithStore((reader, store) => {
+			const activeEditor = this.activeEditor.read(reader);
+			const activeTextEditorControl = this.editorService.activeTextEditorControl;
+
+			if (!isCodeEditor(activeTextEditorControl) || !activeEditor?.resource) {
+				this.quickDiffDecorationCount.set(0);
+				return;
+			}
+
+			const quickDiffModelRef = this.quickDiffModelService.createQuickDiffModelReference(activeEditor.resource);
+			if (!quickDiffModelRef) {
+				this.quickDiffDecorationCount.set(0);
+				return;
+			}
+
+			store.add(quickDiffModelRef);
+
+			const visibleDecorationCount = observableFromEvent(this,
+				quickDiffModelRef.object.onDidChange, () => {
+					const visibleQuickDiffs = quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
+					return quickDiffModelRef.object.changes.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label)).length;
+				});
+
+			store.add(autorun(reader => {
+				const count = visibleDecorationCount.read(reader);
+				this.quickDiffDecorationCount.set(count);
+			}));
+		}));
 	}
 
 	private onEditorsChanged(): void {

@@ -195,7 +195,11 @@ export class TokenStore implements IDisposable {
 	}
 
 	constructor(private readonly _textModel: ITextModel) {
-		this._root = {
+		this._root = this.createEmptyRoot();
+	}
+
+	private createEmptyRoot(): Node {
+		return {
 			length: this._textModel.getValueLength(),
 			token: 0,
 			height: 0
@@ -211,6 +215,9 @@ export class TokenStore implements IDisposable {
 	}
 
 	private createFromUpdates(tokens: TokenUpdate[], needsRefresh?: boolean): Node {
+		if (tokens.length === 0) {
+			return this.createEmptyRoot();
+		}
 		let newRoot: Node = {
 			length: tokens[0].length,
 			token: tokens[0].token,
@@ -299,7 +306,7 @@ export class TokenStore implements IDisposable {
 			newRoot = concat(newRoot, allNodes[i]);
 		}
 
-		this._root = newRoot;
+		this._root = newRoot ?? this.createEmptyRoot();
 	}
 
 	/**
