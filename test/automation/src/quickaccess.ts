@@ -134,34 +134,31 @@ export class QuickAccess {
 	private async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {
 		let retries = 0;
 
-		const acceptFn = async () => {
-			return this.quickInput.isQuickInputOpened();
-		};
 		// Other parts of code might steal focus away from quickinput :(
 		while (retries < 5) {
 
 			try {
+				const acceptFn = () => this.quickInput.waitForQuickInputOpened(10);
 				// Open via keybinding
 				switch (kind) {
 					case QuickAccessKind.Files:
-						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p', acceptFn, 10);
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p', acceptFn);
 						break;
 					case QuickAccessKind.Symbols:
-						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o', acceptFn, 10);
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o', acceptFn);
 						break;
 					case QuickAccessKind.Commands:
-						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p', acceptFn, 10);
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p', acceptFn);
 						break;
 				}
 				break;
-				// Await for quick input widget opened
 			} catch (err) {
 				if (++retries > 5) {
 					throw new Error(`QuickAccess.openQuickAccessWithRetry(kind: ${kind}) failed: ${err}`);
 				}
 
 				// Retry
-				await this.code.dispatchKeybinding('escape', () => true);
+				await this.code.dispatchKeybinding('escape', () => { });
 			}
 		}
 

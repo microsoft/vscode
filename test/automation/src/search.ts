@@ -40,7 +40,7 @@ export class Search extends Viewlet {
 	}
 
 	async openSearchViewlet(): Promise<any> {
-		const acceptFn = () => this.isInputFocused(INPUT);
+		const acceptFn = async () => await this.waitForInputFocus(INPUT);
 		if (process.platform === 'darwin') {
 			await this.code.dispatchKeybinding('cmd+shift+f', acceptFn);
 		} else {
@@ -68,16 +68,17 @@ export class Search extends Viewlet {
 	}
 
 	async waitForPageUp(): Promise<void> {
-		await this.code.dispatchKeybinding('PageUp', () => true);
+		await this.code.dispatchKeybinding('PageUp', () => { });
 	}
 
 	async waitForPageDown(): Promise<void> {
-		await this.code.dispatchKeybinding('PageDown', () => true);
+		await this.code.dispatchKeybinding('PageDown', () => { });
 	}
 
 	async submitSearch(): Promise<void> {
 		await this.waitForInputFocus(INPUT);
-		await this.code.dispatchKeybinding('enter', () => this.code.isActiveElement(`${VIEWLET} .messages`));
+
+		await this.code.dispatchKeybinding('enter', async () => { await this.code.waitForElement(`${VIEWLET} .messages`); });
 	}
 
 	async setFilesToIncludeText(text: string): Promise<void> {
@@ -154,10 +155,5 @@ export class Search extends Viewlet {
 				}
 			}
 		}
-	}
-
-	private async isInputFocused(selector: string): Promise<boolean> {
-		await this.code.click(INPUT, 2, 2);
-		return this.code.isActiveElement(INPUT);
 	}
 }

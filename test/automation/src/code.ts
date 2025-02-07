@@ -129,8 +129,8 @@ export class Code {
 		return await this.driver.stopTracing(name, persist);
 	}
 
-	async dispatchKeybinding(keybinding: string, acceptFn: (result: void) => Promise<boolean> | boolean, retryCount?: number, retryInterval?: number): Promise<void> {
-		return await this.poll<void>(() => this.driver.dispatchKeybinding(keybinding), acceptFn, `dispatch keybinding '${keybinding}'`, retryCount, retryInterval);
+	async dispatchKeybinding(keybinding: string, acceptFn: () => Promise<void> | void): Promise<void> {
+		return this.driver.dispatchKeybinding(keybinding, acceptFn);
 	}
 
 	async didFinishLoad(): Promise<void> {
@@ -218,8 +218,7 @@ export class Code {
 		);
 	}
 
-	async isTextContent(selector: string, accept: (result: string) => boolean, textContent?: string): Promise<boolean> {
-		accept = accept || (result => textContent !== undefined ? textContent === result : !!result);
+	async isTextContent(selector: string, accept: (result: string) => boolean): Promise<boolean> {
 		const elements = await this.driver.getElements(selector);
 		let element;
 		if (elements.length > 0) {
@@ -227,7 +226,7 @@ export class Code {
 		} else {
 			throw new Error('Element not found for textContent');
 		}
-		return accept!(typeof element === 'string' ? element : '');
+		return accept(typeof element === 'string' ? element : '');
 	}
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
@@ -267,18 +266,15 @@ export class Code {
 	}
 
 	async typeInEditor(selector: string, text: string): Promise<void> {
-		return await this.driver.typeInEditor(selector, text);
+		return this.driver.typeInEditor(selector, text);
 	}
 
 	async waitForEditorSelection(selector: string, accept: (selection: { selectionStart: number; selectionEnd: number }) => boolean): Promise<void> {
 		await this.poll(() => this.driver.getEditorSelection(selector), accept, `get editor selection '${selector}'`);
 	}
 
-	async getEditorSelection(selector: string): Promise<{
-		selectionStart: number;
-		selectionEnd: number;
-	}> {
-		return await this.driver.getEditorSelection(selector);
+	async getEditorSelection(selector: string): Promise<{ selectionStart: number; selectionEnd: number }> {
+		return this.driver.getEditorSelection(selector);
 	}
 
 	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {
@@ -311,7 +307,7 @@ export class Code {
 
 	private async poll<T>(
 		fn: () => Promise<T>,
-		acceptFn: (result: T) => Promise<boolean> | boolean,
+		acceptFn: (result: T) => boolean,
 		timeoutMessage: string,
 		retryCount = 200,
 		retryInterval = 100 // millis
@@ -331,7 +327,7 @@ export class Code {
 			let result;
 			try {
 				result = await fn();
-				if (await acceptFn(result)) {
+				if (acceptFn(result)) {
 					return result;
 				} else {
 					lastError = 'Did not pass accept function';

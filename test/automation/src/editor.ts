@@ -36,7 +36,7 @@ export class Editor {
 		await this.code.waitForActiveElement(RENAME_INPUT);
 		await this.code.waitForSetValue(RENAME_INPUT, to);
 
-		await this.code.dispatchKeybinding('enter', () => true);
+		await this.code.dispatchKeybinding('enter', () => { });
 	}
 
 	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {
@@ -101,35 +101,9 @@ export class Editor {
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}
 
-	async isTypedInEditor(filename: string, text: string, selectorPrefix = ''): Promise<boolean> {
-		if (text.includes('\n')) {
-			throw new Error('waitForTypeInEditor does not support new lines, use either a long single line or dispatchKeybinding(\'Enter\')');
-		}
-		const editor = [selectorPrefix || '', EDITOR(filename)].join(' ');
-		const element = await this.code.getElement(editor);
-		if (!element) {
-			return false;
-		}
-		const editContext = `${editor} ${this._editContextSelector()}`;
-		const isActiveEditContext = await this.code.isActiveElement(editContext);
-		if (!isActiveEditContext) {
-			return false;
-		}
-		await this.code.typeInEditor(editContext, text);
-		return this.isEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
-	}
-
 	async waitForEditorSelection(filename: string, accept: (selection: { selectionStart: number; selectionEnd: number }) => boolean): Promise<void> {
 		const selector = `${EDITOR(filename)} ${this._editContextSelector()}`;
 		await this.code.waitForEditorSelection(selector, accept);
-	}
-
-	async getEditorSelection(filename: string): Promise<{
-		selectionStart: number;
-		selectionEnd: number;
-	}> {
-		const selector = `${EDITOR(filename)} ${this._editContextSelector()}`;
-		return await this.code.getEditorSelection(selector);
 	}
 
 	private _editContextSelector() {
@@ -139,11 +113,6 @@ export class Editor {
 	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {
 		const selector = [selectorPrefix || '', `${EDITOR(filename)} .view-lines`].join(' ');
 		return this.code.waitForTextContent(selector, undefined, c => accept(c.replace(/\u00a0/g, ' ')));
-	}
-
-	async isEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<boolean> {
-		const selector = [selectorPrefix || '', `${EDITOR(filename)} .view-lines`].join(' ');
-		return this.code.isTextContent(selector, c => accept(c.replace(/\u00a0/g, ' ')));
 	}
 
 	private async getClassSelectors(filename: string, term: string, viewline: number): Promise<string[]> {

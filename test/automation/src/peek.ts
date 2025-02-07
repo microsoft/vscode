@@ -39,7 +39,7 @@ export class References {
 		while (true) {
 
 			try {
-				await this.code.dispatchKeybinding('escape', async () => { return !!(await this.code.getElement(References.REFERENCES_WIDGET)); }, 10);
+				await this.code.dispatchKeybinding('escape', async () => { await this.code.waitForElement(References.REFERENCES_WIDGET, el => !el, 10); });
 				return;
 			} catch (err) {
 				if (++count > 5) {

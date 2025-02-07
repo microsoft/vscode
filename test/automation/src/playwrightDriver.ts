@@ -229,7 +229,7 @@ export class PlaywrightDriver {
 		}
 	}
 
-	async dispatchKeybinding(keybinding: string) {
+	async dispatchKeybinding(keybinding: string, acceptFn: () => Promise<void> | void) {
 		const chords = keybinding.split(' ');
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];
@@ -255,6 +255,8 @@ export class PlaywrightDriver {
 				await this.page.keyboard.up(keysDown.pop()!);
 			}
 		}
+
+		await acceptFn();
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
