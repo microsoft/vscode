@@ -110,8 +110,12 @@ export const createArgState = (args?: Internal.Arg[]): ArgArrayState => {
 			// TODO: Pass templates out as a result
 			if (templateArray.includes("filepaths")) {
 				updatedGenerator = { template: 'filepaths' };
-			} else if (templateArray.includes("folders")) {
+			}
+			if (templateArray.includes("folders")) {
 				updatedGenerator = { template: 'folders' };
+			}
+			if (templateArray.includes("filepaths") && templateArray.includes("folders")) {
+				updatedGenerator = { template: ['filepaths', 'folders'] };
 			}
 
 			if (updatedGenerator && typeof generator !== 'string' && generator.filterTemplateSuggestions) {

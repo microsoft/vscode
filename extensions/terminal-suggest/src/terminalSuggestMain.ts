@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec, ExecOptionsWithStringEncoding } from 'child_process';
+import { ExecOptionsWithStringEncoding } from 'child_process';
 import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
@@ -24,7 +24,6 @@ import { getCommand, type Command } from './fig/shell-parser/command';
 import { SuggestionFlag } from './fig/shared/utils';
 import completionSpec from './completions/upstream/git';
 import { spawnHelper } from './shell/common';
-import { ParseArgumentsError } from './fig/autocomplete-parser/errors';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -253,11 +252,18 @@ export async function addSuggestionsFromParsedArguments(command: Command, parsed
 			for (const generator of generators) {
 				if (generator.template === 'filepaths') {
 					filesRequested = true;
+				} if (generator.template === 'folders') {
 					foldersRequested = true;
-					continue;
-				} else if (generator.template === 'folders') {
-					foldersRequested = true;
-				} else {
+				} else if (Array.isArray(generator.template)) {
+					for (const template of generator.template) {
+						if (template === 'filepaths') {
+							filesRequested = true;
+						} if (template === 'folders') {
+							foldersRequested = true;
+						}
+					}
+				}
+				else {
 					if (generator.script && Array.isArray(generator.script) && generator.postProcess) {
 						const output = await spawnHelper(generator.script[0], generator.script.slice(1), { encoding: 'utf8' }); //, { options });
 						const generatedItems = generator.postProcess(output, command.tokens.map(e => e.text));
@@ -441,6 +447,10 @@ export async function getCompletionItemsFromSpecs(
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
 			}
 		}
+		filesRequested = true;
+		foldersRequested = true;
+	} else if (!items.length && !filesRequested && !foldersRequested) {
+		// Not a command and no specific args or options were provided, so show resources
 		filesRequested = true;
 		foldersRequested = true;
 	}
