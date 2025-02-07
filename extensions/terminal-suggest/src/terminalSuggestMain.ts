@@ -261,7 +261,15 @@ export async function addSuggestionsFromParsedArguments(command: Command, parsed
 					}
 				} else {
 					if (generator.script && Array.isArray(generator.script) && generator.postProcess) {
-						const output = await spawnHelper(generator.script[0], generator.script.slice(1), { encoding: 'utf8' }); //, { options });
+						let output;
+						try {
+							output = await spawnHelper(generator.script[0], generator.script.slice(1), { encoding: 'utf8' }); //, { options });
+						} catch {
+							//ignore
+						}
+						if (!output) {
+							continue;
+						}
 						const generatedItems = generator.postProcess(output, command.tokens.map(e => e.text));
 						for (const generatedItem of generatedItems) {
 							if (!generatedItem) {

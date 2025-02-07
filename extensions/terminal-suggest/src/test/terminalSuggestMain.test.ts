@@ -18,6 +18,7 @@ import { mkdirTestSuiteSpec } from './completions/upstream/mkdir.test';
 import { rmTestSuiteSpec } from './completions/upstream/rm.test';
 import { rmdirTestSuiteSpec } from './completions/upstream/rmdir.test';
 import { touchTestSuiteSpec } from './completions/upstream/touch.test';
+import { gitTestSuiteSpec } from './completions/upstream/git.test';
 import { osIsWindows } from '../helpers/os';
 import codeCompletionSpec from '../completions/code';
 import { figGenericTestSuites } from './fig.test';
@@ -49,6 +50,7 @@ const testSpecs2: ISuiteSpec[] = [
 	rmTestSuiteSpec,
 	rmdirTestSuiteSpec,
 	touchTestSuiteSpec,
+	gitTestSuiteSpec,
 ];
 
 if (osIsWindows()) {
@@ -102,10 +104,10 @@ suite('Terminal Suggest', () => {
 						'testName'
 					);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
-					strictEqual(result.filesRequested, filesRequested);
-					strictEqual(result.foldersRequested, foldersRequested);
+					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
+					strictEqual(result.foldersRequested, foldersRequested, 'Folders requested different than expected, got: ' + result.foldersRequested);
 					if (testSpec.expectedResourceRequests?.cwd) {
-						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath);
+						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath, 'Non matching cwd');
 					}
 				});
 			}
