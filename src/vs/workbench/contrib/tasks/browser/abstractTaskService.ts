@@ -2952,6 +2952,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
+	rerun(): void {
+		this._reRunTaskCommand();
+	}
+
 	private _reRunTaskCommand(): void {
 
 		ProblemMatcherRegistry.onReady().then(() => {

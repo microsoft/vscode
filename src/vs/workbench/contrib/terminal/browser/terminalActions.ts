@@ -1453,6 +1453,9 @@ export function registerTerminalActions() {
 					if (result.success) {
 						await taskSystem.run(task);
 					}
+				} else {
+					// This is a single run task, just rerun it
+					taskSystem.rerun();
 				}
 			}
 		},
