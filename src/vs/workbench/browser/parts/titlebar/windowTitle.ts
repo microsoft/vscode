@@ -125,6 +125,7 @@ export class WindowTitle extends Disposable {
 				this.titleUpdater.schedule();
 			}
 		}));
+		this._register(this.decorationsService.onDidChangeDecorations(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -348,12 +349,8 @@ export class WindowTitle extends Disposable {
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
-		let editorTabDecorations: string | undefined = undefined;
-		if (editor?.resource) {
-			// TODO: what happens when there are many decorations?
-			// TODO: why doesn't the spacer get added by default?
-			editorTabDecorations = this.decorationsService.getDecoration(editor?.resource, true)?.tooltip;
-		}
+		const editorTabDecorations = editor?.resource ? this.decorationsService.getDecoration(editor.resource, true)?.tooltip : undefined;
+
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
 			variables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
