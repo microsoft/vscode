@@ -130,15 +130,18 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 		element.classList.add(...classNames);
 
-		element.setAttribute('role', 'button');
-		element.setAttribute('aria-haspopup', 'true');
-		element.setAttribute('aria-expanded', 'false');
 		if (this._action.label) {
 			this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), element, this._action.label));
 		}
-		element.ariaLabel = this._action.label || '';
 
 		return null;
+	}
+
+	protected setAriaLabelAttributes(element: HTMLElement): void {
+		element.setAttribute('role', 'button');
+		element.setAttribute('aria-haspopup', 'true');
+		element.setAttribute('aria-expanded', 'false');
+		element.ariaLabel = this._action.label || '';
 	}
 
 	protected override getTooltip(): string | undefined {

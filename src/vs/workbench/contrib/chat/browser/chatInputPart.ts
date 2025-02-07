@@ -1680,6 +1680,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		this.setAriaLabelAttributes(element);
 		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentLanguageModel.metadata.name), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
@@ -1727,6 +1728,9 @@ class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		// Can't call super.renderLabel because it has a hack of forcing the 'codicon' class
+		this.setAriaLabelAttributes(element);
+
 		const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
 		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
