@@ -230,7 +230,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			lastWordFolder = lastWordFolder.replaceAll('/', '\\');
 		}
 
-		const lastWordFolderHasDotPrefix = lastWordFolder.match(/^\.\.?[\\\/]/);
+		const lastWordFolderHasDotPrefix = !!lastWordFolder.match(/^\.\.?[\\\/]/);
 
 		const lastWordFolderHasTildePrefix = lastWordFolder.match(/^~[\\\/]/);
 		if (lastWordFolderHasTildePrefix) {
@@ -330,8 +330,14 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			//   `runOnEnter` is used.
 			// - `./src/|` -> `./src/`
 			if (foldersRequested) {
+				let label = '.';
+
+				if (lastWordFolder.length > 0) {
+					label = addPathRelativePrefix(lastWordFolder, resourceRequestConfig, lastWordFolderHasDotPrefix);
+				}
+
 				resourceCompletions.push({
-					label: lastWordFolder.length === 0 ? '.' : lastWordFolder,
+					label,
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
 					detail: getFriendlyPath(cwd, resourceRequestConfig.pathSeparator),
@@ -357,14 +363,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				const isDirectory = kind === TerminalCompletionItemKind.Folder;
 				const resourceName = basename(stat.resource.fsPath);
 
-				let label = `${lastWordFolder}${resourceName}`;
-
-				// Normalize suggestion to add a ./ prefix to the start of the path if there isn't
-				// one already. We may want to change this behavior in the future to go with
-				// whatever format the user has
-				if (!lastWordFolderHasDotPrefix) {
-					label = `.${resourceRequestConfig.pathSeparator}${label}`;
-				}
+				let label = addPathRelativePrefix(`${lastWordFolder}${resourceName}`, resourceRequestConfig, lastWordFolderHasDotPrefix);
 
 				// Ensure directories end with a path separator
 				if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
@@ -430,9 +429,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			// On Windows, the path seprators are normalized to `\`:
 			// - `./src/|` -> `.\src\..\`
 			if (foldersRequested) {
+				let label = `..${resourceRequestConfig.pathSeparator}`;
+				if (lastWordFolder.length > 0) {
+					label = addPathRelativePrefix(lastWordFolder + label, resourceRequestConfig, lastWordFolderHasDotPrefix);
+				}
 				const parentDir = URI.joinPath(cwd, '..' + resourceRequestConfig.pathSeparator);
 				resourceCompletions.push({
-					label: lastWordFolder + '..' + resourceRequestConfig.pathSeparator,
+					label,
 					provider,
 					kind: TerminalCompletionItemKind.Folder,
 					detail: getFriendlyPath(parentDir, resourceRequestConfig.pathSeparator),
@@ -458,4 +461,15 @@ function getFriendlyPath(uri: URI, pathSeparator: string, kind?: TerminalComplet
 		path = `${path[0].toUpperCase()}:${path.slice(2)}`;
 	}
 	return path;
+}
+
+/**
+ * Normalize suggestion to add a ./ prefix to the start of the path if there isn't one already. We
+ * may want to change this behavior in the future to go with whatever format the user has.
+ */
+function addPathRelativePrefix(text: string, resourceRequestConfig: Pick<TerminalResourceRequestConfig, 'pathSeparator'>, lastWordFolderHasDotPrefix: boolean): string {
+	if (!lastWordFolderHasDotPrefix) {
+		return `.${resourceRequestConfig.pathSeparator}${text}`;
+	}
+	return text;
 }
