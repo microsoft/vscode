@@ -1640,56 +1640,6 @@ interface ModelPickerDelegate {
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 }
 
-const chatInputEditorContainerSelector = '.interactive-input-editor';
-setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
-
-class ToggleAgentActionViewItem extends DropdownMenuActionViewItem {
-	private readonly agentStateActions: IAction[];
-
-	constructor(
-		action: MenuItemAction,
-		@IContextMenuService contextMenuService: IContextMenuService
-	) {
-		const toggleMenuAction = new ToggleMenuAction(() => { }, action.label);
-
-		const agentStateActions = [
-			{
-				...action,
-				id: 'agentMode',
-				label: localize('chat.agentMode', "Agent"),
-				class: undefined,
-				enabled: true,
-				run: () => action.run({ agentMode: true } satisfies IToggleAgentModeArgs)
-			},
-			{
-				...action,
-				id: 'normalMode',
-				label: localize('chat.normalMode', "Edit"),
-				class: undefined,
-				enabled: true,
-				checked: !action.checked,
-				run: () => action.run({ agentMode: false } satisfies IToggleAgentModeArgs)
-			},
-		];
-
-		super(toggleMenuAction, agentStateActions, contextMenuService);
-		this.agentStateActions = agentStateActions;
-		this._register(toggleMenuAction);
-	}
-
-	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		// TODO Hover with keybinding?
-		const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
-		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
-		return null;
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('chat-modelPicker-item');
-	}
-}
-
 class ModelPickerActionViewItem extends DropdownMenuActionViewItem {
 	constructor(
 		action: MenuItemAction,
@@ -1733,6 +1683,56 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItem {
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentLanguageModel.metadata.name), ...renderLabelWithIcons(`$(chevron-down)`));
+		return null;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-modelPicker-item');
+	}
+}
+
+const chatInputEditorContainerSelector = '.interactive-input-editor';
+setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
+
+class ToggleAgentActionViewItem extends DropdownMenuActionViewItem {
+	private readonly agentStateActions: IAction[];
+
+	constructor(
+		action: MenuItemAction,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		const toggleMenuAction = new ToggleMenuAction(() => { }, action.label);
+
+		const agentStateActions = [
+			{
+				...action,
+				id: 'agentMode',
+				label: localize('chat.agentMode', "Agent"),
+				class: undefined,
+				enabled: true,
+				run: () => action.run({ agentMode: true } satisfies IToggleAgentModeArgs)
+			},
+			{
+				...action,
+				id: 'normalMode',
+				label: localize('chat.normalMode', "Edit"),
+				class: undefined,
+				enabled: true,
+				checked: !action.checked,
+				run: () => action.run({ agentMode: false } satisfies IToggleAgentModeArgs)
+			},
+		];
+
+		super(toggleMenuAction, agentStateActions, contextMenuService);
+		this.agentStateActions = agentStateActions;
+		this._register(toggleMenuAction);
+	}
+
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		// TODO Hover with keybinding?
+		const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
+		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
 
