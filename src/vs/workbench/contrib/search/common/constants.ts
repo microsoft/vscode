@@ -80,4 +80,5 @@ export const SearchContext = {
 	InTreeViewKey: new RawContextKey<boolean>('inTreeView', false),
 	hasAIResultProvider: new RawContextKey<boolean>('hasAIResultProviderKey', false),
 	AIResultsTitle: new RawContextKey<boolean>('aiResultsTitle', false),
+	AIResultsRequested: new RawContextKey<boolean>('aiResultsRequested', false),
 };

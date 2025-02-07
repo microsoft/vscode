@@ -1659,8 +1659,16 @@ export class SearchView extends ViewPane {
 
 		const allResults = !this.viewModel.searchResult.isEmpty();
 		const aiResults = this.searchResult.getCachedSearchComplete(true);
-		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted || (this.shouldShowAIResults() && !aiResults)) {
+		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
 			return;
+		}
+
+		// Special case for when we have an AI provider registered
+		if (this.shouldShowAIResults()) {
+			Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(!!aiResults);
+			if (!aiResults) {
+				return;
+			}
 		}
 
 		if (!allResults) {
