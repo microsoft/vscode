@@ -453,9 +453,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this.inTerminal();
 	}
 
-	public async getTaskForTerminal(instanceId: number): Promise<Task | undefined> {
-		return this._taskSystem?.getTaskForTerminal(instanceId);
-	}
 
 	private async _registerCommands(): Promise<void> {
 		CommandsRegistry.registerCommand({
@@ -2952,12 +2949,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	rerun(): void {
-		this._reRunTaskCommand();
-	}
 
-	restart(task: Task): Promise<void> {
-		return this._restart(task);
+	rerun(terminalInstanceId: number): void {
+		const task = this._taskSystem?.getTaskForTerminal(terminalInstanceId);
+		if (task) {
+			this._restart(task);
+		} else {
+			this._reRunTaskCommand();
+		}
 	}
 
 	private _reRunTaskCommand(): void {

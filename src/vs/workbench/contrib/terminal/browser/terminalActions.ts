@@ -1442,17 +1442,11 @@ export function registerTerminalActions() {
 		title: localize2('workbench.action.terminal.rerunTaskTerminal', 'Rerun Task'),
 		precondition: ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.taskTerminalActive),
 		run: async (c, accessor, args) => {
-			const terminalService = accessor.get(ITerminalService);
+			const terminalService = c.service;
 			const taskSystem = accessor.get(ITaskService);
 			const instance = args as ITerminalInstance ?? terminalService.activeInstance;
 			if (instance) {
-				const task = await taskSystem.getTaskForTerminal(instance.instanceId);
-				if (task) {
-					await taskSystem.restart(task);
-				} else {
-					// This is a single run task, just rerun it
-					taskSystem.rerun();
-				}
+				await taskSystem.rerun(instance.instanceId);
 			}
 		},
 		menu: [{ id: MenuId.TerminalInstanceContext, when: TerminalContextKeys.taskTerminalActive }, { id: MenuId.TerminalTabContext, when: TerminalContextKeys.taskTerminalActive }],
