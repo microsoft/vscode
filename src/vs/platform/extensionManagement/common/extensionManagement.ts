@@ -514,6 +514,13 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
+export interface InstallExtensionsResult {
+	failed: {
+		extension: string | URI;
+		installOptions: InstallOptions;
+	}[];
+}
+
 export type InstallOptions = {
 	isBuiltin?: boolean;
 	isWorkspaceScoped?: boolean;

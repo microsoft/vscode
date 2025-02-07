@@ -12,7 +12,7 @@ import { Event } from '../../base/common/event.js';
 import { IURITransformer, transformOutgoingURIs } from '../../base/common/uriIpc.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterEqualsExpr, ContextKeyGreaterExpr, ContextKeyInExpr, ContextKeyNotEqualsExpr, ContextKeyNotExpr, ContextKeyNotInExpr, ContextKeyRegexExpr, ContextKeySmallerEqualsExpr, ContextKeySmallerExpr, IContextKeyExprMapper } from '../../platform/contextkey/common/contextkey.js';
-import { IExtensionGalleryService, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionGalleryService, InstallExtensionsResult, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
 import { FailedExtensionInstallationError, ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { IExtensionsScannerService, toExtensionDescription } from '../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ExtensionType, IExtensionDescription } from '../../platform/extensions/common/extensions.js';
@@ -28,8 +28,8 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _whenBuiltinExtensionsReady = Promise.resolve<{ extensions: Array<string | URI>; installOptions: InstallOptions }>({ extensions: [], installOptions: {} });
-	private readonly _whenExtensionsReady = Promise.resolve<{ extensions: Array<string | URI>; installOptions: InstallOptions }>({ extensions: [], installOptions: {} });
+	private readonly _whenBuiltinExtensionsReady = Promise.resolve<InstallExtensionsResult>({ failed: [] });
+	private readonly _whenExtensionsReady = Promise.resolve<InstallExtensionsResult>({ failed: [] });
 
 	constructor(
 		private readonly _extensionManagementCLI: ExtensionManagementCLI,
@@ -49,10 +49,10 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 				.then(() => {
 					performance.mark('code/server/didInstallBuiltinExtensions');
 					_logService.trace('Finished installing builtin extensions');
-					return { extensions: [], installOptions: {} };
+					return { failed: [] };
 				}, error => {
 					_logService.error(error);
-					return { extensions: [], installOptions: {} };
+					return { failed: [] };
 				});
 		}
 
@@ -68,14 +68,23 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], installOptions, !!environmentService.args['force']))
 				.then(() => {
 					_logService.trace('Finished installing extensions');
-					return { extensions: [], installOptions: {} };
+					return { failed: [] };
 				}, error => {
 					_logService.error(error);
 					if (error instanceof FailedExtensionInstallationError) {
 						_logService.error(`Failure while installing extensions`);
-						return { extensions: error.failed, installOptions };
+						return {
+							failed: error.failed.map(
+								e => {
+									return {
+										extension: e,
+										installOptions
+									};
+								}
+							)
+						};
 					}
-					return { extensions: [], installOptions: {} };
+					return { failed: [] };
 				});
 		}
 	}
@@ -84,7 +93,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 	}
 
-	whenExtensionsReady(): Promise<{ extensions: Array<string | URI>; installOptions: InstallOptions }> {
+	whenExtensionsReady(): Promise<InstallExtensionsResult> {
 		return this._whenExtensionsReady;
 	}
 
@@ -318,10 +327,14 @@ export class RemoteExtensionsScannerChannel implements IServerChannel {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (command) {
 			case 'whenExtensionsReady': {
-				const failed = await this.service.whenExtensionsReady();
+				const result = await this.service.whenExtensionsReady();
 				return {
-					extensions: failed.extensions.map(e => typeof e === 'string' ? e : uriTransformer.transformOutgoing(e)),
-					installOptions: failed.installOptions
+					failed: result.failed.map(f => {
+						return {
+							extension: typeof f.extension === 'string' ? f.extension : uriTransformer.transformOutgoing(f.extension),
+							installOptions: f.installOptions
+						};
+					})
 				};
 			}
 			case 'scanExtensions': {

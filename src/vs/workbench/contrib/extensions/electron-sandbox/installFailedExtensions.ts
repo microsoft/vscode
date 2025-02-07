@@ -5,11 +5,22 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionGalleryService, IExtensionManagementService, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { URI } from '../../../../base/common/uri.js';
+
+
+interface GalleryExtension {
+	id: string;
+	installOptions: InstallOptions;
+}
+
+interface VSIXExtension {
+	uri: URI;
+	installOptions: InstallOptions;
+}
 
 
 export class InstallFailedExtensions extends Disposable implements IWorkbenchContribution {
@@ -20,34 +31,39 @@ export class InstallFailedExtensions extends Disposable implements IWorkbenchCon
 		@ILogService logService: ILogService
 	) {
 		super();
-
 		remoteExtensionsScannerService.whenExtensionsReady()
-			.then(async ({ extensions, installOptions }) => {
-				if (extensions.length === 0) {
-					logService.trace('No failed extensions to re-attempt installation');
+			.then(async ({ failed }) => {
+				if (failed.length === 0) {
+					logService.trace('No failed extensions to install relayed from server');
 					return;
 				}
-				logService.info('Attempting to install extensions that remote server could not install');
-				const [galleryExtensionIds, extensionUris] = extensions.reduce<[{ id: string }[], URI[]]>((result, extension) => {
+				logService.info(`Processing '${failed.length}' extensions relayed from server`);
+				logService.trace(JSON.stringify(failed));
+				const [galleryExts, vsixExts] = failed.reduce<[GalleryExtension[], VSIXExtension[]]>((acc, f) => {
+					const { extension, installOptions } = f;
 					if (typeof extension === 'string') {
-						result[0].push({ id: extension });
+						acc[0].push({ id: extension, installOptions });
 					} else {
-						result[1].push(extension);
+						acc[1].push({ uri: extension, installOptions });
 					}
-					return result;
+					return acc;
 				}, [[], []]);
-				for (const ext of await this._extensionGalleryService.getExtensions(galleryExtensionIds, CancellationToken.None)) {
+
+				for (const { uri, installOptions } of vsixExts) {
+					try {
+						await this._extensionManagementService.install(uri, installOptions);
+					} catch (e) {
+						logService.error('Failed to install extension from URI', e);
+					}
+				}
+
+				const galleryExtensions = await this._extensionGalleryService.getExtensions(galleryExts, CancellationToken.None);
+				for (const ext of galleryExtensions) {
+					const installOptions = galleryExts.find(g => g.id === ext.identifier.id)?.installOptions;
 					try {
 						await this._extensionManagementService.installFromGallery(ext, installOptions);
 					} catch (e) {
 						logService.error('Failed to install extension from gallery', e);
-					}
-				}
-				for (const ext of extensionUris) {
-					try {
-						await this._extensionManagementService.install(ext, installOptions);
-					} catch (e) {
-						logService.error('Failed to install extension from URI', e);
 					}
 				}
 
