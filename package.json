@@ -236,5 +236,18 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
+  },
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "webui.endpoint": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Endpoint URL for the Open WebUI interface",
+          "pattern": "^https?://.*",
+          "patternErrorMessage": "Must be a valid HTTP/HTTPS URL"
+        }
+      }
+    }
   }
 }

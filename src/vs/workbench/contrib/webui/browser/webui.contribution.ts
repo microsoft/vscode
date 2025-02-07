@@ -16,6 +16,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { WebUIEditorInput } from './webuiEditorInput.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 // Register service with exact decorator name and eager instantiation
 registerSingleton(IWebUIService, WebUIWorkbenchService, InstantiationType.Eager);
@@ -72,3 +73,18 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 		'webui.chat',
 		WebUIEditorInput
 	);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		id: 'webui',
+		title: 'Open WebUI',
+		type: 'object',
+		properties: {
+			'webui.endpoint': {
+				type: 'string',
+				default: 'http://localhost:3000',
+				description: 'Endpoint URL for the Open WebUI interface',
+				scope: ConfigurationScope.APPLICATION
+			}
+		}
+	});
