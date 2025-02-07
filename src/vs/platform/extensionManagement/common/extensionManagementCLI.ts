@@ -22,11 +22,10 @@ const useId = localize('useId', "Make sure you use the full extension ID, includ
 type InstallVSIXInfo = { vsix: URI; installOptions: InstallOptions };
 type InstallGalleryExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
 
-export class ExtensionInstallationError extends Error {
-	constructor(message: string, public failed: Array<string | URI>, public innerError?: Error) {
-		super(innerError?.message ?? message);
-		this.name = innerError?.name ?? 'ExtensionInstallationError';
-		this.stack = innerError?.stack;
+export class FailedExtensionInstallationError extends Error {
+	constructor(message: string, public failed: Array<string | URI>) {
+		super(message);
+		this.name = 'FailedExtensionInstallationError';
 	}
 }
 
@@ -79,8 +78,7 @@ export class ExtensionManagementCLI {
 	}
 
 	public async installExtensions(extensions: (string | URI)[], builtinExtensions: (string | URI)[], installOptions: InstallOptions, force: boolean): Promise<void> {
-		const failed: (string | URI)[] = [];
-
+		const failed = new Set<string | URI>();
 		try {
 			if (extensions.length) {
 				this.logger.info(this.location ? localize('installingExtensionsOnLocation', "Installing extensions on {0}...", this.location) : localize('installingExtensions', "Installing extensions..."));
@@ -111,35 +109,41 @@ export class ExtensionManagementCLI {
 			const installed = await this.extensionManagementService.getInstalled(undefined, installOptions.profileLocation);
 
 			if (installVSIXInfos.length) {
-				await Promise.all(installVSIXInfos.map(async ({ vsix, installOptions }) => {
-					try {
-						await this.installVSIX(vsix, installOptions, force, installed);
-					} catch (err) {
-						this.logger.error(err);
-						failed.push(vsix);
-					}
-				}));
+				try {
+					await Promise.all(installVSIXInfos.map(async ({ vsix, installOptions }) => {
+						try {
+							await this.installVSIX(vsix, installOptions, force, installed);
+						} catch (err) {
+							this.logger.error(err);
+							failed.add(vsix);
+						}
+					}));
+				} catch (error) {
+					installVSIXInfos.forEach(e => failed.add(e.vsix));
+					this.logger.error(localize('error installing vsix extensions', "Error while installing vsix extensions: {0}", getErrorMessage(error)));
+				}
 			}
 
 			if (installExtensionInfos.length) {
-				const failedGalleryExtensions = await this.installGalleryExtensions(installExtensionInfos, installed, force);
-				failed.push(...failedGalleryExtensions);
+				try {
+					const failedGalleryExtensions = await this.installGalleryExtensions(installExtensionInfos, installed, force);
+					failedGalleryExtensions.forEach(e => failed.add(e));
+				} catch (error) {
+					installExtensionInfos.forEach(e => failed.add(e.id));
+					this.logger.error(localize('error installing gallery extensions', "Error while installing gallery extensions: {0}", getErrorMessage(error)));
+				}
 			}
 		} catch (error) {
-			this.logger.error(localize('error while installing extensions', "Error while installing extensions: {0}", getErrorMessage(error)));
-			throw new ExtensionInstallationError(
-				'Error while installing extensions',
-				extensions,
-				error);
+			this.logger.error(localize('error installing extensions', "Error while installing extensions: {0}", getErrorMessage(error)));
 		}
 
-		if (failed.length) {
-			throw new ExtensionInstallationError(
+		if (failed.size) {
+			throw new FailedExtensionInstallationError(
 				localize(
 					'installation failed',
-					"Failed installing extensions: {0}",
-					failed.map(ext => ext instanceof URI ? ext.toString() : ext).join(', ')),
-				failed);
+					"Failed installing the following extensions: {0}",
+					Array.from(failed).join(', ')),
+				Array.from(failed));
 		}
 	}
 
