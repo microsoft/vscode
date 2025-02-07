@@ -1707,7 +1707,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 
 				if (this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
 					actions.push(new Separator());
-					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Enable More Models..."), run: () => this._commandService.executeCommand('workbench.action.chat.upgradePlan') }));
+					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => this._commandService.executeCommand('workbench.action.chat.upgradePlan') }));
 				}
 
 				return actions;

@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { LineContext, SimpleCompletionModel } from '../../browser/simpleCompletionModel.js';
-import { SimpleCompletionItem, type ISimpleCompletion } from '../../browser/simpleCompletionItem.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TerminalCompletionModel } from '../../browser/terminalCompletionModel.js';
+import { LineContext } from '../../../../../services/suggest/browser/simpleCompletionModel.js';
+import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from '../../browser/terminalCompletionItem.js';
 
-function createItem(options: Partial<ISimpleCompletion>): SimpleCompletionItem {
-	return new SimpleCompletionItem({
+function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionItem {
+	return new TerminalCompletionItem({
 		...options,
+		kind: options.kind ?? TerminalCompletionItemKind.Method,
 		label: options.label || 'defaultLabel',
 		provider: options.provider || 'defaultProvider',
 		replacementIndex: options.replacementIndex || 0,
@@ -17,46 +19,46 @@ function createItem(options: Partial<ISimpleCompletion>): SimpleCompletionItem {
 	});
 }
 
-function createFileItems(...labels: string[]): SimpleCompletionItem[] {
-	return labels.map(label => createItem({ label, isFile: true }));
+function createFileItems(...labels: string[]): TerminalCompletionItem[] {
+	return labels.map(label => createItem({ label, kind: TerminalCompletionItemKind.File }));
 }
 
-function createFileItemsModel(...labels: string[]): SimpleCompletionModel {
-	return new SimpleCompletionModel(
+function createFileItemsModel(...labels: string[]): TerminalCompletionModel {
+	return new TerminalCompletionModel(
 		createFileItems(...labels),
 		new LineContext('', 0)
 	);
 }
 
-function createFolderItems(...labels: string[]): SimpleCompletionItem[] {
-	return labels.map(label => createItem({ label, isDirectory: true }));
+function createFolderItems(...labels: string[]): TerminalCompletionItem[] {
+	return labels.map(label => createItem({ label, kind: TerminalCompletionItemKind.Folder }));
 }
 
-function createFolderItemsModel(...labels: string[]): SimpleCompletionModel {
-	return new SimpleCompletionModel(
+function createFolderItemsModel(...labels: string[]): TerminalCompletionModel {
+	return new TerminalCompletionModel(
 		createFolderItems(...labels),
 		new LineContext('', 0)
 	);
 }
 
-function assertItems(model: SimpleCompletionModel, labels: string[]): void {
+function assertItems(model: TerminalCompletionModel, labels: string[]): void {
 	assert.deepStrictEqual(model.items.map(i => i.completion.label), labels);
 	assert.strictEqual(model.items.length, labels.length); // sanity check
 }
 
-suite('SimpleCompletionModel', function () {
+suite('TerminalCompletionModel', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	let model: SimpleCompletionModel;
+	let model: TerminalCompletionModel;
 
 	test('should handle an empty list', function () {
-		model = new SimpleCompletionModel([], new LineContext('', 0));
+		model = new TerminalCompletionModel([], new LineContext('', 0));
 
 		assert.strictEqual(model.items.length, 0);
 	});
 
 	test('should handle a list with one item', function () {
-		model = new SimpleCompletionModel([
+		model = new TerminalCompletionModel([
 			createItem({ label: 'a' }),
 		], new LineContext('', 0));
 
@@ -65,7 +67,7 @@ suite('SimpleCompletionModel', function () {
 	});
 
 	test('should sort alphabetically', function () {
-		model = new SimpleCompletionModel([
+		model = new TerminalCompletionModel([
 			createItem({ label: 'b' }),
 			createItem({ label: 'z' }),
 			createItem({ label: 'a' }),
@@ -75,6 +77,24 @@ suite('SimpleCompletionModel', function () {
 		assert.strictEqual(model.items[0].completion.label, 'a');
 		assert.strictEqual(model.items[1].completion.label, 'b');
 		assert.strictEqual(model.items[2].completion.label, 'z');
+	});
+
+	test('fuzzy matching', () => {
+		const initial = [
+			'.\\.eslintrc',
+			'.\\resources\\',
+			'.\\scripts\\',
+			'.\\src\\',
+		];
+		const expected = [
+			'.\\scripts\\',
+			'.\\src\\',
+			'.\\.eslintrc',
+			'.\\resources\\',
+		];
+		model = new TerminalCompletionModel(initial.map(e => (createItem({ label: e }))), new LineContext('s', 0));
+
+		assertItems(model, expected);
 	});
 
 	suite('files and folders', () => {
@@ -146,7 +166,7 @@ suite('SimpleCompletionModel', function () {
 					'tsfmt.json',
 				)
 			];
-			const model = new SimpleCompletionModel(items, new LineContext('', 0));
+			const model = new TerminalCompletionModel(items, new LineContext('', 0));
 			assertItems(model, [
 				'.build',
 				'build',

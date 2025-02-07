@@ -128,6 +128,8 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString;
 	}
 
+	// #region Chat participant detection
+
 	export interface ChatParticipantMetadata {
 		participant: string;
 		command?: string;
@@ -146,4 +148,6 @@ declare module 'vscode' {
 	export namespace chat {
 		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
 	}
+
+	// #endregion
 }

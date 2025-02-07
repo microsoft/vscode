@@ -17,7 +17,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { derived, IObservable, observableValue, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isString } from '../../../../../base/common/types.js';
+import { assertType, isString } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -53,24 +53,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	private readonly _currentSessionObs = observableValue<ChatEditingSession | null>(this, null);
 	private readonly _currentSessionDisposables = this._register(new DisposableStore());
 
-	private readonly _adhocSessionsObs = observableValueOpts<LinkedList<ChatEditingSession>>({ equalsFn: (a, b) => false }, new LinkedList());
+	private readonly _sessionsObs = observableValueOpts<LinkedList<ChatEditingSession>>({ equalsFn: (a, b) => false }, new LinkedList());
 
 	readonly editingSessionsObs: IObservable<readonly IChatEditingSession[]> = derived(r => {
-		const result = Array.from(this._adhocSessionsObs.read(r));
+		const result = Array.from(this._sessionsObs.read(r));
 		const globalSession = this._currentSessionObs.read(r);
 		if (globalSession) {
 			result.push(globalSession);
 		}
 		return result;
 	});
-
-	get globalEditingSession(): IChatEditingSession | null {
-		return this._currentSessionObs.get();
-	}
-
-	get globalEditingSessionObs(): IObservable<IChatEditingSession | null> {
-		return this._currentSessionObs;
-	}
 
 	private _editingSessionFileLimitPromise: Promise<number>;
 	private _editingSessionFileLimit: number | undefined;
@@ -156,7 +148,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
-		dispose(this._adhocSessionsObs.get());
+		dispose(this._sessionsObs.get());
 		super.dispose();
 	}
 
@@ -214,11 +206,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			.find(candidate => candidate.chatSessionId === chatSessionId);
 	}
 
-	async createEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable> {
+	async createEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
+
+		assertType(this.getEditingSession(chatSessionId) === undefined, 'CANNOT have more than one editing session per chat session');
+
 		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, false, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
 
-		const list = this._adhocSessionsObs.get();
+		const list = this._sessionsObs.get();
 		const removeSession = list.unshift(session);
 
 		const store = new DisposableStore();
@@ -228,12 +223,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		store.add(session.onDidDispose(e => {
 			removeSession();
-			this._adhocSessionsObs.set(list, undefined);
-			this._store.deleteAndLeak(store);
-			store.dispose();
+			this._sessionsObs.set(list, undefined);
+			this._store.delete(store);
 		}));
 
-		this._adhocSessionsObs.set(list, undefined);
+		this._sessionsObs.set(list, undefined);
 
 		return session;
 	}
@@ -387,8 +381,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	async getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
-		const currentSession = this._currentSessionObs.get();
-		if (!currentSession || chatSessionId !== currentSession.chatSessionId) {
+		const currentSession = this.getEditingSession(chatSessionId);
+		if (!currentSession) {
 			return undefined;
 		}
 		const userAddedWorkingSetEntries: URI[] = [];

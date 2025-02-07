@@ -162,8 +162,13 @@ abstract class AcceptDiscardAction extends Action2 {
 	override run(accessor: ServicesAccessor) {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
+		const sessions = chatEditingService.editingSessionsObs.get();
 
 		let uri = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel?.uri;
+		if (uri && !sessions.some(candidate => candidate.getEntry(uri!))) {
+			// Look for a session associated with the active cell editor. E.g. inlinechat
+			uri = undefined;
+		}
 		if (!uri) {
 			let editor = editorService.activeTextEditorControl;
 			if (isDiffEditor(editor)) {
@@ -177,8 +182,7 @@ abstract class AcceptDiscardAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.editingSessionsObs.get()
-			.find(candidate => candidate.getEntry(uri));
+		const session = sessions.find(candidate => candidate.getEntry(uri));
 
 		if (!session) {
 			return;

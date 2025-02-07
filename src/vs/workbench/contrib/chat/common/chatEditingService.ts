@@ -24,9 +24,6 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	readonly globalEditingSessionObs: IObservable<IChatEditingSession | null>;
-
-	readonly globalEditingSession: IChatEditingSession | null;
 
 	startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 
@@ -40,7 +37,7 @@ export interface IChatEditingService {
 	/**
 	 * Creates a new short lived editing session
 	 */
-	createEditingSession(chatSessionId: string): Promise<IChatEditingSession & IDisposable>;
+	createEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 
 	readonly editingSessionFileLimit: number;
 
@@ -78,7 +75,7 @@ export interface WorkingSetDisplayMetadata {
 	isMarkedReadonly?: boolean;
 }
 
-export interface IChatEditingSession {
+export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
 	readonly onDidChange: Event<ChatEditingSessionChangeType>;
