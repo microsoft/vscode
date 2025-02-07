@@ -232,7 +232,7 @@ export function asArray<T>(x: T | T[]): T[] {
 
 export type SpecArg = Fig.Arg | Fig.Suggestion | Fig.Option | string;
 
-export async function addSuggestionsFromParsedArguments(command: Command, parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
+export async function collectCompletionItemResult(command: Command, parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
 
@@ -406,10 +406,10 @@ export async function getCompletionItemsFromSpecs(
 					spec,
 				);
 				if (command) {
-					const requestResult = await addSuggestionsFromParsedArguments(command, parsedArguments, prefix, terminalContext, items);
-					if (requestResult) {
-						filesRequested ||= requestResult.filesRequested;
-						foldersRequested ||= requestResult.foldersRequested;
+					const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, items);
+					if (completionItemResult) {
+						filesRequested ||= completionItemResult.filesRequested;
+						foldersRequested ||= completionItemResult.foldersRequested;
 					}
 				}
 			} else {
