@@ -35,7 +35,7 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { getColorForSeverity } from './terminalStatusList.js';
 import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { getColorClass, getUriClasses } from './terminalIcon.js';
@@ -55,7 +55,6 @@ import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
-	private readonly _singleTabActionViewItem: MutableDisposable<SingleTerminalTabActionViewItem> = this._register(new MutableDisposable());
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _isInitialized: boolean = false;
 	/**
@@ -68,6 +67,7 @@ export class TerminalViewPane extends ViewPane {
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
 	private readonly _disposableStore = this._register(new DisposableStore());
+	private readonly _actionDisposables: DisposableMap<TerminalCommandId> = this._register(new DisposableMap());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -252,12 +252,12 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override createActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
-		this._disposableStore.clear();
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
 				const that = this;
-				const panelOnlySplitAction = new class extends Action {
+				const store = new DisposableStore();
+				const panelOnlySplitAction = store.add(new class extends Action {
 					constructor() {
 						super(action.id, action.label, action.class, action.enabled);
 						this.checked = action.checked;
@@ -271,21 +271,22 @@ export class TerminalViewPane extends ViewPane {
 						}
 						return;
 					}
-				};
-				this._disposableStore.add(panelOnlySplitAction);
-				return this._disposableStore.add(new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) }));
+				});
+				const item = store.add(new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) }));
+				this._actionDisposables.set(action.id, store);
+				return item;
 			}
 			case TerminalCommandId.SwitchTerminal: {
-				return this._disposableStore.add(this._instantiationService.createInstance(SwitchTerminalActionViewItem, action));
+				const item = this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
+				this._actionDisposables.set(action.id, item);
+				return item;
 			}
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
-					if (this._singleTabActionViewItem.value) {
-						return this._singleTabActionViewItem.value;
-					}
 					const actions = getFlatContextMenuActions(this._singleTabMenu.getActions({ shouldForwardArgs: true }));
-					this._singleTabActionViewItem.value = this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
-					return this._singleTabActionViewItem.value;
+					const item = this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
+					this._actionDisposables.set(action.id, item);
+					return item;
 				}
 				break;
 			}

@@ -121,10 +121,10 @@ class VoiceChatSessionControllerFactory {
 				if (activeCodeEditor) {
 					const inlineChat = InlineChatController.get(activeCodeEditor);
 					if (inlineChat) {
-						if (!inlineChat.joinCurrentRun()) {
+						if (!inlineChat.isActive) {
 							inlineChat.run();
 						}
-						return VoiceChatSessionControllerFactory.doCreateForChatWidget('inline', inlineChat.chatWidget);
+						return VoiceChatSessionControllerFactory.doCreateForChatWidget('inline', inlineChat.widget.chatWidget);
 					}
 				}
 				break;

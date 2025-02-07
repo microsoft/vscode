@@ -89,6 +89,10 @@ export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
+
+export const CTX_HAS_SESSION = new RawContextKey<undefined | 'empty' | 'active'>('inlineChatHasSession', undefined, localize('chat.hasInlineChatSession', "The current editor has an active inline chat session"));
+
+
 // --- (selected) action identifier
 
 export const ACTION_START = 'inlineChat.start';

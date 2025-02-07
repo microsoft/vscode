@@ -202,10 +202,9 @@ export function assertOneOf<TType, TSubtype extends TType>(
 }
 
 /**
- * Simple compile-time type check function to validate a type of
- * a provided object.
+ * Compile-time type check of a variable.
  */
-export function typeCheck<T extends unknown>(_thing: T): asserts _thing is T { }
+export function typeCheck<T = never>(_thing: NoInfer<T>): void { }
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
