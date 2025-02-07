@@ -50,6 +50,7 @@ import { HunkInformation, Session, StashedSession } from './inlineChatSession.js
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatError } from './inlineChatSessionServiceImpl.js';
 import { HunkAction, IEditObserver, LiveStrategy, ProgressingEditsOptions } from './inlineChatStrategies.js';
+import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 
 export const enum State {
@@ -116,10 +117,6 @@ export class InlineChatController implements IEditorContribution {
 
 	private readonly _messages = this._store.add(new Emitter<Message>());
 	protected readonly _onDidEnterState = this._store.add(new Emitter<State>());
-	readonly onDidEnterState = this._onDidEnterState.event;
-
-	private readonly _onWillStartSession = this._store.add(new Emitter<void>());
-	readonly onWillStartSession = this._onWillStartSession.event;
 
 	get chatWidget() {
 		return this._ui.value.widget.chatWidget;
@@ -209,7 +206,7 @@ export class InlineChatController implements IEditorContribution {
 		this._store.add(this._inlineChatSessionService.onDidEndSession(e => {
 			if (e.session === this._session && e.endedByExternalCause) {
 				this._log('session ENDED by external cause');
-				this.finishExistingSession();
+				this.acceptSession();
 			}
 		}));
 
@@ -242,8 +239,8 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	getMessage(): string | undefined {
-		return this._ui.value.widget.responseContent;
+	get widget(): EditorBasedInlineChatWidget {
+		return this._ui.value.widget;
 	}
 
 	getId(): string {
@@ -256,9 +253,13 @@ export class InlineChatController implements IEditorContribution {
 
 	private _currentRun?: Promise<void>;
 
-	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
+	async run(options: InlineChatRunOptions | undefined = {}): Promise<boolean> {
+
+		let lastState: State | undefined;
+		const d = this._onDidEnterState.event(e => lastState = e);
+
 		try {
-			this.finishExistingSession();
+			this.acceptSession();
 			if (this._currentRun) {
 				await this._currentRun;
 			}
@@ -266,7 +267,6 @@ export class InlineChatController implements IEditorContribution {
 				this._editor.setSelection(options.initialSelection);
 			}
 			this._stashedSession.clear();
-			this._onWillStartSession.fire();
 			this._currentRun = this._nextState(State.CREATE_SESSION, options);
 			await this._currentRun;
 
@@ -281,7 +281,10 @@ export class InlineChatController implements IEditorContribution {
 
 		} finally {
 			this._currentRun = undefined;
+			d.dispose();
 		}
+
+		return lastState !== State.CANCEL;
 	}
 
 	// ---- state machine
@@ -427,7 +430,7 @@ export class InlineChatController implements IEditorContribution {
 
 			if (shouldFinishSession) {
 				this._log('text changed outside of whole range, FINISH session');
-				this.finishExistingSession();
+				this.acceptSession();
 			}
 		}));
 
@@ -1075,13 +1078,6 @@ export class InlineChatController implements IEditorContribution {
 		}
 
 		this._messages.fire(Message.CANCEL_SESSION);
-	}
-
-	finishExistingSession(): void {
-		if (this._session) {
-			this._log('finishing existing session, using APPLY');
-			this.acceptSession();
-		}
 	}
 
 	reportIssue() {

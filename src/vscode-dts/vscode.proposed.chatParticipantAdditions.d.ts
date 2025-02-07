@@ -278,23 +278,6 @@ declare module 'vscode' {
 		 * Create a chat participant with the extended progress type
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
-
-		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
-	}
-
-	export interface ChatParticipantMetadata {
-		participant: string;
-		command?: string;
-		disambiguation: { category: string; description: string; examples: string[] }[];
-	}
-
-	export interface ChatParticipantDetectionResult {
-		participant: string;
-		command?: string;
-	}
-
-	export interface ChatParticipantDetectionProvider {
-		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
 	}
 
 	/*

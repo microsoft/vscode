@@ -10,7 +10,7 @@ import { asCssVariable, foreground } from '../../../../platform/theme/common/col
 import { after, append, $, trackFocus, EventType, addDisposableListener, Dimension, reset, isAncestorOfActiveElement, isActiveElement } from '../../../../base/browser/dom.js';
 import { createCSSRule } from '../../../../base/browser/domStylesheets.js';
 import { asCssValueWithDefault, asCSSUrl } from '../../../../base/browser/cssValue.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, IAction, IActionRunner } from '../../../../base/common/actions.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -367,6 +367,8 @@ export abstract class ViewPane extends Pane implements IView {
 	protected twistiesContainer?: HTMLElement;
 	private viewWelcomeController!: ViewWelcomeController;
 
+	private readonly headerActionViewItems: DisposableMap<string, IActionViewItem> = this._register(new DisposableMap());
+
 	protected readonly scopedContextKeyService: IContextKeyService;
 
 	constructor(
@@ -458,7 +460,13 @@ export abstract class ViewPane extends Pane implements IView {
 		actions.classList.toggle('show-expanded', this.showActions === ViewPaneShowActions.WhenExpanded);
 		this.toolbar = this.instantiationService.createInstance(WorkbenchToolBar, actions, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionViewItemProvider: (action, options) => this.getActionViewItem(action, options),
+			actionViewItemProvider: (action, options) => {
+				const item = this.createActionViewItem(action, options);
+				if (item) {
+					this.headerActionViewItems.set(item.action.id, item);
+				}
+				return item;
+			},
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			renderDropdownAsChildElement: true,
@@ -687,7 +695,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
-	getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === VIEWPANE_FILTER_ACTION.id) {
 			const that = this;
 			return new class extends BaseActionViewItem {

@@ -508,8 +508,6 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-
-
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
 		const chatEditingService = accessor.get(IChatEditingService);
@@ -534,7 +532,7 @@ registerAction2(class RemoveAction extends Action2 {
 
 			const requestsToRemove = chatRequests.slice(itemIndex);
 			const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
-			const entriesModifiedInRequestsToRemove = chatEditingService.globalEditingSessionObs.get()?.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
+			const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
 			const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
 
 			let message: string;

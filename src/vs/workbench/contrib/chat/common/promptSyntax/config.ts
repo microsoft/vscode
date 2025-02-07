@@ -135,17 +135,18 @@ export namespace PromptFilesConfig {
 		}
 
 		if (typeof configValue === 'string') {
-			const cleanValue = configValue.trim().toLowerCase();
+			const trimmedValue = configValue.trim();
+			const lowercasedValue = trimmedValue.toLowerCase();
 
-			if (!cleanValue) {
+			if (!lowercasedValue) {
 				return undefined;
 			}
 
-			if (asBoolean(cleanValue) !== undefined) {
-				return asBoolean(cleanValue);
+			if (asBoolean(lowercasedValue) !== undefined) {
+				return asBoolean(lowercasedValue);
 			}
 
-			return cleanValue;
+			return trimmedValue;
 		}
 
 		if (typeof configValue === 'boolean') {
