@@ -7,7 +7,6 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
@@ -115,10 +114,6 @@ export class ChatVariablesService implements IChatVariablesService {
 		return (await data.resolver(promptText, undefined, model, progress, token));
 	}
 
-	hasVariable(name: string): boolean {
-		return this._resolver.has(name.toLowerCase());
-	}
-
 	getVariable(name: string): IChatVariableData | undefined {
 		return this._resolver.get(name.toLowerCase())?.data;
 	}
@@ -144,17 +139,6 @@ export class ChatVariablesService implements IChatVariablesService {
 		}
 
 		return model.variables;
-	}
-
-	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
-		const key = data.name.toLowerCase();
-		if (this._resolver.has(key)) {
-			throw new Error(`A chat variable with the name '${data.name}' already exists.`);
-		}
-		this._resolver.set(key, { data, resolver });
-		return toDisposable(() => {
-			this._resolver.delete(key);
-		});
 	}
 
 	async attachContext(name: string, value: string | URI | Location, location: ChatAgentLocation) {

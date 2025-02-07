@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -40,8 +39,6 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
-	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
-	hasVariable(name: string): boolean;
 	getVariable(name: string): IChatVariableData | undefined;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
