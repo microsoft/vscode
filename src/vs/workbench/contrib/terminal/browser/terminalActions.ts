@@ -1444,7 +1444,7 @@ export function registerTerminalActions() {
 		run: async (c, accessor, args) => {
 			const terminalService = accessor.get(ITerminalService);
 			const taskSystem = accessor.get(ITaskService);
-			const instance = terminalService.activeInstance;
+			const instance = args as ITerminalInstance ?? terminalService.activeInstance;
 
 			if (instance) {
 				const task = await taskSystem.getTaskForTerminal(instance.instanceId);
@@ -1456,14 +1456,14 @@ export function registerTerminalActions() {
 				}
 			}
 		},
-		menu: [{ id: MenuId.TerminalTabContext }, { id: MenuId.TerminalInstanceContext }],
+		menu: [{ id: MenuId.TerminalInstanceContext, when: TerminalContextKeys.taskTerminalActive }, { id: MenuId.TerminalTabContext, when: TerminalContextKeys.taskTerminalActive }],
 		keybinding: {
 			when: TerminalContextKeys.focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
 			mac: {
 				primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
 			},
-			weight: KeybindingWeight.EditorContrib
+			weight: KeybindingWeight.WorkbenchContrib
 		}
 	});
 }

@@ -52,6 +52,7 @@ import { getColorForSeverity } from './terminalStatusList.js';
 import { TerminalContextActionRunner } from './terminalContextMenu.js';
 import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const $ = DOM.$;
 
@@ -260,7 +261,8 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IListService private readonly _listService: IListService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 	}
@@ -508,6 +510,11 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
 			}))
 		];
+		if (instance.shellLaunchConfig.type === 'Task') {
+			actions.push(this._register(new Action(TerminalCommandId.RerunTask, terminalStrings.rerunTask.value, ThemeIcon.asClassName(Codicon.debugRestart), true, async () => {
+				this._runForSelectionOrInstance(instance, e => this._commandService.executeCommand(TerminalCommandId.RerunTask, instance));
+			})));
+		}
 		// TODO: Cache these in a way that will use the correct instance
 		template.actionBar.clear();
 		for (const action of actions) {

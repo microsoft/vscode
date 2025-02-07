@@ -23,6 +23,7 @@ export const terminalStrings = {
 		...localize2('killTerminal', "Kill Terminal"),
 		short: localize('killTerminal.short', "Kill"),
 	},
+	rerunTask: localize2('workbench.action.terminal.rerunTask', "Rerun Task"),
 	moveToEditor: localize2('moveToEditor', "Move Terminal into Editor Area"),
 	moveIntoNewWindow: localize2('moveIntoNewWindow', "Move Terminal into New Window"),
 	moveToTerminalPanel: localize2('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
