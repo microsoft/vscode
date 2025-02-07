@@ -23,8 +23,11 @@ jobs:
     - name: Install dependencies
       run: npm install
 
+    - name: Install gulp
+      run: npm install -g gulp
+
     - name: Build installer (Windows)
-      run: npm run vscode-win32-x64
+      run:  npm run gulp -- vscode-win32-x64
 
     - name: Create release
       id: create_release
