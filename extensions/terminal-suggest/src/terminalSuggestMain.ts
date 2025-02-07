@@ -250,20 +250,16 @@ export async function addSuggestionsFromParsedArguments(command: Command, parsed
 		if (kind === vscode.TerminalCompletionItemKind.Argument && parsedArguments?.currentArg?.generators) {
 			const generators = parsedArguments.currentArg.generators;
 			for (const generator of generators) {
-				if (generator.template === 'filepaths') {
-					filesRequested = true;
-				} if (generator.template === 'folders') {
-					foldersRequested = true;
-				} else if (Array.isArray(generator.template)) {
-					for (const template of generator.template) {
+				if (generator.template) {
+					const templates = Array.isArray(generator.template) ? generator.template : [generator.template];
+					for (const template of templates) {
 						if (template === 'filepaths') {
 							filesRequested = true;
-						} if (template === 'folders') {
+						} else if (template === 'folders') {
 							foldersRequested = true;
 						}
 					}
-				}
-				else {
+				} else {
 					if (generator.script && Array.isArray(generator.script) && generator.postProcess) {
 						const output = await spawnHelper(generator.script[0], generator.script.slice(1), { encoding: 'utf8' }); //, { options });
 						const generatedItems = generator.postProcess(output, command.tokens.map(e => e.text));
