@@ -185,7 +185,7 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider<TsPasteE
 			const response = await raceTimeout(pasteOperation, pasteTimeout);
 			if (response) {
 				// Success, can return real paste edit.
-				const edit = TsPendingPasteEdit.tryCreateFromResponse(this._client, response);
+				const edit = TsPasteEdit.tryCreateFromResponse(this._client, response);
 				return edit ? [edit] : undefined;
 			} else {
 				// Still waiting on the response. Eagerly return a paste edit that we will resolve when we
