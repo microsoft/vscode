@@ -1009,22 +1009,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, metadata);
 			},
 			createFileSystemWatcher: (pattern, optionsOrIgnoreCreate, ignoreChange?, ignoreDelete?): vscode.FileSystemWatcher => {
-				let options: FileSystemWatcherCreateOptions | undefined = undefined;
-
-				if (optionsOrIgnoreCreate && typeof optionsOrIgnoreCreate !== 'boolean') {
-					checkProposedApiEnabled(extension, 'createFileSystemWatcher');
-					options = {
-						...optionsOrIgnoreCreate,
-						correlate: true
-					};
-				} else {
-					options = {
-						ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),
-						ignoreChangeEvents: Boolean(ignoreChange),
-						ignoreDeleteEvents: Boolean(ignoreDelete),
-						correlate: false
-					};
-				}
+				const options: FileSystemWatcherCreateOptions = {
+					ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),
+					ignoreChangeEvents: Boolean(ignoreChange),
+					ignoreDeleteEvents: Boolean(ignoreDelete),
+				};
 
 				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, configProvider, extension, pattern, options);
 			},
@@ -1454,7 +1443,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
 			},
 			registerChatParticipantDetectionProvider(provider: vscode.ChatParticipantDetectionProvider) {
-				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
 			registerRelatedFilesProvider(provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata) {

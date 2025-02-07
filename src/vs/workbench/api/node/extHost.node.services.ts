@@ -26,6 +26,7 @@ import { ExtHostLogService } from '../common/extHostLogService.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
 import { SignService } from '../../../platform/sign/node/signService.js';
+import { ExtHostTelemetry, IExtHostTelemetry } from '../common/extHostTelemetry.js';
 
 // #########################################################################
 // ###                                                                   ###
@@ -38,6 +39,7 @@ registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delaye
 registerSingleton(ILogService, new SyncDescriptor(ExtHostLogService, [false], true));
 registerSingleton(ISignService, SignService, InstantiationType.Delayed);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
+registerSingleton(IExtHostTelemetry, new SyncDescriptor(ExtHostTelemetry, [false], true));
 
 registerSingleton(IExtHostDebugService, ExtHostDebugService, InstantiationType.Eager);
 registerSingleton(IExtHostSearch, NativeExtHostSearch, InstantiationType.Eager);

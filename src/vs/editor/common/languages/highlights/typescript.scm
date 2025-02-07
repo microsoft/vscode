@@ -306,7 +306,8 @@
 
 (rest_pattern) @keyword.operator.rest
 
-(spread_element) @keyword.operator.spread
+(spread_element
+  ("...") @keyword.operator.spread)
 
 ; Language constants
 

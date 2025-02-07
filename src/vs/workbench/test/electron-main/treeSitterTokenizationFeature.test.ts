@@ -20,7 +20,7 @@ import { IEnvironmentService } from '../../../platform/environment/common/enviro
 import { ModelService } from '../../../editor/common/services/modelService.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { TreeSitterTokenizationFeature } from '../../services/treeSitter/browser/treeSitterTokenizationFeature.js';
-import { ITreeSitterParserService, TreeUpdateEvent } from '../../../editor/common/services/treeSitterParserService.js';
+import { ITreeSitterImporter, ITreeSitterParserService, TreeSitterImporter, TreeUpdateEvent } from '../../../editor/common/services/treeSitterParserService.js';
 import { ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../editor/common/languages.js';
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -131,6 +131,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 		instantiationService.set(ITextResourcePropertiesService, textResourcePropertiesService);
 		languageConfigurationService = disposables.add(instantiationService.createInstance(TestLanguageConfigurationService));
 		instantiationService.set(ILanguageConfigurationService, languageConfigurationService);
+		instantiationService.set(ITreeSitterImporter, instantiationService.createInstance(TreeSitterImporter));
 
 		fileService = disposables.add(instantiationService.createInstance(FileService));
 		const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(logService));

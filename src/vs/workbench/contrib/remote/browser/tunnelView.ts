@@ -902,7 +902,7 @@ export class TunnelPanel extends ViewPane {
 			}
 		) as WorkbenchTable<ITunnelItem>;
 
-		const actionRunner: ActionRunner = new ActionRunner();
+		const actionRunner: ActionRunner = this.tableDisposables.add(new ActionRunner());
 		actionBarRenderer.actionRunner = actionRunner;
 
 		this.tableDisposables.add(this.table);

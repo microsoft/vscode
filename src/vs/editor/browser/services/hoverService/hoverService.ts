@@ -26,7 +26,9 @@ import { ManagedHoverWidget } from './updatableHoverWidget.js';
 import { timeout, TimeoutTimer } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { isNumber } from '../../../../base/common/types.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -41,6 +43,9 @@ export class HoverService extends Disposable implements IHoverService {
 
 	private _lastFocusedElementBeforeOpen: HTMLElement | undefined;
 
+	private readonly _delayedHovers = new Map<HTMLElement, { show: (focus: boolean) => void }>();
+	private readonly _managedHovers = new Map<HTMLElement, IManagedHover>();
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -53,6 +58,14 @@ export class HoverService extends Disposable implements IHoverService {
 
 		this._register(contextMenuService.onDidShowContextMenu(() => this.hideHover()));
 		this._contextViewHandler = this._register(new ContextViewHandler(this._layoutService));
+
+		this._register(KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: 'workbench.action.showHover',
+			weight: KeybindingWeight.WorkbenchContrib - 1,
+			when: EditorContextKeys.editorTextFocus.negate(),
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
+			handler: () => { this._showAndFocusHoverForActiveElement(); },
+		}));
 	}
 
 	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean, dontShow?: boolean): IHoverWidget | undefined {
@@ -160,6 +173,10 @@ export class HoverService extends Disposable implements IHoverService {
 				}
 			}));
 		}
+
+		this._delayedHovers.set(target, { show: (focus: boolean) => { this.showHover(resolveHoverOptions(), focus); } });
+		store.add(toDisposable(() => this._delayedHovers.delete(target)));
+
 		return store;
 	}
 
@@ -301,6 +318,21 @@ export class HoverService extends Disposable implements IHoverService {
 		this.showHover(this._lastHoverOptions, true, true);
 	}
 
+	private _showAndFocusHoverForActiveElement(): void {
+		// TODO: if hover is visible, focus it to avoid flickering
+
+		let activeElement = getActiveElement() as HTMLElement | null;
+		while (activeElement) {
+			const hover = this._delayedHovers.get(activeElement) ?? this._managedHovers.get(activeElement);
+			if (hover) {
+				hover.show(true);
+				return;
+			}
+
+			activeElement = activeElement.parentElement;
+		}
+	}
+
 	private _keyDown(e: KeyboardEvent, hover: HoverWidget, hideOnKeyDown: boolean) {
 		if (e.key === 'Alt') {
 			hover.isLocked = true;
@@ -327,8 +359,6 @@ export class HoverService extends Disposable implements IHoverService {
 			}
 		}
 	}
-
-	private readonly _managedHovers = new Map<HTMLElement, IManagedHover>();
 
 	// TODO: Investigate performance of this function. There seems to be a lot of content created
 	//       and thrown away on start up

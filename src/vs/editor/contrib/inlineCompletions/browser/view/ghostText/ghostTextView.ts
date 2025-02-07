@@ -43,6 +43,7 @@ export class GhostTextView extends Disposable {
 			extraClasses?: string[];
 			syntaxHighlightingEnabled: boolean;
 		}>,
+		private readonly _shouldKeepCursorStable: boolean,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
@@ -151,7 +152,8 @@ export class GhostTextView extends Disposable {
 					minReservedLineCount: uiState.additionalReservedLineCount,
 					targetTextModel: uiState.targetTextModel,
 				} : undefined;
-			})
+			}),
+			this._shouldKeepCursorStable
 		)
 	);
 
@@ -257,7 +259,8 @@ export class AdditionalLinesWidget extends Disposable {
 			lineNumber: number;
 			additionalLines: LineData[];
 			minReservedLineCount: number;
-		} | undefined>
+		} | undefined>,
+		private readonly shouldKeepCursorStable: boolean
 	) {
 		super();
 
@@ -334,6 +337,10 @@ export class AdditionalLinesWidget extends Disposable {
 	}
 
 	private keepCursorStable(lineNumber: number, heightInLines: number): void {
+		if (!this.shouldKeepCursorStable) {
+			return;
+		}
+
 		const cursorLineNumber = this.editor.getSelection()?.getStartPosition()?.lineNumber;
 		if (cursorLineNumber !== undefined && lineNumber < cursorLineNumber) {
 			this.editor.setScrollTop(this.editor.getScrollTop() + heightInLines * this.editor.getOption(EditorOption.lineHeight));

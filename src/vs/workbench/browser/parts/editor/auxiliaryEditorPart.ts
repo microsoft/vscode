@@ -312,7 +312,12 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			targetGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
 		}
 
-		const result = this.mergeAllGroups(targetGroup);
+		const result = this.mergeAllGroups(targetGroup, {
+			// Try to reduce the impact of closing the auxiliary window
+			// as much as possible by not changing existing editors
+			// in the main window. 
+			preserveExistingIndex: true
+		});
 		targetGroup.focus();
 
 		return result;

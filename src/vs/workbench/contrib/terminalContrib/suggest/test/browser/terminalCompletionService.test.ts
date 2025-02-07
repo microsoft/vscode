@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
-import { TerminalCompletionService, TerminalCompletionItemKind, TerminalResourceRequestConfig, ITerminalCompletion } from '../../browser/terminalCompletionService.js';
+import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert from 'assert';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { ShellEnvDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/shellEnvDetectionCapability.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -126,8 +127,7 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 3, provider, capabilities);
 
@@ -142,8 +142,7 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5, provider, capabilities);
 
@@ -157,8 +156,7 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./f', 6, provider, capabilities);
 
@@ -173,7 +171,6 @@ suite('TerminalCompletionService', () => {
 				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
 				foldersRequested: true,
 				pathSeparator,
-				shouldNormalizePrefix: true,
 				env: { HOME: '/test/' }
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ~/', 5, provider, capabilities);
@@ -200,8 +197,7 @@ suite('TerminalCompletionService', () => {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				filesRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider, capabilities);
 
@@ -220,8 +216,7 @@ suite('TerminalCompletionService', () => {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				filesRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './h', 3, provider, capabilities);
 
@@ -246,8 +241,7 @@ suite('TerminalCompletionService', () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
 					cwd: URI.parse('file:///C:'),
 					foldersRequested: true,
-					pathSeparator,
-					shouldNormalizePrefix: true,
+					pathSeparator
 				};
 				validResources = [URI.parse('file:///C:/Foo')];
 				childResources = [
@@ -265,8 +259,7 @@ suite('TerminalCompletionService', () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
 					cwd: URI.parse('file:///c:'),
 					foldersRequested: true,
-					pathSeparator,
-					shouldNormalizePrefix: true,
+					pathSeparator
 				};
 				validResources = [URI.parse('file:///c:/foo')];
 				childResources = [
@@ -285,8 +278,7 @@ suite('TerminalCompletionService', () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
 					cwd: URI.parse('file:///'),
 					foldersRequested: true,
-					pathSeparator,
-					shouldNormalizePrefix: true
+					pathSeparator
 				};
 				validResources = [URI.parse('file:///foo')];
 				childResources = [
@@ -307,8 +299,7 @@ suite('TerminalCompletionService', () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
 					cwd: URI.parse('file:///C:/test'),
 					foldersRequested: true,
-					pathSeparator: '\\',
-					shouldNormalizePrefix: true
+					pathSeparator: '\\'
 				};
 
 				validResources = [URI.parse('file:///C:/test')];
@@ -331,8 +322,7 @@ suite('TerminalCompletionService', () => {
 				const resourceRequestConfig: TerminalResourceRequestConfig = {
 					cwd: URI.parse('file:///test'),
 					foldersRequested: true,
-					pathSeparator: '/',
-					shouldNormalizePrefix: true
+					pathSeparator: '/'
 				};
 				validResources = [URI.parse('file:///test')];
 				childResources = [
@@ -355,8 +345,7 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
 			childResources = [
@@ -377,8 +366,7 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
 			childResources = Array.from({ length: 1000 }, (_, i) => ({
@@ -398,8 +386,7 @@ suite('TerminalCompletionService', () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
 			childResources = [
@@ -438,8 +425,7 @@ suite('TerminalCompletionService', () => {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				filesRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
 
@@ -456,8 +442,7 @@ suite('TerminalCompletionService', () => {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
 				filesRequested: true,
-				pathSeparator,
-				shouldNormalizePrefix: true
+				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
 
@@ -495,9 +480,7 @@ suite('TerminalCompletionService', () => {
 				cwd: URI.parse(`${uriPathPrefix}test`),
 				foldersRequested: true,
 				filesRequested: true,
-				pathSeparator,
-				// TODO: This is a hack to make the test pass, clean up when https://github.com/microsoft/vscode/issues/239411 is done
-				shouldNormalizePrefix: !isWindows
+				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
 
