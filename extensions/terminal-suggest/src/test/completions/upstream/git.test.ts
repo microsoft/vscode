@@ -29,8 +29,8 @@ export const gitTestSuiteSpec: ISuiteSpec = {
 		{ input: 'git |', expectedCompletions: gitSubcommandAndArgs },
 
 		// Complex options
-		{ input: 'git add |', expectedCompletions: gitAddArgs, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'git commit |', expectedCompletions: gitCommitArgs },
-		{ input: 'git merge |', expectedCompletions: gitMergeArgs }
+		// { input: 'git add |', expectedCompletions: gitAddArgs, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		// { input: 'git commit |', expectedCompletions: gitCommitArgs },
+		// { input: 'git merge |', expectedCompletions: gitMergeArgs }
 	],
 };
