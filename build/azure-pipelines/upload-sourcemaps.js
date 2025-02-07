@@ -87,8 +87,8 @@ function main() {
             .pipe(azure.upload({
             account: process.env.AZURE_STORAGE_ACCOUNT,
             credential,
-            container: 'sourcemaps',
-            prefix: commit + '/'
+            container: '$web',
+            prefix: `sourcemaps/${commit}/`
         }))
             .on('end', () => c())
             .on('error', (err) => e(err));
