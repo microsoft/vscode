@@ -12,10 +12,6 @@ import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProg
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;
 
-	getVariable(name: string): IChatVariableData | undefined {
-		throw new Error('Method not implemented.');
-	}
-
 	getVariables(): Iterable<Readonly<IChatVariableData>> {
 		throw new Error('Method not implemented.');
 	}

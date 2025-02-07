@@ -673,12 +673,10 @@ export class AttachContextAction extends Action2 {
 		}
 		const chatEditingService = widget.location === ChatAgentLocation.EditingSession ? accessor.get(IChatEditingService) : undefined;
 
-		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
-		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
 		if (!context || !context.showFilesOnly) {
 			for (const variable of chatVariablesService.getVariables()) {
-				if (variable.fullName && (!variable.isSlow || slowSupported)) {
+				if (variable.fullName) {
 					quickPickItems.push({
 						kind: 'variable',
 						variable,

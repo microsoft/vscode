@@ -13,7 +13,7 @@ import { Location } from '../../../../editor/common/languages.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
-import { ChatRequestDynamicVariablePart, ChatRequestToolPart, ChatRequestVariablePart, IParsedChatRequest } from '../common/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
@@ -41,24 +41,7 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		prompt.parts
 			.forEach((part, i) => {
-				if (part instanceof ChatRequestVariablePart) {
-					const data = this._resolver.get(part.variableName.toLowerCase());
-					if (data) {
-						const references: IChatContentReference[] = [];
-						const variableProgressCallback = (item: IChatVariableResolverProgress) => {
-							if (item.kind === 'reference') {
-								references.push(item);
-								return;
-							}
-							progress(item);
-						};
-						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(value => {
-							if (value) {
-								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references, fullName: data.data.fullName, icon: data.data.icon };
-							}
-						}).catch(onUnexpectedExternalError));
-					}
-				} else if (part instanceof ChatRequestDynamicVariablePart) {
+				if (part instanceof ChatRequestDynamicVariablePart) {
 					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon, isFile: part.isFile };
 				} else if (part instanceof ChatRequestToolPart) {
 					resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined, fullName: part.displayName };
@@ -112,10 +95,6 @@ export class ChatVariablesService implements IChatVariablesService {
 		}
 
 		return (await data.resolver(promptText, undefined, model, progress, token));
-	}
-
-	getVariable(name: string): IChatVariableData | undefined {
-		return this._resolver.get(name.toLowerCase())?.data;
 	}
 
 	getVariables(): Iterable<Readonly<IChatVariableData>> {

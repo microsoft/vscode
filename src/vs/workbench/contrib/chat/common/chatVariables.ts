@@ -21,7 +21,6 @@ export interface IChatVariableData {
 	fullName?: string;
 	description: string;
 	modelDescription?: string;
-	isSlow?: boolean;
 	canTakeArgument?: boolean;
 }
 
@@ -39,7 +38,6 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
-	getVariable(name: string): IChatVariableData | undefined;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
 	attachContext(name: string, value: string | URI | Location | unknown, location: ChatAgentLocation): void;

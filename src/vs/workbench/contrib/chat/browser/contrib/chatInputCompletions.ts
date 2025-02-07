@@ -34,10 +34,9 @@ import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
-import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
@@ -825,78 +824,3 @@ function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatCompleti
 	const startToCompletionWordStart = new Range(1, 1, rangeResult.replace.startLineNumber, rangeResult.replace.startColumn);
 	return !!model.getValueInRange(startToCompletionWordStart).match(/^\s*$/);
 }
-
-class VariableCompletions extends Disposable {
-
-	private static readonly VariableNameDef = new RegExp(`(?<=^|\\s)${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
-
-	constructor(
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService
-	) {
-		super();
-
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
-			_debugDisplayName: 'chatVariables',
-			triggerCharacters: [chatVariableLeader],
-			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
-				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
-					return null;
-				}
-
-				const range = computeCompletionRanges(model, position, VariableCompletions.VariableNameDef, true);
-				if (!range) {
-					return null;
-				}
-
-				const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
-				const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
-
-				const usedVariables = widget.parsedInput.parts.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
-				const usedVariableNames = new Set(usedVariables.map(v => v.variableName));
-				const variableItems = Array.from(this.chatVariablesService.getVariables())
-					// This doesn't look at dynamic variables like `file`, where multiple makes sense.
-					.filter(v => !usedVariableNames.has(v.name))
-					.filter(v => !v.isSlow || slowSupported)
-					.map((v): CompletionItem => {
-						const withLeader = `${chatVariableLeader}${v.name}`;
-						return {
-							label: withLeader,
-							range,
-							insertText: withLeader + ' ',
-							documentation: v.description,
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway
-							sortText: 'z'
-						};
-					});
-
-				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
-				const usedToolNames = new Set(usedTools.map(v => v.toolName));
-				const toolItems: CompletionItem[] = [];
-				toolItems.push(...Array.from(toolsService.getTools())
-					.filter(t => t.canBeReferencedInPrompt)
-					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
-					.map((t): CompletionItem => {
-						const withLeader = `${chatVariableLeader}${t.toolReferenceName}`;
-						return {
-							label: withLeader,
-							range,
-							insertText: withLeader + ' ',
-							documentation: t.userDescription,
-							kind: CompletionItemKind.Text,
-							sortText: 'z'
-						};
-					}));
-
-				return {
-					suggestions: [...variableItems, ...toolItems]
-				};
-			}
-		}));
-	}
-}
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VariableCompletions, LifecyclePhase.Eventually);
