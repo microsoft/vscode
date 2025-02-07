@@ -13,7 +13,6 @@ export const enum TerminalSuggestSettingId {
 	QuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
-	BuiltinCompletions = 'terminal.integrated.suggest.builtinCompletions',
 	WindowsExecutableExtensions = 'terminal.integrated.suggest.windowsExecutableExtensions',
 	Providers = 'terminal.integrated.suggest.providers',
 	ShowStatusBar = 'terminal.integrated.suggest.showStatusBar',
@@ -46,10 +45,6 @@ export interface ITerminalSuggestConfiguration {
 	quickSuggestions: boolean;
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
-	builtinCompletions: {
-		'pwshCode': boolean;
-		'pwshGit': boolean;
-	};
 	providers: {
 		'terminal-suggest': boolean;
 		'pwsh-shell-integration': boolean;
@@ -71,7 +66,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		properties: {},
 		default: {
 			'terminal-suggest': true,
-			'pwsh-shell-integration': false,
+			'pwsh-shell-integration': true,
 		},
 		tags: ['preview'],
 	},
@@ -101,26 +96,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
 		default: 'ignore',
-		tags: ['preview']
-	},
-	[TerminalSuggestSettingId.BuiltinCompletions]: {
-		restricted: true,
-		markdownDescription: localize('suggest.builtinCompletions', "Controls which built-in completions are activated. This setting can cause conflicts if custom shell completions are configured in the shell profile."),
-		type: 'object',
-		properties: {
-			'pwshCode': {
-				description: localize('suggest.builtinCompletions.pwshCode', 'Custom PowerShell argument completers will be registered for VS Code\'s `code` and `code-insiders` CLIs. This is currently very basic and always suggests flags and subcommands without checking context.'),
-				type: 'boolean'
-			},
-			'pwshGit': {
-				description: localize('suggest.builtinCompletions.pwshGit', 'Custom PowerShell argument completers will be registered for the `git` CLI.'),
-				type: 'boolean'
-			},
-		},
-		default: {
-			pwshCode: true,
-			pwshGit: true,
-		},
 		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {

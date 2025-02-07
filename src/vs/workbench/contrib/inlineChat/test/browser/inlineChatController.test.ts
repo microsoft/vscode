@@ -33,7 +33,7 @@ import { IAccessibleViewService } from '../../../../../platform/accessibility/br
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
-import { InlineChatController, State } from '../../browser/inlineChatController.js';
+import { InlineChatController1, State } from '../../browser/inlineChatController.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
@@ -68,7 +68,7 @@ import { IChatEditingService, IChatEditingSession } from '../../../chat/common/c
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 
@@ -88,7 +88,7 @@ suite('InlineChatController', function () {
 		disambiguation: [],
 	};
 
-	class TestController extends InlineChatController {
+	class TestController extends InlineChatController1 {
 
 		static INIT_SEQUENCE: readonly State[] = [State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT];
 		static INIT_SEQUENCE_AUTO_SEND: readonly State[] = [...this.INIT_SEQUENCE, State.SHOW_REQUEST, State.WAIT_FOR_INPUT];
@@ -163,7 +163,6 @@ suite('InlineChatController', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IChatEditingService, new class extends mock<IChatEditingService>() {
-				override globalEditingSessionObs: IObservable<IChatEditingSession | null> = observableValue(this, null);
 				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
@@ -470,7 +469,7 @@ suite('InlineChatController', function () {
 
 		editor.executeEdits('test', [EditOperation.insert(model.getFullModelRange().getEndPosition(), 'MANUAL')]);
 
-		ctrl.finishExistingSession();
+		ctrl.acceptSession();
 		await r;
 		assert.ok(model.getValue().includes('GENERATED'));
 		assert.ok(model.getValue().includes('MANUAL'));
@@ -509,7 +508,7 @@ suite('InlineChatController', function () {
 		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'PROMPT_2');
-		ctrl.finishExistingSession();
+		ctrl.acceptSession();
 		await r;
 	});
 
@@ -558,7 +557,7 @@ suite('InlineChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'drei-eins-');
 
-		ctrl.finishExistingSession();
+		ctrl.acceptSession();
 		await r;
 
 	});
