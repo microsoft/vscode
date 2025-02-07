@@ -807,10 +807,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.chat-modelPicker-item {
 		min-width: 0px;
 
-		.chat-model-label {
+		.action-label {
 			min-width: 0px;
-			overflow: hidden;
-			text-overflow: ellipsis;
+
+			.chat-model-label {
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 		}
 
 		.codicon {
@@ -823,7 +826,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-session .chat-input-toolbars .chat-modelPicker-item {
+.interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
 	display: flex;
@@ -831,7 +834,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .chat-input-toolbars .chat-modelPicker-item .codicon-chevron-down {
+.interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label .codicon-chevron-down {
 	font-size: 12px;
 	margin-left: 2px;
 }
