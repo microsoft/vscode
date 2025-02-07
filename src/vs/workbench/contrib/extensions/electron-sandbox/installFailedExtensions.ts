@@ -28,7 +28,6 @@ export class InstallFailedExtensions extends Disposable implements IWorkbenchCon
 					return;
 				}
 				logService.info('Attempting to install extensions that remote server could not install');
-				// Only processes gallery extensions for now
 				const [galleryExtensionIds, extensionUris] = extensions.reduce<[{ id: string }[], URI[]]>((result, extension) => {
 					if (typeof extension === 'string') {
 						result[0].push({ id: extension });
