@@ -33,9 +33,13 @@ export class NotebookChatActionsOverlayController extends Disposable {
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 
 		this._register(autorunWithStore((r, store) => {
-			const session = this._chatEditingService.globalEditingSessionObs.read(r);
 			const model = notebookModel.read(r);
-			if (!model || !session) {
+			if (!model) {
+				return;
+			}
+			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+			const session = sessions.find(s => s.readEntry(model.uri, r));
+			if (!session) {
 				return;
 			}
 

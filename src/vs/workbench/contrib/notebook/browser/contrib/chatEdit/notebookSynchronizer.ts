@@ -91,11 +91,8 @@ export class NotebookModelSynchronizer extends Disposable {
 		super();
 
 		const entryObs = derived((r) => {
-			const session = _chatEditingService.globalEditingSessionObs.read(r);
-			if (!session) {
-				return;
-			}
-			return session.readEntry(model.uri, r);
+			const sessions = _chatEditingService.editingSessionsObs.read(r);
+			return sessions.map(s => s.readEntry(model.uri, r)).find(r => !!r);
 		}).recomputeInitiallyAndOnChange(this._store);
 
 

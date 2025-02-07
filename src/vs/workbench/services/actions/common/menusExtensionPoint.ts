@@ -438,6 +438,11 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.DiffEditorSelectionToolbar,
 		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
 		proposed: 'contribDiffEditorGutterToolBarMenus'
+	},
+	{
+		key: 'searchPanel/feedback',
+		id: MenuId.SearchActionMenu,
+		description: localize('searchPanel.feedback', "The feedback menu rendered as buttons next to the AI search title"),
 	}
 ];
 

@@ -135,17 +135,18 @@ export namespace PromptFilesConfig {
 		}
 
 		if (typeof configValue === 'string') {
-			const cleanValue = configValue.trim().toLowerCase();
+			const trimmedValue = configValue.trim();
+			const lowercasedValue = trimmedValue.toLowerCase();
 
-			if (!cleanValue) {
+			if (!lowercasedValue) {
 				return undefined;
 			}
 
-			if (asBoolean(cleanValue) !== undefined) {
-				return asBoolean(cleanValue);
+			if (asBoolean(lowercasedValue) !== undefined) {
+				return asBoolean(lowercasedValue);
 			}
 
-			return cleanValue;
+			return trimmedValue;
 		}
 
 		if (typeof configValue === 'boolean') {
@@ -153,9 +154,11 @@ export namespace PromptFilesConfig {
 		}
 
 		if (Array.isArray(configValue)) {
-			return configValue.filter((item) => {
-				return typeof item === 'string';
+			const cleanArray = configValue.filter((item) => {
+				return typeof item === 'string' && !!item.trim();
 			});
+
+			return Object.freeze(cleanArray);
 		}
 
 		// note! this would be also true for `null` and `array`,

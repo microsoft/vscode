@@ -218,7 +218,7 @@ export class GettingStartedDetailsRenderer {
 				</style>
 			</head>
 			<body>
-				<video controls autoplay loop ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
+				<video controls autoplay ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
 					<source src="${path.toString(true)}" type="video/mp4">
 				</video>
 			</body>

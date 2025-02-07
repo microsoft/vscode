@@ -383,7 +383,7 @@ export class CodeBlockPart extends Disposable {
 
 		this.layout(width);
 		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1) });
-
+		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Toolbar for code block {0}", data.codeBlockIndex + 1));
 		if (data.hideToolbar) {
 			dom.hide(this.toolbar.getElement());
 		} else {

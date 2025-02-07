@@ -183,7 +183,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const activeWindow = dom.getWindow(this.layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
-			const originX = this.getCurrentXPercent();
+			const originX = this.computeCurrentXPercent();
 			const originY = this.getCurrentYPosition();
 
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
@@ -220,10 +220,23 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 	}
 
+	/**
+	 * Computes the x percent position at which the toolbar is currently displayed.
+	 */
+	private computeCurrentXPercent(): number {
+		const { left, width } = this.$el.getBoundingClientRect();
+		return (left + width / 2) / dom.getWindow(this.$el).innerWidth;
+	}
+
+	/**
+	 * Gets the x position set in the style of the toolbar. This may not be its
+	 * actual position on screen depending on toolbar locations.
+	 */
 	private getCurrentXPercent(): number {
 		return Number(this.$el.style.getPropertyValue('--x-position'));
 	}
 
+	/** Gets the y position set in the style of the toolbar */
 	private getCurrentYPosition(): number {
 		return parseInt(this.$el.style.getPropertyValue('--y-position'));
 	}
