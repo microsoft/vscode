@@ -4,7 +4,7 @@
 		"lib": [
 			"ES2020"
 		],
-		"module": "commonjs",
+		"module": "nodenext",
 		"alwaysStrict": true,
 		"removeComments": false,
 		"preserveConstEnums": true,

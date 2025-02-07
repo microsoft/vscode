@@ -8,7 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAccessibilitySignalService, AccessibilitySignal } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,7 +17,7 @@ import { getNotificationFromContext } from './notificationsCommands.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { INotificationViewItem } from '../../../common/notifications.js';
 
-export class NotificationAccessibleView implements IAccessibleViewImplentation {
+export class NotificationAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 90;
 	readonly name = 'notifications';
 	readonly when = NotificationFocusedContext;

@@ -21,6 +21,8 @@ export interface ICodeMapperCodeBlock {
 
 export interface ICodeMapperRequest {
 	readonly codeBlocks: ICodeMapperCodeBlock[];
+	readonly chatRequestId?: string;
+	readonly location?: string;
 }
 
 export interface ICodeMapperResult {
@@ -69,4 +71,3 @@ export class CodeMapperService implements ICodeMapperService {
 		return undefined;
 	}
 }
-

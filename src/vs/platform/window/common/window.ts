@@ -392,10 +392,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
-	loggers: {
-		global: UriDto<ILoggerResource>[];
-		window: UriDto<ILoggerResource>[];
-	};
+	loggers: UriDto<ILoggerResource>[];
 
 	fullscreen?: boolean;
 	maximized?: boolean;

@@ -504,6 +504,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message);
 			value = [{ content: new MarkdownString(markdown), kind: 'markdownContent' }];
+
+			if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
+				templateData.value.classList.add('inline-progress');
+				value.push({ content: new MarkdownString('<span></span>', { supportHtml: true }), kind: 'markdownContent' });
+			} else {
+				templateData.value.classList.remove('inline-progress');
+			}
+
 		} else if (isResponseVM(element)) {
 			if (element.contentReferences.length) {
 				value.push({ kind: 'references', references: element.contentReferences });
@@ -524,6 +532,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const parts: IChatContentPart[] = [];
 		if (!isFiltered) {
+
+			let inlineSlashCommandRendered = false;
+
 			value.forEach((data, index) => {
 				const context: IChatContentPartRenderContext = {
 					element,
@@ -535,6 +546,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (newPart) {
 
 					if (this.rendererOptions.renderDetectedCommandsWithRequest
+						&& !inlineSlashCommandRendered
 						&& isRequestVM(element) && element.agentOrSlashCommandDetected && element.slashCommand
 						&& data.kind === 'markdownContent' // TODO this is fishy but I didn't find a better way to render on the same inline as the MD request part
 					) {
@@ -542,6 +554,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						const cmdPart = this.instantiationService.createInstance(ChatAgentCommandContentPart, element.slashCommand, () => this._onDidClickRerunWithAgentOrCommandDetection.fire({ sessionId: element.sessionId, requestId: element.id }));
 						templateData.value.appendChild(cmdPart.domNode);
 						parts.push(cmdPart);
+						inlineSlashCommandRendered = true;
 					}
 
 					templateData.value.appendChild(newPart.domNode);
@@ -579,11 +592,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.elementDisposables.add(renderedError);
 				templateData.value.appendChild(renderedError.domNode);
 			}
-		}
-
-		if (this.rendererOptions.renderStyle === 'minimal' && isRequestVM(element) && !element.isComplete) {
-			const element = $('span.chat-animated-ellipsis');
-			templateData.value.lastChild?.lastChild?.appendChild(element);
 		}
 
 		const newHeight = templateData.rowContainer.offsetHeight;

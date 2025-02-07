@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -42,6 +41,7 @@ import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelConten
 
 class AutoAcceptControl {
 	constructor(
+		readonly total: number,
 		readonly remaining: number,
 		readonly cancel: () => void
 	) { }
@@ -104,7 +104,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	readonly reviewMode: IObservable<boolean>;
 
 	private readonly _autoAcceptCtrl = observableValue<AutoAcceptControl | undefined>(this, undefined);
-	readonly autoAcceptController: IObservable<{ remaining: number; cancel(): void } | undefined> = this._autoAcceptCtrl;
+	readonly autoAcceptController: IObservable<AutoAcceptControl | undefined> = this._autoAcceptCtrl;
 
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
@@ -180,7 +180,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			modelService.createModel(
 				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.doc.createSnapshot()),
 				languageService.createById(this.doc.getLanguageId()),
-				ChatEditingTextModelContentProvider.getFileURI(this.entryId, this.modifiedURI.path),
+				ChatEditingTextModelContentProvider.getFileURI(_telemetryInfo.sessionId, this.entryId, this.modifiedURI.path),
 				false
 			)
 		);
@@ -198,7 +198,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
 
-		if (this.modifiedURI.scheme !== Schemas.untitled) {
+		if (this.modifiedURI.scheme !== Schemas.untitled && this.modifiedURI.scheme !== Schemas.vscodeNotebookCell) {
 			this._register(this._fileService.watch(this.modifiedURI));
 			this._register(this._fileService.onDidFilesChange(e => {
 				if (e.affects(this.modifiedURI) && kind === ChatEditKind.Created && e.gotDeleted()) {
@@ -270,7 +270,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(requestId, this.modifiedURI.path),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			originalToCurrentEdit: this._edit,
@@ -293,22 +293,18 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	acceptStreamingEditsStart(tx: ITransaction) {
 		this._resetEditsState(tx);
+		this._autoAcceptCtrl.get()?.cancel();
 	}
 
-	acceptStreamingEditsEnd(tx: ITransaction) {
+	async acceptStreamingEditsEnd(tx: ITransaction) {
 		this._resetEditsState(tx);
-	}
-
-	private _resetEditsState(tx: ITransaction): void {
-		this._isCurrentlyBeingModifiedObs.set(false, tx);
-		this._rewriteRatioObs.set(0, tx);
-		this._clearCurrentEditLineDecoration();
+		await this._diffOperation;
 
 		// AUTO accept mode
-		if (!this.reviewMode.get()) {
+		if (!this.reviewMode.get() && !this._autoAcceptCtrl.get()) {
 
-			const future = Date.now() + (this._autoAcceptTimeout.get() * 1000);
-			const cts = new CancellationTokenSource();
+			const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
+			const future = Date.now() + acceptTimeout;
 			const update = () => {
 
 				const reviewMode = this.reviewMode.get();
@@ -318,21 +314,25 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 					return;
 				}
 
-				if (cts.token.isCancellationRequested) {
-					this._autoAcceptCtrl.set(undefined, undefined);
-					return;
-				}
-
-				const remain = Math.round((future - Date.now()) / 1000);
+				const remain = Math.round(future - Date.now());
 				if (remain <= 0) {
 					this.accept(undefined);
 				} else {
-					this._autoAcceptCtrl.set(new AutoAcceptControl(remain, () => cts.cancel()), undefined);
-					setTimeout(update, 100);
+					const handle = setTimeout(update, 100);
+					this._autoAcceptCtrl.set(new AutoAcceptControl(acceptTimeout, remain, () => {
+						clearTimeout(handle);
+						this._autoAcceptCtrl.set(undefined, undefined);
+					}), undefined);
 				}
 			};
 			update();
 		}
+	}
+
+	private _resetEditsState(tx: ITransaction): void {
+		this._isCurrentlyBeingModifiedObs.set(false, tx);
+		this._rewriteRatioObs.set(0, tx);
+		this._clearCurrentEditLineDecoration();
 	}
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {

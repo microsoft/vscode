@@ -211,51 +211,17 @@ export class GettingStartedDetailsRenderer {
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					video {
-						max-width: 530px;
-						min-width: 350px;
-						height: 100%;
-						width: 100%;
+						max-width: 100%;
+						max-height: 100%;
 						object-fit: cover;
-						transform: translateY(50%);
 					}
 				</style>
 			</head>
 			<body>
-				<vertically-centered>
-					<video controls ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
-						<source src="${path.toString(true)}" type="video/mp4">
-					</video>
-				</vertically-centered>
+				<video controls autoplay ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
+					<source src="${path.toString(true)}" type="video/mp4">
+				</video>
 			</body>
-
-			<script nonce="${nonce}">
-				const vscode = acquireVsCodeApi();
-
-				document.querySelector('video').addEventListener('play', () => {
-					vscode.postMessage('playVideo' );
-				});
-
-				let ongoingLayout = undefined;
-				const doLayout = () => {
-					document.querySelectorAll('vertically-centered').forEach(element => {
-						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 0) + 'px';
-					});
-					ongoingLayout = undefined;
-				};
-
-				const layout = () => {
-					if (ongoingLayout) {
-						clearTimeout(ongoingLayout);
-					}
-					ongoingLayout = setTimeout(doLayout, 0);
-				};
-
-				layout();
-
-				document.querySelectorAll('video').forEach(element => {
-					element.onload = layout;
-				})
-		</script>
 		</html>`;
 	}
 
