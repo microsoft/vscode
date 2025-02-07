@@ -8,35 +8,38 @@ import { MockFilesystem } from './mockFilesystem.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IFileService, IFileStat } from '../../../../../../../platform/files/common/files.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 /**
- * TODO: @legomushroom
+ * Base attribute for an expected filesystem node (a file or a folder).
  */
-interface IBase {
-	resource: URI;
-	name: string;
-	isFile: boolean;
-	isDirectory: boolean;
-	isSymbolicLink: boolean;
-}
+interface IExpectedFilesystemNode extends Pick<
+	IFileStat,
+	'resource' | 'name' | 'isFile' | 'isDirectory' | 'isSymbolicLink'
+> { }
 
 /**
- * TODO: @legomushroom
+ * Represents an expected `file` info.
  */
-interface IExpectedFile extends IBase {
+interface IExpectedFile extends IExpectedFilesystemNode {
+	/**
+	 * Expected file contents.
+	 */
 	contents: string;
 }
 
 /**
- * TODO: @legomushroom
+ * Represents an expected `folder` info.
  */
-interface IExpectedFolder extends IBase {
+interface IExpectedFolder extends IExpectedFilesystemNode {
+	/**
+	 * Expected folder children.
+	 */
 	children: (IExpectedFolder | IExpectedFile)[];
 }
 
@@ -48,7 +51,12 @@ const validateFile = async (
 	expectedFile: IExpectedFile,
 	fileService: IFileService,
 ) => {
-	const readFile = await fileService.resolve(URI.file(filePath));
+	let readFile: IFileStat | undefined;
+	try {
+		readFile = await fileService.resolve(URI.file(filePath));
+	} catch (error) {
+		throw new Error(`Failed to read file '${filePath}': ${error}.`);
+	}
 
 	assert.strictEqual(
 		readFile.name,
@@ -59,34 +67,33 @@ const validateFile = async (
 	assert.deepStrictEqual(
 		readFile.resource,
 		expectedFile.resource,
-		'File must have correct `URI`.',
+		`File '${filePath}' must have correct 'URI'.`,
 	);
 
 	assert.strictEqual(
 		readFile.isFile,
 		expectedFile.isFile,
-		'File must have correct `isFile` value.',
+		`File '${filePath}' must have correct 'isFile' value.`,
 	);
 
 	assert.strictEqual(
 		readFile.isDirectory,
 		expectedFile.isDirectory,
-		'File must have correct `isDirectory` value.',
+		`File '${filePath}' must have correct 'isDirectory' value.`,
 	);
 
 	assert.strictEqual(
 		readFile.isSymbolicLink,
 		expectedFile.isSymbolicLink,
-		'File must have correct `isSymbolicLink` value.',
+		`File '${filePath}' must have correct 'isSymbolicLink' value.`,
 	);
 
 	assert.strictEqual(
 		readFile.children,
 		undefined,
-		'File must not have children.',
+		`File '${filePath}' must not have children.`,
 	);
 
-	// TODO: @legomushroom - add folder/file path to all asserts
 	const fileContents = await fileService.readFile(readFile.resource);
 	assert.strictEqual(
 		fileContents.value.toString(),
@@ -103,49 +110,73 @@ const validateFolder = async (
 	expectedFolder: IExpectedFolder,
 	fileService: IFileService,
 ) => {
-	const readFolder = await fileService.resolve(URI.file(folderPath));
+	let readFolder: IFileStat | undefined;
+	try {
+		readFolder = await fileService.resolve(URI.file(folderPath));
+	} catch (error) {
+		throw new Error(`Failed to read folder '${folderPath}': ${error}.`);
+	}
 
 	assert.strictEqual(
 		readFolder.name,
 		expectedFolder.name,
-		'Folder must have correct `name`.',
+		`Folder '${folderPath}' must have correct 'name'.`,
 	);
 
 	assert.deepStrictEqual(
 		readFolder.resource,
 		expectedFolder.resource,
-		'Folder must have correct `URI`.',
+		`Folder '${folderPath}' must have correct 'URI'.`,
 	);
 
 	assert.strictEqual(
 		readFolder.isFile,
 		expectedFolder.isFile,
-		'Folder must have correct `isFile` value.',
+		`Folder '${folderPath}' must have correct 'isFile' value.`,
 	);
 
 	assert.strictEqual(
 		readFolder.isDirectory,
 		expectedFolder.isDirectory,
-		'Folder must have correct `isDirectory` value.',
+		`Folder '${folderPath}' must have correct 'isDirectory' value.`,
 	);
 
 	assert.strictEqual(
 		readFolder.isSymbolicLink,
 		expectedFolder.isSymbolicLink,
-		'Folder must have correct `isSymbolicLink` value.',
+		`Folder '${folderPath}' must have correct 'isSymbolicLink' value.`,
 	);
-
 
 	assertDefined(
 		readFolder.children,
-		'Folder must have children.',
+		`Folder '${folderPath}' must have children.`,
 	);
 
 	assert.strictEqual(
 		readFolder.children.length,
 		expectedFolder.children.length,
-		'Folder must have correct number of children.',
+		`Folder '${folderPath}' must have correct number of children.`,
 	);
+
+	for (const expectedChild of expectedFolder.children) {
+		const childPath = URI.joinPath(expectedFolder.resource, expectedChild.name).fsPath;
+
+		if ('children' in expectedChild) {
+			await validateFolder(
+				childPath,
+				expectedChild,
+				fileService,
+			);
+
+			continue;
+		}
+
+		await validateFile(
+			childPath,
+			expectedChild,
+			fileService,
+		);
+	}
 };
 
 suite('MockFilesystem', () => {
@@ -164,7 +195,7 @@ suite('MockFilesystem', () => {
 		initService.stub(IFileService, fileService);
 	});
 
-	test('mocks file structure', async () => {
+	test('• mocks file structure', async () => {
 		const mockFilesystem = initService.createInstance(MockFilesystem, [
 			{
 				name: '/root/folder',
@@ -209,145 +240,48 @@ suite('MockFilesystem', () => {
 				isDirectory: true,
 				isSymbolicLink: false,
 				children: [
-					// TODO: @legomushroom - add real children
-					{} as any,
-					{} as any,
+					{
+						resource: URI.file('/root/folder/file.txt'),
+						name: 'file.txt',
+						isFile: true,
+						isDirectory: false,
+						isSymbolicLink: false,
+						contents: 'contents',
+					},
+					{
+						resource: URI.file('/root/folder/Subfolder'),
+						name: 'Subfolder',
+						isFile: false,
+						isDirectory: true,
+						isSymbolicLink: false,
+						children: [
+							{
+								resource: URI.file('/root/folder/Subfolder/test.ts'),
+								name: 'test.ts',
+								isFile: true,
+								isDirectory: false,
+								isSymbolicLink: false,
+								contents: 'other contents',
+							},
+							{
+								resource: URI.file('/root/folder/Subfolder/file.test.ts'),
+								name: 'file.test.ts',
+								isFile: true,
+								isDirectory: false,
+								isSymbolicLink: false,
+								contents: 'hello test',
+							},
+							{
+								resource: URI.file('/root/folder/Subfolder/.file-2.TEST.ts'),
+								name: '.file-2.TEST.ts',
+								isFile: true,
+								isDirectory: false,
+								isSymbolicLink: false,
+								contents: 'test hello',
+							},
+						],
+					}
 				],
-			},
-			fileService,
-		);
-
-		const rootFolder = await fileService.resolve(URI.file('/root/folder'));
-
-		assertDefined(
-			rootFolder.children,
-			'Root folder must have children.',
-		);
-
-		const file = rootFolder.children[0];
-
-		await validateFile(
-			'/root/folder/file.txt',
-			{
-				resource: URI.file('/root/folder/file.txt'),
-				name: 'file.txt',
-				isFile: true,
-				isDirectory: false,
-				isSymbolicLink: false,
-				contents: 'contents',
-			},
-			fileService,
-		);
-
-		await validateFile(
-			file.resource.fsPath,
-			{
-				resource: URI.file('/root/folder/file.txt'),
-				name: 'file.txt',
-				isFile: true,
-				isDirectory: false,
-				isSymbolicLink: false,
-				contents: 'contents',
-			},
-			fileService,
-		);
-
-		const subfolder = await fileService.resolve(URI.file('/root/folder/Subfolder'));
-
-		await validateFolder(
-			'/root/folder/Subfolder',
-			{
-				resource: URI.file('/root/folder/Subfolder'),
-				name: 'Subfolder',
-				isFile: false,
-				isDirectory: true,
-				isSymbolicLink: false,
-				children: [
-					// TODO: @legomushroom - add real children
-					{} as any,
-					{} as any,
-					{} as any,
-				],
-			},
-			fileService,
-		);
-
-		assertDefined(
-			subfolder.children,
-			'Subfolder must have children.',
-		);
-
-		await validateFile(
-			'/root/folder/Subfolder/test.ts',
-			{
-				resource: URI.file('/root/folder/Subfolder/test.ts'),
-				name: 'test.ts',
-				isFile: true,
-				isDirectory: false,
-				isSymbolicLink: false,
-				contents: 'other contents',
-			},
-			fileService,
-		);
-		await validateFile(
-			subfolder.children[0].resource.fsPath,
-			{
-				resource: URI.file('/root/folder/Subfolder/test.ts'),
-				name: 'test.ts',
-				isFile: true,
-				isDirectory: false,
-				isSymbolicLink: false,
-				contents: 'other contents',
-			},
-			fileService,
-		);
-
-		await validateFile(
-			'/root/folder/Subfolder/file.test.ts',
-			{
-				resource: URI.file('/root/folder/Subfolder/file.test.ts'),
-				name: 'file.test.ts',
-				isFile: true,
-				isDirectory: false,
-				isSymbolicLink: false,
-				contents: 'hello test',
-			},
-			fileService,
-		);
-		await validateFile(
-			subfolder.children[1].resource.fsPath,
-			{
-				resource: URI.file('/root/folder/Subfolder/file.test.ts'),
-				name: 'file.test.ts',
-				isFile: true,
-				isDirectory: false,
-				isSymbolicLink: false,
-				contents: 'hello test',
-			},
-			fileService,
-		);
-
-		await validateFile(
-			'/root/folder/Subfolder/.file-2.TEST.ts',
-			{
-				resource: URI.file('/root/folder/Subfolder/.file-2.TEST.ts'),
-				name: '.file-2.TEST.ts',
-				isFile: true,
-				isDirectory: false,
-				isSymbolicLink: false,
-				contents: 'test hello',
-			},
-			fileService,
-		);
-		await validateFile(
-			subfolder.children[2].resource.fsPath,
-			{
-				resource: URI.file('/root/folder/Subfolder/.file-2.TEST.ts'),
-				name: '.file-2.TEST.ts',
-				isFile: true,
-				isDirectory: false,
-				isSymbolicLink: false,
-				contents: 'test hello',
 			},
 			fileService,
 		);
