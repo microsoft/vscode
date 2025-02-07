@@ -134,7 +134,7 @@ export class ExtensionManagementCLI {
 				}
 			}
 		} catch (error) {
-			this.logger.error(localize('error installing extensions', "Error while installing extensions: {0}", getErrorMessage(error)));
+			this.logger.error(localize('error while installing extensions', "Error while installing extensions: {0}", getErrorMessage(error)));
 		}
 
 		if (failed.size) {
