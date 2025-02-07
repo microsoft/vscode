@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { ExecOptionsWithStringEncoding } from 'child_process';
+import { exec, ExecOptionsWithStringEncoding } from 'child_process';
 import { upstreamSpecs } from './constants';
 import codeCompletionSpec from './completions/code';
 import cdSpec from './completions/cd';
@@ -20,9 +20,11 @@ import { getTokenType, TokenType } from './tokens';
 import { PathExecutableCache } from './env/pathExecutableCache';
 import { getFriendlyResourcePath } from './helpers/uri';
 import { ArgumentParserResult, parseArguments } from './fig/autocomplete-parser/parseArguments';
-import { getCommand } from './fig/shell-parser/command';
+import { getCommand, type Command } from './fig/shell-parser/command';
 import { SuggestionFlag } from './fig/shared/utils';
 import completionSpec from './completions/upstream/git';
+import { spawnHelper } from './shell/common';
+import { ParseArgumentsError } from './fig/autocomplete-parser/errors';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -241,11 +243,11 @@ export function asArray<T>(x: T | T[]): T[] {
 
 export type SpecArg = Fig.Arg | Fig.Suggestion | Fig.Option | string;
 
-export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]): { filesRequested: boolean; foldersRequested: boolean } | undefined {
+export async function addSuggestionsFromParsedArguments(command: Command, parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
 
-	const addSuggestions = (specArgs: SpecArg[] | Record<string, SpecArg> | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
+	const addSuggestions = async (specArgs: SpecArg[] | Record<string, SpecArg> | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
 		if (kind === vscode.TerminalCompletionItemKind.Argument && parsedArguments?.currentArg?.generators) {
 			const generators = parsedArguments.currentArg.generators;
 			for (const generator of generators) {
@@ -255,6 +257,30 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 					continue;
 				} else if (generator.template === 'folders') {
 					foldersRequested = true;
+				} else {
+					if (generator.script && Array.isArray(generator.script) && generator.postProcess) {
+						const output = await spawnHelper(generator.script[0], generator.script.slice(1), { encoding: 'utf8' }); //, { options });
+						const generatedItems = generator.postProcess(output, command.tokens.map(e => e.text));
+						for (const generatedItem of generatedItems) {
+							if (!generatedItem) {
+								continue;
+							}
+							const suggestionLabels = getLabel(generatedItem);
+							if (!suggestionLabels) {
+								continue;
+							}
+							for (const label of suggestionLabels) {
+								items.push(createCompletionItem(
+									terminalContext.cursorPosition,
+									prefix,
+									{ label },
+									undefined,
+									typeof generatedItem === 'string' ? generatedItem : generatedItem.description,
+									kind
+								));
+							}
+						}
+					}
 				}
 			}
 		}
@@ -274,8 +300,8 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 							terminalContext.cursorPosition,
 							prefix,
 							{ label },
-							typeof item === 'string' ? item : item.description,
 							undefined,
+							typeof item === 'string' ? item : item.description,
 							kind
 						)
 					);
@@ -288,8 +314,8 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 						terminalContext.cursorPosition,
 						prefix,
 						{ label },
-						typeof item === 'string' ? item : item.description,
 						undefined,
+						typeof item === 'string' ? item : item.description,
 						kind
 					)
 				);
@@ -298,13 +324,13 @@ export function addSuggestionsFromParsedArguments(parsedArguments: ArgumentParse
 	};
 
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Args) {
-		addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument, parsedArguments);
+		await addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument, parsedArguments);
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Subcommands) {
-		addSuggestions(parsedArguments.completionObj.subcommands, vscode.TerminalCompletionItemKind.Method);
+		await addSuggestions(parsedArguments.completionObj.subcommands, vscode.TerminalCompletionItemKind.Method);
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Options) {
-		addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag);
+		await addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag);
 	}
 
 	return { filesRequested, foldersRequested };
@@ -372,15 +398,20 @@ export async function getCompletionItemsFromSpecs(
 			}
 
 			if (shellIntegrationCwd) {
+				const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition);
 				const parsedArguments: ArgumentParserResult = await parseArguments(
 					// TODO: pass in aliases
-					getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition),
+					command,
 					{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd?.fsPath, sshPrefix: '', currentProcess: name },
 					spec,
 				);
-				const requestResult = addSuggestionsFromParsedArguments(parsedArguments, prefix, terminalContext, items);
-				filesRequested ||= requestResult?.filesRequested ?? false;
-				foldersRequested ||= requestResult?.foldersRequested ?? false;
+				if (command) {
+					const requestResult = await addSuggestionsFromParsedArguments(command, parsedArguments, prefix, terminalContext, items);
+					if (requestResult) {
+						filesRequested ||= requestResult.filesRequested;
+						foldersRequested ||= requestResult.foldersRequested;
+					}
+				}
 			} else {
 				const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
 				if (optionsCompletionResult) {
