@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isElectron } from '../../../../../base/common/platform.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, extUri } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -573,6 +573,7 @@ export class AttachContextAction extends Action2 {
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
 				await selectPromptAttachment({
 					widget,
+					resource: undefined,
 					quickInputService,
 					labelService,
 					openerService,
@@ -888,17 +889,23 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
  */
 interface ISelectPromptOptions {
 	widget: IChatWidget;
+	resource: URI | undefined;
 	quickInputService: IQuickInputService;
 	labelService: ILabelService;
 	openerService: IOpenerService;
 }
 
 /**
+ * Type for an obejct with its `value` property being a `URI`.
+ */
+type WithUriValue<T> = T & { value: URI };
+
+/**
  * Open the prompt files selection dialog and adds
  * selected prompts to the chat attachments model.
  */
 const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<void> => {
-	const { widget, quickInputService, labelService, openerService } = options;
+	const { widget, resource, quickInputService, labelService, openerService } = options;
 	const { promptInstructions } = widget.attachmentModel;
 
 	// find all prompt instruction files in the user project
@@ -908,12 +915,13 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 			return files.map((file) => {
 				const fileBasename = basename(file);
 				const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
-				const result: IQuickPickItem & { value: URI } = {
+				const result: WithUriValue<IQuickPickItem> = {
 					type: 'item',
 					label: fileWithoutExtension,
 					description: labelService.getUriLabel(dirname(file), { relative: true }),
 					tooltip: file.fsPath,
 					value: file,
+					// picked: extUri.isEqual(file, resource), // TODO: @legomushroom - this can be used with multi-select
 				};
 
 				return result;
@@ -923,7 +931,7 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 	// if not prompt files found, render the "how to add" message
 	// to the user with a link to the documentation
 	if (files.length === 0) {
-		const docsQuickPick: IQuickPickItem & { value: URI } = {
+		const docsQuickPick: WithUriValue<IQuickPickItem> = {
 			type: 'item',
 			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how to create reusable prompts'),
 			description: DOCUMENTATION_URL,
@@ -946,12 +954,32 @@ const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<vo
 		return;
 	}
 
+	let activeItem: WithUriValue<IQuickPickItem> | undefined;
+	if (resource) {
+		files.sort((file1, file2) => {
+			if (extUri.isEqual(file1.value, resource)) {
+				return -1;
+			}
+
+			if (extUri.isEqual(file2.value, resource)) {
+				return 1;
+			}
+
+			return 0;
+		});
+
+		activeItem = files.find((file) => {
+			return extUri.isEqual(file.value, resource);
+		});
+	}
+
 	// otherwise show the prompt file selection dialog
 	const selectedFile = await quickInputService.pick(
 		files,
 		{
 			placeHolder: localize('selectPromptFile', 'Select a prompt file'),
 			canPickMany: false,
+			activeItem,
 		});
 
 	// if a file was selected, add it to the chat attachments model
@@ -973,7 +1001,7 @@ function getEditingSession(chatEditingService: IChatEditingService, chatWidget: 
  * TODO: @legomushroom
  */
 export interface IChatUsePromptActionOptions {
-	resources?: URI[];
+	resource?: URI;
 	location: ChatAgentLocation;
 }
 
@@ -997,14 +1025,18 @@ registerAction2(class UsePromptAction extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, options: IChatUsePromptActionOptions): Promise<void> {
+	public override async run(
+		accessor: ServicesAccessor,
+		options: IChatUsePromptActionOptions,
+	): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const labelService = accessor.get(ILabelService);
-		const quickInputService = accessor.get(IQuickInputService);
 		const openerService = accessor.get(IOpenerService);
+		const quickInputService = accessor.get(IQuickInputService);
 
-		const { resources, location } = options;
+		const { resource, location } = options;
 
+		// TODO: @legomushroom - reuse existing chat widget, if present
 		const widget = (location === ChatAgentLocation.Panel)
 			? await showChatView(viewsService)
 			: await showEditsView(viewsService);
@@ -1014,18 +1046,26 @@ registerAction2(class UsePromptAction extends Action2 {
 			return;
 		}
 
-		if (resources) {
-			for (const resource of resources) {
-				widget.attachmentModel.promptInstructions.add(resource);
-			}
-		} else {
-			await selectPromptAttachment({
-				widget,
-				quickInputService,
-				labelService,
-				openerService,
-			});
-		}
+		await selectPromptAttachment({
+			widget,
+			resource,
+			quickInputService,
+			labelService,
+			openerService,
+		});
+
+		// if (resource) {
+		// 	widget.attachmentModel.promptInstructions.add(resource);
+		// 	// for (const resource of resources) {
+		// 	// }
+		// } else {
+		// 	await selectPromptAttachment({
+		// 		widget,
+		// 		quickInputService,
+		// 		labelService,
+		// 		openerService,
+		// 	});
+		// }
 
 		widget.focusInput();
 	}
