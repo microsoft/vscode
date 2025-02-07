@@ -11,7 +11,6 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IActionProvider } from '../../../../base/browser/ui/dropdown/dropdown.js';
-import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
@@ -19,7 +18,6 @@ import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../..
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { ToggleMenuAction } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Promises } from '../../../../base/common/async.js';
@@ -54,6 +52,7 @@ import { SuggestController } from '../../../../editor/contrib/suggest/browser/su
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { DropdownMenuActionViewItemWithKeybinding } from '../../../../platform/actions/browser/dropdownActionViewItemWithKeybinding.js';
 import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -1640,16 +1639,16 @@ interface ModelPickerDelegate {
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 }
 
-class ModelPickerActionViewItem extends DropdownMenuActionViewItem {
+class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
 	constructor(
 		action: MenuItemAction,
 		private currentLanguageModel: ILanguageModelChatMetadataAndIdentifier,
 		private readonly delegate: ModelPickerDelegate,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService _accessibilityService: IAccessibilityService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		const toggleMenuAction = new ToggleMenuAction(() => { }, action.label);
-
 		const modelActionsProvider: IActionProvider = {
 			getActions: () => {
 				const setLanguageModelAction = (entry: ILanguageModelChatMetadataAndIdentifier): IAction => {
@@ -1673,8 +1672,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItem {
 			}
 		};
 
-		super(toggleMenuAction, modelActionsProvider, contextMenuService);
-		this._register(toggleMenuAction);
+		super(action, modelActionsProvider, contextMenuService, undefined, keybindingService, contextKeyService);
 		this._register(delegate.onDidChangeModel(modelId => {
 			this.currentLanguageModel = modelId;
 			this.renderLabel(this.element!);
@@ -1695,15 +1693,15 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItem {
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
-class ToggleAgentActionViewItem extends DropdownMenuActionViewItem {
+class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
 	private readonly agentStateActions: IAction[];
 
 	constructor(
 		action: MenuItemAction,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		const toggleMenuAction = new ToggleMenuAction(() => { }, action.label);
-
 		const agentStateActions = [
 			{
 				...action,
@@ -1724,13 +1722,11 @@ class ToggleAgentActionViewItem extends DropdownMenuActionViewItem {
 			},
 		];
 
-		super(toggleMenuAction, agentStateActions, contextMenuService);
+		super(action, agentStateActions, contextMenuService, undefined, keybindingService, contextKeyService);
 		this.agentStateActions = agentStateActions;
-		this._register(toggleMenuAction);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		// TODO Hover with keybinding?
 		const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
 		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;

@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../nls.js';
+import { Action, IAction, IActionRunner } from '../../../common/actions.js';
+import { Codicon } from '../../../common/codicons.js';
+import { Emitter } from '../../../common/event.js';
+import { ResolvedKeybinding } from '../../../common/keybindings.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import { ThemeIcon } from '../../../common/themables.js';
 import { IContextMenuProvider } from '../../contextmenu.js';
 import { $, addDisposableListener, append, EventType, h } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from '../actionbar/actionViewItems.js';
 import { AnchorAlignment } from '../contextview/contextview.js';
-import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from './dropdown.js';
-import { Action, IAction, IActionRunner } from '../../../common/actions.js';
-import { Codicon } from '../../../common/codicons.js';
-import { ThemeIcon } from '../../../common/themables.js';
-import { Emitter } from '../../../common/event.js';
-import { KeyCode } from '../../../common/keyCodes.js';
-import { ResolvedKeybinding } from '../../../common/keybindings.js';
-import { IDisposable } from '../../../common/lifecycle.js';
-import './dropdown.css';
-import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import './dropdown.css';
+import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from './dropdown.js';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;
