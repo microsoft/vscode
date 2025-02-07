@@ -289,7 +289,7 @@ export class WindowTitle extends Disposable {
 	 * {dirty}: indicator
 	 * {focusedView}: e.g. Terminal
 	 * {separator}: conditional separator
-	 * {editorTabDecorations}: e.g. "Modified"
+	 * {editorStateInfo}: e.g. Modified
 	 */
 	getWindowTitle(): string {
 		const editor = this.editorService.activeEditor;
@@ -349,7 +349,7 @@ export class WindowTitle extends Disposable {
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
-		const editorStateInformation = editor?.resource ? this.decorationsService.getDecoration(editor.resource, true)?.tooltip : undefined;
+		const editorStateInfo = editor?.resource ? this.decorationsService.getDecoration(editor.resource, true)?.tooltip : undefined;
 
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
@@ -384,7 +384,7 @@ export class WindowTitle extends Disposable {
 			remoteName,
 			profileName,
 			focusedView,
-			editorStateInformation,
+			editorStateInfo,
 			separator: { label: separator }
 		});
 	}
