@@ -26,8 +26,7 @@ import { IViewDescriptorService } from '../../../../common/views.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
-import { IInlineChatSavingService } from '../../browser/inlineChatSavingService.js';
-import { HunkState, Session } from '../../browser/inlineChatSession.js';
+import { HunkState } from '../../browser/inlineChatSession.js';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -61,6 +60,8 @@ import { ILanguageModelToolsService } from '../../../chat/common/languageModelTo
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 import { IChatRequestModel } from '../../../chat/common/chatModel.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
+import { IObservable, constObservable } from '../../../../../base/common/observable.js';
+import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 
 suite('InlineChatSession', function () {
 
@@ -95,11 +96,6 @@ suite('InlineChatSession', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[ILanguageModelToolsService, new MockLanguageModelToolsService()],
-			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
-				override markChanged(session: Session): void {
-					// noop
-				}
-			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
 					return {
@@ -108,6 +104,9 @@ suite('InlineChatSession', function () {
 						done() { },
 					};
 				}
+			}],
+			[IChatEditingService, new class extends mock<IChatEditingService>() {
+				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }

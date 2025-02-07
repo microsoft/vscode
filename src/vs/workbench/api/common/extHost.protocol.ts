@@ -84,7 +84,7 @@ import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../servic
 import * as search from '../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
-import { TerminalCompletionItem, TerminalCompletionList, TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
+import { TerminalCompletionItem, TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
@@ -261,6 +261,9 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 	setEndOfLine?: EndOfLineSequence;
 }
 
+export interface ISnippetOptions extends IUndoStopOptions {
+	keepWhitespace?: boolean;
+}
 export interface ITextDocumentShowOptions {
 	position?: EditorGroupColumn;
 	preserveFocus?: boolean;
@@ -692,7 +695,7 @@ export type StatusBarItemDto = {
 };
 
 export interface ExtHostStatusBarShape {
-	$acceptStaticEntries(added?: StatusBarItemDto[], removed?: string): void;
+	$acceptStaticEntries(added?: StatusBarItemDto[]): void;
 	$provideTooltip(entryId: string, cancellation: CancellationToken): Promise<string | IMarkdownString | undefined>;
 }
 
@@ -1328,6 +1331,7 @@ export type IChatAgentHistoryEntryDto = {
 
 export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
+	$setRequestPaused(handle: number, requestId: string, isPaused: boolean): void;
 	$provideFollowups(request: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
@@ -2405,6 +2409,49 @@ export interface ITerminalCompletionContextDto {
 	cursorPosition: number;
 }
 
+
+export interface ITerminalCompletionProvider {
+	id: string;
+	shellTypes?: TerminalShellType[];
+	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<TerminalCompletionItem[] | TerminalCompletionListDto<TerminalCompletionItem> | undefined>;
+	triggerCharacters?: string[];
+	isBuiltin?: boolean;
+}
+/**
+ * Represents a collection of {@link CompletionItem completion items} to be presented
+ * in the editor.
+ */
+export class TerminalCompletionListDto<T extends TerminalCompletionItem = TerminalCompletionItem> {
+
+	/**
+	 * Resources should be shown in the completions list
+	 */
+	resourceRequestConfig?: TerminalResourceRequestConfigDto;
+
+	/**
+	 * The completion items.
+	 */
+	items: T[];
+
+	/**
+	 * Creates a new completion list.
+	 *
+	 * @param items The completion items.
+	 * @param isIncomplete The list is not complete.
+	 */
+	constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfigDto) {
+		this.items = items ?? [];
+		this.resourceRequestConfig = resourceRequestConfig;
+	}
+}
+
+export interface TerminalResourceRequestConfigDto {
+	filesRequested?: boolean;
+	foldersRequested?: boolean;
+	cwd?: UriComponents;
+	pathSeparator: string;
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): void;
 	$acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
@@ -2432,7 +2479,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
-	$provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto, token: CancellationToken): Promise<TerminalCompletionItem[] | TerminalCompletionList | undefined>;
+	$provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto, token: CancellationToken): Promise<TerminalCompletionItem[] | TerminalCompletionListDto | undefined>;
 }
 
 export interface ExtHostTerminalShellIntegrationShape {

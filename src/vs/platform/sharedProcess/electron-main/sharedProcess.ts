@@ -190,7 +190,7 @@ export class SharedProcess extends Disposable {
 			},
 			args: this.environmentMainService.args,
 			logLevel: this.loggerMainService.getLogLevel(),
-			loggers: this.loggerMainService.getRegisteredLoggers(),
+			loggers: this.loggerMainService.getGlobalLoggers(),
 			policiesData: this.policyService.serialize()
 		};
 	}

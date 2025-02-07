@@ -139,7 +139,7 @@ class OpenChatGlobalAction extends Action2 {
 			}
 		}
 		if (opts?.variableIds && opts.variableIds.length > 0) {
-			const actualVariables = chatVariablesService.getVariables(ChatAgentLocation.Panel);
+			const actualVariables = chatVariablesService.getVariables();
 			for (const actualVariable of actualVariables) {
 				if (opts.variableIds.includes(actualVariable.id)) {
 					chatWidget.attachmentModel.addContext({
@@ -335,7 +335,7 @@ class ChatAddAction extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
 		id: 'update.showCurrentReleaseNotes',
-		title: localize2('chat.releaseNotes.label', "Explore New Features"),
+		title: localize2('chat.releaseNotes.label', "Show Release Notes"),
 	},
 	when: ContextKeyExpr.equals('view', ChatViewId)
 });
@@ -485,7 +485,7 @@ export function registerChatActions() {
 		});
 	}
 
-	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals('config.github.copilot.advanced.authProvider', 'github-enterprise'));
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.providerSetting}`, defaultChat.enterpriseProviderId));
 	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage Copilot Plan"), defaultChat.managePlanUrl, 1, nonEnterpriseCopilotUsers);
 	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2, nonEnterpriseCopilotUsers);
 	registerOpenLinkAction('workbench.action.chat.learnMore', localize2('learnMore', "Learn More"), defaultChat.documentationUrl, 3);
@@ -523,6 +523,8 @@ const defaultChat = {
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
+	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
+	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
 };
 
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {

@@ -603,7 +603,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		if (this.isViewMergedWithContainer()) {
-			return this.paneItems[0].pane.getActionViewItem(action, options);
+			return this.paneItems[0].pane.createActionViewItem(action, options);
 		}
 		return createActionViewItem(this.instantiationService, action, options);
 	}

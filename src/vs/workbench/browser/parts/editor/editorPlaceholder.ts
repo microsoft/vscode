@@ -5,7 +5,7 @@
 
 import './media/editorplaceholder.css';
 import { localize } from '../../../../nls.js';
-import { truncate, truncateMiddle } from '../../../../base/common/strings.js';
+import { truncate } from '../../../../base/common/strings.js';
 import Severity from '../../../../base/common/severity.js';
 import { IEditorOpenContext, isEditorOpenError } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -48,7 +48,7 @@ export interface IErrorEditorPlaceholderOptions extends IEditorOptions {
 
 export abstract class EditorPlaceholder extends EditorPane {
 
-	protected static readonly PLACEHOLDER_LABEL_MAX_LENGTH = 1024;
+	private static readonly PLACEHOLDER_LABEL_MAX_LENGTH = 1024;
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -248,7 +248,7 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		} else if (isEditorOpenError(error) && error.forceMessage) {
 			label = error.message;
 		} else if (error) {
-			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", truncateMiddle(toErrorMessage(error), EditorPlaceholder.PLACEHOLDER_LABEL_MAX_LENGTH / 2));
+			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error. Please consult the log for more details.");
 		} else {
 			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
 		}
