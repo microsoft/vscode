@@ -23,6 +23,7 @@ import { ArgumentParserResult, parseArguments } from './fig/autocomplete-parser/
 import { getCommand, type Command } from './fig/shell-parser/command';
 import { SuggestionFlag } from './fig/shared/utils';
 import { spawnHelper } from './shell/common';
+import { getEnvAsRecord } from './test/helpers';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -106,18 +107,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 			const commands = [...commandsInPath.completionResources, ...shellGlobals];
-			const env: Record<string, string> = {};
-			if (terminal.shellIntegration?.env) {
-				for (const [key, value] of Object.entries(terminal.shellIntegration.env)) {
-					if (typeof value === 'string') {
-						env[key] = value;
-					}
-				}
-			}
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, shellType);
-			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, env, terminal.name, token);
+			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, getEnvAsRecord(terminal.shellIntegration?.env), terminal.name, token);
 			if (terminal.shellIntegration?.env) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
 				if (homeDirCompletion && terminal.shellIntegration.env.HOME) {
