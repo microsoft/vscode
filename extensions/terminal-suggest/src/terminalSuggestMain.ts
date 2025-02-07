@@ -402,7 +402,7 @@ export async function getCompletionItemsFromSpecs(
 				const parsedArguments: ArgumentParserResult = await parseArguments(
 					// TODO: pass in aliases
 					command,
-					{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd?.fsPath, sshPrefix: '', currentProcess: name },
+					{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd.fsPath, sshPrefix: '', currentProcess: name },
 					spec,
 				);
 				const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, items);
