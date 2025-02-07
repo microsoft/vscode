@@ -639,7 +639,7 @@ export class ChatService extends Disposable implements IChatService {
 							variableData = chatRequest.variableData;
 							message = getPromptText(request.message).message;
 						} else {
-							variableData = await this.chatVariablesService.resolveVariables(parsedRequest, request.attachedContext, model, progressCallback, token);
+							variableData = this.chatVariablesService.resolveVariables(parsedRequest, request.attachedContext);
 							for (const variable of variableData.variables) {
 								if (request.workingSet && variable.isFile && URI.isUri(variable.value)) {
 									request.workingSet.push(variable.value);
