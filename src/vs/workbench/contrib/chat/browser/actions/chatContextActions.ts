@@ -968,3 +968,65 @@ function getEditingSession(chatEditingService: IChatEditingService, chatWidget: 
 	}
 	return chatEditingService.getEditingSession(chatWidget.viewModel.sessionId);
 }
+
+/**
+ * TODO: @legomushroom
+ */
+export interface IChatUsePromptActionOptions {
+	resources?: URI[];
+	location: ChatAgentLocation;
+}
+
+/**
+ * TODO: @legomushroom
+ */
+export const USE_PROMPT_ACTION_ID = 'workbench.action.chat.use.prompt';
+
+/**
+ * TODO: @legomushroom
+ */
+// TODO: @legomushroom - attach through the variables service?
+registerAction2(class UsePromptAction extends Action2 {
+	constructor() {
+		super({
+			id: USE_PROMPT_ACTION_ID,
+			title: localize2('workbench.action.chat.use.prompt.label', "Use Prompt"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			// precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor, options: IChatUsePromptActionOptions): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const labelService = accessor.get(ILabelService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const openerService = accessor.get(IOpenerService);
+
+		const { resources, location } = options;
+
+		const widget = (location === ChatAgentLocation.Panel)
+			? await showChatView(viewsService)
+			: await showEditsView(viewsService);
+
+		if (!widget || !widget.viewModel) {
+			// TODO: @legomushroom - log an error here?
+			return;
+		}
+
+		if (resources) {
+			for (const resource of resources) {
+				widget.attachmentModel.promptInstructions.add(resource);
+			}
+		} else {
+			await selectPromptAttachment({
+				widget,
+				quickInputService,
+				labelService,
+				openerService,
+			});
+		}
+
+		widget.focusInput();
+	}
+});
