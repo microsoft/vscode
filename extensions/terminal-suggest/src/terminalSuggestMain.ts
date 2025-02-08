@@ -404,6 +404,7 @@ export async function getCompletionItemsFromSpecs(
 				{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd.fsPath, sshPrefix: '', currentProcess: name, /* TODO: pass in aliases */ },
 				spec,
 			);
+
 			const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, items);
 			if (completionItemResult) {
 				filesRequested ||= completionItemResult.filesRequested;
