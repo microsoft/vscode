@@ -218,7 +218,16 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	}
 
 	/**
+	 * List prompt instruction files available.
+	 * TODO: @legomushroom - remove?
+	 */
+	public async listFiles(): Promise<readonly URI[]> {
+		return await this.instructionsFileReader.listFiles([]);
+	}
+
+	/**
 	 * List prompt instruction files available and not attached yet.
+	 * TODO: @legomushroom - remove?
 	 */
 	public async listNonAttachedFiles(): Promise<readonly URI[]> {
 		return await this.instructionsFileReader.listFiles(this.references);

@@ -7,37 +7,39 @@
 import { URI } from '../../../../../../base/common/uri.js';
 // import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { ChatAgentLocation } from '../../../common/chatAgents.js';
-import { Schemas } from '../../../../../../base/common/network.js';
-import { ResourceContextKey } from '../../../../../common/contextkeys.js';
-import { IChatUsePromptActionOptions, USE_PROMPT_ACTION_ID } from '../../actions/chatContextActions.js';
+// import { Schemas } from '../../../../../../base/common/network.js';
+// import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
+// import { PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { BasePromptParser } from '../../../common/promptSyntax/parsers/basePromptParser.js';
+// import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 // import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IActiveCodeEditor, isCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { IChatUsePromptActionOptions, USE_PROMPT_ACTION_ID } from '../../actions/chatContextActions.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 // import { appendEditorTitleContextMenuItem, appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
 
 /**
  * TODO: @legomushroom
- *  - current file support (preselection)
- *  - inline edits support
- *  - file tree context support
+ *  - update picker hint text to show chat type destination
+ *  - use `onKeyMods` instead of 2 separate commands
  *  - chat input support
  *  - chat edits support
- *  - no file support
+ *  - inline edits support
+ *  - file tree context support
+ *  - command palette support
  *  - what to do with the "current file" context when using a current file as a prompt?
  */
 
 export const USE_PROMPT_COMMAND_ID = 'usePrompt';
 // const USE_PROMPT_LABEL = nls.localize2(USE_PROMPT_COMMAND_ID, "Use Prompt");
-const USE_PROMPT_WHEN_CONTEXT = ContextKeyExpr.or(
-	ResourceContextKey.Scheme.isEqualTo(Schemas.file),
-	ResourceContextKey.Extension.isEqualTo(PROMPT_FILE_EXTENSION),
-);
+// const USE_PROMPT_WHEN_CONTEXT = ContextKeyExpr.or(
+// 	ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+// 	ResourceContextKey.Extension.isEqualTo(PROMPT_FILE_EXTENSION),
+// );
 
 const USE_PROMPT_IN_EDITS_COMMAND_ID = 'usePromptInEdits';
 // const USE_PROMPT_IN_EDITS_LABEL = nls.localize2(USE_PROMPT_IN_EDITS_COMMAND_ID, "Use Prompt in Edits");
@@ -65,14 +67,15 @@ export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor |
 }
 
 /**
- * Gets `URI` of an active editor instance, if any.
+ * Gets `URI` of a prompt file if it is an active editor instance.
  */
 // TODO: @legomushroom - do we need to `getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));`?
-const getActiveResource = (
+const getActivePromptUri = (
 	resource: URI | undefined,
 	accessor: ServicesAccessor,
 ): URI | undefined => {
 	if (resource) {
+		// TODO: @legomushroom - check if a prompt resource
 		return resource;
 	}
 
@@ -81,8 +84,12 @@ const getActiveResource = (
 		return undefined;
 	}
 
-	// TODO: @legomushroom - active aditor must not be the chat input
-	return activeEditor.getModel().uri;
+	const { uri } = activeEditor.getModel();
+	if (BasePromptParser.isPromptSnippet(uri)) {
+		return uri;
+	}
+
+	return undefined;
 };
 
 /**
@@ -97,7 +104,7 @@ const usePromptCommand = async (
 
 	const options: IChatUsePromptActionOptions = {
 		location,
-		resource: getActiveResource(resource, accessor),
+		resource: getActivePromptUri(resource, accessor),
 	};
 
 	await commandService.executeCommand(USE_PROMPT_ACTION_ID, options);
@@ -106,7 +113,12 @@ const usePromptCommand = async (
 const usePromptCommandFactory = (
 	location: ChatAgentLocation,
 ) => {
-	return async (accessor: ServicesAccessor, resource?: URI): Promise<void> => {
+	return async (
+		accessor: ServicesAccessor,
+		// TODO: @legomushroom - uncomment for the code editor context menu actions
+		// resource?: URI,
+	): Promise<void> => {
+		const resource = undefined;
 		return await usePromptCommand(location, accessor, resource);
 	};
 };
@@ -119,7 +131,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: BASE_KEYS | KeyCode.KeyR,
 	handler: usePromptCommandFactory(ChatAgentLocation.Panel),
-	when: USE_PROMPT_WHEN_CONTEXT,
+	// when: USE_PROMPT_WHEN_CONTEXT,
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -127,7 +139,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: BASE_KEYS | KeyCode.KeyE,
 	handler: usePromptCommandFactory(ChatAgentLocation.EditingSession),
-	when: USE_PROMPT_WHEN_CONTEXT,
+	// when: USE_PROMPT_WHEN_CONTEXT,
 });
 
 // // Command Palette
